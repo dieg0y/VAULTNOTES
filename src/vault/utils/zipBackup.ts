@@ -88,28 +88,8 @@ function normalizeCommands(raw: unknown): string[] {
 }
 
 // Helper to sanitize path strings for zip folders/files
-export function sanitizeFilename(str: string): string {
+function sanitizeFilename(str: string): string {
   return str.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
-}
-
-export function htmlToMarkdown(html: string): string {
-  // Convert basic HTML back to readable markdown representation
-  return html
-    .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
-    .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
-    .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
-    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
-    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
-    .replace(/<em>(.*?)<\/em>/gi, '*$1*')
-    .replace(/<i>(.*?)<\/i>/gi, '*$1*')
-    .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '> $1\n\n')
-    .replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```\n\n')
-    .replace(/<code>(.*?)<\/code>/gi, '`$1`')
-    .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n')
-    .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-    .replace(/<br\s*[\/]?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .trim();
 }
 
 export async function exportVaultZip(): Promise<void> {

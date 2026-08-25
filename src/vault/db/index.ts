@@ -85,7 +85,7 @@ export class VaultDatabase extends Dexie {
 
 export const db = new VaultDatabase();
 
-export const DEFAULT_PLATFORMS_LIST: string[] = [
+const DEFAULT_PLATFORMS_LIST: string[] = [
   'Microsoft - Entra ID / AD',
   'Microsoft - Sentinel / Defender',
   'AWS - IAM / Security',
@@ -104,7 +104,7 @@ export const DEFAULT_PLATFORMS_LIST: string[] = [
 ];
 
 // Single master list for "Categoría / Tema / Especialidad" — used by Notes, Labs, Glossary.
-export const MASTER_CATEGORIES_LIST: string[] = [
+const MASTER_CATEGORIES_LIST: string[] = [
   'SOC Tier 1 - Triage',
   'SOC Tier 2 - Investigación',
   'Threat Hunting',
@@ -142,7 +142,7 @@ const LEGACY_DEFAULT_CATEGORIES: string[] = [
   'Malware Analysis'
 ];
 
-export const INITIAL_TOOLS_LIST: string[] = [
+const INITIAL_TOOLS_LIST: string[] = [
   'Splunk',
   'Microsoft Sentinel',
   'QRadar',

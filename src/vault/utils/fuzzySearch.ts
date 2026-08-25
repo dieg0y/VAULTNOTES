@@ -244,7 +244,7 @@ function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function stripHtml(html: string): string {
+function stripHtml(html: string): string {
   if (!html) return '';
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }

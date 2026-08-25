@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, initializeDatabase } from './db';
 import {

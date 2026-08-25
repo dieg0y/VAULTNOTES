@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Star, Trash2, ExternalLink, Plus, Heading1, Heading2, Heading3, Bold, Italic, Underline,
-  List, ListOrdered, CheckSquare, Quote, Code, Image as ImageIcon, Check, Upload, BookOpen,
+  List, ListOrdered, CheckSquare, Quote, Code, Image as ImageIcon, Check, BookOpen,
   ChevronRight, FileText
 } from 'lucide-react';
 import { Note, GlossaryTerm, CategoryItem } from '../../types';

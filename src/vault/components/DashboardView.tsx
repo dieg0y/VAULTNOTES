@@ -15,7 +15,7 @@ import {
   HelpCircle,
   FolderOpen
 } from 'lucide-react';
-import { Note, Lab, GlossaryTerm, FlashcardStat } from '../types';
+import { Note, Lab, GlossaryTerm } from '../types';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import confetti from 'canvas-confetti';

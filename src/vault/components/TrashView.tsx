@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, RotateCcw, FileText, FlaskConical, BookOpen, AlertTriangle } from 'lucide-react';
+import { Trash2, RotateCcw, FileText, FlaskConical, BookOpen } from 'lucide-react';
 import { Note, Lab, GlossaryTerm } from '../types';
 
 interface TrashViewProps {

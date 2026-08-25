@@ -4,24 +4,21 @@ import {
   Search,
   Plus,
   Layers as FlashcardsIcon,
-  Sparkles,
   ExternalLink,
   Trash2,
-  Check,
-  RotateCcw,
   ArrowLeft,
   ArrowRight,
   Lightbulb,
   FileText,
   X,
-  Code
+  ChevronDown,
+  Tag
 } from 'lucide-react';
 import { GlossaryTerm, Note, GlossaryExample, PlatformItem, CategoryItem } from '../types';
 import { CategoryTreeChecklist } from './CategoryTreeChecklist';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import confetti from 'canvas-confetti';
-import { ChevronDown, Tag } from 'lucide-react';
 
 interface GlossaryViewProps {
   terms: GlossaryTerm[];

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, FileText, BookOpen, FlaskConical, CornerDownLeft, X, CheckCircle2 } from 'lucide-react';
+import { Search, FileText, BookOpen, FlaskConical, CornerDownLeft, X } from 'lucide-react';
 import { Note, Lab, GlossaryTerm } from '../types';
 import { searchAllVault, SearchResultItem } from '../utils/fuzzySearch';
 

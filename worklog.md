@@ -110,3 +110,25 @@ Stage Summary:
 - Secciones de Labs separadas según lo pedido.
 - Import upsert funcionando con reporte detallado.
 - Flashcards con repetición espaciada ligera y stats persistentes.
+
+---
+Task ID: 5
+Agent: main (Z.ai Code)
+Task: Eliminar código muerto, git push y guía de uso.
+
+Work Log:
+- Auditoría de dead code con script propio (imports vs usos por archivo).
+- Eliminado: VaultLogo.tsx (sin importadores), htmlToMarkdown() (nunca llamada), .env.example (GEMINI key sin uso), metadata.json (artefacto AI Studio).
+- Hechas privadas (uso interno): sanitizeFilename, stripHtml, DEFAULT_PLATFORMS_LIST, MASTER_CATEGORIES_LIST, INITIAL_TOOLS_LIST.
+- Imports limpiados: 11 iconos lucide sin uso en 5 componentes, 2 imports de lucide duplicados fusionados en GlossaryView, FlashcardStat type en DashboardView, React default en App.tsx.
+- Verificado: lint 0, tsc 0, vite build OK, 3 vistas + dashboard sin errores en browser.
+- Commit d2cca6a (13 archivos, +12/−139).
+- README.md creado con guía completa de uso → commit 110275a.
+- git push falló: sin credenciales de GitHub en el sandbox. Alternativa generada:
+  * /public/vaultnotes-fixed.bundle (git bundle con los 5 commits, 176K)
+  * /public/vaultnotes-fixed-src.zip (código fuente final, 103K)
+  Ambos descargables desde la preview (/vaultnotes-fixed.bundle y /vaultnotes-fixed-src.zip).
+
+Stage Summary:
+- Código 100% limpio de dead code. 5 commits listos en el clone.
+- Push requiere que el usuario autentique; se le dan instrucciones con bundle/zip.
