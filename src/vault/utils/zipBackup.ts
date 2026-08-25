@@ -153,8 +153,13 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
           // Lab item
           const key = `${(item.organization || '').trim().toLowerCase()}/${(item.title || '').trim().toLowerCase()}`;
           if (!existingLabKeys.has(key)) {
+            // Normalize legacy string commands into a string[]
+            const normalizedCommands: string[] = typeof item.commands === 'string'
+              ? (item.commands as string).split('\n').map((s: string) => s.trim()).filter(Boolean)
+              : Array.isArray(item.commands) ? item.commands : [];
             await db.labs.add({
               ...item,
+              commands: normalizedCommands,
               id: item.id || `lab-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               isDeleted: false,
               createdAt: item.createdAt || new Date().toISOString(),
@@ -243,8 +248,13 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       for (const lab of labsList) {
         const key = `${(lab.organization || '').trim().toLowerCase()}/${(lab.title || '').trim().toLowerCase()}`;
         if (!existingLabKeys.has(key)) {
+          // Normalize legacy string commands into a string[]
+          const normalizedCommands: string[] = typeof lab.commands === 'string'
+            ? (lab.commands as unknown as string).split('\n').map((s: string) => s.trim()).filter(Boolean)
+            : Array.isArray(lab.commands) ? lab.commands : [];
           await db.labs.add({
             ...lab,
+            commands: normalizedCommands,
             id: lab.id || `lab-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             isDeleted: false,
             createdAt: lab.createdAt || new Date().toISOString(),

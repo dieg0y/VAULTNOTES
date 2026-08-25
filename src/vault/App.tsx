@@ -249,7 +249,7 @@ export default function App() {
         }
       ],
       tools: data?.tools && data.tools.length > 0 ? data.tools : ['Wireshark', 'VirusTotal'],
-      commands: '# Comandos ejecutados o queries KQL / Splunk\nindex=security sourcetype=syslog | stats count by src_ip',
+      commands: [],
       findings: 'Documenta aquí las alertas analizadas o artefactos encontrados.',
       mitigation: 'Acciones de contención, bloqueo de IoCs o remediación recomendada.',
       isFavorite: false,
@@ -480,6 +480,7 @@ export default function App() {
               terms={glossary}
               notes={notes}
               platforms={platforms}
+              categories={categories}
               selectedTermId={selectedTermId}
               onSelectTerm={(id) => setSelectedTermId(id)}
               onUpdateTerm={handleUpdateTerm}

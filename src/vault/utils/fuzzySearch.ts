@@ -71,7 +71,7 @@ export function searchAllVault(
       snippet: stripHtml(
         l.parts?.map(p => `${p.title}: ${p.content}`).join(' ') ||
         l.findings ||
-        l.commands ||
+        (Array.isArray(l.commands) ? l.commands.join(' ') : String(l.commands || '')) ||
         ''
       ).slice(0, 140),
       platform: l.organization,
@@ -123,7 +123,7 @@ export function searchAllVault(
       sourceUrl: l.sourceLink || '',
       content: stripHtml([
         l.parts?.map(p => `${p.title} ${p.content}`).join(' ') || '',
-        l.commands || '',
+        Array.isArray(l.commands) ? l.commands.join(' ') : String(l.commands || ''),
         l.findings || '',
         l.mitigation || ''
       ].join(' ')),

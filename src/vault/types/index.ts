@@ -55,7 +55,7 @@ export interface Lab {
   sourceLink?: string;
   parts: LabPart[];
   tools: string[];
-  commands: string;
+  commands: string[]; // Comandos clave como lista individual (uno por entrada)
   findings: string;
   mitigation: string;
   isFavorite: boolean;

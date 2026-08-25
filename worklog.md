@@ -68,3 +68,22 @@ Stage Summary:
 - App funcionando en Next.js / (puerto 3000) — verificada con agent-browser: dashboard, flashcards, notas (crear/editar/eliminar/restaurar), labs, glosario, settings (add categoría 14→15), búsqueda Ctrl+K fuzzy, papelera, responsive 390px sin overflow.
 - VLM confirmó visualmente dashboard y editor sin glitches.
 - El usuario debe copiar los archivos del clone a su GitHub (no hay credenciales para push).
+
+---
+Task ID: 3
+Agent: main (Z.ai Code)
+Task: Implementar 4 mejoras pedidas por el usuario en VAULTNOTES + revisión de errores/optimizaciones.
+
+Work Log:
+- Lab.commands: string → string[] con migración automática en initializeDatabase (split por líneas), normalización en zipBackup al importar (legacy string → array), fuzzySearch tolerante a ambos formatos, seed actualizado.
+- NotesView: árbol recursivo de subpáginas desplegable. autoExpandedIds derivado (sin effects, compatible React Hooks v6): ancestros de la nota seleccionada + la nota misma. userExpanded/userCollapsed para control manual. Búsqueda matchea subpáginas del padre.
+- LabsView: Comandos Clave como lista de chips (Enter agrega, ✕ elimina, Copiar (N) al portapapeles). Init defensivo para legacy strings.
+- LabsView: paneles redimensionables — handles de arrastre entre filtros/lista/detalle (180-460px y 220-560px), persistencia localStorage (vault-labs-filters-w / vault-labs-list-w), doble clic restablece, min-w-0 en detalle.
+- GlossaryView: input de categoría → checklist maestro (CategoryTreeChecklist) colapsable con badges de selección siempre visibles, multi-categoría, sincroniza categories + category.
+- App.tsx: pasa categories a GlossaryView; createLab con commands: [].
+- Verificado en navegador: árbol anidado 3 niveles (Zero Trust → Cómo funciona → Nueva subpágina), agregar/eliminar comandos, drag de ambos handles con persistencia (330→234 lista, detalle 562→658), doble clic reset, checklist glosario (marcar/desmarcar categorías), responsive 390px sin overflow, sin errores de consola.
+- Lint ESLint limpio, tsc limpio (Next y clone), commit 1b869ea en clone (8 archivos, +386/−68).
+
+Stage Summary:
+- Las 4 mejoras solicitadas implementadas y verificadas end-to-end.
+- Repo clone actualizado con segundo commit listo para push.

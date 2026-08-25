@@ -281,7 +281,10 @@ const INITIAL_LABS: Lab[] = [
       }
     ],
     tools: ['Splunk', 'Microsoft Sentinel', 'Wireshark / Zeek / Suricata'],
-    commands: `grep -E -i "from:|received:|spf=" sample.eml`,
+    commands: [
+      'grep -E -i "from:|received:|spf=" sample.eml',
+      'tshark -r capture.pcap -Y "http.request"'
+    ],
     findings: `Dominio Spoofing: c0rporate-domain.com\nIP Remitente: 192.168.1.105`,
     mitigation: `Bloquear IP/dominio, revocar sesiones, crear regla SIEM.`,
     isFavorite: true,
@@ -303,6 +306,22 @@ export async function initializeDatabase() {
   const labsCount = await db.labs.count();
   if (labsCount === 0) {
     await db.labs.bulkAdd(INITIAL_LABS);
+  }
+
+  // --- Data migration: lab.commands was a plain string, now a string[] ---
+  // Splits legacy multi-line strings into individual command entries.
+  const allLabsForMigration = await db.labs.toArray();
+  for (const lab of allLabsForMigration) {
+    const raw = lab.commands as unknown;
+    if (typeof raw === 'string') {
+      const cmdList = raw
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await db.labs.update(lab.id, { commands: cmdList });
+    } else if (!Array.isArray(raw)) {
+      await db.labs.update(lab.id, { commands: [] });
+    }
   }
 
   // Seed / Sync Platforms

@@ -16,13 +16,16 @@ import {
   X,
   Code
 } from 'lucide-react';
-import { GlossaryTerm, Note, GlossaryExample, PlatformItem } from '../types';
+import { GlossaryTerm, Note, GlossaryExample, PlatformItem, CategoryItem } from '../types';
+import { CategoryTreeChecklist } from './CategoryTreeChecklist';
 import confetti from 'canvas-confetti';
+import { ChevronDown, Tag } from 'lucide-react';
 
 interface GlossaryViewProps {
   terms: GlossaryTerm[];
   notes: Note[];
   platforms: PlatformItem[];
+  categories: CategoryItem[];
   selectedTermId: string | null;
   onSelectTerm: (termId: string) => void;
   onUpdateTerm: (termId: string, updated: Partial<GlossaryTerm>) => void;
@@ -35,6 +38,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
   terms,
   notes,
   platforms,
+  categories,
   selectedTermId,
   onSelectTerm,
   onUpdateTerm,
@@ -49,6 +53,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
   const [isStudyMode, setIsStudyMode] = useState(false);
   const [studyCardIndex, setStudyCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isCategoryListOpen, setIsCategoryListOpen] = useState(false);
 
   // Group terms by first letter A-Z
   const groupedTerms = useMemo(() => {
@@ -82,6 +87,13 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
   const currentTerm = useMemo(() => {
     return activeTerms.find((t) => t.id === selectedTermId) || activeTerms[0] || null;
   }, [activeTerms, selectedTermId]);
+
+  // Effective categories of the selected term (array with legacy fallback)
+  const termCategories = useMemo(() => {
+    if (!currentTerm) return [];
+    if (currentTerm.categories && currentTerm.categories.length > 0) return currentTerm.categories;
+    return currentTerm.category ? [currentTerm.category] : [];
+  }, [currentTerm]);
 
   // Find notes that use this term in title or content (matching term or acronym)
   const notesUsingTerm = useMemo(() => {
@@ -302,14 +314,65 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
                       </select>
                     </div>
 
-                    {/* Category input */}
-                    <input
-                      type="text"
-                      value={currentTerm.category || ''}
-                      onChange={(e) => onUpdateTerm(currentTerm.id, { category: e.target.value })}
-                      placeholder="Categoría (ej. Network Security)..."
-                      className="bg-[#161616] border border-[#262626] rounded px-2 py-1 text-xs text-[#AAA] focus:outline-none focus:border-blue-500/50 w-48"
-                    />
+                    {/* Categorías del término (checklist de lista maestra) */}
+                    <div className="flex flex-col gap-1 w-full">
+                      <button
+                        type="button"
+                        onClick={() => setIsCategoryListOpen(!isCategoryListOpen)}
+                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#888] hover:text-blue-400 transition-colors"
+                      >
+                        <Tag className="w-3 h-3 text-blue-400" />
+                        <span>
+                          Categorías {termCategories.length > 0 && `(${termCategories.length})`}
+                        </span>
+                        <ChevronDown
+                          className={`w-3 h-3 transition-transform duration-200 ${isCategoryListOpen ? 'rotate-0' : '-rotate-90'}`}
+                        />
+                      </button>
+
+                      {/* Selected category badges (always visible) */}
+                      {termCategories.length > 0 && (
+                        <div className="flex items-center flex-wrap gap-1">
+                          {termCategories.map((cat) => (
+                            <span
+                              key={cat}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-mono"
+                            >
+                              <span className="truncate max-w-[160px]">{cat}</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateTerm(currentTerm.id, {
+                                    categories: termCategories.filter((c) => c !== cat),
+                                    category: termCategories.filter((c) => c !== cat)[0] || '',
+                                  })
+                                }
+                                className="text-blue-400/60 hover:text-red-400"
+                                title="Quitar categoría"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Master checklist (same one used everywhere) */}
+                      {isCategoryListOpen && (
+                        <div className="w-full">
+                          <CategoryTreeChecklist
+                            categories={categories}
+                            selectedCategories={termCategories}
+                            onChange={(selected) =>
+                              onUpdateTerm(currentTerm.id, {
+                                categories: selected,
+                                category: selected[0] || '',
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
 
                     {currentTerm.sourceUrl && (
                       <a
