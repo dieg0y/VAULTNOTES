@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings } from 'lucide-react';
+import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode } from 'lucide-react';
 import { ActiveSection } from '../types';
 
 interface SidebarProps {
@@ -109,6 +109,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Glosario</span>
             </div>
             <span className="text-[10px] font-mono text-[#555]">{glossaryCount}</span>
+          </button>
+
+          <button
+            onClick={() => onSelectSection('blog')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'blog'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <FileCode className="w-4 h-4" />
+              <span>Generar Blog</span>
+            </div>
           </button>
         </nav>
       </div>

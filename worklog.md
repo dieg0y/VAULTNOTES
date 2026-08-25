@@ -186,3 +186,18 @@ Work Log:
 Stage Summary:
 - La app es 100% del usuario: arranca vacía, plataformas y filtros reflejan solo sus datos reales.
 - Repo GitHub actualizado con todo el trabajo de la sesión (8 commits).
+
+---
+Task ID: 9
+Agent: main (Z.ai Code)
+Task: Sección "Generar Blog" — exportar apuntes y labs como .md listo para IA + push.
+
+Work Log:
+- Nuevo utils/markdown.ts: htmlToMarkdown afinado al editor rico (code blocks con lenguaje extraído del header span O del class language-x — bug de regex greedy corregido y verificado, ```bash correcto), checklists, figuras→nota de imagen, headings, énfasis, links, blockquotes, listas, kbd, entidades. generateBlogMarkdown: metadata por elemento, subpáginas anidadas automáticas, labs completos (org/tema/dificultad/tiempo/fuente, herramientas, comandos en bash, fases numeradas, hallazgos, mitigación), prompt IA opcional prependeado, título según cantidad. blogDraftFilename slugificado.
+- BlogView: selector checkbox (apuntes con hint de subpáginas + labs con meta), Todo/Limpiar, preview en vivo, Copiar (con fallback execCommand) + Descargar .md, toggle prompt IA, hints de flujo, estados vacíos, botones disabled sin selección.
+- Sidebar: botón "Generar Blog" (FileCode) debajo de Glosario. types: 'blog' en ActiveSection. App: renderiza BlogView.
+- E2E verificado: markdown completo correcto con nota (h1, bold, italic, link, ```bash, lista, inline code) + subpágina + lab completo; toggle prompt ON/OFF/ON; botones disabled sin contenido; sin errores. Clipboard bloqueado solo en headless (limitación del entorno, no de la app).
+- tsc 0, eslint 0, vite build OK. README con nueva sección. Commit 900c1aa y push exitoso (7fe8c28..900c1aa).
+
+Stage Summary:
+- El usuario ya puede: seleccionar apuntes/labs → Copiar o Descargar .md (con prompt para IA incluido) → pegarlo a una IA → recibir artículo para su portfolio.

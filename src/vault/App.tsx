@@ -20,6 +20,7 @@ import { DashboardView } from './components/DashboardView';
 import { NotesView } from './components/NotesView';
 import { LabsView } from './components/LabsView';
 import { GlossaryView } from './components/GlossaryView';
+import { BlogView } from './components/BlogView';
 import { TrashView } from './components/TrashView';
 import { SettingsView } from './components/SettingsView';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
@@ -505,6 +506,10 @@ export default function App() {
                 setActiveSection('notes');
               }}
             />
+          )}
+
+          {activeSection === 'blog' && (
+            <BlogView notes={notes} labs={labs} />
           )}
 
           {activeSection === 'trash' && (

@@ -129,4 +129,4 @@ export interface StoredFileHandle {
   handle: FileSystemFileHandle;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'trash' | 'settings';
+export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'trash' | 'settings';
