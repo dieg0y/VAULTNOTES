@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, Lab, PlatformItem, CategoryItem, ToolItem } from '../types';
+import { Note, GlossaryTerm, StoredImage, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat } from '../types';
 
 export class VaultDatabase extends Dexie {
   notes!: Table<Note, string>;
@@ -9,6 +9,7 @@ export class VaultDatabase extends Dexie {
   platforms!: Table<PlatformItem, string>;
   categories!: Table<CategoryItem, string>;
   tools!: Table<ToolItem, string>;
+  flashcardStats!: Table<FlashcardStat, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -67,6 +68,18 @@ export class VaultDatabase extends Dexie {
           delete n.slug;
         });
       });
+
+    // v6: smart flashcards — per-term study stats (spaced-repetition-lite).
+    this.version(6).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, lastStudiedAt'
+    });
   }
 }
 

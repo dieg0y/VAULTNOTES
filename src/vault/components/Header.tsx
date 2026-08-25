@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-white transition-colors cursor-pointer"
-          title="Importar backup incremental (.zip o .json) sin sobreescribir datos existentes"
+          title="Importar backup (.zip o .json): agrega lo nuevo, actualiza solo lo que cambió y omite lo idéntico"
         >
           <UploadCloud className="w-3.5 h-3.5 text-[#888]" />
           <span>Importar</span>

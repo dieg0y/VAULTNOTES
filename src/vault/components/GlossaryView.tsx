@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { GlossaryTerm, Note, GlossaryExample, PlatformItem, CategoryItem } from '../types';
 import { CategoryTreeChecklist } from './CategoryTreeChecklist';
+import { PanelResizeHandle } from './PanelResizeHandle';
+import { useResizablePanel } from '../hooks/useResizablePanel';
 import confetti from 'canvas-confetti';
 import { ChevronDown, Tag } from 'lucide-react';
 
@@ -54,6 +56,14 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
   const [studyCardIndex, setStudyCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isCategoryListOpen, setIsCategoryListOpen] = useState(false);
+
+  // Resizable terms list panel (persisted)
+  const termsPanel = useResizablePanel({
+    storageKey: 'vault-glossary-list-w',
+    defaultWidth: 320,
+    minWidth: 220,
+    maxWidth: 560,
+  });
 
   // Group terms by first letter A-Z
   const groupedTerms = useMemo(() => {
@@ -201,8 +211,11 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
 
       {/* Main 2-Column Split View */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Column: A-Z Terms List */}
-        <div className="w-[300px] md:w-[320px] bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0">
+        {/* Left Column: A-Z Terms List (resizable) */}
+        <div
+          style={{ width: termsPanel.width }}
+          className="bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0"
+        >
           {/* Quick Filter Search */}
           <div className="p-3 border-b border-[#262626] bg-[#0D0D0D]">
             <div className="relative">
@@ -268,8 +281,10 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
           </div>
         </div>
 
+        <PanelResizeHandle onMouseDown={termsPanel.startDrag} onReset={termsPanel.reset} />
+
         {/* Right Column: Term Detailed Inspector & Editor */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[#0A0A0A]">
+        <div className="flex-1 overflow-y-auto p-6 bg-[#0A0A0A] min-w-0">
           {currentTerm ? (
             <div className="max-w-3xl mx-auto space-y-5">
               {/* Term Header */}

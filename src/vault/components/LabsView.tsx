@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { Lab, LabDifficulty, LabStatus, LabPart, CategoryItem } from '../types';
 import { db } from '../db';
+import { PanelResizeHandle } from './PanelResizeHandle';
+import { useResizablePanel } from '../hooks/useResizablePanel';
 
 interface LabsViewProps {
   labs: Lab[];
@@ -56,57 +58,19 @@ export const LabsView: React.FC<LabsViewProps> = ({
 }) => {
   const activeLabs = useMemo(() => labs.filter((l) => !l.isDeleted), [labs]);
 
-  /* --- Resizable panels (persisted in localStorage) --- */
-  const FILTERS_DEFAULT_W = 240;
-  const LIST_DEFAULT_W = 330;
-  const [filtersW, setFiltersW] = useState(() => {
-    const v = Number(localStorage.getItem('vault-labs-filters-w'));
-    return Number.isFinite(v) && v >= 180 && v <= 460 ? v : FILTERS_DEFAULT_W;
+  /* --- Resizable panels (persisted via shared hook) --- */
+  const filtersPanel = useResizablePanel({
+    storageKey: 'vault-labs-filters-w',
+    defaultWidth: 240,
+    minWidth: 180,
+    maxWidth: 460,
   });
-  const [labsListW, setLabsListW] = useState(() => {
-    const v = Number(localStorage.getItem('vault-labs-list-w'));
-    return Number.isFinite(v) && v >= 220 && v <= 560 ? v : LIST_DEFAULT_W;
+  const labsListPanel = useResizablePanel({
+    storageKey: 'vault-labs-list-w',
+    defaultWidth: 330,
+    minWidth: 220,
+    maxWidth: 560,
   });
-
-  const startPanelDrag = useCallback(
-    (panel: 'filters' | 'list') => (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const startX = e.clientX;
-      const startW = panel === 'filters' ? filtersW : labsListW;
-      const minW = panel === 'filters' ? 180 : 220;
-      const maxW = panel === 'filters' ? 460 : 560;
-      const storageKey = panel === 'filters' ? 'vault-labs-filters-w' : 'vault-labs-list-w';
-      const onMove = (ev: MouseEvent) => {
-        const w = Math.max(minW, Math.min(maxW, startW + (ev.clientX - startX)));
-        if (panel === 'filters') setFiltersW(w);
-        else setLabsListW(w);
-      };
-      const onUp = (ev: MouseEvent) => {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-        const w = Math.max(minW, Math.min(maxW, startW + (ev.clientX - startX)));
-        localStorage.setItem(storageKey, String(w));
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      };
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    },
-    [filtersW, labsListW]
-  );
-
-  const resetPanelWidth = (panel: 'filters' | 'list') => {
-    if (panel === 'filters') {
-      setFiltersW(FILTERS_DEFAULT_W);
-      localStorage.setItem('vault-labs-filters-w', String(FILTERS_DEFAULT_W));
-    } else {
-      setLabsListW(LIST_DEFAULT_W);
-      localStorage.setItem('vault-labs-list-w', String(LIST_DEFAULT_W));
-    }
-  };
 
   // Filters state (matching mockup)
   const [selectedOrgs, setSelectedOrgs] = useState<string[]>([]);
@@ -215,7 +179,7 @@ export const LabsView: React.FC<LabsViewProps> = ({
     <div className="flex flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A]">
       {/* 1. Left Column: Categories & Filters (resizable) */}
       <div
-        style={{ width: filtersW }}
+        style={{ width: filtersPanel.width }}
         className="bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0 z-20 select-none overflow-y-auto"
       >
         <div className="p-3 border-b border-[#262626] flex items-center justify-between">
@@ -472,19 +436,11 @@ export const LabsView: React.FC<LabsViewProps> = ({
         </div>
       </div>
 
-      {/* Drag handle: Filters panel */}
-      <div
-        onMouseDown={startPanelDrag('filters')}
-        onDoubleClick={() => resetPanelWidth('filters')}
-        className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/60 active:bg-blue-500 transition-colors relative group"
-        title="Arrastra para redimensionar · Doble clic para restablecer"
-      >
-        <div className="absolute inset-y-0 -left-1 -right-1" />
-      </div>
+      <PanelResizeHandle onMouseDown={filtersPanel.startDrag} onReset={filtersPanel.reset} />
 
       {/* 2. Center Column: Lab List (resizable) */}
       <div
-        style={{ width: labsListW }}
+        style={{ width: labsListPanel.width }}
         className="bg-[#0A0A0A] border-r border-[#262626] flex flex-col shrink-0 z-10"
       >
         {/* Header with Search and Stats */}
@@ -624,15 +580,7 @@ export const LabsView: React.FC<LabsViewProps> = ({
         </div>
       </div>
 
-      {/* Drag handle: Labs list panel */}
-      <div
-        onMouseDown={startPanelDrag('list')}
-        onDoubleClick={() => resetPanelWidth('list')}
-        className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/60 active:bg-blue-500 transition-colors relative group"
-        title="Arrastra para redimensionar · Doble clic para restablecer"
-      >
-        <div className="absolute inset-y-0 -left-1 -right-1" />
-      </div>
+      <PanelResizeHandle onMouseDown={labsListPanel.startDrag} onReset={labsListPanel.reset} />
 
       {/* 3. Right Column: Lab Detail Workspace */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0A0A] min-w-0">
@@ -1225,104 +1173,110 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
           </div>
         )}
 
-        {/* 4. Investigation Summary Footer (4 Rich Blocks) */}
-        <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-5 mt-8 space-y-5">
-          <div className="flex items-center gap-2 pb-2 border-b border-[#262626]">
-            <Terminal className="w-4 h-4 text-blue-400" />
-            <h3 className="font-bold text-sm text-white">Resumen de Investigación y Mitigación</h3>
+        {/* 4. Herramientas Usadas (own section) */}
+        <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-5 mt-6 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#262626]">
+            <div className="flex items-center gap-2">
+              <Wrench className="w-4 h-4 text-blue-400" />
+              <h3 className="font-bold text-sm text-white">Herramientas Usadas</h3>
+            </div>
+            <span className="text-[10px] font-mono text-[#666]">{tools.length} herramienta{tools.length === 1 ? '' : 's'}</span>
           </div>
+          <div className="min-h-[44px] bg-[#161616] border border-[#262626] rounded p-2 flex flex-wrap gap-1.5 items-center">
+            {tools.map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#222] text-xs font-mono text-blue-400 border border-[#2c2c2c]"
+              >
+                <Wrench className="w-3 h-3 text-[#777]" />
+                <span>{t}</span>
+                <button
+                  onClick={() => handleRemoveTool(t)}
+                  className="text-[#666] hover:text-red-400 ml-0.5"
+                  title="Eliminar herramienta"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            <input
+              type="text"
+              placeholder="+ Herramienta (Enter)..."
+              value={toolInput}
+              onChange={(e) => setToolInput(e.target.value)}
+              onKeyDown={handleAddTool}
+              className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[140px] px-1 placeholder:text-[#555]"
+            />
+          </div>
+        </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Block 1: Tools Used (Tags) */}
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#888]">
-                Herramientas Usadas (Tools)
-              </label>
-              <div className="min-h-[44px] bg-[#161616] border border-[#262626] rounded p-2 flex flex-wrap gap-1.5 items-center">
-                {tools.map((t) => (
+        {/* 5. Comandos Clave (own section) */}
+        <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-5 mt-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-[#262626]">
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-blue-400" />
+              <h3 className="font-bold text-sm text-white">Comandos Clave</h3>
+            </div>
+            {commands.length > 0 && (
+              <button
+                onClick={() => navigator.clipboard.writeText(commands.join('\n'))}
+                className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
+                title="Copiar todos los comandos"
+              >
+                <Copy className="w-3 h-3" />
+                Copiar ({commands.length})
+              </button>
+            )}
+          </div>
+          <div className="min-h-[44px] bg-[#161616] border border-[#262626] rounded p-2 flex flex-col gap-1.5">
+            {commands.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {commands.map((cmd) => (
                   <span
-                    key={t}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#222] text-xs font-mono text-blue-400 border border-[#2c2c2c]"
+                    key={cmd}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-[#0D0D0D] text-xs font-mono text-blue-300 border border-[#2c2c2c] max-w-full group/cmd"
+                    title={cmd}
                   >
-                    <Wrench className="w-3 h-3 text-[#777]" />
-                    <span>{t}</span>
+                    <Terminal className="w-3 h-3 text-[#555] shrink-0" />
+                    <span className="truncate max-w-[420px]">{cmd}</span>
                     <button
-                      onClick={() => handleRemoveTool(t)}
-                      className="text-[#666] hover:text-red-400 ml-0.5"
+                      onClick={() => handleRemoveCommand(cmd)}
+                      className="text-[#666] hover:text-red-400 ml-0.5 shrink-0"
+                      title="Eliminar comando"
                     >
                       ✕
                     </button>
                   </span>
                 ))}
-                <input
-                  type="text"
-                  placeholder="+ Herramienta (Enter)..."
-                  value={toolInput}
-                  onChange={(e) => setToolInput(e.target.value)}
-                  onKeyDown={handleAddTool}
-                  className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[140px] px-1 placeholder:text-[#555]"
-                />
               </div>
-            </div>
+            )}
+            <input
+              type="text"
+              placeholder="+ Comando (Enter para agregar)..."
+              value={commandInput}
+              onChange={(e) => setCommandInput(e.target.value)}
+              onKeyDown={handleAddCommand}
+              className="w-full bg-transparent border-none outline-none text-xs font-mono text-blue-300 placeholder:text-[#555] px-1 placeholder:font-sans"
+            />
+          </div>
+        </div>
 
-            {/* Block 2: Key Commands (individual entries, like tools) */}
+        {/* 6. Resumen de Investigación y Mitigación (own section) */}
+        <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-5 mt-4 space-y-5">
+          <div className="flex items-center gap-2 pb-2 border-b border-[#262626]">
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <h3 className="font-bold text-sm text-white">Resumen de Investigación y Mitigación</h3>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Findings / IoCs */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#888]">
-                  Comandos Clave
-                </label>
-                {commands.length > 0 && (
-                  <button
-                    onClick={() => navigator.clipboard.writeText(commands.join('\n'))}
-                    className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
-                    title="Copiar todos los comandos"
-                  >
-                    <Copy className="w-3 h-3" />
-                    Copiar ({commands.length})
-                  </button>
-                )}
-              </div>
-              <div className="min-h-[44px] bg-[#161616] border border-[#262626] rounded p-2 flex flex-col gap-1.5">
-                {commands.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {commands.map((cmd) => (
-                      <span
-                        key={cmd}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-[#0D0D0D] text-xs font-mono text-blue-300 border border-[#2c2c2c] max-w-full group/cmd"
-                        title={cmd}
-                      >
-                        <Terminal className="w-3 h-3 text-[#555] shrink-0" />
-                        <span className="truncate max-w-[260px]">{cmd}</span>
-                        <button
-                          onClick={() => handleRemoveCommand(cmd)}
-                          className="text-[#666] hover:text-red-400 ml-0.5 shrink-0"
-                          title="Eliminar comando"
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  type="text"
-                  placeholder="+ Comando (Enter para agregar)..."
-                  value={commandInput}
-                  onChange={(e) => setCommandInput(e.target.value)}
-                  onKeyDown={handleAddCommand}
-                  className="w-full bg-transparent border-none outline-none text-xs font-mono text-blue-300 placeholder:text-[#555] px-1 placeholder:font-sans"
-                />
-              </div>
-            </div>
-
-            {/* Block 3: Findings / IoCs */}
-            <div className="space-y-1.5 lg:col-span-2">
               <label className="block text-[10px] font-bold uppercase tracking-widest text-[#888] flex items-center gap-1.5">
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                Hallazgos / IoCs (Indicadores de Compromiso)
+                Hallazgos / IoCs
               </label>
               <textarea
-                rows={4}
+                rows={5}
                 value={findings}
                 onChange={(e) => {
                   setFindings(e.target.value);
@@ -1333,14 +1287,14 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               />
             </div>
 
-            {/* Block 4: Mitigation / Lessons Learned */}
-            <div className="space-y-1.5 lg:col-span-2">
+            {/* Mitigation / Lessons Learned */}
+            <div className="space-y-1.5">
               <label className="block text-[10px] font-bold uppercase tracking-widest text-[#888] flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
                 Mitigación / Lecciones Aprendidas
               </label>
               <textarea
-                rows={3}
+                rows={5}
                 value={mitigation}
                 onChange={(e) => {
                   setMitigation(e.target.value);

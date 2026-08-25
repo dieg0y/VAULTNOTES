@@ -1,6 +1,6 @@
 import React from 'react';
 import { ImportSummary } from '../types';
-import { CheckCircle2, FileText, FlaskConical, BookOpen, Image as ImageIcon, X } from 'lucide-react';
+import { CheckCircle2, FileText, FlaskConical, BookOpen, Image as ImageIcon, X, RefreshCw } from 'lucide-react';
 
 interface ImportReportModalProps {
   isOpen: boolean;
@@ -8,8 +8,30 @@ interface ImportReportModalProps {
   summary: ImportSummary | null;
 }
 
+const Row: React.FC<{
+  icon: React.ReactNode;
+  color: string;
+  label: string;
+  value: number;
+  valueClass?: string;
+  dim?: boolean;
+}> = ({ icon, color, label, value, valueClass, dim }) => (
+  <div className={`flex items-center justify-between text-xs ${dim ? 'opacity-70' : ''}`}>
+    <div className={`flex items-center gap-2 ${color}`}>
+      {icon}
+      <span className={dim ? '' : 'text-[#E5E5E5]'}>{label}</span>
+    </div>
+    <span className={`font-mono ${valueClass || 'text-[#666]'}`}>{value}</span>
+  </div>
+);
+
 export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, onClose, summary }) => {
   if (!isOpen || !summary) return null;
+
+  const totalChanged =
+    (summary.addedNotes || 0) + (summary.updatedNotes || 0) +
+    (summary.addedLabs || 0) + (summary.updatedLabs || 0) +
+    (summary.addedTerms || 0) + (summary.updatedTerms || 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
@@ -26,77 +48,46 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
             <CheckCircle2 className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white">Importación Completada</h3>
-            <p className="text-[11px] text-[#888]">Sincronización incremental sin duplicados</p>
+            <h3 className="font-bold text-sm text-white">Importación Inteligente Completada</h3>
+            <p className="text-[11px] text-[#888]">
+              {totalChanged > 0
+                ? `${summary.addedNotes + summary.addedLabs + summary.addedTerms} nuevos · ${summary.updatedNotes + summary.updatedLabs + summary.updatedTerms} actualizados`
+                : 'Todo ya estaba sincronizado'}
+            </p>
           </div>
         </div>
 
         <div className="bg-[#161616] border border-[#262626] rounded p-3.5 space-y-2.5 mb-4 max-h-[60vh] overflow-y-auto">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-blue-400">
-              <FileText className="w-3.5 h-3.5" />
-              <span className="text-[#E5E5E5]">Apuntes agregados</span>
-            </div>
-            <span className="font-mono font-semibold text-green-400">+{summary.addedNotes}</span>
-          </div>
-
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-[#666]">
-              <FileText className="w-3.5 h-3.5" />
-              <span>Apuntes omitidos (duplicados)</span>
-            </div>
-            <span className="font-mono text-[#666]">{summary.skippedNotes}</span>
-          </div>
+          {/* Notes */}
+          <Row icon={<FileText className="w-3.5 h-3.5" />} color="text-blue-400" label="Apuntes nuevos" value={summary.addedNotes} valueClass="font-semibold text-green-400" />
+          <Row icon={<RefreshCw className="w-3.5 h-3.5" />} color="text-blue-400" label="Apuntes actualizados" value={summary.updatedNotes || 0} valueClass="font-semibold text-blue-400" />
+          <Row icon={<FileText className="w-3.5 h-3.5" />} color="text-[#666]" label="Apuntes sin cambios" value={summary.skippedNotes} dim />
 
           <div className="h-px bg-[#262626]" />
 
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-emerald-400">
-              <FlaskConical className="w-3.5 h-3.5" />
-              <span className="text-[#E5E5E5]">Labs agregados</span>
-            </div>
-            <span className="font-mono font-semibold text-green-400">+{summary.addedLabs || 0}</span>
-          </div>
-
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-[#666]">
-              <FlaskConical className="w-3.5 h-3.5" />
-              <span>Labs omitidos (duplicados)</span>
-            </div>
-            <span className="font-mono text-[#666]">{summary.skippedLabs || 0}</span>
-          </div>
+          {/* Labs */}
+          <Row icon={<FlaskConical className="w-3.5 h-3.5" />} color="text-emerald-400" label="Labs nuevos" value={summary.addedLabs || 0} valueClass="font-semibold text-green-400" />
+          <Row icon={<RefreshCw className="w-3.5 h-3.5" />} color="text-emerald-400" label="Labs actualizados" value={summary.updatedLabs || 0} valueClass="font-semibold text-blue-400" />
+          <Row icon={<FlaskConical className="w-3.5 h-3.5" />} color="text-[#666]" label="Labs sin cambios" value={summary.skippedLabs || 0} dim />
 
           <div className="h-px bg-[#262626]" />
 
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-purple-400">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span className="text-[#E5E5E5]">Términos de glosario agregados</span>
-            </div>
-            <span className="font-mono font-semibold text-green-400">+{summary.addedTerms}</span>
-          </div>
-
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2 text-[#666]">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Términos omitidos (duplicados)</span>
-            </div>
-            <span className="font-mono text-[#666]">{summary.skippedTerms}</span>
-          </div>
+          {/* Terms */}
+          <Row icon={<BookOpen className="w-3.5 h-3.5" />} color="text-purple-400" label="Términos nuevos" value={summary.addedTerms} valueClass="font-semibold text-green-400" />
+          <Row icon={<RefreshCw className="w-3.5 h-3.5" />} color="text-purple-400" label="Términos actualizados" value={summary.updatedTerms || 0} valueClass="font-semibold text-blue-400" />
+          <Row icon={<BookOpen className="w-3.5 h-3.5" />} color="text-[#666]" label="Términos sin cambios" value={summary.skippedTerms} dim />
 
           {summary.addedImages > 0 && (
             <>
               <div className="h-px bg-[#262626]" />
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 text-blue-400">
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  <span className="text-[#E5E5E5]">Imágenes procesadas</span>
-                </div>
-                <span className="font-mono font-semibold text-green-400">+{summary.addedImages}</span>
-              </div>
+              <Row icon={<ImageIcon className="w-3.5 h-3.5" />} color="text-blue-400" label="Imágenes procesadas" value={summary.addedImages} valueClass="font-semibold text-green-400" />
             </>
           )}
         </div>
+
+        <p className="text-[10px] text-[#666] mb-3 leading-relaxed">
+          Los elementos nuevos se agregan, los que cambiaron se actualizan individualmente y los idénticos se omiten. Nada se duplica.
+        </p>
 
         <button
           onClick={onClose}
@@ -108,4 +99,3 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
     </div>
   );
 };
-

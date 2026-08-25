@@ -15,7 +15,9 @@ import {
   HelpCircle,
   FolderOpen
 } from 'lucide-react';
-import { Note, Lab, GlossaryTerm } from '../types';
+import { Note, Lab, GlossaryTerm, FlashcardStat } from '../types';
+import { db } from '../db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import confetti from 'canvas-confetti';
 
 interface DashboardViewProps {
@@ -26,6 +28,17 @@ interface DashboardViewProps {
   onSelectLab?: (labId: string) => void;
   onOpenNotesView: () => void;
   onOpenLabsView?: () => void;
+}
+
+interface SmartCard {
+  id: string;
+  title: string;
+  subtitle: string;
+  front: string;
+  back: string;
+  priority: number;
+  known: number;
+  unknown: number;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -75,19 +88,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .slice(0, 5);
   }, [activeNotes]);
 
-  // Flashcards Study Deck — Glossary ONLY (10 random terms)
-  const studyDeck = useMemo(() => {
-    const combined = activeGlossary.map((g) => ({
-      id: g.id,
-      title: g.term,
-      subtitle: g.platform || 'Glosario',
-      front: g.term,
-      back: `${g.shortDefinition || ''}\n\n${g.longDefinition || ''}${g.example ? `\n\nEjemplo: ${g.example}` : ''}`,
-    }));
+  // Smart Flashcards Study Deck — Glossary ONLY (10 terms)
+  // Spaced-repetition-lite: terms you fail often or haven't seen recently
+  // come first; mastered terms sink. Stats persist per term.
+  const flashcardStats = useLiveQuery(() => db.flashcardStats.toArray(), []);
+  const statsLoaded = flashcardStats !== undefined;
+  const statsByTerm = useMemo(
+    () => new Map((flashcardStats || []).map((s) => [s.termId, s])),
+    [flashcardStats]
+  );
 
-    // Shuffle and pick 10
-    return combined.sort(() => 0.5 - Math.random()).slice(0, 10);
-  }, [activeGlossary]);
+  const smartDeck = useMemo<SmartCard[]>(() => {
+    const now = Date.now();
+    const cards = activeGlossary.map((g) => {
+      const stat = statsByTerm.get(g.id);
+      const known = stat?.knownCount || 0;
+      const unknown = stat?.unknownCount || 0;
+      const last = stat?.lastStudiedAt ? new Date(stat.lastStudiedAt).getTime() : 0;
+      const daysSince = last ? (now - last) / 86400000 : 999;
+      const mastery = known - unknown * 2; // higher = more dominated
+      // Priority: unseen terms boosted, weak terms high, mastered & recent low.
+      const priority =
+        -mastery +
+        Math.min(daysSince, 21) * 0.8 +
+        (last === 0 ? 15 : 0) +
+        unknown * 1.5;
+      return {
+        id: g.id,
+        title: g.term,
+        subtitle: g.platform || 'Glosario',
+        front: g.term,
+        back: `${g.shortDefinition || ''}\n\n${g.longDefinition || ''}${g.example ? `\n\nEjemplo: ${g.example}` : ''}`,
+        priority,
+        known,
+        unknown,
+      };
+    });
+
+    // Smart ordering: highest priority first, capped at 10 cards.
+    return cards.sort((a, b) => b.priority - a.priority).slice(0, 10);
+  }, [activeGlossary, statsByTerm]);
+
+  // Session-scoped deck snapshot: the order is frozen when a study session
+  // starts so answering cards mid-session never reshuffles what's left.
+  // A new snapshot (with fresh stats) is taken on restart.
+  const [sessionKey, setSessionKey] = useState(0);
+  const [frozenDeck, setFrozenDeck] = useState<{ key: number; deck: SmartCard[] } | null>(null);
+  if (statsLoaded && smartDeck.length > 0 && (!frozenDeck || frozenDeck.key !== sessionKey)) {
+    setFrozenDeck({ key: sessionKey, deck: smartDeck });
+  }
+  const studyDeck: SmartCard[] = frozenDeck ? frozenDeck.deck : smartDeck;
 
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -98,11 +148,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const currentCard = studyDeck[currentCardIndex];
   const remainingCount = studyDeck.length - currentCardIndex;
 
-  const handleNextCard = (known: boolean) => {
+  const handleNextCard = async (known: boolean) => {
     if (known) {
       setKnownCount((prev) => prev + 1);
     } else {
       setUnknownCount((prev) => prev + 1);
+    }
+
+    // Persist per-term study stats so the deck gets smarter over time.
+    if (currentCard) {
+      try {
+        const stat = statsByTerm.get(currentCard.id);
+        await db.flashcardStats.put({
+          id: currentCard.id,
+          termId: currentCard.id,
+          knownCount: (stat?.knownCount || 0) + (known ? 1 : 0),
+          unknownCount: (stat?.unknownCount || 0) + (known ? 0 : 1),
+          lastStudiedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Failed to persist flashcard stat:', err);
+      }
     }
 
     setIsFlipped(false);
@@ -120,6 +186,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const handleRestartStudy = () => {
+    setSessionKey((prev) => prev + 1); // take a fresh smart snapshot
     setCurrentCardIndex(0);
     setIsFlipped(false);
     setKnownCount(0);
@@ -296,8 +363,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="lg:col-span-1 bg-[#0D0D0D] border border-[#262626] rounded-md p-5 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Brain className="w-4 h-4 text-green-400" />
-              <h2 className="text-sm font-bold text-white">Flashcards de Glosario</h2>
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-green-400" />
+                <h2 className="text-sm font-bold text-white">Flashcards de Glosario</h2>
+              </div>
+              <span
+                className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-400"
+                title="Prioriza los términos que fallas más o no has visto recientemente"
+              >
+                SMART
+              </span>
             </div>
             {!isCompleted && studyDeck.length > 0 && (
               <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded font-mono text-[10px] font-semibold">
@@ -352,6 +427,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <h3 className="text-base font-bold text-white leading-tight">
                       {currentCard?.front}
                     </h3>
+                    {/* Per-term study stats */}
+                    {(currentCard?.known || 0) + (currentCard?.unknown || 0) > 0 && (
+                      <span className="absolute top-2.5 right-2.5 flex items-center gap-1.5 text-[9px] font-mono">
+                        <span className="text-green-400">✓ {currentCard?.known || 0}</span>
+                        <span className="text-red-400">✗ {currentCard?.unknown || 0}</span>
+                      </span>
+                    )}
                     <span className="absolute bottom-3 text-[10px] text-[#666] flex items-center gap-1">
                       Clic para girar &rarr;
                     </span>

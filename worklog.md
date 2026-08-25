@@ -87,3 +87,26 @@ Work Log:
 Stage Summary:
 - Las 4 mejoras solicitadas implementadas y verificadas end-to-end.
 - Repo clone actualizado con segundo commit listo para push.
+
+---
+Task ID: 4
+Agent: main (Z.ai Code)
+Task: Fix bug del árbol de subpáginas + paneles redimensionables en Apuntes/Glosario + secciones separadas en Labs + import inteligente (upsert) + flashcards inteligentes.
+
+Work Log:
+- FIX BUG ÁRBOL: causa raíz — toggleExpand siempre re-añadía a userCollapsed cuando la nota estaba en autoExpandedIds, making re-expand impossible. Reescrito con modelo VS Code: Set único expandedIds, toggle = flip exacto, click en fila revela hijos, cambio de selección (desde cualquier origen) expande cadena completa vía patrón render-time. Verificado con 4 tests: expand por click, colapso+re-expand con mismo toggle (el bug), colapso+click fila, navegación externa revela cadena.
+- useResizablePanel hook + PanelResizeHandle component compartidos (draggable, clamped, localStorage, doble clic reset).
+- Apuntes: 2 paneles redimensionables (plataformas 160-380, lista 220-560). Glosario: 1 panel (220-560). Labs: refactorizado al hook.
+- Labs: secciones separadas en tarjetas verticales — Partes → Herramientas → Comandos → Resumen (hallazgos+mitigación lg:2col). Orden verificado en DOM.
+- Import inteligente upsert: noteKey/labKey/termKey + proyecciones canónicas para diff; upsertTerm/upsertLab/upsertNote (add/update-only-that/skip). ImportSummary con added/updated/skipped. ImportReportModal rediseñado. flashcardStats en export/import ZIP. Test real: JSON con término nuevo+modificado+idéntico → reporte 1/1/1 correcto y BD actualizada sin duplicados.
+- Flashcards inteligentes: Dexie v6 tabla flashcardStats, algoritmo de prioridad (-maestría + daysSince*0.8 + 15 nunca-visto + unknown*1.5), sesión con orden congelado (fix: respondía y re-barajaba causando repeticiones mid-session), badge ✓/✗ por término, etiqueta SMART, restart con snapshot fresco. Stats persistidos verificados en IndexedDB.
+- Lint ESLint 0 errores, tsc 0 errores (Next + clone). Responsive 390px sin overflow. Sin errores de consola.
+- Datos de prueba del navegador limpiados (término test, stats, notas test, definición TGT restaurada).
+- Commit cbd54c9 en clone (11 archivos, +697/−415).
+
+Stage Summary:
+- Bug del árbol arreglado con modelo determinista y verificado con 4 escenarios E2E.
+- Paneles redimensionables en las 3 vistas principales con persistencia.
+- Secciones de Labs separadas según lo pedido.
+- Import upsert funcionando con reporte detallado.
+- Flashcards con repetición espaciada ligera y stats persistentes.

@@ -103,12 +103,23 @@ export interface StoredImage {
 
 export interface ImportSummary {
   addedNotes: number;
+  updatedNotes: number;
   skippedNotes: number;
   addedLabs: number;
+  updatedLabs: number;
   skippedLabs: number;
   addedTerms: number;
+  updatedTerms: number;
   skippedTerms: number;
   addedImages: number;
+}
+
+export interface FlashcardStat {
+  id: string; // same as termId (one stat row per glossary term)
+  termId: string;
+  knownCount: number;
+  unknownCount: number;
+  lastStudiedAt: string;
 }
 
 export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'trash' | 'settings';

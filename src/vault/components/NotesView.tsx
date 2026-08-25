@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Layers, Plus, Star, Search, FileText, ChevronRight, ChevronDown } from 'lucide-react';
 import { Note, GlossaryTerm, PlatformItem, CategoryItem } from '../types';
 import { RichEditor } from './Editor/RichEditor';
+import { PanelResizeHandle } from './PanelResizeHandle';
+import { useResizablePanel } from '../hooks/useResizablePanel';
 
 interface NotesViewProps {
   notes: Note[];
@@ -37,12 +39,24 @@ export const NotesView: React.FC<NotesViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchFilter, setSearchFilter] = useState('');
 
-  // --- Expandable subpages tree state ---
-  // Notes auto-expand when selected (their children become visible), and the
-  // ancestor chain of the selected note is always kept visible. The user can
-  // still manually collapse anything (userCollapsed overrides auto-expand).
-  const [userExpanded, setUserExpanded] = useState<Set<string>>(new Set());
-  const [userCollapsed, setUserCollapsed] = useState<Set<string>>(new Set());
+  /* --- Resizable panels (persisted) --- */
+  const platformsPanel = useResizablePanel({
+    storageKey: 'vault-notes-platforms-w',
+    defaultWidth: 220,
+    minWidth: 160,
+    maxWidth: 380,
+  });
+  const listPanel = useResizablePanel({
+    storageKey: 'vault-notes-list-w',
+    defaultWidth: 320,
+    minWidth: 220,
+    maxWidth: 560,
+  });
+
+  /* --- Expandable subpages tree (VS Code style, always reliable) ---
+     A single source of truth (`expandedIds`): the toggle is an exact flip,
+     and selecting a note always reveals its full ancestor chain. */
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
   const childrenByParent = useMemo(() => {
     const map = new Map<string, Note[]>();
@@ -87,58 +101,55 @@ export const NotesView: React.FC<NotesViewProps> = ({
     return activeNotes.find((n) => n.id === selectedNoteId) || filteredNotes[0] || null;
   }, [activeNotes, selectedNoteId, filteredNotes]);
 
-  // Derived auto-expanded ids: every ancestor of the current note (so it stays
-  // visible) plus the current note itself (so its direct subpages show).
-  const autoExpandedIds = useMemo(() => {
+  // Ancestor chain (self included) of the selected note — must stay expanded.
+  const selectionChainIds = useMemo(() => {
     const s = new Set<string>();
-    if (!currentNote) return s;
-    s.add(currentNote.id);
-    let parent = currentNote.parentId ? notesById.get(currentNote.parentId) : undefined;
-    while (parent) {
-      s.add(parent.id);
-      parent = parent.parentId ? notesById.get(parent.parentId) : undefined;
+    let cur: Note | null | undefined = currentNote;
+    while (cur) {
+      s.add(cur.id);
+      cur = cur.parentId ? notesById.get(cur.parentId) : undefined;
     }
     return s;
   }, [currentNote, notesById]);
 
-  const isExpanded = (noteId: string) =>
-    (autoExpandedIds.has(noteId) && !userCollapsed.has(noteId)) || userExpanded.has(noteId);
+  // When the selection changes (from anywhere: row click, search, dashboard),
+  // expand its whole chain so the note is always visible. Official
+  // "adjust state during render" pattern — no effect needed.
+  const [prevSelectedId, setPrevSelectedId] = useState<string | null>(null);
+  if ((currentNote?.id ?? null) !== prevSelectedId) {
+    setPrevSelectedId(currentNote?.id ?? null);
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      selectionChainIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
 
   const toggleExpand = (noteId: string) => {
-    if (autoExpandedIds.has(noteId)) {
-      // Currently expanded by selection: collapse it explicitly
-      setUserCollapsed((prev) => new Set(prev).add(noteId));
-      setUserExpanded((prev) => {
-        const next = new Set(prev);
-        next.delete(noteId);
-        return next;
-      });
-    } else if (userExpanded.has(noteId)) {
-      setUserExpanded((prev) => {
-        const next = new Set(prev);
-        next.delete(noteId);
-        return next;
-      });
-    } else {
-      setUserExpanded((prev) => new Set(prev).add(noteId));
-      setUserCollapsed((prev) => {
-        const next = new Set(prev);
-        next.delete(noteId);
-        return next;
-      });
-    }
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId);
+      else next.add(noteId);
+      return next;
+    });
+  };
+
+  // Clicking a row selects the note AND always reveals its children.
+  const handleRowClick = (noteId: string) => {
+    onSelectNote(noteId);
+    setExpandedIds((prev) => (prev.has(noteId) ? prev : new Set(prev).add(noteId)));
   };
 
   // Recursive tree row renderer
   const renderNoteItem = (note: Note, depth: number): React.ReactElement => {
     const children = childrenByParent.get(note.id) || [];
     const isSelected = note.id === currentNote?.id;
-    const expanded = children.length > 0 && isExpanded(note.id);
+    const expanded = children.length > 0 && expandedIds.has(note.id);
 
     return (
       <div key={note.id}>
         <div
-          onClick={() => onSelectNote(note.id)}
+          onClick={() => handleRowClick(note.id)}
           className={`p-3 relative cursor-pointer transition-colors ${
             isSelected ? 'bg-[#161616]' : 'hover:bg-[#111111]'
           }`}
@@ -164,7 +175,9 @@ export const NotesView: React.FC<NotesViewProps> = ({
                     e.stopPropagation();
                     toggleExpand(note.id);
                   }}
-                  className="flex items-center gap-0.5 text-[10px] font-mono text-[#777] hover:text-blue-400 px-1 py-0.5 rounded hover:bg-[#222] transition-colors"
+                  className={`flex items-center gap-0.5 text-[10px] font-mono px-1 py-0.5 rounded transition-colors ${
+                    expanded ? 'text-blue-400 bg-blue-500/10' : 'text-[#777] hover:text-blue-400 hover:bg-[#222]'
+                  }`}
                   title={expanded ? 'Colapsar subpáginas' : 'Expandir subpáginas'}
                 >
                   {expanded ? (
@@ -192,8 +205,11 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
   return (
     <div className="flex flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A]">
-      {/* 1. Left: Platforms */}
-      <div className="w-[220px] bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0 overflow-y-auto">
+      {/* 1. Left: Platforms (resizable) */}
+      <div
+        style={{ width: platformsPanel.width }}
+        className="bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0 overflow-y-auto"
+      >
         <div className="p-3 border-b border-[#262626]">
           <h2 className="font-bold text-[10px] uppercase tracking-widest text-[#555] flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-[#888]" />
@@ -229,16 +245,21 @@ export const NotesView: React.FC<NotesViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Center: Note titles (expandable subpages tree) */}
-      <div className="w-[300px] md:w-[320px] bg-[#0A0A0A] border-r border-[#262626] flex flex-col shrink-0">
+      <PanelResizeHandle onMouseDown={platformsPanel.startDrag} onReset={platformsPanel.reset} />
+
+      {/* 2. Center: Note titles (expandable subpages tree, resizable) */}
+      <div
+        style={{ width: listPanel.width }}
+        className="bg-[#0A0A0A] border-r border-[#262626] flex flex-col shrink-0"
+      >
         <div className="p-3 border-b border-[#262626] flex flex-col gap-2 bg-[#0D0D0D]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-[#888] uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-[#888] uppercase tracking-wider truncate">
               {selectedPlatform === 'ALL' ? 'Todos los Apuntes' : selectedPlatform}
             </span>
             <button
               onClick={() => onCreateNote(selectedPlatform !== 'ALL' ? selectedPlatform : (platforms[0]?.name || ''))}
-              className="p-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1 transition-colors"
+              className="p-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1 transition-colors shrink-0"
               title="Crear apunte"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -281,8 +302,10 @@ export const NotesView: React.FC<NotesViewProps> = ({
         </div>
       </div>
 
+      <PanelResizeHandle onMouseDown={listPanel.startDrag} onReset={listPanel.reset} />
+
       {/* 3. Right: Editor (top-level note OR any nested subnote) */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0A0A]">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0A0A] min-w-0">
         {currentNote ? (
           <RichEditor
             key={currentNote.id}
