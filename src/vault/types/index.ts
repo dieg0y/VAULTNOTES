@@ -101,15 +101,18 @@ export interface StoredImage {
   createdAt: string;
 }
 
-/** Videos incrustados en apuntes/labs — guardados como Blob en IndexedDB
- *  (mucho más eficiente que base64) e incluidos en el backup ZIP. */
+/** Videos incrustados en apuntes/labs.
+ *  Primary storage: archivos crudos en la carpeta `VaultNotesVideos` del
+ *  usuario (File System Access API — sin límite práctico de tamaño).
+ *  Fallback: blob en IndexedDB. La metadata siempre vive en la tabla. */
 export interface StoredVideo {
   id: string;
   noteId?: string;
   labId?: string;
   name: string;
   mimeType: string;
-  blob: Blob;
+  storedIn?: 'fs' | 'idb'; // where the actual bytes live
+  blob?: Blob; // only set when storedIn === 'idb'
   caption?: string;
   createdAt: string;
 }

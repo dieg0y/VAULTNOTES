@@ -33,6 +33,7 @@ import { db } from '../db';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import { insertHtmlInEditable } from '../utils/domInsert';
+import { saveVideoBlob, getVideoBlobById, isFsSupported, hasVideosDir, isFsReady, ensureFsPermission, pickVideosDir, shouldAskForDir, markDirDeclined } from '../utils/videoStorage';
 
 interface LabsViewProps {
   labs: Lab[];
@@ -1303,10 +1304,10 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       const videoEl = fig.querySelector('video');
       if (!vid || !videoEl || videoEl.getAttribute('src')) continue;
       try {
-        const stored = await db.videos.get(vid);
-        if (stored) {
+        const blob = await getVideoBlobById(vid);
+        if (blob) {
           fig.classList.remove('vault-video-missing');
-          const url = URL.createObjectURL(stored.blob);
+          const url = URL.createObjectURL(blob);
           videoUrlsRef.current.push(url);
           videoEl.src = url;
         } else {
@@ -1398,24 +1399,30 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     reader.readAsDataURL(file);
   };
 
-  /** Embed a local video file into this lab part (Blob in IndexedDB). */
+  /** Embed a local video file into this lab part — raw file on disk when
+   *  the user's VaultNotesVideos folder is available, IDB otherwise. */
   const handleVideoFile = async (file: File) => {
     if (!file.type.startsWith('video/')) return;
+
+    if (isFsSupported() && !(await hasVideosDir().catch(() => false)) && shouldAskForDir()) {
+      const ok = await pickVideosDir();
+      if (!ok) markDirDeclined();
+    }
+
     const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const safeName = file.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     try {
-      await db.videos.add({
+      await saveVideoBlob({
         id: vidId,
         labId,
         name: file.name,
         mimeType: file.type,
         blob: file,
         caption: file.name,
-        createdAt: new Date().toISOString(),
       });
     } catch (err) {
       console.error('No se pudo guardar el video:', err);
-      alert('El video es demasiado grande para guardarlo localmente (límite del navegador). Prueba con un archivo más pequeño o comprimido.');
+      alert('No se pudo guardar el video. Puedes configurar una carpeta en tu PC desde Configuración → Almacenamiento de Videos para evitar límites.');
       return;
     }
     const videoHtml = `

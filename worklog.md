@@ -217,3 +217,21 @@ Work Log:
 
 Stage Summary:
 - Flujo completo del usuario verificado: descargar video → abrir subpágina → Incrustar Video → elegir archivo → reproducible con controles completos → Guardar Backup lo incluye → importarlo en otra PC lo restaura.
+
+---
+Task ID: 11
+Agent: main (Z.ai Code)
+Task: Videos sin límites — carpeta real del PC (FSA) + fallback IDB + backup extendido + push.
+
+Work Log:
+- Nuevo utils/videoStorage.ts: arquitectura dual. PRIMARIO: File System Access API — showDirectoryPicker → subcarpeta VaultNotesVideos (create) → handle persistido en tabla fileHandles; videos como archivos crudos (sin límite). FALLBACK: IndexedDB con navigator.storage.persist(). API: pickVideosDir/ensureFsPermission/isFsReady/getVideoBlobById/saveVideoBlob/getAllVideoEntries/deleteVideoEverywhere/migrateIdbVideosToFs/getVideoStorageStats + flags declined.
+- RichEditor + PartRichEditor: handleVideoFile usa saveVideoBlob (primera vez ofrece carpeta si no declined), attachVideoSources usa getVideoBlobById con detección de permiso faltante → banner 'Conceder acceso' (gesto) que re-vincula. Deferred Promise.resolve().then() para satisfacer react-hooks/set-state-in-effect.
+- zipBackup: export lee AMBOS orígenes vía getAllVideoEntries (ZIP portable único); import restaura vía saveVideoBlob (a disco si hay carpeta). Manifest intacto.
+- SettingsView: panel completo Almacenamiento de Videos (soporte, estado carpeta, contadores en PC/navegador con bytes formateados, elegir/cambiar carpeta, migrar N a carpeta con auto-migración al configurar, dejar de usar).
+- App.tsx: borrados definitivos usan deleteVideoEverywhere (elimina archivo real del disco). StoredVideo.blob opcional + storedIn.
+- E2E: panel visible en Configuración con botón 'Elegir carpeta para videos (sin límites)'; clic en headless → picker no disponible → flag declined + fallback sin errores; video real subido vía fallback → storedIn 'idb', blob src, embed en HTML persistido sin blob URLs; autoguardado OK; sin errores de consola; datos limpiados.
+- Lint 0, tsc 0, vite build OK. Commit a2326cd y push exitoso (3bc75e8..a2326cd).
+
+Stage Summary:
+- Las 3 opciones del usuario implementadas combinadas: FSA (opción 1) + carpeta dedicada con archivos crudos (opción 2) + backup que incluye videos de cualquier origen (opción 3, ZIP portable único).
+- Sin límites prácticos: el único tope es el espacio libre del disco del usuario.

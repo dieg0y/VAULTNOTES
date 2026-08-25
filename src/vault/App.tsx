@@ -27,6 +27,7 @@ import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { NewItemModal } from './components/NewItemModal';
 import { ImportReportModal } from './components/ImportReportModal';
 import { exportVaultZip, importVaultBackup } from './utils/zipBackup';
+import { deleteVideoEverywhere } from './utils/videoStorage';
 
 export default function App() {
   // Initialize / seed the local vault database once on mount (browser only)
@@ -212,8 +213,12 @@ export default function App() {
     const idsToDelete = [noteId, ...collectDescendantIds(noteId)];
     await db.notes.bulkDelete(idsToDelete);
     // Clean up embedded media owned by these notes (videos + images)
+    const ownedVideos = await db.videos.where('noteId').anyOf(idsToDelete).primaryKeys();
     await db.videos.where('noteId').anyOf(idsToDelete).delete();
     await db.images.where('noteId').anyOf(idsToDelete).delete();
+    for (const vid of ownedVideos) {
+      await deleteVideoEverywhere(vid as string).catch(() => undefined);
+    }
   };
 
   // Labs CRUD Actions
@@ -296,8 +301,12 @@ export default function App() {
   const handlePermanentDeleteLab = async (labId: string) => {
     await db.labs.delete(labId);
     // Clean up embedded media owned by this lab
+    const ownedVideos = await db.videos.where('labId').equals(labId).primaryKeys();
     await db.videos.where('labId').equals(labId).delete();
     await db.images.where('labId').equals(labId).delete();
+    for (const vid of ownedVideos) {
+      await deleteVideoEverywhere(vid as string).catch(() => undefined);
+    }
   };
 
   // Glossary CRUD Actions
@@ -369,14 +378,20 @@ export default function App() {
     // Clean up embedded media owned by permanently deleted content first
     const noteIds = deletedNotes.map((n) => n.id);
     const labIds = deletedLabs.map((l) => l.id);
+    const allVideoIds: string[] = [];
     if (noteIds.length > 0) {
+      const v1 = await db.videos.where('noteId').anyOf(noteIds).primaryKeys();
+      allVideoIds.push(...(v1 as string[]));
       await db.videos.where('noteId').anyOf(noteIds).delete();
       await db.images.where('noteId').anyOf(noteIds).delete();
     }
     if (labIds.length > 0) {
+      const v2 = await db.videos.where('labId').anyOf(labIds).primaryKeys();
+      allVideoIds.push(...(v2 as string[]));
       await db.videos.where('labId').anyOf(labIds).delete();
       await db.images.where('labId').anyOf(labIds).delete();
     }
+    await Promise.all(allVideoIds.map((v) => deleteVideoEverywhere(v).catch(() => undefined)));
     await db.notes.bulkDelete(noteIds);
     await db.labs.bulkDelete(labIds);
     await db.glossary.bulkDelete(deletedTerms.map((t) => t.id));

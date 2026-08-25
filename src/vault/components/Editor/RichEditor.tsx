@@ -7,6 +7,7 @@ import {
 import { Note, GlossaryTerm, CategoryItem } from '../../types';
 import { db } from '../../db';
 import { insertHtmlInEditable } from '../../utils/domInsert';
+import { saveVideoBlob, getVideoBlobById, isFsSupported, hasVideosDir, isFsReady, ensureFsPermission, pickVideosDir, shouldAskForDir, markDirDeclined } from '../../utils/videoStorage';
 
 interface RichEditorProps {
   note: Note;
@@ -43,29 +44,38 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   const videoInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const videoUrlsRef = useRef<string[]>([]);
+  const [fsNeedsPermission, setFsNeedsPermission] = useState(false);
 
   /** Attach persistent object-URLs to every embedded video in the editor. */
   const attachVideoSources = useCallback(async () => {
     if (!editorRef.current) return;
     const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-video-embed[data-vid]');
+    let anyMissing = false;
+    let permIssue = false;
+    const dirReady = await isFsReady().catch(() => false);
+    const hasDir = await hasVideosDir().catch(() => false);
     for (const fig of Array.from(embeds)) {
       const vid = fig.getAttribute('data-vid');
       const videoEl = fig.querySelector('video');
       if (!vid || !videoEl || videoEl.getAttribute('src')) continue;
       try {
-        const stored = await db.videos.get(vid);
-        if (stored) {
+        const blob = await getVideoBlobById(vid);
+        if (blob) {
           fig.classList.remove('vault-video-missing');
-          const url = URL.createObjectURL(stored.blob);
+          const url = URL.createObjectURL(blob);
           videoUrlsRef.current.push(url);
           videoEl.src = url;
         } else {
+          anyMissing = true;
+          permIssue = permIssue || (hasDir && !dirReady);
           fig.classList.add('vault-video-missing');
         }
       } catch {
+        anyMissing = true;
         fig.classList.add('vault-video-missing');
       }
     }
+    setFsNeedsPermission(anyMissing && permIssue);
   }, []);
 
   // Revoke object URLs when the editor unmounts (note switch / view change).
@@ -82,7 +92,9 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.innerHTML = note.contentHtml;
-      attachVideoSources();
+      // Deferred: attachVideoSources resolves asynchronously from IndexedDB
+      // and updates state afterwards (never during the effect body).
+      void Promise.resolve().then(attachVideoSources);
     }
   }, [note.id, attachVideoSources]);
 
@@ -162,24 +174,32 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     reader.readAsDataURL(file);
   };
 
-  /** Embed a local video file into the note (stored as Blob in IndexedDB). */
+  /** Embed a local video file into the note.
+   *  Videos live as raw files in the user's VaultNotesVideos folder when
+   *  available (no size limit); otherwise in browser storage. */
   const handleVideoFile = async (file: File) => {
     if (!file.type.startsWith('video/')) return;
+
+    // First video ever + no folder chosen yet → offer the unlimited folder
+    if (isFsSupported() && !(await hasVideosDir().catch(() => false)) && shouldAskForDir()) {
+      const ok = await pickVideosDir(); // user gesture: the file dialog flow
+      if (!ok) markDirDeclined(); // don't nag again; configurable in Ajustes
+    }
+
     const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const safeName = file.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     try {
-      await db.videos.add({
+      await saveVideoBlob({
         id: vidId,
         noteId: note.id,
         name: file.name,
         mimeType: file.type,
-        blob: file, // File IS a Blob — stored efficiently without base64
+        blob: file,
         caption: file.name,
-        createdAt: new Date().toISOString(),
       });
     } catch (err) {
       console.error('No se pudo guardar el video:', err);
-      alert('El video es demasiado grande para guardarlo localmente (límite del navegador). Prueba con un archivo más pequeño o comprimido.');
+      alert('No se pudo guardar el video (el navegador rechazó el almacenamiento). Puedes configurar una carpeta en tu PC desde Configuración → Almacenamiento de Videos para evitar límites.');
       return;
     }
     const videoHtml = `
@@ -254,6 +274,27 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
       <input ref={videoInputRef} type="file" accept="video/*" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVideoFile(f); e.target.value = ''; }} />
+
+      {/* FS permission reconnect banner */}
+      {fsNeedsPermission && (
+        <div className="px-6 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 shrink-0">
+          <p className="text-[11px] text-amber-300">
+            🎬 Tus videos están guardados en la carpeta de tu PC. Concede acceso para reproducirlos en esta sesión.
+          </p>
+          <button
+            onClick={async () => {
+              const ok = await ensureFsPermission();
+              if (ok) {
+                setFsNeedsPermission(false);
+                attachVideoSources();
+              }
+            }}
+            className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold shrink-0 cursor-pointer transition-colors"
+          >
+            Conceder acceso
+          </button>
+        </div>
+      )}
 
       {/* Breadcrumb */}
       {breadcrumb.length > 1 && (

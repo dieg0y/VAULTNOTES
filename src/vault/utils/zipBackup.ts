@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db } from '../db';
 import { Note, Lab, GlossaryTerm, StoredImage, StoredVideo, ImportSummary, FlashcardStat } from '../types';
+import { getAllVideoEntries, saveVideoBlob, videoExtensionFor } from './videoStorage';
 
 // ------------------------------------------------------------------
 // Smart import helpers (upsert semantics)
@@ -132,7 +133,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
   const labs = await db.labs.filter(l => !l.isDeleted).toArray();
   const glossary = await db.glossary.filter(g => !g.isDeleted).toArray();
   const images = await db.images.toArray();
-  const videos = await db.videos.toArray();
+  const videoEntries = await getAllVideoEntries(); // disk folder + IDB, merged
   const platforms = await db.platforms.toArray();
   const categories = await db.categories.toArray();
   const tools = await db.tools.toArray();
@@ -147,7 +148,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
       labsCount: labs.length,
       glossaryCount: glossary.length,
       imagesCount: images.length,
-      videosCount: videos.length,
+      videosCount: videoEntries.length,
       platformsCount: platforms.length,
       categoriesCount: categories.length,
       toolsCount: tools.length,
@@ -184,18 +185,20 @@ export async function exportVaultZip(): Promise<ExportResult> {
     }
   }
 
-  // 4b. /videos/ — embedded videos, stored as raw blobs + a manifest with metadata
+  // 4b. /videos/ — embedded videos from BOTH storages (disk folder + IDB):
+  // the .zip stays fully portable regardless of where the bytes live.
   const videosFolder = zip.folder('videos');
-  const videoManifest = videos.map(({ blob, ...meta }) => meta);
+  const videoManifest = videoEntries.map(({ meta }) => meta);
   zip.file('videosManifest.json', JSON.stringify(videoManifest, null, 2));
-  for (const vid of videos) {
+  for (const { meta, blob } of videoEntries) {
+    if (!blob) {
+      console.warn('Video omitted from backup (no access to disk file):', meta.id);
+      continue;
+    }
     try {
-      const ext = (vid.name || '').includes('.')
-        ? (vid.name.split('.').pop() || 'mp4').toLowerCase()
-        : (vid.mimeType.split('/')[1] || 'mp4');
-      videosFolder?.file(`${vid.id}.${ext}`, vid.blob);
+      videosFolder?.file(`${meta.id}.${videoExtensionFor(meta)}`, blob);
     } catch (err) {
-      console.warn('Could not serialize video for zip:', vid.id, err);
+      console.warn('Could not serialize video for zip:', meta.id, err);
     }
   }
 
@@ -500,7 +503,9 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   }
 
-  // 4. Process videos (blobs + manifest) — non-destructive upsert by id
+  // 4. Process videos (blobs + manifest) — non-destructive upsert by id.
+  //    Restored videos go to the user's disk folder when available (no
+  //    browser quota), falling back to IndexedDB.
   const videosManifestFile = contents.file('videosManifest.json');
   if (videosManifestFile) {
     try {
@@ -510,15 +515,13 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
         try {
           const existing = await db.videos.get(meta.id);
           if (existing) continue; // already have this exact video
-          const ext = (meta.name || '').includes('.')
-            ? (meta.name!.split('.').pop() || 'mp4').toLowerCase()
-            : ((meta.mimeType || 'video/mp4').split('/')[1] || 'mp4');
+          const ext = videoExtensionFor(meta as { name?: string; mimeType?: string });
           const vidFile = contents.file(`videos/${meta.id}.${ext}`);
           if (!vidFile) continue;
           const rawBlob = await vidFile.async('blob');
           // Re-type the blob so <video> plays it back correctly
           const typedBlob = new Blob([rawBlob], { type: meta.mimeType || 'video/mp4' });
-          await db.videos.add({
+          await saveVideoBlob({
             id: meta.id,
             noteId: meta.noteId,
             labId: meta.labId,
@@ -526,7 +529,7 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
             mimeType: meta.mimeType || 'video/mp4',
             blob: typedBlob,
             caption: meta.caption,
-            createdAt: meta.createdAt || new Date().toISOString(),
+            createdAt: meta.createdAt,
           });
           summary.addedVideos++;
         } catch (err) {
