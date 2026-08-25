@@ -235,3 +235,20 @@ Work Log:
 Stage Summary:
 - Las 3 opciones del usuario implementadas combinadas: FSA (opción 1) + carpeta dedicada con archivos crudos (opción 2) + backup que incluye videos de cualquier origen (opción 3, ZIP portable único).
 - Sin límites prácticos: el único tope es el espacio libre del disco del usuario.
+
+---
+Task ID: 12
+Agent: main (Z.ai Code)
+Task: Auditoría final de límites de video + regresión completa de funcionalidades + dead code + orientación Edge + push.
+
+Work Log:
+- LÍMITES DE VIDEO: eliminado el tope visual max-height 480px (embeds de ambos editores + CSS global) → reproducción a tamaño natural. Sin límites de tamaño de archivo (carpeta FSA en disco). preload=metadata OK. Mensajes de alerta solo en fallos reales.
+- Banner 'Conceder acceso' añadido también a PartRichEditor (labs) — antes solo estaba en RichEditor; attachVideoSources extendido con detección de permiso (anyMissing && permIssue). Imports huérfanos isFsReady/ensureFsPermission ahora usados.
+- EDGE: mensajes y README orientados a Edge como navegador único del usuario (soporte completo FSA/persistencia/save-picker).
+- Regresión E2E completa (todo OK, 0 errores de consola): dashboard ✓, crear apunte+subpágina con árbol ✓, incrustar video real (sin límite altura, blob src, dur 3s) ✓, crear lab con 4 secciones ✓, crear término glosario ✓, Generar Blog con markdown+prompt ✓, panel Almacenamiento Videos ✓, búsqueda Ctrl+K ✓, papelera eliminar/restaurar ✓, flashcards SMART ✓, Guardar Backup habilitado ✓, responsive 390px sin overflow ✓.
+- Dead code: 0 problemas (imports videoStorage, iconos lucide, exports).
+- Datos de prueba del navegador limpiados (BD + flag declined).
+- tsc 0, eslint 0, vite build OK. Commit 30f5eda y push exitoso (a2326cd..30f5eda).
+
+Stage Summary:
+- App cerrada por hoy: 13 commits en GitHub, todo funcional, videos sin ninguna limitación, optimizada para Edge.

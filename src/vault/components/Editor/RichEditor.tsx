@@ -204,7 +204,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     }
     const videoHtml = `
       <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D] shadow-xl" contenteditable="false" data-vid="${vidId}">
-        <video controls playsinline preload="metadata" style="width: 100%; max-height: 480px; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
+        <video controls playsinline preload="metadata" style="width: 100%; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
         <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
           Video: ${safeName.replace(/\.[^/.]+$/, '')}
         </figcaption>

@@ -1288,6 +1288,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const videoUrlsRef = useRef<string[]>([]);
+  const [fsNeedsPermission, setFsNeedsPermission] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -1299,6 +1300,10 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
   const attachVideoSources = useCallback(async () => {
     if (!editorRef.current) return;
     const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-video-embed[data-vid]');
+    let anyMissing = false;
+    let permIssue = false;
+    const dirReady = await isFsReady().catch(() => false);
+    const hasDir = await hasVideosDir().catch(() => false);
     for (const fig of Array.from(embeds)) {
       const vid = fig.getAttribute('data-vid');
       const videoEl = fig.querySelector('video');
@@ -1311,18 +1316,22 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
           videoUrlsRef.current.push(url);
           videoEl.src = url;
         } else {
+          anyMissing = true;
+          permIssue = permIssue || (hasDir && !dirReady);
           fig.classList.add('vault-video-missing');
         }
       } catch {
+        anyMissing = true;
         fig.classList.add('vault-video-missing');
       }
     }
+    setFsNeedsPermission(anyMissing && permIssue);
   }, []);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== initialHtml) {
       editorRef.current.innerHTML = initialHtml;
-      attachVideoSources();
+      void Promise.resolve().then(attachVideoSources);
     }
   }, [initialHtml, attachVideoSources]);
 
@@ -1427,7 +1436,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     }
     const videoHtml = `
       <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D]" contenteditable="false" data-vid="${vidId}">
-        <video controls playsinline preload="metadata" style="width: 100%; max-height: 480px; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
+        <video controls playsinline preload="metadata" style="width: 100%; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
         <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
           Video: ${safeName.replace(/\.[^/.]+$/, '')}
         </figcaption>
@@ -1467,6 +1476,25 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
 
   return (
     <div className="p-4 space-y-3 bg-[#0A0A0A]" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+      {fsNeedsPermission && (
+        <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 rounded">
+          <p className="text-[11px] text-amber-300">
+            🎬 Tus videos están en la carpeta de tu PC. Concede acceso para reproducirlos en esta sesión.
+          </p>
+          <button
+            onClick={async () => {
+              const ok = await ensureFsPermission();
+              if (ok) {
+                setFsNeedsPermission(false);
+                attachVideoSources();
+              }
+            }}
+            className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold shrink-0 cursor-pointer transition-colors"
+          >
+            Conceder acceso
+          </button>
+        </div>
+      )}
       <input
         ref={fileInputRef}
         type="file"

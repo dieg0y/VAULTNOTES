@@ -147,7 +147,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
         {!fsSupported ? (
           <div className="flex items-start gap-2 text-[11px] text-[#999] bg-[#161616] border border-[#262626] rounded p-2.5">
             <HardDrive className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <span>Tu navegador no soporta carpetas del PC (úsalo con Chrome o Edge). Los videos se guardan en el almacenamiento del navegador con persistencia activada.</span>
+            <span>Abre la app en <strong>Microsoft Edge</strong> para usar la carpeta del PC (soporte completo). Los videos se guardan en el almacenamiento del navegador con persistencia activada.</span>
           </div>
         ) : hasDir ? (
           <div className="space-y-2.5">
