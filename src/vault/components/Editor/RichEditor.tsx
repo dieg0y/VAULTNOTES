@@ -7,7 +7,7 @@ import {
 import { Note, GlossaryTerm, CategoryItem } from '../../types';
 import { db } from '../../db';
 import { insertHtmlInEditable } from '../../utils/domInsert';
-import { saveVideoBlob, getVideoBlobById, isFsSupported, hasVideosDir, isFsReady, ensureFsPermission, pickVideosDir, shouldAskForDir, markDirDeclined } from '../../utils/videoStorage';
+import { saveVideoBlob, getVideoBlobById, isFsSupported, hasAppFolder, isFsReady, ensureFsPermission, pickAppFolder, shouldAskForDir, markDirDeclined } from '../../utils/videoStorage';
 
 interface RichEditorProps {
   note: Note;
@@ -53,7 +53,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     let anyMissing = false;
     let permIssue = false;
     const dirReady = await isFsReady().catch(() => false);
-    const hasDir = await hasVideosDir().catch(() => false);
+    const hasDir = await hasAppFolder().catch(() => false);
     for (const fig of Array.from(embeds)) {
       const vid = fig.getAttribute('data-vid');
       const videoEl = fig.querySelector('video');
@@ -175,14 +175,14 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   };
 
   /** Embed a local video file into the note.
-   *  Videos live as raw files in the user's VaultNotesVideos folder when
-   *  available (no size limit); otherwise in browser storage. */
+   *  Videos live as raw files inside <app>/VaultNotesVideos when the app
+   *  folder is configured (no size limit); otherwise in browser storage. */
   const handleVideoFile = async (file: File) => {
     if (!file.type.startsWith('video/')) return;
 
-    // First video ever + no folder chosen yet → offer the unlimited folder
-    if (isFsSupported() && !(await hasVideosDir().catch(() => false)) && shouldAskForDir()) {
-      const ok = await pickVideosDir(); // user gesture: the file dialog flow
+    // First video ever + no app folder chosen yet → offer the all-in-one folder
+    if (isFsSupported() && !(await hasAppFolder().catch(() => false)) && shouldAskForDir()) {
+      const ok = await pickAppFolder(); // pick THE app folder (with iniciar.bat)
       if (!ok) markDirDeclined(); // don't nag again; configurable in Ajustes
     }
 
@@ -199,7 +199,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       });
     } catch (err) {
       console.error('No se pudo guardar el video:', err);
-      alert('No se pudo guardar el video (el navegador rechazó el almacenamiento). Puedes configurar una carpeta en tu PC desde Configuración → Almacenamiento de Videos para evitar límites.');
+      alert('No se pudo guardar el video (el navegador rechazó el almacenamiento). Configura la carpeta de la app en Configuración → Carpeta de la App para guardar sin límites.');
       return;
     }
     const videoHtml = `
@@ -279,7 +279,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       {fsNeedsPermission && (
         <div className="px-6 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 shrink-0">
           <p className="text-[11px] text-amber-300">
-            🎬 Tus videos están guardados en la carpeta de tu PC. Concede acceso para reproducirlos en esta sesión.
+            🎬 Tus videos están en la carpeta de la app. Concede acceso para reproducirlos en esta sesión.
           </p>
           <button
             onClick={async () => {

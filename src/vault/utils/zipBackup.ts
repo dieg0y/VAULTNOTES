@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db } from '../db';
 import { Note, Lab, GlossaryTerm, StoredImage, StoredVideo, ImportSummary, FlashcardStat } from '../types';
-import { getAllVideoEntries, saveVideoBlob, videoExtensionFor } from './videoStorage';
+import { getAllVideoEntries, saveVideoBlob, videoExtensionFor, writeFileToAppFolder } from './videoStorage';
 
 // ------------------------------------------------------------------
 // Smart import helpers (upsert semantics)
@@ -95,7 +95,7 @@ function sanitizeFilename(str: string): string {
 }
 
 export interface ExportResult {
-  mode: 'file' | 'download';
+  mode: 'app' | 'file' | 'download';
   savedTo?: string;
 }
 
@@ -233,7 +233,14 @@ export async function exportVaultZip(): Promise<ExportResult> {
   // Generate the zip blob once — saving strategy depends on browser support.
   const blob = await zip.generateAsync({ type: 'blob' });
 
-  // --- Preferred path: File System Access API (Chrome/Edge/Chromium) ---
+  // --- Preferred: THE APP FOLDER — <app>/VaultNotes-Backup.zip lives with
+  //     the app itself, so copying one folder to Drive carries everything. ---
+  const wroteToApp = await writeFileToAppFolder(BACKUP_FILENAME, blob).catch(() => false);
+  if (wroteToApp) {
+    return { mode: 'app', savedTo: BACKUP_FILENAME };
+  }
+
+  // --- File System Access API fallback (no app folder configured) ---
   const picker = (window as unknown as {
     showSaveFilePicker?: (opts?: unknown) => Promise<FileSystemFileHandle>;
   }).showSaveFilePicker?.bind(window);

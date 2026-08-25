@@ -37,6 +37,7 @@ interface FSDirHandleLike {
 
 export const VIDEOS_DIR_NAME = 'VaultNotesVideos';
 const DIR_HANDLE_KEY = 'vault-videos-dir';
+const APP_DIR_KEY = 'vault-app-dir'; // the app folder itself (where iniciar.bat lives)
 const DECLINED_FLAG = 'vault-videos-dir-declined';
 
 export function isFsSupported(): boolean {
@@ -66,13 +67,33 @@ async function getDirHandle(): Promise<FSDirHandleLike | null> {
   }
 }
 
+async function getAppDirHandle(): Promise<FSDirHandleLike | null> {
+  try {
+    const stored = await db.fileHandles.get(APP_DIR_KEY);
+    return (stored?.handle as unknown as FSDirHandleLike) || null;
+  } catch {
+    return null;
+  }
+}
+
 /** True when the user picked a videos folder at some point. */
 export async function hasVideosDir(): Promise<boolean> {
   return (await getDirHandle()) !== null;
 }
 
+/** True when the user picked THE APP FOLDER (videos + backups target). */
+export async function hasAppFolder(): Promise<boolean> {
+  return (await getAppDirHandle()) !== null;
+}
+
 export async function getVideosDirName(): Promise<string | null> {
   const dir = await getDirHandle();
+  return dir ? dir.name : null;
+}
+
+/** Name of the app folder the user picked (e.g. "VAULTNOTES"). */
+export async function getAppFolderName(): Promise<string | null> {
+  const dir = await getAppDirHandle();
   return dir ? dir.name : null;
 }
 
@@ -111,22 +132,56 @@ export async function ensureFsPermission(): Promise<boolean> {
 }
 
 /**
- * Asks the user to pick a folder on their PC; creates/uses a
- * `VaultNotesVideos` subfolder inside it and remembers the handle.
- * MUST be called from a user gesture.
+ * Asks the user to pick THE APP FOLDER (the VAULTNOTES repo folder, where
+ * iniciar.bat lives). Everything then stays inside it:
+ *   <app>/VaultNotesVideos/          → embedded videos (raw files)
+ *   <app>/VaultNotes-Backup.zip      → every "Guardar Backup"
+ * Copying that single folder to Drive carries the whole vault.
+ * MUST be called from a user gesture. Soft-verifies the folder by looking
+ * for iniciar.bat / package.json markers.
  */
-export async function pickVideosDir(): Promise<boolean> {
+export async function pickAppFolder(): Promise<boolean> {
   const picker = (window as unknown as {
     showDirectoryPicker?: (opts?: unknown) => Promise<FSDirHandleLike>;
   }).showDirectoryPicker;
   if (!picker) return false;
   try {
-    const parent = await picker({ mode: 'readwrite' });
+    // Re-open at the previously chosen location when re-picking
+    const prev = await getAppDirHandle();
+    const parent = await picker.call(window, {
+      mode: 'readwrite',
+      id: 'vaultnotes-app',
+      ...(prev ? { startIn: prev } : {}),
+    });
     if (!parent.getFileHandle) throw new Error('unsupported');
-    // Dedicated subfolder so we never touch the user's other files
+
+    // Soft check: does this look like the app folder?
+    let looksLikeApp = false;
+    try {
+      await parent.getFileHandle('iniciar.bat');
+      looksLikeApp = true;
+    } catch {
+      try {
+        await parent.getFileHandle('package.json');
+        looksLikeApp = true;
+      } catch {
+        /* no marker found */
+      }
+    }
+    if (!looksLikeApp) {
+      const proceed = window.confirm(
+        'La carpeta elegida no parece ser la carpeta de la app (no contiene iniciar.bat).\n\n' +
+        'Para tener TODO junto (videos + backups) y poder copiar una sola carpeta a tu Drive, elige la carpeta VAULTNOTES donde está iniciar.bat.\n\n' +
+        '¿Usar esta carpeta de todos modos?'
+      );
+      if (!proceed) return false;
+    }
+
+    // Dedicated videos subfolder inside the app folder
     const dir = await (parent as unknown as {
       getDirectoryHandle: (name: string, opts?: { create?: boolean }) => Promise<FSDirHandleLike>;
     }).getDirectoryHandle(VIDEOS_DIR_NAME, { create: true });
+    await db.fileHandles.put({ id: APP_DIR_KEY, handle: parent as unknown as FileSystemFileHandle });
     await db.fileHandles.put({ id: DIR_HANDLE_KEY, handle: dir as unknown as FileSystemFileHandle });
     try {
       localStorage.removeItem(DECLINED_FLAG);
@@ -134,13 +189,35 @@ export async function pickVideosDir(): Promise<boolean> {
     return true;
   } catch (err: unknown) {
     if ((err as { name?: string })?.name === 'AbortError') return false; // user cancelled
-    console.warn('pickVideosDir failed:', err);
+    console.warn('pickAppFolder failed:', err);
     return false;
   }
 }
 
-/** Stop using the disk folder (falls back to browser storage). */
-export async function forgetVideosDir(): Promise<void> {
+/** Writes a file (e.g. the backup zip) directly INTO the app folder. */
+export async function writeFileToAppFolder(filename: string, blob: Blob): Promise<boolean> {
+  const dir = await getAppDirHandle();
+  if (!dir || !dir.getFileHandle) return false;
+  try {
+    let perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    if (perm !== 'granted' && dir.requestPermission) {
+      perm = await dir.requestPermission({ mode: 'readwrite' });
+    }
+    if (perm !== 'granted') return false;
+    const fh = await dir.getFileHandle(filename, { create: true });
+    const writable = await fh.createWritable!();
+    await writable.write(blob);
+    await writable.close();
+    return true;
+  } catch (err) {
+    console.warn('writeFileToAppFolder failed:', err);
+    return false;
+  }
+}
+
+/** Stop using the app folder (falls back to browser storage / save picker). */
+export async function forgetAppFolder(): Promise<void> {
+  await db.fileHandles.delete(APP_DIR_KEY);
   await db.fileHandles.delete(DIR_HANDLE_KEY);
 }
 

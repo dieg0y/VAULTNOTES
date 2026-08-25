@@ -403,7 +403,9 @@ export default function App() {
     try {
       setIsExporting(true);
       const result = await exportVaultZip();
-      if (result.mode === 'file') {
+      if (result.mode === 'app') {
+        setBackupSavedMessage('Guardado en la carpeta de la app ✓');
+      } else if (result.mode === 'file') {
         setBackupSavedMessage(`Guardado en "${result.savedTo}"`);
       } else {
         setBackupSavedMessage(`Descargado: ${result.savedTo}`);

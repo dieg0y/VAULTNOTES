@@ -33,7 +33,7 @@ import { db } from '../db';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import { insertHtmlInEditable } from '../utils/domInsert';
-import { saveVideoBlob, getVideoBlobById, isFsSupported, hasVideosDir, isFsReady, ensureFsPermission, pickVideosDir, shouldAskForDir, markDirDeclined } from '../utils/videoStorage';
+import { saveVideoBlob, getVideoBlobById, isFsSupported, hasAppFolder, isFsReady, ensureFsPermission, pickAppFolder, shouldAskForDir, markDirDeclined } from '../utils/videoStorage';
 
 interface LabsViewProps {
   labs: Lab[];
@@ -1303,7 +1303,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     let anyMissing = false;
     let permIssue = false;
     const dirReady = await isFsReady().catch(() => false);
-    const hasDir = await hasVideosDir().catch(() => false);
+    const hasDir = await hasAppFolder().catch(() => false);
     for (const fig of Array.from(embeds)) {
       const vid = fig.getAttribute('data-vid');
       const videoEl = fig.querySelector('video');
@@ -1408,13 +1408,13 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     reader.readAsDataURL(file);
   };
 
-  /** Embed a local video file into this lab part — raw file on disk when
-   *  the user's VaultNotesVideos folder is available, IDB otherwise. */
+  /** Embed a local video file into this lab part — raw file inside
+   *  <app>/VaultNotesVideos when the app folder is available, IDB otherwise. */
   const handleVideoFile = async (file: File) => {
     if (!file.type.startsWith('video/')) return;
 
-    if (isFsSupported() && !(await hasVideosDir().catch(() => false)) && shouldAskForDir()) {
-      const ok = await pickVideosDir();
+    if (isFsSupported() && !(await hasAppFolder().catch(() => false)) && shouldAskForDir()) {
+      const ok = await pickAppFolder();
       if (!ok) markDirDeclined();
     }
 
@@ -1431,7 +1431,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       });
     } catch (err) {
       console.error('No se pudo guardar el video:', err);
-      alert('No se pudo guardar el video. Puedes configurar una carpeta en tu PC desde Configuración → Almacenamiento de Videos para evitar límites.');
+      alert('No se pudo guardar el video. Configura la carpeta de la app en Configuración → Carpeta de la App para guardar sin límites.');
       return;
     }
     const videoHtml = `
@@ -1479,7 +1479,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       {fsNeedsPermission && (
         <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 rounded">
           <p className="text-[11px] text-amber-300">
-            🎬 Tus videos están en la carpeta de tu PC. Concede acceso para reproducirlos en esta sesión.
+            🎬 Tus videos están en la carpeta de la app. Concede acceso para reproducirlos en esta sesión.
           </p>
           <button
             onClick={async () => {

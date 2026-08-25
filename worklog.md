@@ -252,3 +252,20 @@ Work Log:
 
 Stage Summary:
 - App cerrada por hoy: 13 commits en GitHub, todo funcional, videos sin ninguna limitación, optimizada para Edge.
+
+---
+Task ID: 13
+Agent: main (Z.ai Code)
+Task: Todo (videos + backups) dentro de la carpeta de la app para copiar una sola carpeta al Drive + push.
+
+Work Log:
+- videoStorage: pickAppFolder() reemplaza pickVideosDir — guarda 2 handles (vault-app-dir = carpeta VAULTNOTES con iniciar.bat, vault-videos-dir = subcarpeta). Verificación suave con markers iniciar.bat/package.json + confirm con guía. Picker con id 'vaultnotes-app' (Edge recuerda) y startIn al re-elegir. Nuevos: hasAppFolder, getAppFolderName, writeFileToAppFolder, forgetAppFolder (borra ambos handles).
+- zipBackup: exportVaultZip escribe <app>/VaultNotes-Backup.zip DIRECTO vía writeFileToAppFolder (sin diálogo, modo 'app'); fallbacks anteriores intactos. App.tsx: mensaje 'Guardado en la carpeta de la app ✓'.
+- RichEditor + PartRichEditor: gate de primer video usa hasAppFolder/pickAppFolder; copy de banners y alerts orientado a carpeta de la app; attachVideoSources usa hasAppFolder.
+- SettingsView: panel reescrito 'Carpeta de la App — todo en un solo lugar' con explicación, estado (appName/VaultNotesVideos), stats, migrar/cambiar/dejar-de-usar, y aviso legacy (carpeta de videos vieja sin app-dir → re-elegir para backups automáticos).
+- README: diagrama VAULTNOTES/ = iniciar.bat + VaultNotesVideos/ + VaultNotes-Backup.zip; sección 'TODO en una sola carpeta (para tu Drive)'; backups reescritos.
+- E2E: panel nuevo visible con botón correcto; Guardar Backup sin carpeta → fallback sin errores; video real incrustado con el nuevo flujo (embed+src+dur OK); tsc 0, eslint 0, vite build OK; datos de prueba limpiados.
+- Commit 5a4fcf5 y push exitoso (30f5eda..5a4fcf5).
+
+Stage Summary:
+- El usuario copia UNA carpeta (VAULTNOTES) al Drive y lleva: la app, todos los videos y el último backup completo.
