@@ -168,3 +168,21 @@ Work Log:
 Stage Summary:
 - La app ahora se abre con doble clic en iniciar.bat (Windows) / iniciar.sh (Mac/Linux).
 - Export = Guardar real: un solo archivo de backup siempre actualizado en la ubicación elegida por el usuario.
+
+---
+Task ID: 8
+Agent: main (Z.ai Code)
+Task: App "como nueva" (sin demo) + plataformas eliminables en Apuntes + filtros de labs reales + revisión final + push.
+
+Work Log:
+- db/index.ts: eliminados INITIAL_NOTES/INITIAL_LABS/INITIAL_GLOSSARY_TERMS (seeds de demo, −200 líneas). Limpieza one-time con flag localStorage 'vault-demo-content-removed' que borra los IDs demo conocidos (incluida subnota y flashcardStats) en instalaciones existentes sin tocar contenido del usuario.
+- NotesView: gestión de plataformas en la barra izquierda — botón + para agregar (Enter/Escape, anti-duplicados), papelera por plataforma visible al hover; bloqueo con alert si tiene apuntes; reset a 'Todas' si se borra la seleccionada.
+- LabsView: allOrganizations sin hardcode (antes LetsDefend/THM/HTB/Mi Lab Local fijos) — refleja solo orgs reales con hint vacío; eliminado el input '+ Nueva Organización' (no persistía nada).
+- GlossaryView: 'Estudiar Flashcards' disabled con 0 términos + tooltip.
+- E2E verificado: app arranca 0/0/0 tras limpieza one-time; agregar plataforma ✓; eliminar sin notas ✓ (14→13); eliminar con notas bloqueada con aviso ✓; lab creado → filtro muestra solo su org real ✓; flashcards disabled ✓; sin errores de consola; datos de prueba limpiados.
+- README actualizado (arranque vacío, plataformas gestionables, filtros reales).
+- tsc 0, eslint 0, vite build OK en clone. Commit 7fe8c28 y push exitoso (937b2f1..7fe8c28).
+
+Stage Summary:
+- La app es 100% del usuario: arranca vacía, plataformas y filtros reflejan solo sus datos reales.
+- Repo GitHub actualizado con todo el trabajo de la sesión (8 commits).

@@ -80,20 +80,13 @@ export const LabsView: React.FC<LabsViewProps> = ({
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(true);
   const [isDiffFilterOpen, setIsDiffFilterOpen] = useState(true);
 
-  // New Organization modal/inline input
-  const [isAddingOrg, setIsAddingOrg] = useState(false);
-  const [newOrgInput, setNewOrgInput] = useState('');
-
-  // Extract unique organizations and topics
+  // Extract unique organizations from real lab data only (no hardcode:
+  // the filter list always reflects exactly what exists in your vault)
   const allOrganizations = useMemo(() => {
     const set = new Set<string>();
     activeLabs.forEach((l) => {
       if (l.organization) set.add(l.organization);
     });
-    if (!set.has('LetsDefend')) set.add('LetsDefend');
-    if (!set.has('TryHackMe')) set.add('TryHackMe');
-    if (!set.has('HackTheBox')) set.add('HackTheBox');
-    if (!set.has('Mi Lab Local')) set.add('Mi Lab Local');
     return Array.from(set);
   }, [activeLabs]);
 
@@ -238,39 +231,11 @@ export const LabsView: React.FC<LabsViewProps> = ({
                   );
                 })}
 
-                {/* Add new Organization button */}
-                {!isAddingOrg ? (
-                  <button
-                    onClick={() => setIsAddingOrg(true)}
-                    className="flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 pt-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>+ Nueva Organización</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1 pt-1">
-                    <input
-                      type="text"
-                      placeholder="Nombre org..."
-                      value={newOrgInput}
-                      onChange={(e) => setNewOrgInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newOrgInput.trim()) {
-                          toggleOrgFilter(newOrgInput.trim());
-                          setNewOrgInput('');
-                          setIsAddingOrg(false);
-                        }
-                      }}
-                      className="flex-1 bg-[#161616] border border-blue-500 rounded px-2 py-0.5 text-xs text-white focus:outline-none"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => setIsAddingOrg(false)}
-                      className="text-[#888] hover:text-white text-xs px-1"
-                    >
-                      ✕
-                    </button>
-                  </div>
+                {/* No organizations yet? helpful empty hint */}
+                {allOrganizations.length === 0 && (
+                  <span className="text-[10px] text-[#666] italic pl-1">
+                    Aparecen automáticamente cuando crees labs.
+                  </span>
                 )}
               </div>
             )}

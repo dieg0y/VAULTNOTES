@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Layers, Plus, Star, Search, FileText, ChevronRight, ChevronDown } from 'lucide-react';
+import { Layers, Plus, Star, Search, FileText, ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
 import { Note, GlossaryTerm, PlatformItem, CategoryItem } from '../types';
+import { db } from '../db';
 import { RichEditor } from './Editor/RichEditor';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
@@ -38,6 +39,41 @@ export const NotesView: React.FC<NotesViewProps> = ({
   const [selectedPlatform, setSelectedPlatform] = useState<string>('ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchFilter, setSearchFilter] = useState('');
+
+  // --- Platform management (add / delete from the sidebar itself) ---
+  const [isAddingPlatform, setIsAddingPlatform] = useState(false);
+  const [newPlatformInput, setNewPlatformInput] = useState('');
+
+  const handleAddPlatform = async () => {
+    const name = newPlatformInput.trim();
+    if (!name) return;
+    if (platforms.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      setNewPlatformInput('');
+      setIsAddingPlatform(false);
+      return;
+    }
+    await db.platforms.add({
+      id: `plat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      createdAt: new Date().toISOString(),
+    });
+    setNewPlatformInput('');
+    setIsAddingPlatform(false);
+  };
+
+  const handleDeletePlatform = async (platform: PlatformItem) => {
+    const count = activeNotes.filter((n) => !n.parentId && n.platform === platform.name).length;
+    if (count > 0) {
+      alert(
+        `No se puede eliminar "${platform.name}": ${count} apunte${count === 1 ? '' : 's'} la está${count === 1 ? '' : 'n'} usando. Muévelo${count === 1 ? '' : 's'} a otra plataforma primero.`
+      );
+      return;
+    }
+    if (window.confirm(`¿Eliminar la plataforma "${platform.name}"?`)) {
+      await db.platforms.delete(platform.id);
+      if (selectedPlatform === platform.name) setSelectedPlatform('ALL');
+    }
+  };
 
   /* --- Resizable panels (persisted) --- */
   const platformsPanel = useResizablePanel({
@@ -205,17 +241,45 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
   return (
     <div className="flex flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A]">
-      {/* 1. Left: Platforms (resizable) */}
+      {/* 1. Left: Platforms (resizable, manage: add / delete) */}
       <div
         style={{ width: platformsPanel.width }}
         className="bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0 overflow-y-auto"
       >
-        <div className="p-3 border-b border-[#262626]">
+        <div className="p-3 border-b border-[#262626] flex items-center justify-between">
           <h2 className="font-bold text-[10px] uppercase tracking-widest text-[#555] flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-[#888]" />
             Plataformas
           </h2>
+          <button
+            onClick={() => setIsAddingPlatform((v) => !v)}
+            className="p-1 rounded text-[#777] hover:text-blue-400 hover:bg-[#161616] transition-colors"
+            title="Agregar plataforma"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
         </div>
+
+        {isAddingPlatform && (
+          <div className="p-2 border-b border-[#262626] bg-[#161616] animate-in fade-in duration-100">
+            <input
+              type="text"
+              autoFocus
+              value={newPlatformInput}
+              onChange={(e) => setNewPlatformInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddPlatform();
+                else if (e.key === 'Escape') {
+                  setIsAddingPlatform(false);
+                  setNewPlatformInput('');
+                }
+              }}
+              placeholder="Nombre de la plataforma..."
+              className="w-full bg-[#0D0D0D] border border-[#333] rounded px-2 py-1 text-xs text-white placeholder:text-[#555] focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+        )}
+
         <div className="p-2 space-y-1">
           <button
             onClick={() => setSelectedPlatform('ALL')}
@@ -229,18 +293,30 @@ export const NotesView: React.FC<NotesViewProps> = ({
             <span className="font-mono text-[10px] text-[#555]">{topLevelNotes.length}</span>
           </button>
           {platforms.map((p) => (
-            <button
+            <div
               key={p.id}
-              onClick={() => setSelectedPlatform(p.name)}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors ${
-                selectedPlatform === p.name
-                  ? 'bg-blue-600/20 text-blue-400 font-semibold border border-blue-500/30'
-                  : 'text-[#888] hover:bg-[#161616] hover:text-white'
+              className={`group flex items-center gap-0.5 rounded transition-colors ${
+                selectedPlatform === p.name ? 'bg-blue-600/20 border border-blue-500/30' : 'hover:bg-[#161616] border border-transparent'
               }`}
             >
-              <span className="truncate">{p.name}</span>
-              <span className="font-mono text-[10px] text-[#555]">{platformCounts.get(p.name) || 0}</span>
-            </button>
+              <button
+                onClick={() => setSelectedPlatform(p.name)}
+                className={`flex-1 flex items-center justify-between px-2.5 py-1.5 rounded text-xs min-w-0 text-left ${
+                  selectedPlatform === p.name ? 'text-blue-400 font-semibold' : 'text-[#888] group-hover:text-white'
+                }`}
+                title={p.name}
+              >
+                <span className="truncate">{p.name}</span>
+                <span className="font-mono text-[10px] text-[#555] shrink-0 ml-1">{platformCounts.get(p.name) || 0}</span>
+              </button>
+              <button
+                onClick={() => handleDeletePlatform(p)}
+                className="p-1 mr-1 rounded text-[#555] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all shrink-0"
+                title={`Eliminar plataforma "${p.name}"`}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
           ))}
         </div>
       </div>

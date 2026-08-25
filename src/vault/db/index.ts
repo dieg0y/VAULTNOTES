@@ -173,167 +173,31 @@ const INITIAL_TOOLS_LIST: string[] = [
   'AWS IAM / GCP IAM'
 ];
 
-const INITIAL_GLOSSARY_TERMS: GlossaryTerm[] = [
-  {
-    id: 'term-api-gateway',
-    term: 'API Gateway',
-    acronym: 'GW',
-    shortDefinition: 'Servidor que actúa como punto de entrada frontal a microservicios, aplicando autenticación y rate limiting.',
-    longDefinition: 'Un API Gateway actúa como proxy inverso centralizado para recibir todas las solicitudes API, delegar a microservicios de backend, gestionar autenticación OAuth/JWT, rate limiting, terminación SSL y políticas de seguridad.',
-    examples: [
-      { id: 'ex-gw-1', title: 'Ejemplo 1: Autenticación JWT en AWS API Gateway', content: '# Configuración de Authorizer Lambda\naws apigateway create-authorizer --rest-api-id abc123xyz --name JwtAuth --type TOKEN' },
-      { id: 'ex-gw-2', title: 'Ejemplo 2: Rate Limiting en NGINX Gateway', content: 'limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;' }
-    ],
-    platform: 'AWS - IAM / Security',
-    category: 'Cloud Security',
-    categories: ['Cloud Security'],
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    id: 'term-kerberos-tgt',
-    term: 'Kerberos Ticket Granting',
-    acronym: 'TGT',
-    shortDefinition: 'Mecanismo de autenticación de red que emite tickets cifrados para acceso seguro a recursos de dominio.',
-    longDefinition: 'En Active Directory / Kerberos, el KDC emite un Ticket Granting Ticket (TGT) tras la autenticación inicial.',
-    examples: [
-      { id: 'ex-tgt-1', title: 'Ejemplo 1: Inspección de Tickets en Windows CLI', content: 'klist' }
-    ],
-    platform: 'Microsoft - Entra ID / AD',
-    category: 'IAM - Auth / MFA',
-    categories: ['IAM - Auth / MFA', 'IAM - Access Management'],
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 6).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-  },
-  {
-    id: 'term-zero-trust',
-    term: 'Zero Trust Architecture',
-    acronym: 'ZTA',
-    shortDefinition: 'Modelo de seguridad basado en el principio de "nunca confiar, verificar siempre".',
-    longDefinition: 'Zero Trust Architecture (ZTA) elimina la confianza implícita por ubicación de red.',
-    examples: [
-      { id: 'ex-zta-1', title: 'Ejemplo 1: Regla de Acceso Condicional', content: 'Condición: Dispositivo no administrado + Riesgo Alto -> Bloquear acceso.' }
-    ],
-    platform: 'Cisco',
-    category: 'Cloud Security',
-    categories: ['Cloud Security', 'IAM - Access Management'],
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-  }
+// Ids del contenido demo que venía sembrado en versiones anteriores.
+// Se eliminan UNA SOLA VEZ para que instalaciones existentes queden limpias,
+// sin tocar nada que el usuario haya creado.
+const DEMO_NOTE_IDS = [
+  'note-zero-trust-cisco',
+  'note-zero-trust-cisco-sub1',
+  'note-entra-id-pim',
+  'note-sentinel-hunting-kql',
 ];
-
-const INITIAL_NOTES: Note[] = [
-  {
-    id: 'note-zero-trust-cisco',
-    title: 'Implementing Zero Trust Architecture',
-    parentId: null,
-    platform: 'Cisco',
-    category: 'Cloud Security',
-    categories: ['Cloud Security', 'IAM - Access Management'],
-    sourceUrl: 'https://cisco.com/docs/zta',
-    isFavorite: true,
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    contentHtml: `<h1>Zero Trust Architecture (ZTA) Principles</h1><p>Zero Trust elimina la confianza implícita y valida continuamente cada interacción.</p>`
-  },
-  {
-    id: 'note-zero-trust-cisco-sub1',
-    title: 'Cómo funciona',
-    parentId: 'note-zero-trust-cisco',
-    platform: '',
-    category: 'Cloud Security',
-    isFavorite: false,
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    contentHtml: `<h2>Componentes Core</h2><ol><li>Verificación de Identidad</li><li>Micro-segmentación</li><li>Mínimo Privilegio</li></ol>`
-  },
-  {
-    id: 'note-entra-id-pim',
-    title: 'Microsoft Entra ID Privileged Identity Management (PIM)',
-    parentId: null,
-    platform: 'Microsoft - Entra ID / AD',
-    category: 'IAM - PAM',
-    categories: ['IAM - PAM', 'IAM - Access Management'],
-    sourceUrl: 'https://learn.microsoft.com/entra/id-governance/privileged-identity-management',
-    isFavorite: true,
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-    contentHtml: `<h1>Microsoft Entra ID PIM</h1><p>Role assignment JIT con aprobación y justificación.</p>`
-  },
-  {
-    id: 'note-sentinel-hunting-kql',
-    title: 'Threat Hunting with KQL in Microsoft Sentinel',
-    parentId: null,
-    platform: 'Microsoft - Sentinel / Defender',
-    category: 'Threat Hunting',
-    categories: ['Threat Hunting'],
-    sourceUrl: 'https://learn.microsoft.com/azure/sentinel/hunting',
-    isFavorite: false,
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 20).toISOString(),
-    contentHtml: `<h1>KQL Hunting Queries</h1><pre><code class="language-kql">SigninLogs | where ResultType != 0</code></pre>`
-  }
-];
-
-const INITIAL_LABS: Lab[] = [
-  {
-    id: 'lab-phishing-case-42',
-    title: 'Phishing Analysis - Case #42',
-    organization: 'LetsDefend',
-    topic: 'SOC Tier 1 - Triage',
-    categories: ['SOC Tier 1 - Triage', 'Incident Response'],
-    subtopic: 'Email Header & Domain Spoofing',
-    difficulty: 'Media',
-    status: 'En progreso',
-    timeSpent: '45m',
-    sourceLink: 'https://app.letsdefend.io/challenge/phishing-analysis-42',
-    parts: [
-      {
-        id: 'part-1',
-        title: 'Parte 1: Header Investigation & Authentication',
-        isCompleted: true,
-        content: `<h1>Análisis de Cabeceras EML</h1><p>SPF, DKIM y DMARC fallidos, dominio typosquatting detectado.</p>`
-      },
-      {
-        id: 'part-2',
-        title: 'Parte 2: Attachment & URL Sandbox Analysis',
-        isCompleted: false,
-        content: `<h2>Análisis de Enlaces Maliciosos y C2</h2><p>Payload envía credenciales en texto plano a un servidor C2 externo.</p>`
-      }
-    ],
-    tools: ['Splunk', 'Microsoft Sentinel', 'Wireshark / Zeek / Suricata'],
-    commands: [
-      'grep -E -i "from:|received:|spf=" sample.eml',
-      'tshark -r capture.pcap -Y "http.request"'
-    ],
-    findings: `Dominio Spoofing: c0rporate-domain.com\nIP Remitente: 192.168.1.105`,
-    mitigation: `Bloquear IP/dominio, revocar sesiones, crear regla SIEM.`,
-    isFavorite: true,
-    isDeleted: false,
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-  }
-];
+const DEMO_LAB_IDS = ['lab-phishing-case-42'];
+const DEMO_TERM_IDS = ['term-api-gateway', 'term-kerberos-tgt', 'term-zero-trust'];
+const DEMO_CLEANUP_FLAG = 'vault-demo-content-removed';
 
 export async function initializeDatabase() {
-  const notesCount = await db.notes.count();
-  if (notesCount === 0) {
-    await db.notes.bulkAdd(INITIAL_NOTES);
-  }
-  const glossaryCount = await db.glossary.count();
-  if (glossaryCount === 0) {
-    await db.glossary.bulkAdd(INITIAL_GLOSSARY_TERMS);
-  }
-  const labsCount = await db.labs.count();
-  if (labsCount === 0) {
-    await db.labs.bulkAdd(INITIAL_LABS);
+  // --- One-time removal of bundled demo content (fresh start) ---
+  try {
+    if (!localStorage.getItem(DEMO_CLEANUP_FLAG)) {
+      await db.notes.bulkDelete(DEMO_NOTE_IDS);
+      await db.labs.bulkDelete(DEMO_LAB_IDS);
+      await db.glossary.bulkDelete(DEMO_TERM_IDS);
+      await db.flashcardStats.bulkDelete(DEMO_TERM_IDS);
+      localStorage.setItem(DEMO_CLEANUP_FLAG, '1');
+    }
+  } catch (err) {
+    console.warn('Demo cleanup skipped:', err);
   }
 
   // --- Data migration: lab.commands was a plain string, now a string[] ---

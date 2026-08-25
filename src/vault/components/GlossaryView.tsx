@@ -190,7 +190,9 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
               setStudyCardIndex(0);
               setIsFlipped(false);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#262626] hover:border-blue-500/40 bg-[#161616] text-xs font-semibold text-[#E5E5E5] hover:text-white transition-colors cursor-pointer"
+            disabled={activeTerms.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#262626] hover:border-blue-500/40 bg-[#161616] text-xs font-semibold text-[#E5E5E5] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#262626]"
+            title={activeTerms.length === 0 ? 'Agrega términos al glosario primero' : 'Modo estudio con flashcards 3D'}
           >
             <FlashcardsIcon className="w-3.5 h-3.5 text-blue-400" />
             Estudiar Flashcards
