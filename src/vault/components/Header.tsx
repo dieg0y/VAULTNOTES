@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Search, Download, UploadCloud, Plus, FileText, FlaskConical, BookOpen } from 'lucide-react';
+import { Search, UploadCloud, Plus, FileText, FlaskConical, BookOpen, Save, CheckCircle2 } from 'lucide-react';
 import { ActiveSection } from '../types';
 
 interface HeaderProps {
@@ -9,6 +9,7 @@ interface HeaderProps {
   onExport: () => void;
   onImportFile: (file: File) => void;
   isExporting?: boolean;
+  backupSavedMessage?: string | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   onExport,
   onImportFile,
   isExporting = false,
+  backupSavedMessage = null,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,14 +94,21 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Header Actions */}
       <div className="flex items-center gap-3">
+        {backupSavedMessage && (
+          <span className="text-[10px] text-green-400 font-mono flex items-center gap-1 animate-in fade-in duration-200 max-w-[220px]">
+            <CheckCircle2 className="w-3 h-3 shrink-0" />
+            <span className="truncate" title={backupSavedMessage}>{backupSavedMessage}</span>
+          </span>
+        )}
+
         <button
           onClick={onExport}
           disabled={isExporting}
           className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
-          title="Exportar archivo ZIP con todos los apuntes en Markdown, glosario e imágenes"
+          title="Guardar backup: la primera vez eliges dónde (ej. Documentos); luego SIEMPRE reemplaza ese mismo archivo — como un guardado normal"
         >
-          <Download className="w-3.5 h-3.5 text-[#888]" />
-          <span>{isExporting ? 'Exportando...' : 'Exportar ZIP'}</span>
+          <Save className="w-3.5 h-3.5 text-[#888]" />
+          <span>{isExporting ? 'Guardando...' : 'Guardar Backup'}</span>
         </button>
 
         <button

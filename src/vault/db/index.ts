@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat } from '../types';
+import { Note, GlossaryTerm, StoredImage, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle } from '../types';
 
 export class VaultDatabase extends Dexie {
   notes!: Table<Note, string>;
@@ -10,6 +10,7 @@ export class VaultDatabase extends Dexie {
   categories!: Table<CategoryItem, string>;
   tools!: Table<ToolItem, string>;
   flashcardStats!: Table<FlashcardStat, string>;
+  fileHandles!: Table<StoredFileHandle, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -79,6 +80,20 @@ export class VaultDatabase extends Dexie {
       categories: 'id, name, createdAt',
       tools: 'id, name, createdAt',
       flashcardStats: 'id, termId, lastStudiedAt'
+    });
+
+    // v7: "Save" backups — persists the backup file handle so every export
+    // overwrites the same file the user picked (File System Access API).
+    this.version(7).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, lastStudiedAt',
+      fileHandles: 'id'
     });
   }
 }

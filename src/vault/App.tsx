@@ -366,13 +366,23 @@ export default function App() {
     await db.glossary.bulkDelete(deletedTerms.map((t) => t.id));
   };
 
-  // Export ZIP Backup handler
+  // Export ZIP Backup handler (real "Save": overwrites the same file every time)
+  const [backupSavedMessage, setBackupSavedMessage] = useState<string | null>(null);
   const handleExportBackup = async () => {
     try {
       setIsExporting(true);
-      await exportVaultZip();
-    } catch (err) {
-      console.error('Export error:', err);
+      const result = await exportVaultZip();
+      if (result.mode === 'file') {
+        setBackupSavedMessage(`Guardado en "${result.savedTo}"`);
+      } else {
+        setBackupSavedMessage(`Descargado: ${result.savedTo}`);
+      }
+      setTimeout(() => setBackupSavedMessage(null), 4000);
+    } catch (err: unknown) {
+      // AbortError = user cancelled the save dialog → not an error
+      if ((err as { name?: string })?.name !== 'AbortError') {
+        console.error('Export error:', err);
+      }
     } finally {
       setIsExporting(false);
     }
@@ -415,6 +425,7 @@ export default function App() {
           onExport={handleExportBackup}
           onImportFile={handleImportFile}
           isExporting={isExporting}
+          backupSavedMessage={backupSavedMessage}
         />
 
         {/* Dynamic Views */}

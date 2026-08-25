@@ -92,7 +92,39 @@ function sanitizeFilename(str: string): string {
   return str.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
 }
 
-export async function exportVaultZip(): Promise<void> {
+export interface ExportResult {
+  mode: 'file' | 'download';
+  savedTo?: string;
+}
+
+const BACKUP_FILENAME = 'VaultNotes-Backup.zip';
+
+/** Minimal typings for the File System Access API (not in standard lib.dom). */
+interface FSHandleLike {
+  name?: string;
+  createWritable?: (options?: { keepExistingData?: boolean }) => Promise<{
+    write: (data: Blob) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+  queryPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
+  requestPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
+}
+
+async function writeToHandle(handle: FSHandleLike, blob: Blob): Promise<void> {
+  const writable = await handle.createWritable!();
+  await writable.write(blob);
+  await writable.close();
+}
+
+/**
+ * Exports the vault as a ZIP using real "Save" semantics:
+ *  - The first time, the user picks WHERE to save (e.g. Documents).
+ *  - Every subsequent export silently OVERWRITES that same file,
+ *    so there is always exactly one up-to-date backup.
+ * Falls back to a classic fixed-name download on browsers without
+ * the File System Access API (Firefox/Safari).
+ */
+export async function exportVaultZip(): Promise<ExportResult> {
   const zip = new JSZip();
 
   const notes = await db.notes.filter(n => !n.isDeleted).toArray();
@@ -177,10 +209,62 @@ export async function exportVaultZip(): Promise<void> {
     apuntesFolder?.folder(platSlug)?.folder(catSlug)?.file(`${noteSlug}.md`, frontmatter);
   }
 
-  // Generate and download zip
+  // Generate the zip blob once — saving strategy depends on browser support.
   const blob = await zip.generateAsync({ type: 'blob' });
-  const dateStr = new Date().toISOString().split('T')[0];
-  saveAs(blob, `vault-backup-${dateStr}.zip`);
+
+  // --- Preferred path: File System Access API (Chrome/Edge/Chromium) ---
+  const picker = (window as unknown as {
+    showSaveFilePicker?: (opts?: unknown) => Promise<FileSystemFileHandle>;
+  }).showSaveFilePicker?.bind(window);
+
+  if (picker) {
+    try {
+      // 1) Reuse the handle saved from a previous export ("Save" behavior).
+      const stored = await db.fileHandles.get('vault-export');
+      if (stored) {
+        const handle = stored.handle as unknown as FSHandleLike;
+        let perm: PermissionState = handle.queryPermission
+          ? await handle.queryPermission({ mode: 'readwrite' })
+          : 'granted';
+        if (perm !== 'granted' && handle.requestPermission) {
+          perm = await handle.requestPermission({ mode: 'readwrite' });
+        }
+        if (perm === 'granted' && handle.createWritable) {
+          try {
+            await writeToHandle(handle, blob);
+            return { mode: 'file', savedTo: handle.name || BACKUP_FILENAME };
+          } catch {
+            // The file was moved/deleted — fall through to re-picking it.
+            await db.fileHandles.delete('vault-export');
+          }
+        }
+      }
+
+      // 2) No previous handle (or it broke): ask the user ONCE where to save.
+      const newHandle = (await picker({
+        suggestedName: BACKUP_FILENAME,
+        types: [{ description: 'VaultNotes Backup', accept: { 'application/zip': ['.zip'] } }],
+      })) as unknown as FSHandleLike;
+
+      await writeToHandle(newHandle, blob);
+      await db.fileHandles.put({
+        id: 'vault-export',
+        handle: newHandle as unknown as FileSystemFileHandle,
+      });
+      return { mode: 'file', savedTo: newHandle.name || BACKUP_FILENAME };
+    } catch (err: unknown) {
+      const name = (err as { name?: string })?.name;
+      if (name === 'AbortError') {
+        // User cancelled the save dialog — not an error.
+        throw err;
+      }
+      console.warn('File System Access failed, falling back to download:', err);
+    }
+  }
+
+  // --- Fallback: classic download with a fixed name (Firefox/Safari) ---
+  saveAs(blob, BACKUP_FILENAME);
+  return { mode: 'download', savedTo: BACKUP_FILENAME };
 }
 
 export async function importVaultBackup(file: File): Promise<ImportSummary> {

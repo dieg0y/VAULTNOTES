@@ -151,3 +151,20 @@ Stage Summary:
 - Repo 100% sincronizado en GitHub (github.com/dieg0y/VAULTNOTES, main @ 0174d24).
 - Código sin dead code verificado dos veces.
 - Instrucciones de uso prominentes en README.
+
+---
+Task ID: 7
+Agent: main (Z.ai Code)
+Task: iniciar.bat para abrir con doble clic + export con comportamiento "Guardar" (reemplaza el archivo anterior).
+
+Work Log:
+- Creado iniciar.bat (CRLF, sin acentos por codepage de consola): detecta Node.js faltante, npm install solo la 1ra vez, abre navegador tras 4s, ventana con instrucciones. iniciar.sh equivalente (chmod +x).
+- Guardar Backup: exportVaultZip con File System Access API — showSaveFilePicker la 1ra vez (sugerido VaultNotes-Backup.zip), handle persistido en nueva tabla fileHandles (Dexie v7), exportaciones siguientes sobreescriben el MISMO archivo en silencio. Handle inválido (archivo movido/borrado) → re-pregunta. AbortError (cancelar) no es error. Fallback Firefox/Safari: saveAs con nombre fijo.
+- Header: botón "Guardar Backup" (icono Save), tooltip explicativo, confirmación verde "Guardado en ..." por 4s. Icono Download huérfano eliminado.
+- README: doble clic en iniciar.bat como instrucción principal (comandos manuales a <details>), sección backups reescrita.
+- Verificado: tsc 0, eslint 0, vite build OK, migración v7 OK (tabla fileHandles), botón nuevo presente, 3 vistas sin errores, API disponible en Chromium.
+- Commit 937b2f1 y push exitoso (0174d24..937b2f1).
+
+Stage Summary:
+- La app ahora se abre con doble clic en iniciar.bat (Windows) / iniciar.sh (Mac/Linux).
+- Export = Guardar real: un solo archivo de backup siempre actualizado en la ubicación elegida por el usuario.

@@ -122,4 +122,11 @@ export interface FlashcardStat {
   lastStudiedAt: string;
 }
 
+/** Persists the file handle chosen by the user for backups (File System Access API).
+ *  Lets every export overwrite the exact same file — a real "Save". */
+export interface StoredFileHandle {
+  id: string; // 'vault-export'
+  handle: FileSystemFileHandle;
+}
+
 export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'trash' | 'settings';
