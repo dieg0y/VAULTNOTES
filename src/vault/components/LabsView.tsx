@@ -20,6 +20,7 @@ import {
   Quote,
   Code,
   Image as ImageIcon,
+  Video as VideoIcon,
   FlaskConical,
   Wrench,
   Terminal,
@@ -31,6 +32,7 @@ import { Lab, LabDifficulty, LabStatus, LabPart, CategoryItem } from '../types';
 import { db } from '../db';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
+import { insertHtmlInEditable } from '../utils/domInsert';
 
 interface LabsViewProps {
   labs: Lab[];
@@ -1283,11 +1285,45 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const videoUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      videoUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      videoUrlsRef.current = [];
+    };
+  }, []);
+
+  const attachVideoSources = useCallback(async () => {
+    if (!editorRef.current) return;
+    const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-video-embed[data-vid]');
+    for (const fig of Array.from(embeds)) {
+      const vid = fig.getAttribute('data-vid');
+      const videoEl = fig.querySelector('video');
+      if (!vid || !videoEl || videoEl.getAttribute('src')) continue;
+      try {
+        const stored = await db.videos.get(vid);
+        if (stored) {
+          fig.classList.remove('vault-video-missing');
+          const url = URL.createObjectURL(stored.blob);
+          videoUrlsRef.current.push(url);
+          videoEl.src = url;
+        } else {
+          fig.classList.add('vault-video-missing');
+        }
+      } catch {
+        fig.classList.add('vault-video-missing');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== initialHtml) {
       editorRef.current.innerHTML = initialHtml;
+      attachVideoSources();
     }
-  }, [initialHtml]);
+  }, [initialHtml, attachVideoSources]);
 
   const handleInput = () => {
     if (editorRef.current) {
@@ -1313,7 +1349,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         <pre class="p-4 text-blue-300 overflow-x-auto whitespace-pre"><code class="language-${lang}"># Escribe tu comando o log aquí...</code></pre>
       </div>
     `;
-    document.execCommand('insertHTML', false, codeHtml);
+    insertHtmlInEditable(editorRef.current, codeHtml);
     handleInput();
   };
 
@@ -1324,7 +1360,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         <span class="flex-1 text-[#E5E5E5]" contenteditable="true">Paso de verificación...</span>
       </div>
     `;
-    document.execCommand('insertHTML', false, checklistHtml);
+    insertHtmlInEditable(editorRef.current, checklistHtml);
     handleInput();
   };
 
@@ -1355,12 +1391,45 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       `;
 
       if (editorRef.current) {
-        editorRef.current.focus();
-        document.execCommand('insertHTML', false, imageHtml);
+        insertHtmlInEditable(editorRef.current, imageHtml);
         handleInput();
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  /** Embed a local video file into this lab part (Blob in IndexedDB). */
+  const handleVideoFile = async (file: File) => {
+    if (!file.type.startsWith('video/')) return;
+    const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const safeName = file.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    try {
+      await db.videos.add({
+        id: vidId,
+        labId,
+        name: file.name,
+        mimeType: file.type,
+        blob: file,
+        caption: file.name,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('No se pudo guardar el video:', err);
+      alert('El video es demasiado grande para guardarlo localmente (límite del navegador). Prueba con un archivo más pequeño o comprimido.');
+      return;
+    }
+    const videoHtml = `
+      <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D]" contenteditable="false" data-vid="${vidId}">
+        <video controls playsinline preload="metadata" style="width: 100%; max-height: 480px; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
+        <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
+          Video: ${safeName.replace(/\.[^/.]+$/, '')}
+        </figcaption>
+      </figure><p><br></p>`;
+    if (editorRef.current) {
+      insertHtmlInEditable(editorRef.current, videoHtml);
+      attachVideoSources();
+      handleInput();
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -1382,6 +1451,8 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         const file = e.dataTransfer.files[i];
         if (file.type.startsWith('image/')) {
           handleImageFile(file);
+        } else if (file.type.startsWith('video/')) {
+          handleVideoFile(file);
         }
       }
     }
@@ -1397,6 +1468,17 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleImageFile(file);
+        }}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleVideoFile(file);
+          e.target.value = '';
         }}
       />
 
@@ -1506,6 +1588,15 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         >
           <ImageIcon className="w-3.5 h-3.5" />
           <span>Imagen</span>
+        </button>
+
+        <button
+          onClick={() => videoInputRef.current?.click()}
+          className="p-1 rounded hover:bg-[#1f1f1f] text-blue-400 hover:text-white flex items-center gap-1 text-xs"
+          title="Incrustar video desde tu PC (se guarda en el vault y viaja en el backup)"
+        >
+          <VideoIcon className="w-3.5 h-3.5" />
+          <span>Video</span>
         </button>
       </div>
 

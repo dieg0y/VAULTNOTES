@@ -101,6 +101,19 @@ export interface StoredImage {
   createdAt: string;
 }
 
+/** Videos incrustados en apuntes/labs — guardados como Blob en IndexedDB
+ *  (mucho más eficiente que base64) e incluidos en el backup ZIP. */
+export interface StoredVideo {
+  id: string;
+  noteId?: string;
+  labId?: string;
+  name: string;
+  mimeType: string;
+  blob: Blob;
+  caption?: string;
+  createdAt: string;
+}
+
 export interface ImportSummary {
   addedNotes: number;
   updatedNotes: number;
@@ -112,6 +125,7 @@ export interface ImportSummary {
   updatedTerms: number;
   skippedTerms: number;
   addedImages: number;
+  addedVideos: number;
 }
 
 export interface FlashcardStat {

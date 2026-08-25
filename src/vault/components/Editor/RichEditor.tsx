@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Star, Trash2, ExternalLink, Plus, Heading1, Heading2, Heading3, Bold, Italic, Underline,
   List, ListOrdered, CheckSquare, Quote, Code, Image as ImageIcon, Check, BookOpen,
-  ChevronRight, FileText
+  ChevronRight, FileText, Video
 } from 'lucide-react';
 import { Note, GlossaryTerm, CategoryItem } from '../../types';
 import { db } from '../../db';
+import { insertHtmlInEditable } from '../../utils/domInsert';
 
 interface RichEditorProps {
   note: Note;
@@ -39,21 +40,60 @@ export const RichEditor: React.FC<RichEditorProps> = ({
 
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const videoUrlsRef = useRef<string[]>([]);
+
+  /** Attach persistent object-URLs to every embedded video in the editor. */
+  const attachVideoSources = useCallback(async () => {
+    if (!editorRef.current) return;
+    const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-video-embed[data-vid]');
+    for (const fig of Array.from(embeds)) {
+      const vid = fig.getAttribute('data-vid');
+      const videoEl = fig.querySelector('video');
+      if (!vid || !videoEl || videoEl.getAttribute('src')) continue;
+      try {
+        const stored = await db.videos.get(vid);
+        if (stored) {
+          fig.classList.remove('vault-video-missing');
+          const url = URL.createObjectURL(stored.blob);
+          videoUrlsRef.current.push(url);
+          videoEl.src = url;
+        } else {
+          fig.classList.add('vault-video-missing');
+        }
+      } catch {
+        fig.classList.add('vault-video-missing');
+      }
+    }
+  }, []);
+
+  // Revoke object URLs when the editor unmounts (note switch / view change).
+  useEffect(() => {
+    return () => {
+      videoUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      videoUrlsRef.current = [];
+    };
+  }, []);
 
   // NOTE: this component is keyed by `note.id` upstream (NotesView), so local
   // state initializes from props on every note switch — no sync effect needed.
   // Only the contentEditable DOM needs an explicit load per note.
   useEffect(() => {
-    if (editorRef.current) editorRef.current.innerHTML = note.contentHtml;
-  }, [note.id]);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = note.contentHtml;
+      attachVideoSources();
+    }
+  }, [note.id, attachVideoSources]);
 
   const triggerAutoSave = useCallback(() => {
     setSaveStatus('unsaved');
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(async () => {
       setSaveStatus('saving');
-      const html = editorRef.current ? editorRef.current.innerHTML : note.contentHtml;
+      const rawHtml = editorRef.current ? editorRef.current.innerHTML : note.contentHtml;
+      // Strip ephemeral blob: URLs — videos are re-attached from the DB on load.
+      const html = rawHtml.replace(/\ssrc="blob:[^"]*"/g, '');
       await onUpdateNote({
         title,
         contentHtml: html,
@@ -76,7 +116,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   };
 
   const insertChecklist = () => {
-    document.execCommand('insertHTML', false, `
+    insertHtmlInEditable(editorRef.current, `
       <div class="my-2 p-2 bg-[#161616] rounded border border-[#262626] flex items-start gap-2">
         <input type="checkbox" class="mt-1 w-4 h-4 rounded border-[#404040] text-blue-500 bg-[#0D0D0D] cursor-pointer" />
         <span class="flex-1 text-[#E5E5E5]" contenteditable="true">Nueva tarea o verificación...</span>
@@ -86,7 +126,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   };
 
   const insertCodeBlock = (language: string = 'bash') => {
-    document.execCommand('insertHTML', false, `
+    insertHtmlInEditable(editorRef.current, `
       <div class="my-4 rounded-lg overflow-hidden border border-[#262626] bg-[#141414] font-mono text-xs shadow-lg">
         <div class="bg-[#0D0D0D] px-3.5 py-2 border-b border-[#262626] text-[11px] text-blue-400 font-semibold flex items-center justify-between select-none">
           <span class="uppercase tracking-wider font-mono">${language}</span>
@@ -115,12 +155,45 @@ export const RichEditor: React.FC<RichEditorProps> = ({
           </figcaption>
         </figure><p><br></p>`;
       if (editorRef.current) {
-        editorRef.current.focus();
-        document.execCommand('insertHTML', false, imageHtml);
+        insertHtmlInEditable(editorRef.current, imageHtml);
         handleContentInput();
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  /** Embed a local video file into the note (stored as Blob in IndexedDB). */
+  const handleVideoFile = async (file: File) => {
+    if (!file.type.startsWith('video/')) return;
+    const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const safeName = file.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    try {
+      await db.videos.add({
+        id: vidId,
+        noteId: note.id,
+        name: file.name,
+        mimeType: file.type,
+        blob: file, // File IS a Blob — stored efficiently without base64
+        caption: file.name,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('No se pudo guardar el video:', err);
+      alert('El video es demasiado grande para guardarlo localmente (límite del navegador). Prueba con un archivo más pequeño o comprimido.');
+      return;
+    }
+    const videoHtml = `
+      <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D] shadow-xl" contenteditable="false" data-vid="${vidId}">
+        <video controls playsinline preload="metadata" style="width: 100%; max-height: 480px; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
+        <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
+          Video: ${safeName.replace(/\.[^/.]+$/, '')}
+        </figcaption>
+      </figure><p><br></p>`;
+    if (editorRef.current) {
+      insertHtmlInEditable(editorRef.current, videoHtml);
+      attachVideoSources();
+      handleContentInput();
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -139,7 +212,10 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const files: File[] = Array.from(e.dataTransfer.files);
-      files.forEach((f) => { if (f.type.startsWith('image/')) handleImageFile(f); });
+      files.forEach((f) => {
+        if (f.type.startsWith('image/')) handleImageFile(f);
+        else if (f.type.startsWith('video/')) handleVideoFile(f);
+      });
     }
   };
 
@@ -176,6 +252,8 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     <div className="flex-1 flex flex-col h-full bg-[#0A0A0A] overflow-hidden relative select-text" onMouseMove={handleMouseMove}>
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
+      <input ref={videoInputRef} type="file" accept="video/*" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVideoFile(f); e.target.value = ''; }} />
 
       {/* Breadcrumb */}
       {breadcrumb.length > 1 && (
@@ -286,6 +364,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         <div className="w-px h-4 bg-[#262626] mx-1" />
         <button onClick={() => insertCodeBlock('bash')} className="p-1.5 rounded text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors" title="Bloque de código"><Code className="w-3.5 h-3.5" /></button>
         <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-white hover:bg-[#161616] transition-colors" title="Insertar imagen"><ImageIcon className="w-3.5 h-3.5" /></button>
+        <button onClick={() => videoInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors" title="Incrustar video desde tu PC (se guarda en el vault y viaja en el backup)"><Video className="w-3.5 h-3.5" /></button>
         <div className="w-px h-4 bg-[#262626] mx-1" />
         <span className="text-[10px] text-[#555] font-mono px-1 shrink-0 hidden sm:inline">Pega imágenes con Ctrl+V</span>
       </div>

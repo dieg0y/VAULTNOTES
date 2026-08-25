@@ -248,3 +248,26 @@
   color: #444;
   pointer-events: none;
 }
+
+/* Embedded videos (both editors) */
+.vault-video-embed video {
+  width: 100%;
+  max-height: 480px;
+  background: #000;
+}
+.vault-video-embed {
+  margin: 1.25rem 0;
+}
+.vault-video-missing video {
+  display: none;
+}
+.vault-video-missing::after {
+  content: '⚠️ Video no encontrado (falta en este vault)';
+  display: block;
+  padding: 0.75rem;
+  text-align: center;
+  color: #b91c1c;
+  font-size: 0.75rem;
+  font-family: var(--font-jetbrains-mono), var(--font-geist-mono), monospace;
+  background: rgba(185, 28, 28, 0.08);
+}

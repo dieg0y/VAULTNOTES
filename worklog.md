@@ -201,3 +201,19 @@ Work Log:
 
 Stage Summary:
 - El usuario ya puede: seleccionar apuntes/labs → Copiar o Descargar .md (con prompt para IA incluido) → pegarlo a una IA → recibir artículo para su portfolio.
+
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Incrustar videos en apuntes/labs con persistencia local + inclusión en backups + push.
+
+Work Log:
+- Types: StoredVideo (blob: Blob) + ImportSummary.addedVideos. Dexie v8 tabla videos (id, noteId, labId, name, createdAt).
+- RichEditor + PartRichEditor: botón Video en toolbar, input file video/*, handleVideoFile guarda el File como Blob, inserta <figure class="vault-video-embed" data-vid contenteditable=false> con video controls + caption editable, attachVideoSources() vincula object URLs desde la BD al cargar (con cleanup y remove de clase missing). Autoguardado strippea src="blob:*" para persistir HTML limpio. Drag&drop de videos. Aviso si excede storage.
+- zipBackup: export añade videos/ (blobs) + videosManifest.json (metadata); import restaura por id con Blob re-tipeado con mimeType. ImportReportModal: fila "Videos incrustados restaurados". App: limpieza de videos+imágenes al borrar definitivamente notas/labs y al vaciar papelera.
+- FIX CRÍTICO descubierto en E2E: execCommand('insertHTML') fallaba silenciosamente con selección perdida (devolvía false tras usar file picker) — bug latente que afectaba imágenes/código/checklists también. Nuevo utils/domInsert.ts insertHtmlInEditable(): restaura caret al final si no hay selección válida. Aplicado a todos los inserts de ambos editores.
+- E2E con video REAL (ffmpeg 3s 640x360): incrustado en subpágina IAM Control (como el ejemplo del usuario) → reproducción por clic confirmada (pausado:false, avanzó a 2.73s), seek a 1.5s, duration 3, readyState 4; persistencia tras reload (blob re-attachado); HTML guardado sin blob URLs y con data-vid; video en IndexedDB (50675 bytes); estado missing al borrar tabla; import de ZIP con estructura del export real → embed revivió (fix de clase missing persistida aplicado); VLM confirmó reproductor con controles nativos visible.
+- Lint 0, tsc 0, vite build OK. Datos de prueba limpiados. Commit 3bc75e8 y push exitoso (900c1aa..3bc75e8).
+
+Stage Summary:
+- Flujo completo del usuario verificado: descargar video → abrir subpágina → Incrustar Video → elegir archivo → reproducible con controles completos → Guardar Backup lo incluye → importarlo en otra PC lo restaura.

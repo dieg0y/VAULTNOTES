@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredVideo, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle } from '../types';
 
 export class VaultDatabase extends Dexie {
   notes!: Table<Note, string>;
@@ -11,6 +11,7 @@ export class VaultDatabase extends Dexie {
   tools!: Table<ToolItem, string>;
   flashcardStats!: Table<FlashcardStat, string>;
   fileHandles!: Table<StoredFileHandle, string>;
+  videos!: Table<StoredVideo, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -94,6 +95,20 @@ export class VaultDatabase extends Dexie {
       tools: 'id, name, createdAt',
       flashcardStats: 'id, termId, lastStudiedAt',
       fileHandles: 'id'
+    });
+
+    // v8: embedded videos — stored as Blobs (efficient) and shipped in backups.
+    this.version(8).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, lastStudiedAt',
+      fileHandles: 'id',
+      videos: 'id, noteId, labId, name, createdAt'
     });
   }
 }

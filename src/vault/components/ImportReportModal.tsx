@@ -1,6 +1,6 @@
 import React from 'react';
 import { ImportSummary } from '../types';
-import { CheckCircle2, FileText, FlaskConical, BookOpen, Image as ImageIcon, X, RefreshCw } from 'lucide-react';
+import { CheckCircle2, FileText, FlaskConical, BookOpen, Image as ImageIcon, X, RefreshCw, Video as VideoIcon } from 'lucide-react';
 
 interface ImportReportModalProps {
   isOpen: boolean;
@@ -81,6 +81,13 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
             <>
               <div className="h-px bg-[#262626]" />
               <Row icon={<ImageIcon className="w-3.5 h-3.5" />} color="text-blue-400" label="Imágenes procesadas" value={summary.addedImages} valueClass="font-semibold text-green-400" />
+            </>
+          )}
+
+          {summary.addedVideos > 0 && (
+            <>
+              <div className="h-px bg-[#262626]" />
+              <Row icon={<VideoIcon className="w-3.5 h-3.5" />} color="text-emerald-400" label="Videos incrustados restaurados" value={summary.addedVideos} valueClass="font-semibold text-green-400" />
             </>
           )}
         </div>

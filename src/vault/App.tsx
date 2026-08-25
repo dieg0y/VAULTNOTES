@@ -210,9 +210,10 @@ export default function App() {
 
   const handlePermanentDeleteNote = async (noteId: string) => {
     const idsToDelete = [noteId, ...collectDescendantIds(noteId)];
-    for (const id of idsToDelete) {
-      await db.notes.delete(id);
-    }
+    await db.notes.bulkDelete(idsToDelete);
+    // Clean up embedded media owned by these notes (videos + images)
+    await db.videos.where('noteId').anyOf(idsToDelete).delete();
+    await db.images.where('noteId').anyOf(idsToDelete).delete();
   };
 
   // Labs CRUD Actions
@@ -294,6 +295,9 @@ export default function App() {
 
   const handlePermanentDeleteLab = async (labId: string) => {
     await db.labs.delete(labId);
+    // Clean up embedded media owned by this lab
+    await db.videos.where('labId').equals(labId).delete();
+    await db.images.where('labId').equals(labId).delete();
   };
 
   // Glossary CRUD Actions
@@ -362,8 +366,19 @@ export default function App() {
   };
 
   const handleEmptyTrash = async () => {
-    await db.notes.bulkDelete(deletedNotes.map((n) => n.id));
-    await db.labs.bulkDelete(deletedLabs.map((l) => l.id));
+    // Clean up embedded media owned by permanently deleted content first
+    const noteIds = deletedNotes.map((n) => n.id);
+    const labIds = deletedLabs.map((l) => l.id);
+    if (noteIds.length > 0) {
+      await db.videos.where('noteId').anyOf(noteIds).delete();
+      await db.images.where('noteId').anyOf(noteIds).delete();
+    }
+    if (labIds.length > 0) {
+      await db.videos.where('labId').anyOf(labIds).delete();
+      await db.images.where('labId').anyOf(labIds).delete();
+    }
+    await db.notes.bulkDelete(noteIds);
+    await db.labs.bulkDelete(labIds);
     await db.glossary.bulkDelete(deletedTerms.map((t) => t.id));
   };
 

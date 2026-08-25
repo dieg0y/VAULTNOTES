@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db } from '../db';
-import { Note, Lab, GlossaryTerm, StoredImage, ImportSummary, FlashcardStat } from '../types';
+import { Note, Lab, GlossaryTerm, StoredImage, StoredVideo, ImportSummary, FlashcardStat } from '../types';
 
 // ------------------------------------------------------------------
 // Smart import helpers (upsert semantics)
@@ -77,6 +77,7 @@ function emptySummary(): ImportSummary {
     updatedTerms: 0,
     skippedTerms: 0,
     addedImages: 0,
+    addedVideos: 0,
   };
 }
 
@@ -131,6 +132,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
   const labs = await db.labs.filter(l => !l.isDeleted).toArray();
   const glossary = await db.glossary.filter(g => !g.isDeleted).toArray();
   const images = await db.images.toArray();
+  const videos = await db.videos.toArray();
   const platforms = await db.platforms.toArray();
   const categories = await db.categories.toArray();
   const tools = await db.tools.toArray();
@@ -145,6 +147,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
       labsCount: labs.length,
       glossaryCount: glossary.length,
       imagesCount: images.length,
+      videosCount: videos.length,
       platformsCount: platforms.length,
       categoriesCount: categories.length,
       toolsCount: tools.length,
@@ -178,6 +181,21 @@ export async function exportVaultZip(): Promise<ExportResult> {
       }
     } catch (err) {
       console.warn('Could not serialize image for zip:', img.id, err);
+    }
+  }
+
+  // 4b. /videos/ — embedded videos, stored as raw blobs + a manifest with metadata
+  const videosFolder = zip.folder('videos');
+  const videoManifest = videos.map(({ blob, ...meta }) => meta);
+  zip.file('videosManifest.json', JSON.stringify(videoManifest, null, 2));
+  for (const vid of videos) {
+    try {
+      const ext = (vid.name || '').includes('.')
+        ? (vid.name.split('.').pop() || 'mp4').toLowerCase()
+        : (vid.mimeType.split('/')[1] || 'mp4');
+      videosFolder?.file(`${vid.id}.${ext}`, vid.blob);
+    } catch (err) {
+      console.warn('Could not serialize video for zip:', vid.id, err);
     }
   }
 
@@ -479,6 +497,44 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       } catch (err) {
         console.warn('Error reading image from zip:', imgFile.name, err);
       }
+    }
+  }
+
+  // 4. Process videos (blobs + manifest) — non-destructive upsert by id
+  const videosManifestFile = contents.file('videosManifest.json');
+  if (videosManifestFile) {
+    try {
+      const videoMetaList: Partial<StoredVideo>[] = JSON.parse(await videosManifestFile.async('text'));
+      for (const meta of videoMetaList) {
+        if (!meta || !meta.id) continue;
+        try {
+          const existing = await db.videos.get(meta.id);
+          if (existing) continue; // already have this exact video
+          const ext = (meta.name || '').includes('.')
+            ? (meta.name!.split('.').pop() || 'mp4').toLowerCase()
+            : ((meta.mimeType || 'video/mp4').split('/')[1] || 'mp4');
+          const vidFile = contents.file(`videos/${meta.id}.${ext}`);
+          if (!vidFile) continue;
+          const rawBlob = await vidFile.async('blob');
+          // Re-type the blob so <video> plays it back correctly
+          const typedBlob = new Blob([rawBlob], { type: meta.mimeType || 'video/mp4' });
+          await db.videos.add({
+            id: meta.id,
+            noteId: meta.noteId,
+            labId: meta.labId,
+            name: meta.name || 'video',
+            mimeType: meta.mimeType || 'video/mp4',
+            blob: typedBlob,
+            caption: meta.caption,
+            createdAt: meta.createdAt || new Date().toISOString(),
+          });
+          summary.addedVideos++;
+        } catch (err) {
+          console.warn('Error importing video:', meta.id, err);
+        }
+      }
+    } catch (e) {
+      console.error('Error importing videos manifest:', e);
     }
   }
 
