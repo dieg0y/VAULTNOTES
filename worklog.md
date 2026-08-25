@@ -132,3 +132,22 @@ Work Log:
 Stage Summary:
 - Código 100% limpio de dead code. 5 commits listos en el clone.
 - Push requiere que el usuario autentique; se le dan instrucciones con bundle/zip.
+
+---
+Task ID: 6
+Agent: main (Z.ai Code)
+Task: Push a GitHub con token del usuario + re-auditoría de dead code + instrucciones de arranque visibles.
+
+Work Log:
+- git push exitoso con el token del usuario: c35a7fc..110275a y luego 110275a..0174d24 (total 6 commits en GitHub).
+- Re-auditoría completa (componentes, iconos, types, exports, deps): 0 problemas en clone y my-project.
+- Eliminados de public/: vaultnotes-fixed.bundle y vaultnotes-fixed-src.zip (ya innecesarios tras el push).
+- .gitignore: eliminada excepción !.env.example muerta.
+- README: nueva sección destacada "¿CÓMO LA ABRO?" al principio con npm install/npm run dev/localhost:3000, advertencia de que index.html no se abre directo, y atajos iniciar.bat/iniciar.sh.
+- Verificado: tsc 0, vite build OK, eslint 0.
+- Nota de seguridad dada al usuario: revocar el token expuesto en el chat.
+
+Stage Summary:
+- Repo 100% sincronizado en GitHub (github.com/dieg0y/VAULTNOTES, main @ 0174d24).
+- Código sin dead code verificado dos veces.
+- Instrucciones de uso prominentes en README.
