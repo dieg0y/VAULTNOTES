@@ -575,7 +575,7 @@ const PermissionCard: React.FC<{
 
 /** Permission matrix table — rows = roles, columns = Read/Write/Delete/Admin. */
 const MatrixTable: React.FC<{ rows: MatrixRow[] }> = ({ rows }) => (
-  <div className="bg-[#0D0D0D] border border-[#262626] rounded overflow-hidden">
+  <div className="bg-[#0D0D0D] border border-[#262626] rounded overflow-x-auto">
     <table className="w-full text-[10px] font-mono">
       <thead>
         <tr className="border-b border-[#262626]">
@@ -602,7 +602,7 @@ const MatrixTable: React.FC<{ rows: MatrixRow[] }> = ({ rows }) => (
         ) : (
           rows.map(({ role, has }) => (
             <tr key={role.id} className="border-b border-[#1A1A1A] last:border-b-0">
-              <td className="px-2 py-1.5 text-white">{role.name || '(unnamed)'}</td>
+              <td className="px-2 py-1.5 text-white break-words min-w-[100px]">{role.name || '(unnamed)'}</td>
               {ACTIONS.map((a) => (
                 <td key={a} className="text-center px-2 py-1.5">
                   {has[a] ? (

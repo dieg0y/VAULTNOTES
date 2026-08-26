@@ -170,11 +170,11 @@ export const LabsView: React.FC<LabsViewProps> = ({
   };
 
   return (
-    <div className="flex flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A]">
-      {/* 1. Left Column: Categories & Filters (resizable) */}
+    <div className="flex flex-1 flex-col md:flex-row h-[calc(100vh-48px)] overflow-y-auto md:overflow-hidden bg-[#0A0A0A]">
+      {/* 1. Left Column: Categories & Filters (resizable) — FIX-3d: apilado arriba en móvil */}
       <div
-        style={{ width: filtersPanel.width }}
-        className="bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0 z-20 select-none overflow-y-auto"
+        style={{ '--panel-w': `${filtersPanel.width}px` } as React.CSSProperties}
+        className="bg-[#0D0D0D] border-b md:border-b-0 md:border-r border-[#262626] flex flex-col shrink-0 z-20 select-none overflow-y-auto w-full md:w-[var(--panel-w)] max-h-[45vh] md:max-h-none"
       >
         <div className="p-3 border-b border-[#262626] flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -404,10 +404,10 @@ export const LabsView: React.FC<LabsViewProps> = ({
 
       <PanelResizeHandle onMouseDown={filtersPanel.startDrag} onReset={filtersPanel.reset} />
 
-      {/* 2. Center Column: Lab List (resizable) */}
+      {/* 2. Center Column: Lab List (resizable) — FIX-3d: max-h limitada en móvil */}
       <div
-        style={{ width: labsListPanel.width }}
-        className="bg-[#0A0A0A] border-r border-[#262626] flex flex-col shrink-0 z-10"
+        style={{ '--panel-w': `${labsListPanel.width}px` } as React.CSSProperties}
+        className="bg-[#0A0A0A] border-b md:border-b-0 md:border-r border-[#262626] flex flex-col shrink-0 z-10 w-full md:w-[var(--panel-w)] max-h-[40vh] md:max-h-none"
       >
         {/* Header with Search and Stats */}
         <div className="p-3 border-b border-[#262626] bg-[#0D0D0D] flex flex-col gap-2">
@@ -548,8 +548,8 @@ export const LabsView: React.FC<LabsViewProps> = ({
 
       <PanelResizeHandle onMouseDown={labsListPanel.startDrag} onReset={labsListPanel.reset} />
 
-      {/* 3. Right Column: Lab Detail Workspace */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0A0A] min-w-0">
+      {/* 3. Right Column: Lab Detail Workspace — FIX-3d: altura natural en móvil */}
+      <div className="flex-none md:flex-1 flex flex-col h-auto md:h-full overflow-hidden bg-[#0A0A0A] min-w-0 min-h-0">
         {currentLab ? (
           <LabDetailEditor
             key={currentLab.id}

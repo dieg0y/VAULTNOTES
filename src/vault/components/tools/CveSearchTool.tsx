@@ -24,7 +24,7 @@
  * 100% offline data — the only network call goes through `searchCveOnline`.
  * All async DB ops wrapped in try/catch — failures show a small inline banner.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ShieldAlert, Search, Save, Trash2, ExternalLink, BookOpen,
@@ -280,9 +280,11 @@ interface SavedCveRowProps {
   expanded: boolean;
   onToggle: () => void;
   onSearchAgain: (id: string) => void;
+  /** True while a search is in flight — disables Re-search to avoid overlap. */
+  busy?: boolean;
 }
 
-const SavedCveRow: React.FC<SavedCveRowProps> = ({ cve, expanded, onToggle, onSearchAgain }) => {
+const SavedCveRow: React.FC<SavedCveRowProps> = ({ cve, expanded, onToggle, onSearchAgain, busy = false }) => {
   const { personalNotes, tags, personalAssessment } = cve;
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Local state is seeded from the saved snapshot at mount time. The parent
@@ -537,11 +539,12 @@ const SavedCveRow: React.FC<SavedCveRowProps> = ({ cve, expanded, onToggle, onSe
               </button>
               <button
                 type="button"
+                disabled={busy}
                 onClick={() => onSearchAgain(cve.id)}
-                className={`${btnGhost} inline-flex items-center gap-1.5`}
+                className={`${btnGhost} inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
                 title="Re-search this CVE online to refresh the snapshot"
               >
-                <RefreshCw className="w-3 h-3" /> Re-search online
+                <RefreshCw className={`w-3 h-3 ${busy ? 'animate-spin' : ''}`} /> Re-search online
               </button>
             </div>
           </div>
@@ -560,6 +563,10 @@ export const CveSearchTool: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [expandedCveId, setExpandedCveId] = useState<string | null>(null);
+  // Monotonic sequence guard: only the LATEST search may write state. Without
+  // this, a slow in-flight response could overwrite the result of a newer
+  // "Re-search online" click (stale-response race).
+  const searchSeqRef = useRef(0);
 
   // Live list of saved CVEs — newest-first by savedAt.
   const savedCves: SavedCve[] = useLiveQuery(
@@ -578,16 +585,21 @@ export const CveSearchTool: React.FC = () => {
       setResult({ ok: false, error: 'Enter a CVE ID first.' });
       return;
     }
+    const seq = ++searchSeqRef.current;
     setSearching(true);
     setSaveError(null);
     try {
       const res = await searchCveOnline(id);
+      if (seq !== searchSeqRef.current) return; // stale response — a newer search took over
       setResult(res);
     } catch (e) {
+      if (seq !== searchSeqRef.current) return;
       console.warn('searchCveOnline failed:', e);
       setResult({ ok: false, error: 'Provider request failed.' });
     } finally {
-      setSearching(false);
+      // Only the newest search may clear the spinner — an older one must
+      // leave it on because the newer request is still in flight.
+      if (seq === searchSeqRef.current) setSearching(false);
     }
   };
 
@@ -760,6 +772,7 @@ export const CveSearchTool: React.FC = () => {
                       setExpandedCveId(null);
                       void runSearch(id);
                     }}
+                    busy={searching}
                   />
                 </div>
               );

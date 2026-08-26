@@ -840,6 +840,27 @@ export function searchAllVault(
 
   const rawResults = mergedRaw.slice(0, 30);
 
+  // BLOQUE 5 — logical-destination dedup: a command entry ("Abrir X") and its
+  // matching tool-catalog entry ("X") both navigate to the same tool. When
+  // both rank in the results, keep the catalog row (better title match +
+  // description snippet) and drop the redundant command so the same
+  // destination is never listed twice.
+  const resultToolIds = new Set<string>();
+  for (const r of rawResults) {
+    if (r.item.type === 'tool') {
+      resultToolIds.add(r.item.id.startsWith('tool-') ? r.item.id.slice(5) : r.item.id);
+    }
+  }
+  const dedupedResults = resultToolIds.size > 0
+    ? rawResults.filter((r) => {
+        const cid = r.item.commandId;
+        if (r.item.type === 'command' && cid && cid.startsWith('open-tool:')) {
+          return !resultToolIds.has(cid.slice('open-tool:'.length));
+        }
+        return true;
+      })
+    : rawResults;
+
   const fieldLabels: Record<string, string> = {
     title: 'Título',
     acronym: 'Código / ID',
@@ -850,7 +871,7 @@ export function searchAllVault(
     sourceUrl: 'Link / Fuente',
   };
 
-  return rawResults.map(({ item, matches }) => {
+  return dedupedResults.map(({ item, matches }) => {
     const matchedFields: SearchMatchDetail[] = [];
 
     if (matches) {

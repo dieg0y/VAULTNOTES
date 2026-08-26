@@ -264,11 +264,11 @@ export const NotesView: React.FC<NotesViewProps> = ({
   };
 
   return (
-    <div className="flex flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A]">
-      {/* 1. Left: Platforms (resizable, manage: add / delete) */}
+    <div className="flex flex-1 flex-col md:flex-row h-[calc(100vh-48px)] overflow-y-auto md:overflow-hidden bg-[#0A0A0A]">
+      {/* 1. Left: Platforms (resizable, manage: add / delete) — FIX-3d: apilado full-width en móvil */}
       <div
-        style={{ width: platformsPanel.width }}
-        className="bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0 overflow-y-auto"
+        style={{ '--panel-w': `${platformsPanel.width}px` } as React.CSSProperties}
+        className="bg-[#0D0D0D] border-b md:border-b-0 md:border-r border-[#262626] flex flex-col shrink-0 overflow-y-auto w-full md:w-[var(--panel-w)] max-h-[30vh] md:max-h-none"
       >
         <div className="p-3 border-b border-[#262626] flex items-center justify-between">
           <h2 className="font-bold text-[10px] uppercase tracking-widest text-[#555] flex items-center gap-1.5">
@@ -347,10 +347,10 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
       <PanelResizeHandle onMouseDown={platformsPanel.startDrag} onReset={platformsPanel.reset} />
 
-      {/* 2. Center: Note titles (expandable subpages tree, resizable) */}
+      {/* 2. Center: Note titles (expandable subpages tree, resizable) — FIX-3d: max-h limitada en móvil */}
       <div
-        style={{ width: listPanel.width }}
-        className="bg-[#0A0A0A] border-r border-[#262626] flex flex-col shrink-0"
+        style={{ '--panel-w': `${listPanel.width}px` } as React.CSSProperties}
+        className="bg-[#0A0A0A] border-b md:border-b-0 md:border-r border-[#262626] flex flex-col shrink-0 w-full md:w-[var(--panel-w)] max-h-[40vh] md:max-h-none"
       >
         <div className="p-3 border-b border-[#262626] flex flex-col gap-2 bg-[#0D0D0D]">
           <div className="flex items-center justify-between">
@@ -404,8 +404,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
       <PanelResizeHandle onMouseDown={listPanel.startDrag} onReset={listPanel.reset} />
 
-      {/* 3. Right: Editor (top-level note OR any nested subnote) */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0A0A] min-w-0">
+      {/* 3. Right: Editor (top-level note OR any nested subnote) — FIX-3d: altura natural en móvil (el editor crece con el contenido) */}
+      <div className="flex-none md:flex-1 flex flex-col h-auto md:h-full overflow-hidden bg-[#0A0A0A] min-w-0 min-h-0">
         {currentNote ? (
           <RichEditor
             key={currentNote.id}

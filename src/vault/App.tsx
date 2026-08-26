@@ -136,6 +136,9 @@ export default function App() {
 
   // Modals state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // FIX-3d — Drawer de navegación en móvil (< md). En escritorio el sidebar
+  // es persistente y este estado no tiene efecto visual.
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isNewItemOpen, setIsNewItemOpen] = useState(false);
   const [newItemTab, setNewItemTab] = useState<'note' | 'lab' | 'glossary'>('note');
   const [newItemPlatform, setNewItemPlatform] = useState<string>('');
@@ -865,14 +868,20 @@ export default function App() {
     // (IndexedDB data is never at risk from a render crash).
     <VaultErrorBoundary>
     <div className="flex h-screen w-screen bg-[#0A0A0A] text-[#E5E5E5] overflow-hidden font-sans antialiased select-none">
-      {/* 1. Left Persistent Sidebar */}
+      {/* 1. Left Persistent Sidebar — desktop: columna fija; móvil: drawer overlay */}
       <Sidebar
         activeSection={activeSection}
-        onSelectSection={(section) => setActiveSection(section)}
+        onSelectSection={(section) => {
+          setActiveSection(section);
+          // Al navegar desde el drawer móvil, se cierra (en escritorio no tiene efecto).
+          setMobileSidebarOpen(false);
+        }}
         notesCount={activeNotes.filter((n) => !n.parentId).length}
         labsCount={activeLabs.length}
         glossaryCount={activeTerms.length}
         trashCount={deletedNotes.length + deletedLabs.length + deletedTerms.length}
+        open={mobileSidebarOpen}
+        onClose={() => setMobileSidebarOpen(false)}
       />
 
       {/* 2. Main Workstation Area */}
@@ -881,6 +890,7 @@ export default function App() {
         <Header
           activeSection={activeSection}
           onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onOpenNewItem={(tab) => {
             if (tab) setNewItemTab(tab);
             setNewItemPlatform('');

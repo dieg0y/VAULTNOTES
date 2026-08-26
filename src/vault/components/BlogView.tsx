@@ -140,8 +140,8 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
   return (
     <div className="flex flex-col flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A]">
       {/* Top Header Banner */}
-      <div className="px-6 py-3 border-b border-[#262626] bg-[#0D0D0D] flex items-center justify-between shrink-0">
-        <div>
+      <div className="px-6 py-3 border-b border-[#262626] bg-[#0D0D0D] flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="min-w-0">
           <h1 className="text-base font-bold text-white flex items-center gap-2">
             <FileCode className="w-4 h-4 text-blue-400" />
             Generar Blog
@@ -173,10 +173,10 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
         </div>
       </div>
 
-      {/* Main 2-Column Split */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* Main 2-Column Split — FIX-3d: apilado en móvil (selector arriba con max-h, preview debajo) */}
+      <div className="flex flex-1 flex-col md:flex-row overflow-y-auto md:overflow-hidden">
         {/* Left: content selector */}
-        <div className="w-[320px] bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0">
+        <div className="w-full md:w-[320px] max-h-[40vh] md:max-h-none border-b md:border-b-0 md:border-r border-[#262626] bg-[#0D0D0D] flex flex-col shrink-0">
           <div className="p-3 border-b border-[#262626] flex items-center justify-between">
             <span className="text-[11px] font-bold text-[#888] uppercase tracking-wider">
               Contenido ({selected.size}/{totalItems})
@@ -234,8 +234,8 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
           </div>
         </div>
 
-        {/* Right: preview */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[#0A0A0A] min-w-0">
+        {/* Right: preview — FIX-3d: altura natural en móvil */}
+        <div className="flex-none md:flex-1 overflow-y-auto p-6 bg-[#0A0A0A] min-w-0">
           <div className="max-w-3xl mx-auto space-y-4">
             {/* Options */}
             <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex items-center gap-3">

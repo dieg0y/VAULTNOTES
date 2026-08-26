@@ -1473,7 +1473,7 @@ const CronTool: React.FC<CronToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
 
           <div className="space-y-2">
             <div className="text-[11px] font-semibold text-white">Los 5 campos</div>
-            <div className="grid grid-cols-5 gap-1 text-center text-[9px]">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 text-center text-[9px]">
               <div className="bg-[#0D0D0D] border border-[#262626] rounded p-1.5">
                 <div className="text-blue-400 font-mono font-bold">Min</div>
                 <div className="text-[#888]">0-59</div>
@@ -1682,8 +1682,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
   return (
     <div className="flex flex-col flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A]">
       <div className="px-6 py-3 border-b border-[#262626] bg-[#0D0D0D] shrink-0">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-base font-bold text-white flex items-center gap-2">
               <Wrench className="w-4 h-4 text-blue-400" />
               Herramientas de Ciberseguridad
@@ -1691,7 +1691,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
             <p className="text-xs text-[#888]">{TOOLS.length} utilidades 100% offline — sin llamadas a internet.</p>
           </div>
           {/* Tool search box — filters by name / desc / category / tags. */}
-          <div className="relative w-72 max-w-full">
+          <div className="relative w-full sm:w-72 max-w-full">
             <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -1713,9 +1713,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      {/* FIX-3d — móvil: paneles apilados (lista arriba con scroll interno, herramienta debajo); desktop: fila con scroll por panel */}
+      <div className="flex flex-1 flex-col md:flex-row overflow-y-auto md:overflow-hidden">
         {/* Left: tool list */}
-        <div className="w-[220px] bg-[#0D0D0D] border-r border-[#262626] flex flex-col shrink-0 overflow-y-auto">
+        <div className="w-full md:w-[220px] max-h-[45vh] md:max-h-none border-b md:border-b-0 md:border-r border-[#262626] bg-[#0D0D0D] flex flex-col shrink-0 overflow-y-auto">
           {/* Favorites section — only shown when there's at least 1 favorite */}
           {favoriteTools.length > 0 && !toolQuery && (
             <div className="p-2 space-y-0.5 border-b border-[#1a1a1a]">
@@ -1804,8 +1805,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
           )}
         </div>
 
-        {/* Right: active tool */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[#0A0A0A] min-w-0">
+        {/* Right: active tool — FIX-3d: altura natural en móvil (el contenedor raíz scrollea) */}
+        <div className="flex-none md:flex-1 overflow-y-auto p-6 bg-[#0A0A0A] min-w-0">
           <div className="max-w-2xl mx-auto">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="min-w-0">

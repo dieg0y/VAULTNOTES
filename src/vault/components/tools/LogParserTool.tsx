@@ -583,9 +583,10 @@ export const LogParserTool: React.FC = () => {
             </InfoBanner>
           )}
 
+          {/* FIX-3d — overflow-x-auto: la tabla de 6 columnas debe poder escrolarse horizontalmente en móvil */}
           <div className="border border-[#262626] rounded overflow-hidden">
-            <div className="max-h-96 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-              <table className="w-full text-xs">
+            <div className="max-h-96 overflow-x-auto overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+              <table className="w-full min-w-[640px] text-xs">
                 <thead className="bg-[#0D0D0D] sticky top-0">
                   <tr>
                     <th className="text-left p-2 text-[10px] uppercase tracking-wider text-[#888]">#</th>

@@ -12,6 +12,10 @@ interface SidebarProps {
   labsCount: number;
   glossaryCount: number;
   trashCount: number;
+  /** Visibilidad del drawer en móvil (< md). El sidebar de escritorio (≥ md) siempre está visible. */
+  open?: boolean;
+  /** Cierra el drawer móvil (clic en el backdrop). */
+  onClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -21,6 +25,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   labsCount,
   glossaryCount,
   trashCount,
+  open = false,
+  onClose,
 }) => {
   // Pending review items count (for the Revisión badge)
   const reviewCount = useLiveQuery(
@@ -43,8 +49,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // events. NO network probe, NO periodic fetch. Purely visual state.
   const online = useIsOnline();
 
-  return (
-    <aside className="w-[200px] border-r border-[#262626] bg-[#0D0D0D] flex flex-col justify-between shrink-0 h-screen select-none z-30">
+  // Contenido compartido entre el sidebar de escritorio y el drawer móvil.
+  const sidebarContent = (
+    <>
       {/* Top branding & navigation */}
       <div className="flex flex-col">
         {/* Brand Header */}
@@ -283,6 +290,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="font-mono text-[9px] text-[#555] shrink-0 ml-2">Dexie</span>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Escritorio (≥ md): columna persistente — idéntica al layout original. */}
+      <aside className="hidden md:flex w-[200px] border-r border-[#262626] bg-[#0D0D0D] flex-col justify-between shrink-0 h-screen select-none z-30">
+        {sidebarContent}
+      </aside>
+
+      {/* Móvil (< md): drawer superpuesto con backdrop. Se abre desde el
+          botón hamburguesa del Header y se cierra al navegar o al tocar
+          el backdrop. No ocupa espacio en el flujo del layout. */}
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-[45] bg-black/50 md:hidden"
+            onClick={() => onClose?.()}
+            aria-hidden="true"
+          />
+          <aside
+            className="fixed inset-y-0 left-0 z-50 w-[260px] max-w-[85vw] bg-[#0D0D0D] border-r border-[#262626] flex flex-col justify-between select-none md:hidden overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú de navegación"
+          >
+            {sidebarContent}
+          </aside>
+        </>
+      )}
+    </>
   );
 };

@@ -755,3 +755,105 @@ Work Log:
 Stage Summary:
 - Los tres paquetes FIX-2a/2b/2c verificados end-to-end. Estado: 41 findings de la auditoría → todos los HIGH del Builder Handoff implementados (FIX-1a..1e + FIX-2a/2b) + MEDIUM clave (error boundary, a11y modal, cron, winEvents, sidRid, AMSI, httpStatus, IoC regex/IPv6/STIX, deletedAt, orphan reporting…).
 - Pendiente documentado para el usuario: warnings advisory de eslint (23), y hallazgos MEDIUM restantes de menor impacto no críticos (URL race en CveSearch si existe, dedup de búsqueda global, sub-técnicas MITRE, responsive fino) — ver informe final.
+
+---
+Task ID: FIX-3d
+Agent: general-purpose
+Task: Responsive móvil estructural de VaultNotes — sidebar drawer en móvil, vistas multipanel apiladas (<768px), tablas/grids con scroll horizontal, clamp de useResizablePanel por viewport. Layout desktop (≥768px) intacto.
+
+Work Log:
+- Leído worklog + código: App.tsx (root flex L867-899), Sidebar.tsx, Header.tsx, PanelResizeHandle.tsx, useResizablePanel.ts, NotesView/LabsView/ToolsView/GlossaryView/BlogView (regiones de layout), LogParserTool/RbacAnalyzerTool/CvssCalculatorTool (tablas/grids). Confirmados los 11 hallazgos de la auditoría.
+- A) Sidebar.tsx: extraído el contenido interno a `sidebarContent`; escritorio pasa a `hidden md:flex w-[200px] ...` (idéntico ≥768px); nuevo drawer móvil `fixed inset-y-0 left-0 z-50 w-[260px] max-w-[85vw] bg-[#0D0D0D] border-r md:hidden` con backdrop `fixed inset-0 z-[45] bg-black/50 md:hidden` (z-45 para cubrir el Header z-40 sin tapar los modales z-50), role="dialog" aria-modal aria-label="Menú de navegación". Props nuevas opcionales `open`/`onClose`.
+- A) App.tsx: estado `mobileSidebarOpen`; Sidebar recibe open/onClose y su onSelectSection cierra el drawer al navegar; Header recibe `onOpenMobileSidebar`.
+- A) Header.tsx: botón hamburguesa (icono Menu, `md:hidden p-3` → touch target 44px, aria-label="Abrir menú de navegación"); header `gap-2`; acciones `gap-2 sm:gap-3 flex-wrap justify-end min-w-0`; textos "Guardar Backup"/"Importar"/"Online" bajo `hidden sm:inline` (mismo patrón que "Capturar"); buscador con `min-w-0`, placeholder "Buscar..." en móvil + truncate, badge ⌘K `hidden sm:inline`; botones `shrink-0` y Nuevo con `whitespace-nowrap`.
+- B) useResizablePanel.ts: reescrito con `baseWidth` (persistido) + clamp `window.innerWidth * 0.45` aplicado en mount y re-aplicado con listener `resize` (con cleanup, sin hydration mismatch al inicializar en Infinity); `startDrag` ignora drags si `!matchMedia('(min-width: 768px)').matches`. Interfaz pública {width, startDrag, reset} sin cambios.
+- B) PanelResizeHandle.tsx: `hidden md:block` (los 5 usos son vistas que apilan en móvil; escritorio idéntico).
+- B) Patrón por vista (raíz `flex flex-col md:flex-row` + `overflow-y-auto md:overflow-hidden`; laterales `w-full md:w-[var(--panel-w)]` vía CSS var inline en vez de width px — evita que el estilo inline pise el apilado móvil; `border-b md:border-b-0 md:border-r`; principal `flex-none md:flex-1` + `h-auto md:h-full`):
+  - NotesView: plataformas max-h-[30vh] (lista vertical, opción simple robusta), lista notas max-h-[40vh] (scroll interno), editor altura natural.
+  - LabsView: filtros max-h-[45vh], lista labs max-h-[40vh], editor natural.
+  - GlossaryView: términos max-h-[40vh] + detalle natural; banner con flex-wrap/min-w-0.
+  - BlogView: selector max-h-[40vh] + preview natural; banner con flex-wrap/min-w-0.
+  - ToolsView: fila interna `flex-col md:flex-row` con scroll; lista tools max-h-[45vh] + scroll interno; panel tool `flex-none md:flex-1`; banner con flex-wrap y buscador `w-full sm:w-72`.
+- C) LogParserTool: wrapper de tabla `overflow-x-auto overflow-y-auto` + tabla `min-w-[640px]` (patrón SidRidAnalyzer). RbacAnalyzerTool: matriz wrapper `overflow-x-auto`; celda nombre de rol `break-words min-w-[100px]`. CvssCalculatorTool escala y guía cron de ToolsView: `grid-cols-2 sm:grid-cols-5`.
+- Verificación runtime con agent-browser a 375×667: sidebar fuera del flujo (main 375px), header sin overflow-x, drawer abre (260px, backdrop, cierra al navegar), Tools/Notes/Labs/Glossary/Blog apilados full-width sin overflow horizontal, tabla Log Parser con scroll-x (min-w 640), grids CVSS/cron a 2 columnas (celdas 149px). A 1280×800: sidebar 200px, paneles laterales 220/320/240/330px + handles 4px + editores flex-1 (desktop idéntico), drag-resize funcional y persistido (vault-glossary-list-w 420). Anchos persistidos de escritorio (560/380) recargados a 375px → paneles full-width sin overflow (clamp OK).
+- `bun run lint` → 0 errores (23 warnings preexistentes, ninguno en código tocado). `bunx tsc --noEmit` → 0 errores en src/ (solo 5 preexistentes en examples/, skills/, src/lib/db.ts). `curl /` → 200. dev.log limpio.
+
+Stage Summary:
+- La app es usable a 375px: navegación por drawer hamburguesa, las 5 vistas multipanel se apilan (listas con max-h y scroll interno, editor/panel principal a altura natural con scroll del contenedor de vista), tablas de 6 columnas con scroll horizontal y grids legibles.
+- useResizablePanel ya no rompe sesiones móviles con anchos persistidos de escritorio (clamp 45% viewport + re-clamp en resize) y el drag queda limitado a ≥768px (handle oculto en móvil).
+- Layout desktop verificado idéntico (mediciones a 1280×800 en las 5 vistas + drag/persistencia funcionales); no se tocó CveSearchTool.tsx ni fuzzySearch.ts; sin cambios de lógica de negocio, Dexie ni dependencias nuevas.
+- Archivos tocados: src/vault/App.tsx, src/vault/components/Sidebar.tsx, src/vault/components/Header.tsx, src/vault/components/PanelResizeHandle.tsx, src/vault/hooks/useResizablePanel.ts, src/vault/components/NotesView.tsx, src/vault/components/LabsView.tsx, src/vault/components/ToolsView.tsx, src/vault/components/GlossaryView.tsx, src/vault/components/BlogView.tsx, src/vault/components/tools/LogParserTool.tsx, src/vault/components/tools/RbacAnalyzerTool.tsx, src/vault/components/tools/CvssCalculatorTool.tsx.
+
+---
+Task ID: FIX-3a
+Agent: main (Z.ai Code)
+Task: Race condition en CveSearchTool — respuesta lenta antigua podía pisar el resultado de una búsqueda más nueva (vía "Re-search online" en filas guardadas, única vía sin guard de solape).
+
+Work Log:
+- Investigación previa (agente Explore): runSearch seteaba estado tras await SIN guard (sin AbortController/requestId/isMounted); disparadores Enter y botón "Search Online" ya estaban blindados con `searching`, pero el botón "Re-search online" de cada SavedCveRow NO respetaba `searching` → dos requests solapados y el último en LLEGAR (no el último en lanzarse) ganaba el setResult, dejando input y card inconsistentes.
+- CveSearchTool.tsx: añadido `searchSeqRef = useRef(0)` (guard monotónico). runSearch captura `const seq = ++searchSeqRef.current` antes del await; tras resolver (success, catch y finally) verifica `seq === searchSeqRef.current` antes de escribir setResult/setSearching — solo la búsqueda MÁS NUEVA puede escribir estado; la vieja se descarta completa (incluido el apagado del spinner, que queda a cargo de la request vigente).
+- SavedCveRow: nuevo prop opcional `busy` — botón "Re-search online" ahora `disabled={busy}` con `disabled:opacity-50 disabled:cursor-not-allowed` y RefreshCw con `animate-spin` mientras busca; call-site pasa `busy={searching}`. Doble defensa: UI previene el solape, el guard lo resuelve si ocurre por otra vía.
+- Comentarios en inglés (consistencia con el archivo). Sin cambios en searchCveOnline/fetchWithTimeout (el AbortController interno de timeout sigue igual).
+
+Stage Summary:
+- Race de stale-response cerrada: imposible que una respuesta vieja sobreescriba una búsqueda más reciente.
+- "Re-search online" deshabilitado (con spinner) mientras vuela una búsqueda — feedback visual añadido.
+
+---
+Task ID: FIX-3b
+Agent: main (Z.ai Code)
+Task: Dedup de búsqueda global — la misma herramienta aparecía 2 veces en Ctrl+K (fila "Abrir X" de command palette + fila "X" del catálogo de herramientas, ids distintos cmd-open-X vs tool-X).
+
+Work Log:
+- Investigación previa: el merge deduplicaba por doc.id (string), pero la misma tool entraba al corpus bajo 2 formas (buildCommandDoc → `cmd-open-${toolId}` con commandId `open-tool:${toolId}`; buildToolDoc → `tool-${toolId}`). Query "hash" producía 4 filas para 2 herramientas.
+- fuzzySearch.ts (tras `rawResults = mergedRaw.slice(0, 30)`): dedup por DESTINO LÓGICO — se coleccionan los toolIds presentes como doc de catálogo (`type === 'tool'`) y se filtran los comandos cuyo commandId `open-tool:X` apunta a una herramienta que ya está en resultados. La fila de CATÁLOGO sobrevive (mejor bucket de título-match porque su título ES el nombre, y snippet descriptivo); el comando redundante se elimina.
+- Comandos sin contraparte (new-note, quick-capture, open-tool de tools que no matchearon) NO se ven afectados. La rama de query vacío (top-6 comandos) no contiene tool docs → sin cambios. Filtros type:/tag: intactos.
+- E2E con agent-browser: query "powershell" → 1 sola fila "PowerShell Analyzer" (Herramienta), "Abrir PowerShell Analyzer" AUSENTE; query "hash" → exactamente 2 filas ("Hash Toolkit" + "File Hash Analyzer"), antes 4. Click en resultado navega y abre la tool (deep-link intacto).
+
+Stage Summary:
+- fuzzySearch.ts: mismo destino nunca listado 2 veces — la búsqueda global queda consistente (1 fila por herramienta).
+
+---
+Task ID: FIX-3c
+Agent: main (Z.ai Code)
+Task: Verificación del hallazgo "sub-técnicas MITRE" — determinar si requiere fix.
+
+Work Log:
+- Investigación (agente Explore, solo lectura): grep de `attack.mitre.org` en todo src/vault/ → solo 3 generadores de URL (PowerShellAnalyzerTool L374-381, MitreExplorerTool L72-79, CommandLineAnalyzerTool L283-291). Los TRES convierten punto→slash correctamente: `T1059.001` → `https://attack.mitre.org/techniques/T1059/001/` (formato canónico ATT&CK). Regexes ejecutadas en node contra T1059.001, T1562.001, T1003.001, T1027, T1548.002, T1595.003 — todas correctas.
+- Cross-links internos (SigmaExplorer, WinEventTool, DetectionQueryHelper) aterrizan en findMitreById (mitreData.ts) que resuelve sub-técnica → técnica padre y abre el detalle del padre con la sub-técnica listada dentro. Correcto.
+- Únicos residuos cosméticos: fallback ante id malformado difiere levemente entre los 3 archivos y el helper está triplicado (riesgo de deriva futura). NO se unifica: cambio cosmético que toca 3 archivos estables sin beneficio de comportamiento, contra la restricción de no reescribir sin necesidad.
+
+Stage Summary:
+- Hallazgo NO reproducible: los enlaces MITRE con sub-técnicas ya son correctos en el código actual. Cerrado como "verificado correcto, sin fix requerido".
+
+---
+Task ID: FIX-3d
+Agent: general-purpose (full-stack-developer)
+Task: Responsive móvil estructural — a 375px la app era inutilizable (sidebar fija 200px + paneles laterales shrink-0 colapsaban el contenido principal a 0px; tablas y grids fijos).
+
+Work Log:
+- Ver investigación detallada en la entrada FIX-3d escrita por el subagent (13 archivos tocados): sidebar como drawer móvil con hamburguesa en Header (desktop idéntico, `hidden md:flex`), vistas multipanel (Tools/Notes/Labs/Glossary/Blog) apiladas bajo md con scroll vertical (`flex-col md:flex-row`, `overflow-y-auto md:overflow-hidden`), paneles con max-h y scroll interno en móvil, useResizablePanel con clamp al 45% del viewport + drag solo ≥768px, Header con flex-wrap y labels ocultos bajo sm, tablas LogParser/RBAC con overflow-x-auto, grids CVSS/cron `grid-cols-2 sm:grid-cols-5`.
+- Técnica clave: ancho resizable persistido vía CSS var inline `--panel-w` + `md:w-[var(--panel-w)]` — el estilo inline no pisa el `w-full` del apilado móvil.
+
+Stage Summary:
+- 13 archivos tocados; móvil 375px usable de extremo a extremo (drawer, vistas apiladas, tablas scrollables); desktop 1280px verificado idéntico al estado previo.
+
+---
+Task ID: FIX-3-VERIFY
+Agent: main (Z.ai Code)
+Task: Verificación central final post-FIX-3a/3b/3c/3d (protocolo: lint + typecheck + HTTP + agent-browser E2E desktop y móvil).
+
+Work Log:
+- bun run lint → exit 0: 0 errores / 23 warnings advisory (preexistentes, documentados: exhaustive-deps de patrones useLiveQuery||[] mayormente falsos positivos + any intencionales en helpers legacy; ninguno en código tocado esta ronda).
+- bunx tsc --noEmit → src/vault/ 100% limpio (5 errores preexistentes en examples/, skills/ y src/lib/db.ts, ajenos a la app).
+- curl / → HTTP 200; dev.log limpio durante toda la sesión (solo GETs 200).
+- agent-browser E2E (1280×800 y 375×667, 0 errores de consola):
+  * Búsqueda global: "powershell" → 1 fila "PowerShell Analyzer" (dedup OK, comando suprimido); "hash" → exactamente 2 filas (Hash Toolkit + File Hash Analyzer, antes 4); click en resultado → deep-link abre la tool (heading + input visibles).
+  * CVE Search: renderiza (input CVE-2025-12345 + Search Online), lazy-load OK, sin errores.
+  * Móvil 375px: hamburguesa "Abrir menú de navegación" visible; drawer abre → navegación a Apuntes funciona y CIERRA el drawer; vistas apiladas full-width; scrollWidth = 375 (cero overflow horizontal); botón "Nuevo Apunte" y buscador accesibles.
+  * Desktop 1280px: sidebar 200px, vista Apuntes con paneles normales — layout intacto.
+- Browser cerrado al finalizar.
+
+Stage Summary:
+- Los 4 pendientes de la auditoría (race CveSearch, dedup búsqueda, sub-técnicas MITRE, responsive) CERRADOS: 2 con fix (3a, 3b), 1 verificado-no-reproducible (3c), 1 con fix estructural verificado (3d, vía subagent).
+- Estado FINAL de la auditoría de 41 hallazgos: todos los HIGH y MEDIUM accionables implementados; restan solo los 23 warnings advisory de eslint (documentados, no bloqueantes) y las mejoras cosméticas opcionales (unificar helper mitreUrl triplicado).

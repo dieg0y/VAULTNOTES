@@ -242,7 +242,8 @@ export const CvssCalculatorTool: React.FC = () => {
           <Info className="w-3 h-3" />
           Escala de Severidad
         </h3>
-        <div className="grid grid-cols-5 gap-1">
+        {/* FIX-3d — grid-cols-2 en móvil para celdas legibles a 375px; desktop igual (sm:) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1">
           {[
             { range: '0.0', label: 'None', cls: SEVERITY_STYLES.None },
             { range: '0.1-3.9', label: 'Low', cls: SEVERITY_STYLES.Low },
