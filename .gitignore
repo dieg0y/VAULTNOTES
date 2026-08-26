@@ -30,25 +30,56 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (NEVER commit secrets)
 .env*
+.env
 
 # vercel
 .vercel
-
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 local-*
+
+# Z.ai internal / agent context
 .claude
 .z-ai-config
 *.log
 dev.log
 dev.out.log
+server.log
 test
 prompt
 
-server.log
-# Skills directory
+# Worklog is an internal work-progress file; do not publish to GitHub.
+worklog.md
+worklog.txt
+
+# Tool results from skill runs
+/skills/tool-results
+
+# ──────────────────────────────────────────────────────────────
+# Project-specific exclusions (VAULTNOTES)
+# These directories contain SDK docs / sandbox tooling that is NOT
+# part of the application source. Keeping them out of the repo keeps
+# the GitHub mirror focused on what actually runs.
+# ──────────────────────────────────────────────────────────────
+
+# Z.ai skill SDKs (documentation + CLI tools of the skill system)
 /skills/
+
+# WebSocket / mini-service examples shipped with the sandbox template
+/examples/
+/mini-services/
+
+# Runtime artifacts that should never be committed
+.zscripts/*.pid
+download/
+db/*.db
+db/*.db-journal
+
+# Sandbox setup scripts and skill run artifacts (not part of the app)
+/tests/
+/tool-results/
+/upload/

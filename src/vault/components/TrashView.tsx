@@ -108,7 +108,15 @@ export const TrashView: React.FC<TrashViewProps> = ({
                         Restaurar
                       </button>
                       <button
-                        onClick={() => onPermanentDeleteNote(note.id)}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `¿Eliminar definitivamente "${note.title}"? Esta acción es irreversible y no se puede deshacer: se borrarán también todas sus subpáginas y archivos adjuntos (imágenes, vídeos y PDFs).`
+                            )
+                          ) {
+                            onPermanentDeleteNote(note.id);
+                          }
+                        }}
                         className="p-1 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                         title="Eliminar definitivamente"
                       >
@@ -165,7 +173,15 @@ export const TrashView: React.FC<TrashViewProps> = ({
                       )}
                       {onPermanentDeleteLab && (
                         <button
-                          onClick={() => onPermanentDeleteLab(lab.id)}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `¿Eliminar definitivamente el lab "${lab.title}"? Esta acción es irreversible y no se puede deshacer: se borrarán también todas sus partes y archivos adjuntos (imágenes, vídeos y PDFs).`
+                              )
+                            ) {
+                              onPermanentDeleteLab(lab.id);
+                            }
+                          }}
                           className="p-1 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                           title="Eliminar definitivamente"
                         >
@@ -219,7 +235,15 @@ export const TrashView: React.FC<TrashViewProps> = ({
                         Restaurar
                       </button>
                       <button
-                        onClick={() => onPermanentDeleteTerm(term.id)}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `¿Eliminar definitivamente el término "${term.term}"? Esta acción es irreversible y no se puede deshacer.`
+                            )
+                          ) {
+                            onPermanentDeleteTerm(term.id);
+                          }
+                        }}
                         className="p-1 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                         title="Eliminar definitivamente"
                       >

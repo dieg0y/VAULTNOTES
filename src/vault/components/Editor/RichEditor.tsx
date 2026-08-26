@@ -2,12 +2,16 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Star, Trash2, ExternalLink, Plus, Heading1, Heading2, Heading3, Bold, Italic, Underline,
   List, ListOrdered, CheckSquare, Quote, Code, Image as ImageIcon, Check, BookOpen,
-  ChevronRight, FileText, Video
+  ChevronRight, FileText, Video, ListChecks
 } from 'lucide-react';
 import { Note, GlossaryTerm, CategoryItem } from '../../types';
 import { db } from '../../db';
 import { insertHtmlInEditable } from '../../utils/domInsert';
 import { saveVideoBlob, getVideoBlobById, isFsSupported, hasAppFolder, isFsReady, ensureFsPermission, pickAppFolder, shouldAskForDir, markDirDeclined } from '../../utils/videoStorage';
+import { savePdfBlob, getPdfBlobById } from '../../utils/pdfStorage';
+import { AutoToc } from './AutoToc';
+import { addToReviewQueue } from '../tools/_shared';
+import { sanitizeHtml } from '../../utils/sanitizeHtml';
 
 interface RichEditorProps {
   note: Note;
@@ -38,12 +42,31 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   const [isFavorite, setIsFavorite] = useState(note.isFavorite);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [hoveredTerm, setHoveredTerm] = useState<{ term: GlossaryTerm; x: number; y: number } | null>(null);
+  // BLOQUE 5 — Review Queue "Revisar después" inline toast
+  const [reviewToast, setReviewToast] = useState<string | null>(null);
+
+  const handleAddToReview = async () => {
+    const ok = await addToReviewQueue('note', note.id);
+    const msg = ok
+      ? 'Añadido a la cola de revisión'
+      : 'Ya estaba en la cola de revisión';
+    setReviewToast(msg);
+    window.setTimeout(() => setReviewToast(null), 2000);
+  };
 
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const videoUrlsRef = useRef<string[]>([]);
+  const pdfUrlsRef = useRef<string[]>([]);
+  // Mirror of the contentEditable's innerHTML on every keystroke. Survives
+  // React unmount (unlike editorRef.current which React nulls during
+  // unmount) so the pending-autosave flush on note-switch reads the TRUE
+  // latest content instead of the stale note.contentHtml prop. See
+  // flushSave + unmount-cleanup below. (Audit Task 2-a MEDIUM follow-up.)
+  const latestHtmlRef = useRef('');
   const [fsNeedsPermission, setFsNeedsPermission] = useState(false);
 
   /** Attach persistent object-URLs to every embedded video in the editor. */
@@ -78,11 +101,39 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     setFsNeedsPermission(anyMissing && permIssue);
   }, []);
 
+  /** Attach persistent object-URLs to every embedded PDF in the editor.
+   *  The browser's native PDF viewer renders the blob URL — no external
+   *  library required. Works on Edge/Chrome out of the box. */
+  const attachPdfSources = useCallback(async () => {
+    if (!editorRef.current) return;
+    const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-pdf-embed[data-pdf-id]');
+    for (const fig of Array.from(embeds)) {
+      const pid = fig.getAttribute('data-pdf-id');
+      const embedEl = fig.querySelector('embed, iframe');
+      if (!pid || !embedEl || embedEl.getAttribute('src')) continue;
+      try {
+        const blob = await getPdfBlobById(pid);
+        if (blob) {
+          fig.classList.remove('vault-pdf-missing');
+          const url = URL.createObjectURL(blob);
+          pdfUrlsRef.current.push(url);
+          embedEl.setAttribute('src', url);
+        } else {
+          fig.classList.add('vault-pdf-missing');
+        }
+      } catch {
+        fig.classList.add('vault-pdf-missing');
+      }
+    }
+  }, []);
+
   // Revoke object URLs when the editor unmounts (note switch / view change).
   useEffect(() => {
     return () => {
       videoUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
       videoUrlsRef.current = [];
+      pdfUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      pdfUrlsRef.current = [];
     };
   }, []);
 
@@ -91,41 +142,188 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   // Only the contentEditable DOM needs an explicit load per note.
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = note.contentHtml;
-      // Deferred: attachVideoSources resolves asynchronously from IndexedDB
-      // and updates state afterwards (never during the effect body).
-      void Promise.resolve().then(attachVideoSources);
+      // SECURITY (Audit Task 2-b, spec #26/#42/#44): contentHtml is
+      // untrusted — it may originate from an imported backup ZIP or an
+      // older Dexie record. Sanitize before innerHTML to prevent stored
+      // XSS (<script>, <img onerror>, javascript: URLs). Pure & offline.
+      editorRef.current.innerHTML = sanitizeHtml(note.contentHtml);
+      // Deferred: attachVideoSources/attachPdfSources resolve asynchronously
+      // from IndexedDB and update state afterwards (never during the effect
+      // body).
+      void Promise.resolve().then(() => Promise.all([attachVideoSources(), attachPdfSources()]));
+      // Keep latestHtmlRef in sync on load so a rapid switch before any
+      // keystroke still has the loaded content (not just the prop).
+      latestHtmlRef.current = editorRef.current.innerHTML;
     }
-  }, [note.id, attachVideoSources]);
+  }, [note.id, attachVideoSources, attachPdfSources]);
 
   const triggerAutoSave = useCallback(() => {
     setSaveStatus('unsaved');
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(async () => {
-      setSaveStatus('saving');
-      const rawHtml = editorRef.current ? editorRef.current.innerHTML : note.contentHtml;
-      // Strip ephemeral blob: URLs — videos are re-attached from the DB on load.
-      const html = rawHtml.replace(/\ssrc="blob:[^"]*"/g, '');
-      await onUpdateNote({
-        title,
-        contentHtml: html,
-        category,
-        sourceUrl: sourceUrl.trim() || undefined,
-        isFavorite,
-        updatedAt: new Date().toISOString(),
-      });
-      setSaveStatus('saved');
+    autoSaveTimerRef.current = setTimeout(() => {
+      void flushSaveRef.current?.();
     }, 1500);
-  }, [title, category, sourceUrl, isFavorite, onUpdateNote, note.contentHtml]);
+  }, []);
+
+  // AUTOSAVE DATA-INTEGRITY FIX (Task 2-c, spec #33 — race conditions +
+  // reload-during-autosave): the previous setTimeout closure captured
+  // `title`, `category`, `sourceUrl`, `isFavorite` at triggerAutoSave
+  // CREATION time. When the user typed a keystroke, the inline arrow
+  // `onChange={(e) => { setTitle(e.target.value); triggerAutoSave(); }}`
+  // called triggerAutoSave with the PREVIOUS render's closure — so the
+  // scheduled timer captured the PREVIOUS title. After 1500ms of silence
+  // the timer fired with one-keystroke-old state, calling
+  // `db.notes.update(id, { title: <stale> })` — silently dropping the
+  // user's last keystroke (e.g. typing "hello" + stop saved "hell").
+  // The fix: read the LATEST React-state-backed fields from a ref that's
+  // updated on every render, so the timer always sees the current value.
+  // The contentEditable HTML continues to be read live from
+  // `editorRef.current.innerHTML` at fire time (DOM is already up-to-date).
+  const latestFieldsRef = useRef({ title, category, sourceUrl, isFavorite });
+  useEffect(() => {
+    latestFieldsRef.current = { title, category, sourceUrl, isFavorite };
+  });
+  const flushSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const flushSave = useCallback(async () => {
+    setSaveStatus('saving');
+    // Read live from the contentEditable when mounted; fall back to
+    // latestHtmlRef (mirrored on every keystroke) when editorRef is null
+    // (post-unmount timer fire or note-switch cleanup). This prevents
+    // data loss: without latestHtmlRef, a flush after unmount would use the
+    // STALE note.contentHtml prop and silently drop the user's typed
+    // content. (Audit Task 2-a MEDIUM follow-up.)
+    const rawHtml = editorRef.current?.innerHTML ?? latestHtmlRef.current ?? note.contentHtml;
+    // Strip ephemeral blob: URLs — videos & PDFs are re-attached from the
+    // database on load. Match both src="blob:..." and src='blob:...'.
+    const html = rawHtml
+      .replace(/\ssrc="blob:[^"]*"/g, '')
+      .replace(/\ssrc='blob:[^']*'/g, '');
+    const { title: t, category: c, sourceUrl: s, isFavorite: f } = latestFieldsRef.current;
+    await onUpdateNote({
+      title: t,
+      contentHtml: html,
+      category: c,
+      sourceUrl: s.trim() || undefined,
+      isFavorite: f,
+      updatedAt: new Date().toISOString(),
+    });
+    setSaveStatus('saved');
+  }, [onUpdateNote, note.contentHtml]);
+  useEffect(() => {
+    // Latest-callback ref pattern (canonical way to expose a stable timer
+    // callback that sees the LATEST closure; the rule has a known false
+    // positive on this exact pattern — see
+    // https://github.com/facebook/react/issues/31194).
+    // eslint-disable-next-line react-hooks/immutability
+    flushSaveRef.current = flushSave;
+  }, [flushSave]);
+
+  // Flush the pending autosave on `pagehide` (reload / tab close / navigate
+  // away). Without this, the 1500ms debounce timer is cancelled by the
+  // unload and the user's last edit (< 1500ms before reload) is silently
+  // dropped. Modern browsers will hold the page long enough for an
+  // already-started IDB transaction to commit; kicking the save off
+  // synchronously inside `pagehide` lets Dexie's write commit before the
+  // page is destroyed. Per Task 2-c, spec #33 — "reload during autosave;
+  // close-after-typing" must be safe.
+  useEffect(() => {
+    const onUnload = () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+        void flushSaveRef.current?.();
+      }
+    };
+    window.addEventListener('pagehide', onUnload);
+    return () => window.removeEventListener('pagehide', onUnload);
+  }, []);
+
+  // AUDIT MEDIUM FOLLOW-UP: flush pending autosave on React unmount (note
+  // switch / view change). Without this, a user who types and switches
+  // notes within the 1500ms debounce window loses the typed content — the
+  // pending timer fires after unmount, editorRef is null, and flushSave
+  // would fall back to the STALE note.contentHtml prop. The unmount cleanup
+  // clears the timer AND immediately flushes via flushSaveRef (which reads
+  // latestHtmlRef — the true latest content, not the stale prop). The
+  // pagehide handler above covers reload/tab-close; this covers SPA nav.
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+        void flushSaveRef.current?.();
+      }
+    };
+     
+  }, []);
 
   const handleContentInput = () => {
-    if (editorRef.current) triggerAutoSave();
+    if (editorRef.current) {
+      // AUTOSAVE DATA-INTEGRITY (Task 2-c + audit follow-up): mirror the
+      // contentEditable's innerHTML on every keystroke. Critical for the
+      // React-unmount case — when the user types and switches notes within
+      // the 1500ms debounce window, editorRef.current becomes null BEFORE
+      // the pending timer fires. Without this ref, flushSave would fall
+      // back to the STALE note.contentHtml prop — silently dropping the
+      // typed content. latestHtmlRef survives the unmount so the
+      // unmount-cleanup flush reads the TRUE latest content.
+      latestHtmlRef.current = editorRef.current.innerHTML;
+      triggerAutoSave();
+    }
   };
 
   const execCmd = (command: string, value: string | undefined = undefined) => {
     document.execCommand(command, false, value);
     if (editorRef.current) { editorRef.current.focus(); handleContentInput(); }
   };
+
+  /* Event delegation: clicking the "Copiar" button on a code-block header copies the code text.
+     Inline onclick handlers don't survive contentEditable, so we delegate from the root. */
+  const handleEditorClick = useCallback(async (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    // 1. Code-block "Copiar"
+    const copyBtn = target.closest('.vault-code-copy') as HTMLElement | null;
+    if (copyBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = copyBtn.closest('.vault-code-block') as HTMLElement | null;
+      const code = block?.querySelector('pre code, pre') as HTMLElement | null;
+      if (!code) return;
+      const text = code.textContent || '';
+      navigator.clipboard?.writeText(text).then(() => {
+        const original = copyBtn.textContent;
+        copyBtn.textContent = '✓ Copiado';
+        copyBtn.classList.add('text-green-400');
+        setTimeout(() => {
+          copyBtn.textContent = original;
+          copyBtn.classList.remove('text-green-400');
+        }, 1500);
+      });
+      return;
+    }
+    // 2. PDF "Descargar" — pulls the blob from IDB and triggers a download
+    const dlBtn = target.closest('.vault-pdf-download') as HTMLElement | null;
+    if (dlBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const pid = dlBtn.getAttribute('data-pdf-id');
+      if (!pid) return;
+      try {
+        const blob = await getPdfBlobById(pid);
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = dlBtn.getAttribute('download-name') || `${pid}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (err) {
+        console.warn('PDF download failed:', err);
+      }
+    }
+  }, []);
 
   const insertChecklist = () => {
     insertHtmlInEditable(editorRef.current, `
@@ -139,9 +337,10 @@ export const RichEditor: React.FC<RichEditorProps> = ({
 
   const insertCodeBlock = (language: string = 'bash') => {
     insertHtmlInEditable(editorRef.current, `
-      <div class="my-4 rounded-lg overflow-hidden border border-[#262626] bg-[#141414] font-mono text-xs shadow-lg">
+      <div class="my-4 rounded-lg overflow-hidden border border-[#262626] bg-[#141414] font-mono text-xs shadow-lg vault-code-block">
         <div class="bg-[#0D0D0D] px-3.5 py-2 border-b border-[#262626] text-[11px] text-blue-400 font-semibold flex items-center justify-between select-none">
           <span class="uppercase tracking-wider font-mono">${language}</span>
+          <span class="vault-code-copy text-[#666] hover:text-blue-300 text-[10px] cursor-pointer flex items-center gap-0.5" contenteditable="false" role="button" tabindex="-1">📋 Copiar</span>
         </div>
         <pre class="p-4 text-blue-300 overflow-x-auto whitespace-pre font-mono leading-relaxed outline-none" contenteditable="true"><code class="language-${language}"># Escribe o pega tus comandos aquí...</code></pre>
       </div><p><br></p>
@@ -151,19 +350,41 @@ export const RichEditor: React.FC<RichEditorProps> = ({
 
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
+    // SECURITY (Task 2-b): cap upload size to 25 MB. data: URLs are ~33%
+    // larger than the raw bytes, and IDB blobs count against the browser
+    // quota. A multi-hundred-MB image would crash the tab on most machines.
+    if (file.size > 25 * 1024 * 1024) {
+      alert('La imagen es demasiado grande (máximo 25 MB). Redúcela antes de insertarla.');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
-      const imgId = `img-${Date.now()}`;
+      // SECURITY (Task 2-b): HTML-escape the user-controlled file.name before
+      // embedding it inside an <img alt="…"> attribute and inside the
+      // figcaption text node. file.name comes from the OS and could contain
+      // characters that break the attribute boundary (e.g. a file named
+      // " onerror=alert(1) x=". Without escaping this would self-XSS the
+      // editor (and any later viewer of the note's contentHtml).
+      const safeName = file.name
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+      // AUDIT (VN-A-001): Date.now() alone collides when 2+ images are
+      // added in the same millisecond (Dexie primary-key ConstraintError
+      // silently drops the second image). Add entropy like vid-/pdf- ids.
+      const imgId = `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       await db.images.add({
         id: imgId, noteId: note.id, name: file.name, mimeType: file.type,
         dataUrl, caption: 'Diagrama / Captura', createdAt: new Date().toISOString(),
       });
       const imageHtml = `
         <figure class="my-6 max-w-full inline-block rounded-lg overflow-hidden border border-[#262626] bg-[#161616] shadow-xl">
-          <img src="${dataUrl}" alt="${file.name}" style="max-width: 100%; height: auto; display: block;" />
+          <img src="${dataUrl}" alt="${safeName}" style="max-width: 100%; height: auto; display: block;" />
           <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
-            Fig: ${file.name.replace(/\.[^/.]+$/, '')}
+            Fig: ${safeName.replace(/\.[^/.]+$/, '')}
           </figcaption>
         </figure><p><br></p>`;
       if (editorRef.current) {
@@ -186,8 +407,27 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       if (!ok) markDirDeclined(); // don't nag again; configurable in Ajustes
     }
 
+    // SECURITY (Task 2-b): cap video size at 1 GB when falling back to IDB
+    // storage. When the FSA app folder is configured, there is no practical
+    // limit (raw files on disk); but the IDB fallback would otherwise eat
+    // the whole browser quota with one large recording.
+    const dirReady = await isFsReady().catch(() => false);
+    if (!dirReady && file.size > 1024 * 1024 * 1024) {
+      alert('El video supera 1 GB. Configura la carpeta de la app en Configuración → Carpeta de la App para guardar videos sin límite de tamaño.');
+      return;
+    }
+
     const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const safeName = file.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // SECURITY (Task 2-b): escape the single-quote too (was missing) for
+    // consistency with handleImageFile — safeName is interpolated inside
+    // a figcaption text node and could later be re-rendered in a
+    // single-quoted attribute context.
+    const safeName = file.name
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
     try {
       await saveVideoBlob({
         id: vidId,
@@ -216,15 +456,43 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     }
   };
 
+  // SECURITY (Audit VN-B-014, HIGH — DOM-XSS via paste): the old handler
+  // only called preventDefault() when the clipboard carried an image file,
+  // so HTML/text pastes fell through to the browser default — which inserts
+  // the raw clipboard fragment (with onerror/onload handlers) directly into
+  // the live contentEditable DOM. A `<img src=x onerror=...>` copied from
+  // any web page would EXECUTE at paste time, before autosave or the
+  // load-time sanitizeHtml ever ran. Now the default is ALWAYS prevented
+  // and the payload is re-inserted manually:
+  //   1. image file → existing handleImageFile flow (unchanged);
+  //   2. text/html  → sanitizeHtml() (same DOMPurify config as the load
+  //                   boundary) + insertHtmlInEditable;
+  //   3. plain text → execCommand('insertText') — lands as literal text,
+  //                   including inside code blocks.
   const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        e.preventDefault();
         const file = items[i].getAsFile();
         if (file) handleImageFile(file);
         return;
       }
+    }
+    const html = e.clipboardData.getData('text/html');
+    if (html && html.trim()) {
+      const sanitized = sanitizeHtml(html);
+      if (sanitized) {
+        insertHtmlInEditable(editorRef.current, sanitized);
+        handleContentInput();
+      }
+      return;
+    }
+    const text = e.clipboardData.getData('text/plain');
+    if (text) {
+      editorRef.current?.focus();
+      document.execCommand('insertText', false, text);
+      handleContentInput();
     }
   };
 
@@ -235,7 +503,78 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       files.forEach((f) => {
         if (f.type.startsWith('image/')) handleImageFile(f);
         else if (f.type.startsWith('video/')) handleVideoFile(f);
+        else if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) handlePdfFile(f);
       });
+    }
+  };
+
+  /** Embed a local PDF into the note. Stored as a Blob in IndexedDB and
+   *  rendered inline by the browser's native PDF viewer via <embed> +
+   *  a blob URL. 100% offline, no external libraries. */
+  const handlePdfFile = async (file: File) => {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) return;
+
+    // SECURITY (Task 2-b): cap PDF size at 50 MB. PDFs are stored as raw
+    // Blobs in IndexedDB; the browser quota (typically a few hundred MB)
+    // is shared with all other vault blobs. A multi-GB PDF would either
+    // exhaust the quota (panic-mode IDB eviction) or stall the tab while
+    // the blob is read into memory.
+    if (file.size > 50 * 1024 * 1024) {
+      alert('El PDF es demasiado grande (máximo 50 MB). Redúcelo antes de insertarlo.');
+      return;
+    }
+
+    const pdfId = `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    // SECURITY (Task 2-b): also escape the single-quote (') char — the
+    // surrounding template literal uses backticks but the safeName is
+    // interpolated inside an attribute that uses double quotes; for
+    // consistency with handleImageFile and to be safe against any
+    // downstream single-quoted context, escape it too.
+    const safeName = file.name
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const sizeLabel = file.size > 1024 * 1024
+      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+      : `${(file.size / 1024).toFixed(0)} KB`;
+
+    try {
+      await savePdfBlob({
+        id: pdfId,
+        noteId: note.id,
+        name: file.name,
+        mimeType: 'application/pdf',
+        blob: file,
+        caption: file.name,
+      });
+    } catch (err) {
+      console.error('No se pudo guardar el PDF:', err);
+      alert('No se pudo guardar el PDF (el navegador rechazó el almacenamiento).');
+      return;
+    }
+
+    const pdfHtml = `
+      <figure class="vault-pdf-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D] shadow-xl" contenteditable="false" data-pdf-id="${pdfId}">
+        <div class="bg-[#0D0D0D] px-3.5 py-2 border-b border-[#262626] text-[11px] text-red-400 font-semibold flex items-center justify-between select-none">
+          <span class="uppercase tracking-wider font-mono flex items-center gap-1.5 truncate">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            PDF • ${sizeLabel}
+          </span>
+          <a href="#" class="vault-pdf-download text-[#666] hover:text-blue-300 text-[10px] cursor-pointer" contenteditable="false" role="button" tabindex="-1" data-pdf-id="${pdfId}">⬇ Descargar</a>
+        </div>
+        <embed type="application/pdf" style="width: 100%; height: 600px; display: block; background: #1a1a1a;" />
+        <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
+          PDF: ${safeName.replace(/\.pdf$/i, '')}
+        </figcaption>
+      </figure><p><br></p>`;
+
+    if (editorRef.current) {
+      insertHtmlInEditable(editorRef.current, pdfHtml);
+      attachPdfSources();
+      handleContentInput();
     }
   };
 
@@ -274,6 +613,8 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
       <input ref={videoInputRef} type="file" accept="video/*" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVideoFile(f); e.target.value = ''; }} />
+      <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePdfFile(f); e.target.value = ''; }} />
 
       {/* FS permission reconnect banner */}
       {fsNeedsPermission && (
@@ -335,9 +676,35 @@ export const RichEditor: React.FC<RichEditorProps> = ({
             >
               <Star className="w-4 h-4" fill={isFavorite ? 'currentColor' : 'none'} />
             </button>
+            {/* BLOQUE 5 — "Revisar después" toggle (adds to the Review Queue) */}
             <button
-              onClick={() => onDeleteNote(note.id)}
+              onClick={() => void handleAddToReview()}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/40 text-blue-400 transition-colors cursor-pointer"
+              title="Marcar este apunte para revisar después (aparece en la cola de Revisión)"
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              {reviewToast ? (
+                <span className="flex items-center gap-1">
+                  <Check className="w-3 h-3 text-green-400" />
+                  {reviewToast}
+                </span>
+              ) : (
+                <span className="hidden sm:inline">Revisar después</span>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                // AUDIT (VN-F-009): this cascades the trash to the note AND
+                // all its descendants (subpages + their embedded media).
+                // Confirm first — same window.confirm pattern as TrashView's
+                // "Vaciar Papelera" / NotesView platform delete.
+                if (window.confirm('¿Mover este apunte a la papelera? Sus subpáginas y sus archivos incrustados (imágenes, videos y PDFs) también se moverán a la papelera.')) {
+                  onDeleteNote(note.id);
+                }
+              }}
               className="p-1.5 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+              title="Mover a papelera (borra también subpáginas)"
+              aria-label="Mover a papelera (borra también subpáginas)"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -406,6 +773,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         <button onClick={() => insertCodeBlock('bash')} className="p-1.5 rounded text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors" title="Bloque de código"><Code className="w-3.5 h-3.5" /></button>
         <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-white hover:bg-[#161616] transition-colors" title="Insertar imagen"><ImageIcon className="w-3.5 h-3.5" /></button>
         <button onClick={() => videoInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors" title="Incrustar video desde tu PC (se guarda en el vault y viaja en el backup)"><Video className="w-3.5 h-3.5" /></button>
+        <button onClick={() => pdfInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-red-400 hover:bg-[#161616] transition-colors" title="Incrustar PDF a full (renderizado nativo del navegador, 100% offline, viaja en el backup)"><FileText className="w-3.5 h-3.5" /></button>
         <div className="w-px h-4 bg-[#262626] mx-1" />
         <span className="text-[10px] text-[#555] font-mono px-1 shrink-0 hidden sm:inline">Pega imágenes con Ctrl+V</span>
       </div>
@@ -420,9 +788,13 @@ export const RichEditor: React.FC<RichEditorProps> = ({
           onPaste={handlePaste}
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
+          onClick={handleEditorClick}
           className="vault-editor-content max-w-4xl mx-auto px-6 py-6 min-h-[300px] text-sm leading-relaxed text-[#E5E5E5] focus:outline-none"
         />
       </div>
+
+      {/* Auto Table of Contents — floating toggle, parses h1-h3 from current note */}
+      <AutoToc contentHtml={note.contentHtml} editorRef={editorRef} />
 
       {/* Subnotes Section */}
       <div className="border-t border-[#262626] bg-[#0D0D0D] px-6 py-3 shrink-0">

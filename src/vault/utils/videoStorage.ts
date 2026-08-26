@@ -347,15 +347,20 @@ export async function getAllVideoEntries(): Promise<VideoEntry[]> {
   return all;
 }
 
-/** Removes a video from every storage (called on permanent deletes). */
-export async function deleteVideoEverywhere(id: string): Promise<void> {
-  const meta = await db.videos.get(id);
+/** Removes a video from every storage (called on permanent deletes).
+ *  Accepts an optional pre-fetched `meta` so callers that already have the
+ *  row in hand can avoid the race where the IDB row is deleted before the
+ *  disk file is removed (which would make `meta` undefined and skip the
+ *  `dir.removeEntry` step, leaving an orphan file on disk forever).
+ *  Bug fix (Task 2-c — Data Integrity / blob lifecycle). */
+export async function deleteVideoEverywhere(id: string, meta?: { name?: string; mimeType?: string }): Promise<void> {
+  const row = meta ?? await db.videos.get(id);
   await db.videos.delete(id);
   const dir = await getDirHandle();
-  if (dir && dir.removeEntry && meta) {
+  if (dir && dir.removeEntry && row) {
     try {
       if (await fsGranted(dir)) {
-        await dir.removeEntry(fileNameFor(id, meta));
+        await dir.removeEntry(fileNameFor(id, row));
       }
     } catch {
       /* file already gone */

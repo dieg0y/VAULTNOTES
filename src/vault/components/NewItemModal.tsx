@@ -18,6 +18,8 @@ interface NewItemModalProps {
   onClose: () => void;
   initialTab?: 'note' | 'lab' | 'glossary';
   initialPlatform?: string;
+  /** Optional initial content (used by Inbox "Convert to Note/Glossary"). Prefills the title of the active tab. */
+  initialContent?: string;
   lockTab?: boolean;
   platforms: PlatformItem[];
   categories: CategoryItem[];
@@ -60,6 +62,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
   onClose,
   initialTab = 'note',
   initialPlatform = '',
+  initialContent = '',
   lockTab = false,
   platforms,
   categories,
@@ -71,7 +74,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
   const [activeTab, setActiveTab] = useState<'note' | 'lab' | 'glossary'>(initialTab);
 
   // Note fields
-  const [noteTitle, setNoteTitle] = useState('');
+  const [noteTitle, setNoteTitle] = useState(initialContent);
   const [noteSourceUrl, setNoteSourceUrl] = useState('');
   const [notePlatformOverride, setNotePlatformOverride] = useState<string | null>(null);
   const [noteCategories, setNoteCategories] = useState<string[]>([]);
@@ -80,7 +83,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
   const notePlatform = notePlatformOverride ?? (initialPlatform || platforms[0]?.name || '');
 
   // Lab fields
-  const [labTitle, setLabTitle] = useState('');
+  const [labTitle, setLabTitle] = useState(initialContent);
   const [labSourceLink, setLabSourceLink] = useState('');
   const [labOrgOverride, setLabOrgOverride] = useState<string | null>(null);
   const [labCategories, setLabCategories] = useState<string[]>([]);
@@ -94,7 +97,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
   const labOrg = labOrgOverride || platforms[0]?.name || '';
 
   // Glossary fields
-  const [term, setTerm] = useState('');
+  const [term, setTerm] = useState(initialContent);
   const [acronym, setAcronym] = useState('');
   const [glossaryPlatformOverride, setGlossaryPlatformOverride] = useState<string | null>(null);
   const [glossaryCategories, setGlossaryCategories] = useState<string[]>([]);
@@ -112,7 +115,9 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
     setExamplesList((prev) => [
       ...prev,
       {
-        id: `ex-${Date.now()}-${prev.length + 1}`,
+        // AUDIT VN-A-001: entropy suffix — plain Date.now() collides when
+        // multiple examples are added in the same millisecond.
+        id: `ex-${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${prev.length + 1}`,
         title: `Ejemplo ${prev.length + 1}`,
         content: '',
       },
@@ -162,7 +167,9 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
     const primaryCategory = labCategories[0] || 'SOC Tier 1 - Triage';
 
     const formattedParts: LabPart[] = labParts.map((p, i) => ({
-      id: `part-${Date.now()}-${i}`,
+      // AUDIT VN-A-001: entropy suffix — two labs created in the same
+      // millisecond would otherwise generate colliding part ids.
+      id: `part-${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${i}`,
       title: p.title.trim() || `Parte ${i + 1}`,
       content: p.content.trim()
         ? `<h2>${p.title.trim()}</h2><p>${p.content.trim().replace(/\n/g, '<br/>')}</p>`

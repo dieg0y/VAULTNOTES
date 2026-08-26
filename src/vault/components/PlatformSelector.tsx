@@ -20,7 +20,7 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+  const [, setIsAdding] = useState(false);
   const [newPlatformName, setNewPlatformName] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 

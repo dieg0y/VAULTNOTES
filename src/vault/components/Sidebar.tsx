@@ -1,6 +1,9 @@
 import React from 'react';
-import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database } from 'lucide-react';
 import { ActiveSection } from '../types';
+import { db } from '../db';
+import { useIsOnline } from '../integrations/online';
 
 interface SidebarProps {
   activeSection: ActiveSection;
@@ -19,6 +22,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   glossaryCount,
   trashCount,
 }) => {
+  // Pending review items count (for the Revisión badge)
+  const reviewCount = useLiveQuery(
+    () => db.reviewItems.where('status').equals('pending').count(),
+    [],
+    0
+  ) || 0;
+
+  // Unconverted inbox items count (for the Inbox badge)
+  const inboxCount = useLiveQuery(
+    () =>
+      db.inboxItems
+        .filter((i) => i.convertedTo === null || i.convertedTo === undefined || i.isTask === true)
+        .count(),
+    [],
+    0
+  ) || 0;
+
+  // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
+  // events. NO network probe, NO periodic fetch. Purely visual state.
+  const online = useIsOnline();
+
   return (
     <aside className="w-[200px] border-r border-[#262626] bg-[#0D0D0D] flex flex-col justify-between shrink-0 h-screen select-none z-30">
       {/* Top branding & navigation */}
@@ -65,6 +89,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <span>Configuración</span>
   </div>
 </button>
+
+          <button
+            onClick={() => onSelectSection('inbox')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'inbox'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+            title="Captura rápida y items sin organizar (Ctrl+Shift+Q)"
+          >
+            <div className="flex items-center gap-2">
+              <Inbox className="w-4 h-4" />
+              <span>Inbox</span>
+            </div>
+            {inboxCount > 0 && (
+              <span className="text-[10px] font-mono text-amber-400/90">{inboxCount}</span>
+            )}
+          </button>
 
           <button
             onClick={() => onSelectSection('notes')}
@@ -124,6 +166,75 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Generar Blog</span>
             </div>
           </button>
+
+          <button
+            onClick={() => onSelectSection('tools')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'tools'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Wrench className="w-4 h-4" />
+              <span>Herramientas</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onSelectSection('references')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'references'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Bookmark className="w-4 h-4" />
+              <span>Referencias</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onSelectSection('review')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'review'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+            title="Items marcados como 'Revisar después'"
+          >
+            <div className="flex items-center gap-2">
+              <ListChecks className="w-4 h-4" />
+              <span>Revisión</span>
+            </div>
+            {reviewCount > 0 && (
+              <span className="text-[10px] font-mono text-blue-400/90">{reviewCount}</span>
+            )}
+          </button>
+
+          {/* BLOQUE 6 — Online-Optional. Data & Intelligence sync center.
+              MITRE/Sigma sync architecture, TI provider status, saved CVEs,
+              online activity log. All local; sync buttons gated by online. */}
+          <button
+            onClick={() => onSelectSection('data-intel')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'data-intel'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+            title="Sincronización de datasets + estado de integraciones + actividad online"
+          >
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4" />
+              <span>Data & Intel</span>
+            </div>
+            {online ? (
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400" title="Online — sync available" />
+            ) : (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Offline — local only" />
+            )}
+          </button>
         </nav>
       </div>
 
@@ -146,13 +257,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </button>
 
-        {/* Offline indicator badge */}
-        <div className="px-3 py-1.5 rounded bg-[#161616] border border-[#262626] flex items-center justify-between text-[10px] text-[#888]">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <span>100% Offline</span>
+        {/* Connectivity state badge (Block 6 — Online-Optional).
+            Reads navigator.onLine via useIsOnline() — no fetch, no probe.
+            Replaces the static "100% Offline" badge from Block 5 with a real
+            reflection of the browser's connectivity state. Local-first
+            always works; online enrichment is the only thing gated by this. */}
+        <div
+          className="px-3 py-1.5 rounded bg-[#161616] border border-[#262626] flex items-center justify-between text-[10px] text-[#888]"
+          title={
+            online
+              ? 'Online: local tools + online enrichment available'
+              : 'Offline: local only — Notes ✓, Search ✓, MITRE ✓, Sigma ✓ · Online enrichment ✕ (disabled)'
+          }
+        >
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                online ? 'bg-green-400' : 'bg-amber-400 animate-pulse'
+              }`}
+            />
+            <span className="truncate">
+              {online ? 'Online · Local-first' : 'Offline · Local-only'}
+            </span>
           </div>
-          <span className="font-mono text-[9px] text-[#555]">Dexie</span>
+          <span className="font-mono text-[9px] text-[#555] shrink-0 ml-2">Dexie</span>
         </div>
       </div>
     </aside>

@@ -26,7 +26,8 @@ import {
   Terminal,
   ShieldAlert,
   ShieldCheck,
-  Copy
+  Copy,
+  ListChecks
 } from 'lucide-react';
 import { Lab, LabDifficulty, LabStatus, LabPart, CategoryItem } from '../types';
 import { db } from '../db';
@@ -34,6 +35,8 @@ import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import { insertHtmlInEditable } from '../utils/domInsert';
 import { saveVideoBlob, getVideoBlobById, isFsSupported, hasAppFolder, isFsReady, ensureFsPermission, pickAppFolder, shouldAskForDir, markDirDeclined } from '../utils/videoStorage';
+import { addToReviewQueue } from './tools/_shared';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 
 interface LabsViewProps {
   labs: Lab[];
@@ -590,7 +593,6 @@ interface LabDetailEditorProps {
 
 const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
   lab,
-  organizations,
   topics,
   onUpdateLab,
   onDeleteLab,
@@ -605,6 +607,15 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
   const [timeSpent, setTimeSpent] = useState(lab.timeSpent || '');
   const [sourceLink, setSourceLink] = useState(lab.sourceLink || '');
   const [isFavorite, setIsFavorite] = useState(lab.isFavorite);
+  // BLOQUE 5 — Review Queue "Revisar después" inline toast
+  const [reviewToast, setReviewToast] = useState<string | null>(null);
+
+  const handleAddToReview = async () => {
+    const ok = await addToReviewQueue('lab', lab.id);
+    const msg = ok ? 'Añadido a la cola de revisión' : 'Ya estaba en la cola de revisión';
+    setReviewToast(msg);
+    window.setTimeout(() => setReviewToast(null), 2000);
+  };
 
   // Parts list
   const [parts, setParts] = useState<LabPart[]>(lab.parts || []);
@@ -645,45 +656,97 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
     }
-    autoSaveTimerRef.current = setTimeout(async () => {
-      setSaveStatus('saving');
-      const updatedData: Partial<Lab> = {
-        title,
-        organization,
-        topic,
-        subtopic: subtopic || undefined,
-        difficulty,
-        status,
-        timeSpent,
-        sourceLink,
-        isFavorite,
-        parts,
-        tools,
-        commands,
-        findings,
-        mitigation,
-        updatedAt: new Date().toISOString(),
-      };
-      await onUpdateLab(updatedData);
-      setSaveStatus('saved');
+    autoSaveTimerRef.current = setTimeout(() => {
+      void flushSaveRef.current?.();
     }, 1500);
-  }, [
-    title,
-    organization,
-    topic,
-    subtopic,
-    difficulty,
-    status,
-    timeSpent,
-    sourceLink,
-    isFavorite,
-    parts,
-    tools,
-    commands,
-    findings,
-    mitigation,
-    onUpdateLab,
-  ]);
+  }, []);
+
+  // AUTOSAVE DATA-INTEGRITY FIX (Task 2-c, spec #33 — same race + reload
+  // fix as RichEditor.tsx): the previous setTimeout closure captured all
+  // 14 lab fields at triggerAutoSave CREATION time. When the user typed
+  // in any of the title/organization/topic/etc. inputs, the inline
+  // `onChange={(e) => { setX(e.target.value); triggerAutoSave(); }}`
+  // pattern called triggerAutoSave with the PREVIOUS render's closure —
+  // so the scheduled timer captured the PREVIOUS value. After 1500ms of
+  // silence, the timer fired with one-keystroke-old state and called
+  // `db.labs.update(id, { title: <stale> })` — silently dropping the
+  // user's last keystroke. Fix: read the latest fields from a ref that's
+  // updated on every render, so the timer always sees the current value.
+  const latestFieldsRef = useRef({
+    title, organization, topic, subtopic, difficulty, status,
+    timeSpent, sourceLink, isFavorite, parts, tools, commands, findings, mitigation,
+  });
+  useEffect(() => {
+    latestFieldsRef.current = {
+      title, organization, topic, subtopic, difficulty, status,
+      timeSpent, sourceLink, isFavorite, parts, tools, commands, findings, mitigation,
+    };
+  });
+  const flushSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const flushSave = useCallback(async () => {
+    setSaveStatus('saving');
+    const f = latestFieldsRef.current;
+    const updatedData: Partial<Lab> = {
+      title: f.title,
+      organization: f.organization,
+      topic: f.topic,
+      subtopic: f.subtopic || undefined,
+      difficulty: f.difficulty,
+      status: f.status,
+      timeSpent: f.timeSpent,
+      sourceLink: f.sourceLink,
+      isFavorite: f.isFavorite,
+      parts: f.parts,
+      tools: f.tools,
+      commands: f.commands,
+      findings: f.findings,
+      mitigation: f.mitigation,
+      updatedAt: new Date().toISOString(),
+    };
+    await onUpdateLab(updatedData);
+    setSaveStatus('saved');
+  }, [onUpdateLab]);
+  useEffect(() => {
+    // Latest-callback ref pattern (canonical way to expose a stable timer
+    // callback that sees the LATEST closure; the rule has a known false
+    // positive on this exact pattern — see RichEditor.tsx for full note).
+    // eslint-disable-next-line react-hooks/immutability
+    flushSaveRef.current = flushSave;
+  }, [flushSave]);
+
+  // Flush pending autosave on pagehide (reload / tab close). Same
+  // rationale as RichEditor — without this the 1500ms debounce timer
+  // is cancelled by the unload and the user's last edit is dropped.
+  useEffect(() => {
+    const onUnload = () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+        void flushSaveRef.current?.();
+      }
+    };
+    window.addEventListener('pagehide', onUnload);
+    return () => window.removeEventListener('pagehide', onUnload);
+  }, []);
+
+  // AUDIT MEDIUM FOLLOW-UP: flush pending autosave on React unmount (lab
+  // switch / view change). Without this, a user who edits and switches
+  // labs within the 1500ms debounce window would have their last edits
+  // dropped — the pending timer fires after unmount and the lab component
+  // instance is gone. The unmount cleanup clears the timer AND immediately
+  // flushes via flushSaveRef (which reads latestFieldsRef.current — the
+  // TRUE latest field values including parts). The pagehide handler above
+  // covers reload/tab-close; this covers SPA navigation.
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+        void flushSaveRef.current?.();
+      }
+    };
+     
+  }, []);
 
   // Part management
   const handleTogglePartExpand = (partId: string) => {
@@ -854,6 +917,23 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               title={isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
             >
               <Star className="w-4 h-4" fill={isFavorite ? 'currentColor' : 'none'} />
+            </button>
+
+            {/* BLOQUE 5 — "Revisar después" toggle (adds to the Review Queue) */}
+            <button
+              onClick={() => void handleAddToReview()}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/40 text-blue-400 transition-colors cursor-pointer"
+              title="Marcar este lab para revisar después (aparece en la cola de Revisión)"
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              {reviewToast ? (
+                <span className="flex items-center gap-1">
+                  <Check className="w-3 h-3 text-green-400" />
+                  {reviewToast}
+                </span>
+              ) : (
+                <span className="hidden sm:inline">Revisar después</span>
+              )}
             </button>
 
             {/* Delete button */}
@@ -1330,7 +1410,10 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== initialHtml) {
-      editorRef.current.innerHTML = initialHtml;
+      // SECURITY (Audit Task 2-b, spec #26/#42/#44): initialHtml is
+      // untrusted (may come from imported backup). Sanitize before
+      // innerHTML to prevent stored XSS. Pure & offline.
+      editorRef.current.innerHTML = sanitizeHtml(initialHtml);
       void Promise.resolve().then(attachVideoSources);
     }
   }, [initialHtml, attachVideoSources]);
@@ -1349,12 +1432,34 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     }
   };
 
+  /* Event delegation: clicking "Copiar" on a code-block header copies the code text. */
+  const handleEditorClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const copyBtn = target.closest('.vault-code-copy') as HTMLElement | null;
+    if (!copyBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const block = copyBtn.closest('.vault-code-block') as HTMLElement | null;
+    const code = block?.querySelector('pre code, pre') as HTMLElement | null;
+    if (!code) return;
+    const text = code.textContent || '';
+    navigator.clipboard?.writeText(text).then(() => {
+      const original = copyBtn.textContent;
+      copyBtn.textContent = '✓ Copiado';
+      copyBtn.classList.add('text-green-400');
+      setTimeout(() => {
+        copyBtn.textContent = original;
+        copyBtn.classList.remove('text-green-400');
+      }, 1500);
+    });
+  }, []);
+
   const insertCodeBlock = (lang: string = 'bash') => {
     const codeHtml = `
-      <div class="my-4 rounded-lg overflow-hidden border border-[#262626] bg-[#161616] font-mono text-xs">
+      <div class="my-4 rounded-lg overflow-hidden border border-[#262626] bg-[#161616] font-mono text-xs vault-code-block">
         <div class="bg-[#0D0D0D] px-3 py-1.5 border-b border-[#262626] text-[11px] text-blue-400 font-semibold flex items-center justify-between select-none">
           <span class="uppercase tracking-wider font-semibold text-blue-400">${lang}</span>
-          <span class="text-[10px] text-[#555]">Snippet</span>
+          <span class="vault-code-copy text-[#666] hover:text-blue-300 text-[10px] cursor-pointer flex items-center gap-0.5" contenteditable="false" role="button" tabindex="-1">📋 Copiar</span>
         </div>
         <pre class="p-4 text-blue-300 overflow-x-auto whitespace-pre"><code class="language-${lang}"># Escribe tu comando o log aquí...</code></pre>
       </div>
@@ -1376,10 +1481,31 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
 
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
+    // SECURITY (Task 2-b): cap image upload size at 25 MB. Same rationale
+    // as RichEditor.handleImageFile — data URLs bloat IDB and could crash
+    // the tab on lower-end machines.
+    if (file.size > 25 * 1024 * 1024) {
+      alert('La imagen es demasiado grande (máximo 25 MB). Redúcela antes de insertarla.');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
-      const imgId = `img-${Date.now()}`;
+      // SECURITY (Task 2-b): HTML-escape the user-controlled file.name before
+      // embedding it inside the <img alt="…"> attribute and the figcaption
+      // text node. A filename like `"><script>alert(1)</script>` would
+      // otherwise break out of the attribute and inject markup into the
+      // contentEditable (self-XSS that also survives autosave + reload).
+      const safeName = file.name
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+      // AUDIT (VN-A-001): Date.now() alone collides when 2+ images are
+      // added in the same millisecond (Dexie primary-key ConstraintError
+      // silently drops the second image). Add entropy like vid- ids.
+      const imgId = `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       await db.images.add({
         id: imgId,
         labId: labId,
@@ -1392,9 +1518,9 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
 
       const imageHtml = `
         <figure class="my-4 max-w-full inline-block group relative rounded-lg overflow-hidden border border-[#262626] bg-[#161616]">
-          <img src="${dataUrl}" alt="${file.name}" style="max-width: 100%; height: auto; display: block;" />
+          <img src="${dataUrl}" alt="${safeName}" style="max-width: 100%; height: auto; display: block;" />
           <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626]" contenteditable="true">
-            Captura: ${file.name.replace(/\.[^/.]+$/, '')}
+            Captura: ${safeName.replace(/\.[^/.]+$/, '')}
           </figcaption>
         </figure>
         <p><br></p>
@@ -1418,8 +1544,24 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       if (!ok) markDirDeclined();
     }
 
+    // SECURITY (Task 2-b): cap video size at 1 GB when IDB is the storage
+    // backend (FSA app folder not ready/available). When the app folder
+    // is configured, raw files have no practical limit.
+    const dirReady = await isFsReady().catch(() => false);
+    if (!dirReady && file.size > 1024 * 1024 * 1024) {
+      alert('El video supera 1 GB. Configura la carpeta de la app en Configuración → Carpeta de la App para guardar videos sin límite de tamaño.');
+      return;
+    }
+
     const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const safeName = file.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // SECURITY (Task 2-b): also escape the single-quote (was missing) for
+    // consistency with the new safeName pattern.
+    const safeName = file.name
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
     try {
       await saveVideoBlob({
         id: vidId,
@@ -1448,15 +1590,40 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     }
   };
 
+  // SECURITY (Audit VN-B-014, HIGH — DOM-XSS via paste): mirrored fix from
+  // RichEditor.handlePaste. The old handler only called preventDefault()
+  // for image files; HTML/text pastes fell through to the browser default
+  // and raw clipboard fragments (onerror/onload handlers included) were
+  // inserted straight into the live contentEditable DOM. Now the default is
+  // ALWAYS prevented: image files keep the existing flow, text/html is
+  // sanitized with sanitizeHtml() (same DOMPurify config as the load
+  // boundary) before insertHtmlInEditable, and plain text is inserted via
+  // execCommand('insertText') so it lands as literal text (also inside
+  // code blocks).
   const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
     const items = e.clipboardData.items;
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        e.preventDefault();
         const file = items[i].getAsFile();
         if (file) handleImageFile(file);
         return;
       }
+    }
+    const html = e.clipboardData.getData('text/html');
+    if (html && html.trim()) {
+      const sanitized = sanitizeHtml(html);
+      if (sanitized) {
+        insertHtmlInEditable(editorRef.current, sanitized);
+        handleInput();
+      }
+      return;
+    }
+    const text = e.clipboardData.getData('text/plain');
+    if (text) {
+      editorRef.current?.focus();
+      document.execCommand('insertText', false, text);
+      handleInput();
     }
   };
 
@@ -1642,6 +1809,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         suppressContentEditableWarning
         onInput={handleInput}
         onPaste={handlePaste}
+        onClick={handleEditorClick}
         className="min-h-[140px] bg-[#111] border border-[#222] rounded p-3 text-xs text-[#E5E5E5] outline-none leading-relaxed space-y-2"
       />
     </div>

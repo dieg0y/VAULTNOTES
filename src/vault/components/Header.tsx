@@ -1,11 +1,13 @@
 import React, { useRef } from 'react';
-import { Search, UploadCloud, Plus, FileText, FlaskConical, BookOpen, Save, CheckCircle2 } from 'lucide-react';
+import { Search, UploadCloud, Plus, FileText, FlaskConical, BookOpen, Save, CheckCircle2, Zap } from 'lucide-react';
 import { ActiveSection } from '../types';
+import { useIsOnline } from '../integrations/online';
 
 interface HeaderProps {
   activeSection: ActiveSection;
   onOpenSearch: () => void;
   onOpenNewItem: (section?: 'note' | 'lab' | 'glossary') => void;
+  onOpenQuickCapture?: () => void;
   onExport: () => void;
   onImportFile: (file: File) => void;
   isExporting?: boolean;
@@ -16,12 +18,16 @@ export const Header: React.FC<HeaderProps> = ({
   activeSection,
   onOpenSearch,
   onOpenNewItem,
+  onOpenQuickCapture,
   onExport,
   onImportFile,
   isExporting = false,
   backupSavedMessage = null,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
+  // events. NO network probe, NO periodic fetch. Purely visual indicator.
+  const online = useIsOnline();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -94,6 +100,28 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Header Actions */}
       <div className="flex items-center gap-3">
+        {/* Online/Offline connectivity indicator (Block 6 — Online-Optional).
+            Purely visual: reads navigator.onLine via useIsOnline() — no fetch,
+            no network probe. Tooltip lists what's available in each state.
+            Spec #2: when offline, Local tools ✓ Notes ✓ Search ✓ MITRE ✓ Sigma ✓,
+            Online enrichment ✕. When online: everything ✓. */}
+        <div
+          className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#161616] border border-[#262626] text-[10px] font-mono shrink-0"
+          title={
+            online
+              ? 'Online: local tools + online enrichment (Threat Intel, CVE search, MITRE/Sigma sync) available'
+              : 'Offline: local only — Notes ✓, Search ✓, MITRE ✓, Sigma ✓ · Online enrichment ✕ (disabled)'
+          }
+          aria-label={online ? 'Browser is online' : 'Browser is offline'}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              online ? 'bg-green-400' : 'bg-amber-400 animate-pulse'
+            }`}
+          />
+          <span className="text-[#888]">{online ? 'Online' : 'Offline'}</span>
+        </div>
+
         {backupSavedMessage && (
           <span className="text-[10px] text-green-400 font-mono flex items-center gap-1 animate-in fade-in duration-200 max-w-[220px]">
             <CheckCircle2 className="w-3 h-3 shrink-0" />
@@ -119,6 +147,18 @@ export const Header: React.FC<HeaderProps> = ({
           <UploadCloud className="w-3.5 h-3.5 text-[#888]" />
           <span>Importar</span>
         </button>
+
+        {/* Quick Capture button (Ctrl+Shift+Q) — sends text to the Inbox */}
+        {onOpenQuickCapture && (
+          <button
+            onClick={onOpenQuickCapture}
+            className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-blue-400 transition-colors cursor-pointer"
+            title="Captura rápida al Inbox (Ctrl+Shift+Q)"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Capturar</span>
+          </button>
+        )}
 
         {/* Contextual New Button */}
         <button

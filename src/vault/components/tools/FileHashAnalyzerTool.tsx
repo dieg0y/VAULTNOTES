@@ -1,0 +1,445 @@
+/**
+ * FileHashAnalyzerTool.tsx — Offline file hash analyzer (SHA-1/256/384/512).
+ *
+ * 100% offline. The picked file is read into an in-memory ArrayBuffer via
+ * `File.arrayBuffer()` (native browser API) and hashed with the Web Crypto API
+ * (`crypto.subtle.digest`). The file NEVER leaves the browser — there is no
+ * fetch, no XMLHttpRequest, no upload of any kind.
+ *
+ * Web Crypto does not ship MD5 (it is intentionally omitted from the spec).
+ * Only SHA-1, SHA-256, SHA-384 and SHA-512 are computed, which cover all
+ * common file-integrity verification use cases.
+ *
+ * Drag-and-drop is supported. A 50 MB guard rejects oversized files.
+ */
+'use client';
+
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  Upload,
+  FileText,
+  X,
+  BookOpen,
+  Loader2,
+  CheckCircle,
+} from 'lucide-react';
+import {
+  btnGhost,
+  Row,
+  CodeBlock,
+  ErrorBanner,
+  InfoBanner,
+} from './_shared';
+import { useNoteStore } from '@/vault/store/noteStore';
+
+/* ---------- strict types ---------- */
+type AlgoCode = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
+
+interface AlgoDef {
+  code: AlgoCode;
+  label: string;
+}
+
+const ALGOS: readonly AlgoDef[] = [
+  { code: 'SHA-1', label: 'SHA-1' },
+  { code: 'SHA-256', label: 'SHA-256' },
+  { code: 'SHA-384', label: 'SHA-384' },
+  { code: 'SHA-512', label: 'SHA-512' },
+] as const;
+
+const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB guard
+
+/* ---------- file metadata ---------- */
+interface FileMeta {
+  name: string;
+  size: number;
+  type: string;
+  lastModified: number;
+}
+
+/* ---------- pure helpers ---------- */
+
+/** Convert an ArrayBuffer (Web Crypto digest output) to lowercase hex. */
+function bufToHex(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    out += bytes[i].toString(16).padStart(2, '0');
+  }
+  return out;
+}
+
+/** Human-readable file size with B/KB/MB/GB suffix. */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+/** Format a lastModified epoch-ms value as a readable ISO-like string. */
+function formatDate(epochMs: number): string {
+  if (!epochMs || Number.isNaN(epochMs)) return 'N/A';
+  try {
+    const d = new Date(epochMs);
+    if (Number.isNaN(d.getTime())) return 'N/A';
+    // ISO 8601 in UTC, plus local representation for clarity.
+    const iso = d.toISOString();
+    const local = d.toLocaleString();
+    return `${iso} (${local})`;
+  } catch {
+    return 'N/A';
+  }
+}
+
+/** Compute all four SHA-* hashes for a file's ArrayBuffer. */
+async function hashFile(buf: ArrayBuffer): Promise<Record<string, string>> {
+  const results: Record<string, string> = {};
+  for (const algo of ALGOS) {
+    // Web Crypto ships SHA-1/256/384/512 natively. MD5 is NOT supported.
+    const digest = await crypto.subtle.digest(algo.code, buf);
+    results[algo.label] = bufToHex(digest);
+  }
+  return results;
+}
+
+/** Escape a string for safe inclusion inside an HTML text node. */
+function escapeHtml(v: string): string {
+  return v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Build an HTML table summarising the file metadata + all computed hashes. */
+function buildFileHashHtml(meta: FileMeta, hashes: Record<string, string>): string {
+  const rows: string[] = [];
+  const thStyle =
+    'text-align:left;padding:4px 8px;border:1px solid #333;color:#888;font-family:monospace;font-size:11px';
+  const tdStyle =
+    'padding:4px 8px;border:1px solid #333;font-family:monospace;font-size:11px';
+  rows.push(
+    `<tr><th style="${thStyle}">Name</th><td style="${tdStyle}">${escapeHtml(meta.name)}</td></tr>`
+  );
+  rows.push(
+    `<tr><th style="${thStyle}">Size</th><td style="${tdStyle}">${escapeHtml(formatSize(meta.size))} (${meta.size} bytes)</td></tr>`
+  );
+  rows.push(
+    `<tr><th style="${thStyle}">Type</th><td style="${tdStyle}">${escapeHtml(meta.type || 'N/A')}</td></tr>`
+  );
+  rows.push(
+    `<tr><th style="${thStyle}">Last Modified</th><td style="${tdStyle}">${escapeHtml(formatDate(meta.lastModified))}</td></tr>`
+  );
+  for (const algo of ALGOS) {
+    const h = hashes[algo.label];
+    if (!h) continue;
+    rows.push(
+      `<tr><th style="${thStyle}">${escapeHtml(algo.label)}</th>` +
+        `<td style="${tdStyle};color:#6ee7b7;word-break:break-all">${escapeHtml(h)}</td></tr>`
+    );
+  }
+  return (
+    `<table style="border-collapse:collapse;width:100%;max-width:760px"><tbody>` +
+    rows.join('') +
+    `</tbody></table>` +
+    `<p style="margin-top:8px;color:#888;font-size:11px">Generated by VaultNotes · File Hash Analyzer · 100% offline · Web Crypto SHA-*</p>`
+  );
+}
+
+/* ---------- the component ---------- */
+export const FileHashAnalyzerTool: React.FC = () => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [meta, setMeta] = useState<FileMeta | null>(null);
+  const [hashes, setHashes] = useState<Record<string, string>>({});
+  const [hashing, setHashing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [addedToast, setAddedToast] = useState(false);
+
+  const hasAnyHash = Object.keys(hashes).length > 0;
+
+  /* Reset transient UI state when a brand-new file is being loaded. */
+  const resetForNewFile = useCallback(() => {
+    setHashes({});
+    setError(null);
+    setHashing(true);
+  }, []);
+
+  /* Process a single File: size-guard, stash metadata, run the hashers. */
+  const processFile = useCallback(
+    async (file: File): Promise<void> => {
+      if (file.size > MAX_FILE_BYTES) {
+        setMeta(null);
+        setHashes({});
+        setHashing(false);
+        setError(
+          `Archivo demasiado grande (máximo 50 MB). Recibido: ${formatSize(file.size)}.`
+        );
+        return;
+      }
+
+      const fileMeta: FileMeta = {
+        name: file.name,
+        size: file.size,
+        type: file.type || '',
+        lastModified: file.lastModified,
+      };
+      setMeta(fileMeta);
+      resetForNewFile();
+
+      try {
+        // Native File API — returns a Promise<ArrayBuffer>. No fetch, no upload.
+        const buf = await file.arrayBuffer();
+        const result = await hashFile(buf);
+        setHashes(result);
+        setHashing(false);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setHashing(false);
+        setError(`No se pudo calcular el hash del archivo: ${msg}`);
+      }
+    },
+    [resetForNewFile]
+  );
+
+  /* <input type="file"> change handler. */
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const f = e.target.files?.[0];
+    if (f) void processFile(f);
+    // Reset the input value so picking the same file twice triggers change.
+    e.target.value = '';
+  };
+
+  /* Drag-and-drop handlers. */
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>): void => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const onDragLeave = (e: React.DragEvent<HTMLDivElement>): void => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const onDrop = (e: React.DragEvent<HTMLDivElement>): void => {
+    e.preventDefault();
+    setIsDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) void processFile(f);
+  };
+
+  /* Clear the loaded file and all derived state. */
+  const onClear = (): void => {
+    setMeta(null);
+    setHashes({});
+    setError(null);
+    setHashing(false);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  /* [Add to Note] — enqueue an HTML table in the noteStore. */
+  const onAddToNote = (): void => {
+    if (!meta || !hasAnyHash) return;
+    const html = buildFileHashHtml(meta, hashes);
+    useNoteStore.getState().enqueueNote('File Hash Analysis — ' + meta.name, html);
+    setAddedToast(true);
+  };
+
+  /* Auto-dismiss the "Added to Note" toast after 2.5s. */
+  useEffect(() => {
+    if (!addedToast) return;
+    const t = window.setTimeout(() => setAddedToast(false), 2500);
+    return () => window.clearTimeout(t);
+  }, [addedToast]);
+
+  /* ---------- render ---------- */
+  return (
+    <div className="space-y-4">
+      {/* Drop zone */}
+      <div
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onClick={() => inputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        className={`border-dashed border-2 rounded p-6 text-center cursor-pointer transition-colors select-none ${
+          isDragging
+            ? 'border-blue-500/60 bg-[#161616]'
+            : 'border-[#262626] hover:border-blue-500/40 hover:bg-[#161616]'
+        }`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          className="hidden"
+          onChange={onInputChange}
+          aria-hidden="true"
+        />
+        <Upload
+          className={`w-7 h-7 mx-auto mb-2 transition-colors ${
+            isDragging ? 'text-blue-400' : 'text-[#666]'
+          }`}
+        />
+        <div className="text-xs font-semibold text-white">
+          Haz clic o arrastra un archivo aquí
+        </div>
+        <div className="text-[10px] text-[#888] mt-1 leading-relaxed">
+          100% offline — el archivo se procesa en memoria, nunca se sube a
+          ningún servidor.
+        </div>
+      </div>
+
+      {/* Error banner */}
+      {error && <ErrorBanner message={error} />}
+
+      {/* File metadata card */}
+      {meta && (
+        <div className="bg-[#0D0D0D] border border-[#262626] rounded p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-blue-400">
+              <FileText className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">
+                File metadata
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onClear}
+              className={`${btnGhost} inline-flex items-center gap-1`}
+              title="Limpiar archivo"
+            >
+              <X className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+          <div className="divide-y divide-[#1f1f1f]">
+            <Row label="Name" value={meta.name} mono />
+            <Row
+              label="Size"
+              value={`${formatSize(meta.size)} (${meta.size} bytes)`}
+              mono
+            />
+            <Row label="Type" value={meta.type || 'N/A'} mono />
+            <Row label="Last Modified" value={formatDate(meta.lastModified)} mono />
+          </div>
+        </div>
+      )}
+
+      {/* Hashes card */}
+      {meta && (
+        <div className="bg-[#0D0D0D] border border-[#262626] rounded p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-blue-400">
+              {hashing && (
+                <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+              )}
+              <span className="text-[10px] font-bold uppercase tracking-widest">
+                Hashes
+              </span>
+            </div>
+            <span className="text-[10px] text-[#666] font-mono">
+              SHA-1 / 256 / 384 / 512
+            </span>
+          </div>
+
+          {hashing && (
+            <div className="flex items-center gap-2 text-[11px] text-[#888]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+              Hashing… {formatSize(meta.size)}
+            </div>
+          )}
+
+          {!hashing && hasAnyHash && (
+            <div className="space-y-2">
+              {ALGOS.map((algo) => {
+                const h = hashes[algo.label];
+                if (!h) return null;
+                return <CodeBlock key={algo.code} label={algo.label} code={h} />;
+              })}
+            </div>
+          )}
+
+          {!hashing && !hasAnyHash && !error && (
+            <div className="text-[11px] text-[#888]">No hashes computed.</div>
+          )}
+        </div>
+      )}
+
+      {/* Info banner */}
+      <InfoBanner>
+        100% offline. Los hashes se calculan con Web Crypto (SHA-*). El archivo
+        NUNCA sale de tu navegador. Útil para verificar integridad de descargas
+        o comparar contra hashes conocidos.
+      </InfoBanner>
+
+      {/* Empty state hint */}
+      {!meta && !error && (
+        <div className="text-[11px] text-[#666] leading-relaxed">
+          Carga un archivo para calcular automáticamente SHA-1, SHA-256,
+          SHA-384 y SHA-512. Soporta archivos de hasta ~50 MB (más grandes
+          pueden tardar o fallar).
+        </div>
+      )}
+
+      {/* Action row: [Add to Note] */}
+      {meta && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onAddToNote}
+            disabled={!hasAnyHash || hashing}
+            className={`${btnGhost} inline-flex items-center gap-1.5`}
+            title={
+              hasAnyHash
+                ? 'Añadir metadatos + hashes a una nota nueva'
+                : 'Calcula al menos un hash primero'
+            }
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Add to Note
+          </button>
+
+          {addedToast && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-green-400">
+              <CheckCircle className="w-3.5 h-3.5" />
+              Añadido a Notas — crea una nota nueva para verlo.
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Validation reference — collapsible, helps users verify their hashes. */}
+      <details className="text-[10px] text-[#666]">
+        <summary className="cursor-pointer hover:text-[#AAA] transition-colors">
+          Verificación SHA-256 (referencia)
+        </summary>
+        <div className="mt-2 space-y-1 leading-relaxed">
+          <p>
+            Para un archivo de texto conteniendo sólo{' '}
+            <code className="text-green-300 font-mono">Hello</code> (5 bytes, sin
+            salto de línea), el SHA-256 esperado es:
+          </p>
+          <pre className="whitespace-pre-wrap break-all font-mono text-[11px] text-green-300">
+            185f8db32271fe25f561a6fc938b2e264306ec304eda1a9f8f3f65ba5694a3
+          </pre>
+          <p>
+            Verifica en tu terminal con{' '}
+            <code className="text-green-300 font-mono">
+              echo -n &quot;Hello&quot; | sha256sum
+            </code>
+            .
+          </p>
+        </div>
+      </details>
+    </div>
+  );
+};
+
+export default FileHashAnalyzerTool;

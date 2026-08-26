@@ -1,5 +1,170 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, StoredVideo, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredVideo, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem } from '../types';
+
+/**
+ * BLOQUE 6 — Online-Optional integration tables. These live in the MAIN
+ * VaultLocalDB (so they ARE exported by the vault backup — they hold no API
+ * keys, only cached intelligence results + activity metadata + custom Sigma
+ * rules + saved CVEs). API keys live in a SEPARATE Dexie DB (VaultIntelDB,
+ * see integrations/threatIntel/credentials.ts) and are NEVER exported.
+ */
+export interface TiCacheEntry {
+  /** `${provider}:${iocType}:${valueLowercased}` — unique cache key. */
+  id: string;
+  provider: string;
+  iocType: string;
+  iocValue: string;
+  resultJson: string | null;
+  errorMessage: string | null;
+  retrievedAt: string;
+  expiresAt: string;
+}
+
+export interface OnlineActivityRow {
+  id: string;
+  provider: string;
+  /** IOC TYPE only — never the actual value (privacy). */
+  iocType: string;
+  timestamp: string;
+  status: 'success' | 'error' | 'cached' | 'not_configured' | 'offline';
+  note?: string;
+}
+
+export interface CustomSigmaRule {
+  /** UUID-style id, generated on import. */
+  id: string;
+  /** UUID from the yaml rule itself (if present), for dedup on re-import. */
+  ruleUuid?: string;
+  title: string;
+  status: string;
+  level: string;
+  description: string;
+  author: string;
+  date: string;
+  logsource: string;
+  detection: string;
+  tags: string[];
+  mitre: string[];
+  /** Raw yaml text — stored verbatim, NEVER executed (see sigma/validate.ts). */
+  yaml: string;
+  importedAt: string;
+  updatedAt: string;
+}
+
+export interface SavedCve {
+  /** The CVE id, e.g. "CVE-2025-12345". Acts as primary key. */
+  id: string;
+  description: string;
+  cvss: number | null;
+  severity: string | null;
+  cwe: string[];
+  affectedProducts: string[];
+  published: string;
+  modified: string;
+  references: string[];
+  /** User's personal notes — added after saving. */
+  personalNotes?: string;
+  /** User's tags. */
+  tags: string[];
+  /** User's personal assessment. */
+  personalAssessment?: string;
+  savedAt: string;
+}
+
+export interface DatasetMeta {
+  /** Single-row table — id is always 'singleton'. */
+  id: string;
+  mitreVersion: string;
+  mitreLastSync: string | null;
+  sigmaVersion: string;
+  sigmaLastSync: string | null;
+  sigmaRulesCount: number;
+  updatedAt: string;
+}
+
+/**
+ * RBAC Model — persistencia de escenarios RBAC creados manualmente en la herramienta
+ * RBAC Analyzer. Cada fila es un "escenario" completo (users + roles + permissions +
+ * assignments) serializado como JSON en el campo `model`. La tabla vive en la misma
+ * Dexie DB — NO creamos otra base de datos.
+ */
+export interface RbacModel {
+  /** UUID string. */
+  id: string;
+  /** Nombre del escenario — e.g. "Prod SOC - Tier 1/2". */
+  name: string;
+  /** Descripción opcional del contexto. */
+  description?: string;
+  /** JSON-serialized RbacModelData (users, roles, permissions, assignments). */
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Tool Favorite — marca una herramienta como favorita. Solo guarda el ToolId
+ * (string) y un timestamp. NO almacena inputs del usuario, contenido, ni
+ * resultados de análisis — exclusivamente metadatos de navegación.
+ */
+export interface ToolFavorite {
+  /** ToolId (string) — actúa como clave primaria. */
+  toolId: string;
+  addedAt: string;
+}
+
+/**
+ * Tool Recent — registro ligero de uso de herramientas. Solo guarda:
+ * - el ToolId
+ * - la fecha/hora local del último uso
+ * NO almacena automáticamente JWTs, IOCs, logs, passwords, tokens, comandos
+ * ni ningún contenido introducido por el usuario. Exclusivamente metadatos.
+ */
+export interface ToolRecent {
+  /** ToolId (string) — actúa como clave primaria. */
+  toolId: string;
+  lastUsedAt: string;
+}
+
+/**
+ * Inbox Item — captura rápida de ideas sin organizar. El usuario escribe
+ * libremente (Ctrl+Shift+Q) y la entrada aterriza aquí. Después puede
+ * convertirla en Note / Glossary / Reference / Task (marca) o borrarla.
+ * No se asocia a tags/categoría/plantilla en el momento de la captura.
+ */
+export interface InboxItem {
+  /** UUID string. */
+  id: string;
+  /** Texto plano escrito por el usuario. */
+  content: string;
+  createdAt: string;
+  /** Si el item fue convertido, se anota a qué tipo (para auditoría). */
+  convertedTo?: 'note' | 'glossary' | 'reference' | 'task' | null;
+  convertedAt?: string | null;
+  /** Marcar como tarea (no elimina el item, solo lo etiqueta). */
+  isTask?: boolean;
+}
+
+/**
+ * Review Queue Item — un note/lab/glossary marcado para revisar después.
+ * Sistema simple (sin spaced repetition complejo por ahora):
+ * - status 'pending' = en cola
+ * - status 'reviewed' = completado (oculto de la cola activa)
+ * - nextReviewAt = fecha sugerida (por defecto +2 días)
+ */
+export type ReviewItemType = 'note' | 'glossary' | 'lab';
+export type ReviewStatus = 'pending' | 'reviewed';
+
+export interface ReviewItem {
+  /** UUID string. */
+  id: string;
+  /** Tipo de contenido enlazado. */
+  itemType: ReviewItemType;
+  /** ID del note/lab/glossaryterm original (en sus tablas respectivas). */
+  itemId: string;
+  addedAt: string;
+  status: ReviewStatus;
+  nextReviewAt: string;
+}
 
 export class VaultDatabase extends Dexie {
   notes!: Table<Note, string>;
@@ -12,6 +177,19 @@ export class VaultDatabase extends Dexie {
   flashcardStats!: Table<FlashcardStat, string>;
   fileHandles!: Table<StoredFileHandle, string>;
   videos!: Table<StoredVideo, string>;
+  pdfs!: Table<StoredPdf, string>;
+  references!: Table<ReferenceItem, string>;
+  rbacModels!: Table<RbacModel, string>;
+  toolFavorites!: Table<ToolFavorite, string>;
+  toolRecents!: Table<ToolRecent, string>;
+  inboxItems!: Table<InboxItem, string>;
+  reviewItems!: Table<ReviewItem, string>;
+  // BLOQUE 6 — Online-Optional integration tables. See interface defs above.
+  tiCache!: Table<TiCacheEntry, string>;
+  onlineActivity!: Table<OnlineActivityRow, string>;
+  customSigmaRules!: Table<CustomSigmaRule, string>;
+  savedCves!: Table<SavedCve, string>;
+  datasetMeta!: Table<DatasetMeta, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -97,8 +275,8 @@ export class VaultDatabase extends Dexie {
       fileHandles: 'id'
     });
 
-    // v8: embedded videos — stored as Blobs (efficient) and shipped in backups.
-    this.version(8).stores({
+    // v9: References/Resources section + FSRS flashcard fields.
+    this.version(9).stores({
       notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
       glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
       images: 'id, noteId, name, createdAt',
@@ -106,12 +284,161 @@ export class VaultDatabase extends Dexie {
       platforms: 'id, name, createdAt',
       categories: 'id, name, createdAt',
       tools: 'id, name, createdAt',
-      flashcardStats: 'id, termId, lastStudiedAt',
+      flashcardStats: 'id, termId, due, lastStudiedAt',
       fileHandles: 'id',
-      videos: 'id, noteId, labId, name, createdAt'
+      videos: 'id, noteId, labId, name, createdAt',
+      references: 'id, type, isFavorite, isDeleted, createdAt'
+    }).upgrade(async (tx) => {
+      // Add FSRS fields to existing flashcardStats rows
+      await tx.table('flashcardStats').toCollection().modify((s: any) => {
+        if (s.stability === undefined) s.stability = 0;
+        if (s.difficulty === undefined) s.difficulty = 5;
+        if (s.due === undefined) s.due = new Date().toISOString();
+        if (s.reps === undefined) s.reps = (s.knownCount || 0) + (s.unknownCount || 0);
+        if (s.lapses === undefined) s.lapses = s.unknownCount || 0;
+      });
+    });
+
+    // v10: PDF attachments — notes/labs can embed full PDFs (rendered natively
+    // by the browser via <embed> + blob URL, 100% offline, no external libs).
+    this.version(10).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, due, lastStudiedAt',
+      fileHandles: 'id',
+      videos: 'id, noteId, labId, name, createdAt',
+      pdfs: 'id, noteId, labId, name, createdAt',
+      references: 'id, type, isFavorite, isDeleted, createdAt'
+    });
+
+    // v11: RBAC Analyzer — persistencia de escenarios RBAC manuales.
+    // La tabla `rbacModels` guarda el escenario completo (users/roles/permissions/
+    // assignments) serializado como JSON en el campo `model`. NO creamos otra DB —
+    // simplemente añadimos una tabla nueva a la Dexie existente.
+    this.version(11).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, due, lastStudiedAt',
+      fileHandles: 'id',
+      videos: 'id, noteId, labId, name, createdAt',
+      pdfs: 'id, noteId, labId, name, createdAt',
+      references: 'id, type, isFavorite, isDeleted, createdAt',
+      rbacModels: 'id, name, createdAt, updatedAt'
+    });
+
+    // v12: BLOQUE 5 — Integración y pulido. Añade 4 tablas nuevas:
+    //  - `toolFavorites`   : marca de favorito por ToolId (solo metadatos)
+    //  - `toolRecents`     : historial ligero de uso (ToolId + lastUsedAt)
+    //  - `inboxItems`       : capturas rápidas sin organizar (Ctrl+Shift+Q)
+    //  - `reviewItems`     : cola de "Review Later" para notes/labs/glossary
+    // TODAS guardan exclusivamente metadatos de navegación o texto escrito
+    // directamente por el usuario en el Inbox. NUNCA guardan automáticamente
+    // JWTs, IOCs, logs, passwords, tokens ni resultados de análisis.
+    this.version(12).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, due, lastStudiedAt',
+      fileHandles: 'id',
+      videos: 'id, noteId, labId, name, createdAt',
+      pdfs: 'id, noteId, labId, name, createdAt',
+      references: 'id, type, isFavorite, isDeleted, createdAt',
+      rbacModels: 'id, name, createdAt, updatedAt',
+      toolFavorites: 'toolId, addedAt',
+      toolRecents: 'toolId, lastUsedAt',
+      inboxItems: 'id, createdAt, isTask',
+      reviewItems: 'id, itemType, itemId, status, nextReviewAt'
+    });
+
+    // v13: BLOQUE 6 — Online-Optional. Adds 5 tables for the new integration
+    // layer. All hold only cached intelligence / metadata / user-authored
+    // content. API KEYS are NOT here — they live in VaultIntelDB (separate).
+    // `datasetMeta` is a single-row table (id='singleton') tracking the
+    // locally-installed MITRE/Sigma dataset versions + last-sync timestamps.
+    this.version(13).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, due, lastStudiedAt',
+      fileHandles: 'id',
+      videos: 'id, noteId, labId, name, createdAt',
+      pdfs: 'id, noteId, labId, name, createdAt',
+      references: 'id, type, isFavorite, isDeleted, createdAt',
+      rbacModels: 'id, name, createdAt, updatedAt',
+      toolFavorites: 'toolId, addedAt',
+      toolRecents: 'toolId, lastUsedAt',
+      inboxItems: 'id, createdAt, isTask',
+      reviewItems: 'id, itemType, itemId, status, nextReviewAt',
+      tiCache: 'id, provider, iocType, expiresAt',
+      onlineActivity: 'id, provider, timestamp, status',
+      customSigmaRules: 'id, ruleUuid, title, level, importedAt',
+      savedCves: 'id, savedAt',
+      datasetMeta: 'id'
+    });
+
+    // v14: Add `labId` index to the `images` table.
+    // BUG FIX (Task 2-c — Data Integrity): StoredImage rows created from
+    // the LabsView PartRichEditor set `labId: labId` (LabsView.tsx), but the
+    // `images` table was missing the `labId` index. As a result,
+    // `db.images.where('labId').equals(labId).delete()` in
+    // `handlePermanentDeleteLab` and `handleEmptyTrash` (App.tsx) threw
+    // `SchemaError: KeyPath labId not indexed` — silently leaving lab-owned
+    // image blobs orphaned in IndexedDB forever and aborting the rest of the
+    // permanent-delete cleanup (videos + PDFs were also skipped because the
+    // function rejected mid-way). This is an ADDITIVE, non-destructive schema
+    // change: Dexie transparently creates the new index on upgrade; existing
+    // user data is untouched. `videos` and `pdfs` already had `labId` indexed
+    // since v9/v10; only `images` was missing it.
+    this.version(14).stores({
+      notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
+      glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',
+      images: 'id, noteId, labId, name, createdAt',
+      labs: 'id, organization, topic, difficulty, status, isFavorite, isDeleted, updatedAt, createdAt',
+      platforms: 'id, name, createdAt',
+      categories: 'id, name, createdAt',
+      tools: 'id, name, createdAt',
+      flashcardStats: 'id, termId, due, lastStudiedAt',
+      fileHandles: 'id',
+      videos: 'id, noteId, labId, name, createdAt',
+      pdfs: 'id, noteId, labId, name, createdAt',
+      references: 'id, type, isFavorite, isDeleted, createdAt',
+      rbacModels: 'id, name, createdAt, updatedAt',
+      toolFavorites: 'toolId, addedAt',
+      toolRecents: 'toolId, lastUsedAt',
+      inboxItems: 'id, createdAt, isTask',
+      reviewItems: 'id, itemType, itemId, status, nextReviewAt',
+      tiCache: 'id, provider, iocType, expiresAt',
+      onlineActivity: 'id, provider, timestamp, status',
+      customSigmaRules: 'id, ruleUuid, title, level, importedAt',
+      savedCves: 'id, savedAt',
+      datasetMeta: 'id'
     });
   }
 }
+
+/** Current Dexie schema version. Used by the backup manifest so the importer
+ *  can refuse cross-version restores (spec #35: "On restore: must show
+ *  'Incompatible backup version' NOT partial import"). Bump this when
+ *  bumping `this.version(N)` above. */
+export const CURRENT_SCHEMA_VERSION = 14;
 
 export const db = new VaultDatabase();
 
@@ -201,7 +528,28 @@ const DEMO_LAB_IDS = ['lab-phishing-case-42'];
 const DEMO_TERM_IDS = ['term-api-gateway', 'term-kerberos-tgt', 'term-zero-trust'];
 const DEMO_CLEANUP_FLAG = 'vault-demo-content-removed';
 
-export async function initializeDatabase() {
+// AUDIT VN-008 (StrictMode safety): React 19 StrictMode double-invokes
+// effects on mount (setup → cleanup → setup). Without a guard, two
+// concurrent `initializeDatabase()` calls would race on the count-then-bulkAdd
+// seeding pattern (both see count=0, both call bulkAdd, second throws
+// BulkError "Key already exists"). The module-level guard deduplicates
+// concurrent calls — the second caller just awaits the first's promise.
+let initPromise: Promise<void> | null = null;
+
+export function initializeDatabase(): Promise<void> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      await doInitializeDatabase();
+    })().catch((err) => {
+      // If initialization failed, allow a retry on the next mount.
+      initPromise = null;
+      throw err;
+    });
+  }
+  return initPromise;
+}
+
+async function doInitializeDatabase() {
   // --- One-time removal of bundled demo content (fresh start) ---
   try {
     if (!localStorage.getItem(DEMO_CLEANUP_FLAG)) {

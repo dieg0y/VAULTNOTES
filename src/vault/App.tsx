@@ -21,13 +21,23 @@ import { NotesView } from './components/NotesView';
 import { LabsView } from './components/LabsView';
 import { GlossaryView } from './components/GlossaryView';
 import { BlogView } from './components/BlogView';
+import { ToolsView, type ToolDeepLink } from './components/ToolsView';
+import { ReferencesView } from './components/ReferencesView';
 import { TrashView } from './components/TrashView';
 import { SettingsView } from './components/SettingsView';
+import { ReviewView } from './components/ReviewView';
+import { InboxView } from './components/InboxView';
+// BLOQUE 6 — Online-Optional. Data & Intelligence sync center view.
+import { DataIntelView } from './components/DataIntelView';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { NewItemModal } from './components/NewItemModal';
+import { QuickCaptureModal } from './components/QuickCaptureModal';
+import { AddToNoteModal } from './components/AddToNoteModal';
 import { ImportReportModal } from './components/ImportReportModal';
-import { exportVaultZip, importVaultBackup } from './utils/zipBackup';
+import { exportVaultZip, importVaultBackup, IncompatibleBackupError } from './utils/zipBackup';
 import { deleteVideoEverywhere } from './utils/videoStorage';
+import { deletePdfEverywhere } from './utils/pdfStorage';
+import { useNoteStore } from './store/noteStore';
 
 export default function App() {
   // Initialize / seed the local vault database once on mount (browser only)
@@ -35,6 +45,77 @@ export default function App() {
     initializeDatabase().catch((err) => {
       console.error('Failed to initialize vault database:', err);
     });
+    // Register the PWA service worker for offline-first shell caching.
+    // Also listen for SW updates so the user immediately sees the new shell
+    // (instead of being stuck on a stale cached version of the app).
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      // Force-unregister any stale service worker from previous sessions.
+      // This is a belt-and-suspenders fallback for cases where bumping the
+      // SW cache version alone wasn't enough (e.g. browser kept an old SW
+      // active and served cached chunks). The new SW re-registers itself
+      // immediately after, so offline support is preserved.
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => {
+          // If a registration exists but is for an OLD sw.js (detected via
+          // the scriptURL or just by version mismatch), unregister it so
+          // the new one takes over on next navigation.
+          for (const reg of regs) {
+            const scriptURL = reg.active && reg.active.scriptURL;
+            // scriptURL ends with '/sw.js' for the current one. We just
+            // force-update all of them — the new SW re-registers below.
+            if (scriptURL && scriptURL.endsWith('/sw.js')) {
+              reg.update().catch(() => undefined);
+            }
+          }
+        })
+        .catch(() => undefined);
+
+      // Named handlers so the useEffect cleanup can removeEventListener them.
+      // (Audit Task 2-a MEDIUM: previously anonymous listeners were registered
+      // inside the .then() closure and never removed — a dev-only HMR
+      // duplicate-listener risk, but cleanup is correct hygiene.)
+      let reloaded = false;
+      const onControllerChange = () => {
+        if (!reloaded) {
+          reloaded = true;
+          // Defer the reload so the SW activate finishes first.
+          setTimeout(() => window.location.reload(), 50);
+        }
+      };
+      const onMessage = (event: MessageEvent) => {
+        if (event.data && event.data.type === 'SW_UPDATED') {
+          console.info('[VaultNotes] Service worker updated to cache', event.data.cache);
+        }
+      };
+
+      navigator.serviceWorker
+        .register('/sw.js', { updateViaCache: 'none' })
+        .then(() => {
+          // When a new SW takes over, force a one-time reload so the user
+          // immediately gets the new shell. Without this, the user would
+          // see the OLD app until the next navigation/reload.
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+          }
+        })
+        .catch((err) => {
+          console.warn('Service worker registration failed:', err);
+        });
+
+      // Listen for the SW_UPDATED message from the SW so we can show a
+      // toast / force-reload if needed.
+      navigator.serviceWorker.addEventListener('message', onMessage);
+
+      // Cleanup: remove both listeners on unmount (dev HMR + strict-mode
+      // double-mount safety).
+      return () => {
+        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+          navigator.serviceWorker.removeEventListener('message', onMessage);
+        }
+      };
+    }
   }, []);
 
   // 1. Reactive Dexie queries
@@ -44,6 +125,7 @@ export default function App() {
   const platforms = useLiveQuery(() => db.platforms.toArray(), []) || [];
   const categories = useLiveQuery(() => db.categories.toArray(), []) || [];
   const tools = useLiveQuery(() => db.tools.toArray(), []) || [];
+  const references = useLiveQuery(() => db.references.toArray(), []) || [];
 
   // Active UI Navigation state
   const [activeSection, setActiveSection] = useState<ActiveSection>('dashboard');
@@ -56,8 +138,19 @@ export default function App() {
   const [isNewItemOpen, setIsNewItemOpen] = useState(false);
   const [newItemTab, setNewItemTab] = useState<'note' | 'lab' | 'glossary'>('note');
   const [newItemPlatform, setNewItemPlatform] = useState<string>('');
+  const [newItemContent, setNewItemContent] = useState<string>('');
+  // Pending Inbox→Note/Glossary conversion: when set, the next successful
+  // handleCreateNote/handleCreateGlossaryTerm call marks this inbox item as
+  // converted. Cleared on completion or when the modal closes without creation.
+  const [pendingInboxConvert, setPendingInboxConvert] = useState<{ inboxItemId: string; targetType: 'note' | 'glossary' } | null>(null);
+  // Quick Capture modal (Ctrl+Shift+Q) — writes plain text to the inbox.
+  const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Deep-link into the Tools view — when set, ToolsView switches the active
+  // tool and auto-opens the entry matching `entryId`. Cleared after consumption.
+  const [pendingTool, setPendingTool] = useState<ToolDeepLink | null>(null);
 
   // Set initial selected note if none selected (prefer a top-level note)
   useEffect(() => {
@@ -89,12 +182,66 @@ export default function App() {
     }
   }, [glossary, selectedTermId]);
 
-  // Global Keyboard Shortcuts (Ctrl+K / Cmd+K)
+  // BLOQUE 5 — Global Keyboard Shortcuts.
+  // Existing: Ctrl+K (search), Ctrl+Shift+Q (quick capture).
+  // New: Ctrl+Shift+N (new note), Ctrl+Shift+L (new lab),
+  //      Ctrl+Shift+I (IoC Extractor), Ctrl+Shift+T (Timestamp),
+  //      Ctrl+Shift+H (Hash Toolkit), Ctrl+Shift+R (Regex Tester),
+  //      Ctrl+Shift+M (MITRE).
+  // All shortcuts are GATED by `isTypingTarget()` — they only fire when the
+  // user is NOT typing in an input/textarea/contenteditable. They never
+  // interfere with the browser's own shortcuts (we require Ctrl+Shift, not
+  // just Ctrl, to avoid clobbering common browser bindings like Ctrl+T).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+
+      // Ctrl+K / Cmd+K — always works, even inside inputs.
+      if (!e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsSearchOpen(true);
+        return;
+      }
+
+      // All Ctrl+Shift+<letter> shortcuts are disabled while typing.
+      if (!e.shiftKey) return;
+      if (isTypingTarget(e.target)) return;
+
+      const letter = e.key.toLowerCase();
+      if (letter === 'q') {
+        e.preventDefault();
+        setIsQuickCaptureOpen(true);
+      } else if (letter === 'n') {
+        e.preventDefault();
+        setNewItemTab('note');
+        setNewItemPlatform('');
+        setNewItemContent('');
+        setIsNewItemOpen(true);
+      } else if (letter === 'l') {
+        e.preventDefault();
+        setNewItemTab('lab');
+        setIsNewItemOpen(true);
+      } else if (letter === 'i') {
+        e.preventDefault();
+        setPendingTool({ toolId: 'ioc', entryId: 'ioc' });
+        setActiveSection('tools');
+      } else if (letter === 't') {
+        e.preventDefault();
+        setPendingTool({ toolId: 'timestamp', entryId: 'timestamp' });
+        setActiveSection('tools');
+      } else if (letter === 'h') {
+        e.preventDefault();
+        setPendingTool({ toolId: 'hash', entryId: 'hash' });
+        setActiveSection('tools');
+      } else if (letter === 'r') {
+        e.preventDefault();
+        setPendingTool({ toolId: 'regex', entryId: 'regex' });
+        setActiveSection('tools');
+      } else if (letter === 'm') {
+        e.preventDefault();
+        setPendingTool({ toolId: 'mitre', entryId: 'mitre' });
+        setActiveSection('tools');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -108,6 +255,7 @@ export default function App() {
   const deletedLabs = useMemo(() => labs.filter((l) => l.isDeleted), [labs]);
   const activeTerms = useMemo(() => glossary.filter((g) => !g.isDeleted), [glossary]);
   const deletedTerms = useMemo(() => glossary.filter((g) => g.isDeleted), [glossary]);
+  const activeReferences = useMemo(() => references.filter((r) => !r.isDeleted), [references]);
 
   // Note CRUD Actions
   const handleCreateNote = async (data: {
@@ -140,6 +288,21 @@ export default function App() {
     await db.notes.add(newNote);
     setSelectedNoteId(newNoteId);
     setActiveSection('notes');
+
+    // BLOQUE 5 — Inbox conversion: if this create came from a "Convert to Note"
+    // action in the Inbox, mark the source inbox item as converted.
+    if (pendingInboxConvert && pendingInboxConvert.targetType === 'note') {
+      try {
+        await db.inboxItems.update(pendingInboxConvert.inboxItemId, {
+          convertedTo: 'note',
+          convertedAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('Inbox conversion update failed (non-fatal):', e);
+      }
+      setPendingInboxConvert(null);
+      setNewItemContent('');
+    }
   };
 
   const handleCreateSubnote = async (parentId: string) => {
@@ -163,6 +326,64 @@ export default function App() {
 
     await db.notes.add(newNote);
     setSelectedNoteId(newNoteId);
+  };
+
+  // Cross-tool "Add to Note" hand-off (BLOQUE 5 spec #4): tools (Log Parser,
+  // PowerShell Analyzer, Command Line Analyzer, CVSS Calculator, File Hash
+  // Analyzer, Linux Permissions, …) call `useNoteStore.getState().enqueueNote
+  // (title, html)`. Instead of immediately creating a new note, App opens the
+  // `<AddToNoteModal>` so the user can CHOOSE between creating a brand-new
+  // note or appending the content to an existing note's `contentHtml`.
+  // 100% offline.
+  const pendingNote = useNoteStore((s) => s.pendingNote);
+  const clearPendingNote = useNoteStore((s) => s.clearPending);
+
+  // Modal opens whenever a tool stages a pending add-to-note request.
+  const isAddToNoteOpen = pendingNote !== null;
+
+  // "Crear nota nueva" — preserve the old flow (create a top-level note with
+  // the pending title + content, switch to the notes view) and close the modal.
+  const handleCreateNewNote = () => {
+    if (!pendingNote) return;
+    const pending = pendingNote;
+    void handleCreateNote({
+      title: pending.title,
+      platform: '',
+      category: '',
+      contentHtml: pending.contentHtml,
+    }).finally(() => clearPendingNote());
+  };
+
+  // "Añadir a nota existente" — append `<hr/><h2>title</h2>` + contentHtml to
+  // the existing note, bump updatedAt, select it, switch to the notes view,
+  // and close the modal.
+  const handleAppendToExistingNote = async (noteId: string) => {
+    if (!pendingNote) return;
+    const pending = pendingNote;
+    try {
+      const existing = await db.notes.get(noteId);
+      if (!existing) {
+        console.warn('AddToNote: target note not found:', noteId);
+        return;
+      }
+      const separator = '<hr/>';
+      const heading = `<h2>${pending.title}</h2>`;
+      const newContent = `${existing.contentHtml || ''}${separator}${heading}${pending.contentHtml}`;
+      await db.notes.update(noteId, {
+        contentHtml: newContent,
+        updatedAt: new Date().toISOString(),
+      });
+      setSelectedNoteId(noteId);
+      setActiveSection('notes');
+    } catch (e) {
+      console.warn('AddToNote: append to existing failed:', e);
+    } finally {
+      clearPendingNote();
+    }
+  };
+
+  const handleCloseAddToNote = () => {
+    clearPendingNote();
   };
 
   const handleUpdateNote = useCallback(async (noteId: string, updated: Partial<Note>) => {
@@ -190,9 +411,12 @@ export default function App() {
   const handleDeleteNote = async (noteId: string) => {
     const idsToTrash = [noteId, ...collectDescendantIds(noteId)];
     const now = new Date().toISOString();
-    for (const id of idsToTrash) {
-      await db.notes.update(id, { isDeleted: true, deletedAt: now, updatedAt: now });
-    }
+    // AUDIT VN-A-005: single bulk modify inside ONE transaction instead of a
+    // sequential await loop (N round-trips, non-atomic — a tab close mid-loop
+    // left half-trashed subtrees). Same fields / timestamp semantics.
+    await db.transaction('rw', db.notes, async () => {
+      await db.notes.where('id').anyOf(idsToTrash).modify({ isDeleted: true, deletedAt: now, updatedAt: now });
+    });
     const remaining = activeNotes.filter((n) => !idsToTrash.includes(n.id) && !n.parentId);
     if (remaining.length > 0) {
       setSelectedNoteId(remaining[0].id);
@@ -204,20 +428,50 @@ export default function App() {
   const handleRestoreNote = async (noteId: string) => {
     const idsToRestore = [noteId, ...collectDescendantIds(noteId)];
     const now = new Date().toISOString();
-    for (const id of idsToRestore) {
-      await db.notes.update(id, { isDeleted: false, updatedAt: now });
-    }
+    // AUDIT VN-A-005: bulk modify in one transaction (was a sequential loop).
+    // AUDIT VN-A-004: also clear the stale `deletedAt` (Dexie removes the key
+    // when a property is set to undefined) so restored notes no longer carry
+    // a tombstone timestamp that propagates through backup exports.
+    await db.transaction('rw', db.notes, async () => {
+      await db.notes.where('id').anyOf(idsToRestore).modify({ isDeleted: false, deletedAt: undefined, updatedAt: now });
+    });
   };
 
   const handlePermanentDeleteNote = async (noteId: string) => {
     const idsToDelete = [noteId, ...collectDescendantIds(noteId)];
-    await db.notes.bulkDelete(idsToDelete);
-    // Clean up embedded media owned by these notes (videos + images)
-    const ownedVideos = await db.videos.where('noteId').anyOf(idsToDelete).primaryKeys();
-    await db.videos.where('noteId').anyOf(idsToDelete).delete();
-    await db.images.where('noteId').anyOf(idsToDelete).delete();
-    for (const vid of ownedVideos) {
-      await deleteVideoEverywhere(vid as string).catch(() => undefined);
+    // Clean up embedded media owned by these notes (videos + images + PDFs).
+    // BLOB LIFECYCLE FIX (Task 2-c): fetch video + PDF metas BEFORE deleting
+    // the IDB rows so `deleteVideoEverywhere` can still resolve the disk
+    // filename (`fileNameFor(id, meta)` needs `meta.name`/`meta.mimeType`).
+    // Previously, the IDB delete happened first, so `db.videos.get(id)`
+    // returned undefined inside `deleteVideoEverywhere`, the disk
+    // `dir.removeEntry(...)` step was skipped, and the raw video file was
+    // orphaned in the user's app folder forever. Now we hand the meta in.
+    const ownedVideoMetas = await db.videos.where('noteId').anyOf(idsToDelete).toArray();
+    const ownedPdfMetas = await db.pdfs.where('noteId').anyOf(idsToDelete).toArray();
+    // AUDIT VN-A-002 (transactional permanent delete): ALL IDB row deletions
+    // (note + descendants + their image/video/PDF metadata rows) happen in
+    // ONE db.transaction so they commit atomically. Previously the note rows
+    // were deleted first and the blob rows after — closing the tab mid-cleanup
+    // left orphaned blobs in IndexedDB forever.
+    await db.transaction('rw', [db.notes, db.images, db.videos, db.pdfs], async () => {
+      await db.notes.bulkDelete(idsToDelete);
+      // Images have no disk-side copy — straight IDB delete is safe.
+      await db.images.where('noteId').anyOf(idsToDelete).delete();
+      await db.videos.where('noteId').anyOf(idsToDelete).delete();
+      await db.pdfs.where('noteId').anyOf(idsToDelete).delete();
+    });
+    // Disk / FSA cleanup runs AFTER the transaction commits: these helpers mix
+    // Dexie + File System Access awaits (permission queries, removeEntry),
+    // which would abort a live Dexie transaction. Their inner videos/pdf row
+    // deletes are now redundant no-ops (rows already gone atomically); the
+    // disk removeEntry still runs because we pass the pre-fetched meta in.
+    // Failures swallowed — disk files are benign orphans, IDB rows are not.
+    for (const v of ownedVideoMetas) {
+      await deleteVideoEverywhere(v.id, v).catch(() => undefined);
+    }
+    for (const p of ownedPdfMetas) {
+      await deletePdfEverywhere(p.id).catch(() => undefined);
     }
   };
 
@@ -235,7 +489,9 @@ export default function App() {
     tools: string[];
     parts?: LabPart[];
   }) => {
-    const newLabId = `lab-${Date.now()}`;
+    // AUDIT VN-A-001: entropy suffix — plain Date.now() collides when
+    // multiple items are created in the same millisecond.
+    const newLabId = `lab-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const newLab: Lab = {
       id: newLabId,
       title: data?.title || 'Nuevo Lab Práctico',
@@ -249,7 +505,7 @@ export default function App() {
       sourceLink: data?.sourceLink || '',
       parts: data?.parts && data.parts.length > 0 ? data.parts : [
         {
-          id: `part-${Date.now()}-1`,
+          id: `part-${Date.now()}-${Math.random().toString(36).slice(2, 10)}-1`,
           title: 'Parte 1 - Recolección de Evidencia y Contexto',
           content: '<p>Documenta aquí los hallazgos iniciales, comandos ejecutados o adjunta capturas.</p>',
           isCompleted: false,
@@ -292,20 +548,42 @@ export default function App() {
   };
 
   const handleRestoreLab = async (labId: string) => {
+    // AUDIT VN-A-004: clear the stale `deletedAt` too (Dexie removes the key
+    // when a property is set to undefined) — a restored lab must not carry a
+    // tombstone timestamp into backup exports.
     await db.labs.update(labId, {
       isDeleted: false,
+      deletedAt: undefined,
       updatedAt: new Date().toISOString(),
     });
   };
 
   const handlePermanentDeleteLab = async (labId: string) => {
-    await db.labs.delete(labId);
-    // Clean up embedded media owned by this lab
-    const ownedVideos = await db.videos.where('labId').equals(labId).primaryKeys();
-    await db.videos.where('labId').equals(labId).delete();
-    await db.images.where('labId').equals(labId).delete();
-    for (const vid of ownedVideos) {
-      await deleteVideoEverywhere(vid as string).catch(() => undefined);
+    // Clean up embedded media owned by this lab.
+    // BLOB LIFECYCLE FIX (Task 2-c — same fix as handlePermanentDeleteNote):
+    // fetch metas BEFORE deleting IDB rows so disk files are also removed.
+    // Plus: the previous code called `db.images.where('labId').equals(labId)`
+    // but the `images` table had no `labId` index — that threw SchemaError
+    // and aborted the whole cleanup. Now the v14 schema adds `labId` to
+    // `images`, so this call succeeds.
+    const ownedVideoMetas = await db.videos.where('labId').equals(labId).toArray();
+    const ownedPdfMetas = await db.pdfs.where('labId').equals(labId).toArray();
+    // AUDIT VN-A-002: all IDB row deletions (lab + image/video/PDF metadata)
+    // in ONE atomic transaction — no orphaned blob rows if the tab closes
+    // mid-cleanup.
+    await db.transaction('rw', [db.labs, db.images, db.videos, db.pdfs], async () => {
+      await db.labs.delete(labId);
+      await db.images.where('labId').equals(labId).delete();
+      await db.videos.where('labId').equals(labId).delete();
+      await db.pdfs.where('labId').equals(labId).delete();
+    });
+    // Disk / FSA cleanup AFTER the transaction (mixed Dexie+FSA helpers —
+    // see handlePermanentDeleteNote). Failures swallowed.
+    for (const v of ownedVideoMetas) {
+      await deleteVideoEverywhere(v.id, v).catch(() => undefined);
+    }
+    for (const p of ownedPdfMetas) {
+      await deletePdfEverywhere(p.id).catch(() => undefined);
     }
   };
 
@@ -320,7 +598,8 @@ export default function App() {
     category?: string;
     categories?: string[];
   }) => {
-    const newTermId = `term-${Date.now()}`;
+    // AUDIT VN-A-001: entropy suffix (same-ms collision guard).
+    const newTermId = `term-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const newTerm: GlossaryTerm = {
       id: newTermId,
       term: data.term,
@@ -340,6 +619,21 @@ export default function App() {
     await db.glossary.add(newTerm);
     setSelectedTermId(newTermId);
     setActiveSection('glossary');
+
+    // BLOQUE 5 — Inbox conversion: if this create came from a "Convert to
+    // Glossary" action in the Inbox, mark the source inbox item as converted.
+    if (pendingInboxConvert && pendingInboxConvert.targetType === 'glossary') {
+      try {
+        await db.inboxItems.update(pendingInboxConvert.inboxItemId, {
+          convertedTo: 'glossary',
+          convertedAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('Inbox conversion update failed (non-fatal):', e);
+      }
+      setPendingInboxConvert(null);
+      setNewItemContent('');
+    }
   };
 
   const handleUpdateTerm = async (termId: string, updated: Partial<GlossaryTerm>) => {
@@ -364,8 +658,11 @@ export default function App() {
   };
 
   const handleRestoreTerm = async (termId: string) => {
+    // AUDIT VN-A-004: clear the stale `deletedAt` too (undefined → Dexie
+    // removes the key) so restored terms stay logically consistent.
     await db.glossary.update(termId, {
       isDeleted: false,
+      deletedAt: undefined,
       updatedAt: new Date().toISOString(),
     });
   };
@@ -375,26 +672,58 @@ export default function App() {
   };
 
   const handleEmptyTrash = async () => {
-    // Clean up embedded media owned by permanently deleted content first
+    // Clean up embedded media owned by permanently deleted content first.
+    // BLOB LIFECYCLE FIX (Task 2-c): fetch metas BEFORE deleting IDB rows
+    // (same fix as handlePermanentDeleteNote / handlePermanentDeleteLab).
+    // Also relies on the v14 schema bump that added `labId` to the `images`
+    // index (otherwise `db.images.where('labId').anyOf(labIds)` would throw
+    // SchemaError and abort the whole trash-empty mid-way).
     const noteIds = deletedNotes.map((n) => n.id);
     const labIds = deletedLabs.map((l) => l.id);
-    const allVideoIds: string[] = [];
+    const termIds = deletedTerms.map((t) => t.id);
+    const allVideoMetas: { id: string; name?: string; mimeType?: string }[] = [];
+    const allPdfMetas: { id: string; name?: string; mimeType?: string }[] = [];
+    // AUDIT VN-A-002: gather ALL blob metadata with pure reads BEFORE opening
+    // the transaction — no queries (and no FSA awaits) inside it.
     if (noteIds.length > 0) {
-      const v1 = await db.videos.where('noteId').anyOf(noteIds).primaryKeys();
-      allVideoIds.push(...(v1 as string[]));
-      await db.videos.where('noteId').anyOf(noteIds).delete();
-      await db.images.where('noteId').anyOf(noteIds).delete();
+      const v1 = await db.videos.where('noteId').anyOf(noteIds).toArray();
+      allVideoMetas.push(...v1);
+      const p1 = await db.pdfs.where('noteId').anyOf(noteIds).toArray();
+      allPdfMetas.push(...p1);
     }
     if (labIds.length > 0) {
-      const v2 = await db.videos.where('labId').anyOf(labIds).primaryKeys();
-      allVideoIds.push(...(v2 as string[]));
-      await db.videos.where('labId').anyOf(labIds).delete();
-      await db.images.where('labId').anyOf(labIds).delete();
+      const v2 = await db.videos.where('labId').anyOf(labIds).toArray();
+      allVideoMetas.push(...v2);
+      const p2 = await db.pdfs.where('labId').anyOf(labIds).toArray();
+      allPdfMetas.push(...p2);
     }
-    await Promise.all(allVideoIds.map((v) => deleteVideoEverywhere(v).catch(() => undefined)));
-    await db.notes.bulkDelete(noteIds);
-    await db.labs.bulkDelete(labIds);
-    await db.glossary.bulkDelete(deletedTerms.map((t) => t.id));
+    // AUDIT VN-A-002: every IDB row deletion (trashed notes/labs/terms AND
+    // their image/video/PDF metadata rows) in ONE atomic transaction —
+    // previously the blob rows were cleaned before the note rows were
+    // deleted, so a tab close mid-way could leave orphaned blobs behind.
+    await db.transaction('rw', [db.notes, db.labs, db.glossary, db.images, db.videos, db.pdfs], async () => {
+      if (noteIds.length > 0) {
+        await db.images.where('noteId').anyOf(noteIds).delete();
+        await db.videos.where('noteId').anyOf(noteIds).delete();
+        await db.pdfs.where('noteId').anyOf(noteIds).delete();
+      }
+      if (labIds.length > 0) {
+        await db.images.where('labId').anyOf(labIds).delete();
+        await db.videos.where('labId').anyOf(labIds).delete();
+        await db.pdfs.where('labId').anyOf(labIds).delete();
+      }
+      await db.notes.bulkDelete(noteIds);
+      await db.labs.bulkDelete(labIds);
+      await db.glossary.bulkDelete(termIds);
+    });
+    // Disk / FSA cleanup AFTER the transaction commits (mixed Dexie+FSA
+    // helpers — see handlePermanentDeleteNote). Failures swallowed.
+    for (const v of allVideoMetas) {
+      await deleteVideoEverywhere(v.id, v).catch(() => undefined);
+    }
+    for (const p of allPdfMetas) {
+      await deletePdfEverywhere(p.id).catch(() => undefined);
+    }
   };
 
   // Export ZIP Backup handler (real "Save": overwrites the same file every time)
@@ -403,12 +732,19 @@ export default function App() {
     try {
       setIsExporting(true);
       const result = await exportVaultZip();
-      if (result.mode === 'app') {
-        setBackupSavedMessage('Guardado en la carpeta de la app ✓');
-      } else if (result.mode === 'file') {
-        setBackupSavedMessage(`Guardado en "${result.savedTo}"`);
+      const savedMsg = result.mode === 'app'
+        ? 'Guardado en la carpeta de la app ✓'
+        : result.mode === 'file'
+          ? `Guardado en "${result.savedTo}"`
+          : `Descargado: ${result.savedTo}`;
+      // AUDIT VN-B-011 (HIGH): never show a plain "saved ✓" when videos were
+      // silently dropped from the backup (lost File System Access permission
+      // to the videos folder). The user must know the file is INCOMPLETE so
+      // they can re-grant the permission in Settings before relying on it.
+      if (result.omittedVideos && result.omittedVideos.length > 0) {
+        setBackupSavedMessage(`⚠ Backup incompleto: ${result.omittedVideos.length} video(s) omitidos (permiso de almacenamiento perdido). Recupéralo en Configuración.`);
       } else {
-        setBackupSavedMessage(`Descargado: ${result.savedTo}`);
+        setBackupSavedMessage(savedMsg);
       }
       setTimeout(() => setBackupSavedMessage(null), 4000);
     } catch (err: unknown) {
@@ -427,9 +763,99 @@ export default function App() {
       const summary = await importVaultBackup(file);
       setImportSummary(summary);
     } catch (err) {
+      // Spec #35: incompatible backup version (backup schemaVersion > app)
+      // must show a clear "Incompatible backup version" message — NOT
+      // the generic "couldn't read" alert, and NOT a partial import.
+      // The IncompatibleBackupError class is thrown up-front by
+      // `importVaultBackup` BEFORE any local data is mutated.
+      if (err instanceof IncompatibleBackupError) {
+        console.warn('Incompatible backup:', err.backupSchemaVersion, err.backupFormatVersion);
+        alert(err.message);
+        return;
+      }
       console.error('Import error:', err);
       alert('Error al leer el archivo de backup. Asegúrate de que sea un .zip o .json válido.');
     }
+  };
+
+  // BLOQUE 5 — Command palette dispatch (Ctrl+K command entries).
+  // Resolves a `commandId` produced by fuzzySearch.getCommandEntries() into
+  // the corresponding App-level action: open a section, open a tool, open
+  // the New Item modal, fire backup export/import, etc.
+  const handleCommandPalette = (commandId: string) => {
+    if (commandId === 'new-note') {
+      setNewItemTab('note');
+      setNewItemPlatform('');
+      setNewItemContent('');
+      setIsNewItemOpen(true);
+    } else if (commandId === 'new-lab') {
+      setNewItemTab('lab');
+      setIsNewItemOpen(true);
+    } else if (commandId === 'new-glossary') {
+      setNewItemTab('glossary');
+      setIsNewItemOpen(true);
+    } else if (commandId === 'new-reference') {
+      // No dedicated modal — switch to references view; the user can use the
+      // existing inline add UI there.
+      setActiveSection('references');
+    } else if (commandId === 'quick-capture') {
+      setIsQuickCaptureOpen(true);
+    } else if (commandId.startsWith('open-section:')) {
+      const section = commandId.slice('open-section:'.length) as ActiveSection;
+      setActiveSection(section);
+    } else if (commandId.startsWith('open-tool:')) {
+      const toolId = commandId.slice('open-tool:'.length);
+      // BLOQUE 5 — record tool use when the user opens a tool from the
+      // command palette (light metadata only: toolId + timestamp).
+      setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
+      setActiveSection('tools');
+    } else if (commandId === 'backup-now') {
+      void handleExportBackup();
+    } else if (commandId === 'import-backup') {
+      // Trigger the hidden file input from the Header via a synthetic event.
+      // The header renders its own <input type=file>; the simplest approach
+      // here is to open the references view where the user can use the Import
+      // button in the header (which is always rendered).
+      // We rely on the Header's existing Import button; just focus it visually.
+      setActiveSection('settings');
+    }
+  };
+
+  // BLOQUE 5 — Extended keyboard shortcuts.
+  // - Only fire when the user is NOT typing in an input/textarea/contenteditable.
+  // - Don't interfere with native browser shortcuts that include Alt.
+  // - Easy to extend: just add another `key === '<letter>'` branch below.
+  const isTypingTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName.toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+  };
+
+  // BLOQUE 5 — Inbox "Convert to Note/Glossary" entry point.
+  // Opens the New Item Modal with the inbox content prefilled in the title
+  // field of the appropriate tab, and records the conversion as "pending"
+  // so handleCreateNote / handleCreateGlossaryTerm can mark it converted
+  // once the user actually creates the item (vs. just cancelling).
+  const handleConvertInboxItem = (
+    content: string,
+    inboxItemId: string,
+    targetType: 'note' | 'glossary'
+  ) => {
+    const truncated = (content || '').trim().slice(0, 80);
+    setNewItemTab(targetType);
+    setNewItemPlatform('');
+    setNewItemContent(truncated);
+    setPendingInboxConvert({ inboxItemId, targetType });
+    setIsNewItemOpen(true);
+  };
+
+  // Wrap NewItemModal close so cancelling the modal clears any pending
+  // inbox-conversion state (otherwise a later create from the regular
+  // header button would wrongly mark an inbox item as converted).
+  const handleCloseNewItem = () => {
+    setIsNewItemOpen(false);
+    setPendingInboxConvert(null);
+    setNewItemContent('');
   };
 
   return (
@@ -453,8 +879,11 @@ export default function App() {
           onOpenNewItem={(tab) => {
             if (tab) setNewItemTab(tab);
             setNewItemPlatform('');
+            setNewItemContent('');
+            setPendingInboxConvert(null);
             setIsNewItemOpen(true);
           }}
+          onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
           onExport={handleExportBackup}
           onImportFile={handleImportFile}
           isExporting={isExporting}
@@ -478,6 +907,20 @@ export default function App() {
               }}
               onOpenNotesView={() => setActiveSection('notes')}
               onOpenLabsView={() => setActiveSection('labs')}
+              // BLOQUE 5 — Quick Actions wiring (section switch, New Item modal,
+              // and direct tool deep-link). All optional props on the dashboard.
+              onSelectSection={(section) => setActiveSection(section)}
+              onOpenNewItem={(tab) => {
+                setNewItemTab(tab);
+                setNewItemPlatform('');
+                setNewItemContent('');
+                setPendingInboxConvert(null);
+                setIsNewItemOpen(true);
+              }}
+              onOpenTool={(toolId) => {
+                setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
+                setActiveSection('tools');
+              }}
             />
           )}
 
@@ -544,6 +987,48 @@ export default function App() {
             <BlogView notes={notes} labs={labs} />
           )}
 
+          {activeSection === 'tools' && (
+            <ToolsView pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
+          )}
+
+          {activeSection === 'references' && (
+            <ReferencesView
+              glossaryTerms={activeTerms}
+              onOpenGlossaryTerm={(termId) => {
+                setSelectedTermId(termId);
+                setActiveSection('glossary');
+              }}
+            />
+          )}
+
+          {activeSection === 'review' && (
+            <ReviewView
+              onSelectNote={(noteId) => {
+                setSelectedNoteId(noteId);
+                setActiveSection('notes');
+              }}
+              onSelectLab={(labId) => {
+                setSelectedLabId(labId);
+                setActiveSection('labs');
+              }}
+              onSelectGlossaryTerm={(termId) => {
+                setSelectedTermId(termId);
+                setActiveSection('glossary');
+              }}
+            />
+          )}
+
+          {activeSection === 'inbox' && (
+            <InboxView
+              onConvertToNote={(content, inboxItemId) =>
+                handleConvertInboxItem(content, inboxItemId, 'note')
+              }
+              onConvertToGlossary={(content, inboxItemId) =>
+                handleConvertInboxItem(content, inboxItemId, 'glossary')
+              }
+            />
+          )}
+
           {activeSection === 'trash' && (
             <TrashView
               deletedNotes={deletedNotes}
@@ -562,6 +1047,13 @@ export default function App() {
           {activeSection === 'settings' && (
             <SettingsView categories={categories} tools={tools} />
           )}
+
+          {/* BLOQUE 6 — Online-Optional. Data & Intelligence sync center.
+              MITRE/Sigma sync architecture, TI provider status, saved CVEs,
+              online activity log. All local; sync buttons gated by online. */}
+          {activeSection === 'data-intel' && (
+            <DataIntelView />
+          )}
         </main>
       </div>
 
@@ -573,6 +1065,7 @@ export default function App() {
         notes={activeNotes}
         labs={activeLabs}
         glossary={activeTerms}
+        references={activeReferences}
         onSelectNote={(noteId) => {
           setSelectedNoteId(noteId);
           setActiveSection('notes');
@@ -585,21 +1078,54 @@ export default function App() {
           setSelectedTermId(termId);
           setActiveSection('glossary');
         }}
+        onSelectReference={() => {
+          // No reference detail view yet — just switch to references section.
+          setActiveSection('references');
+        }}
+        onSelectTool={(deepLink) => {
+          setPendingTool(deepLink);
+          setActiveSection('tools');
+        }}
+        // BLOQUE 5 — command palette dispatch (new note / open X / backup / etc.)
+        onSelectCommand={(commandId) => {
+          handleCommandPalette(commandId);
+        }}
       />
 
-      {/* New Item Modal (+ Button) — keyed so it mounts fresh (clean form) every time it opens */}
+      {/* New Item Modal (+ Button) — keyed so it mounts fresh (clean form) every time it opens.
+          newItemContent is included in the key so an Inbox "Convert to Note/Glossary"
+          flow (which sets the title from the inbox content) re-mounts the modal
+          with the prefilled title state. */}
       <NewItemModal
-        key={`new-item-${newItemTab}-${newItemPlatform}-${String(isNewItemOpen)}`}
+        key={`new-item-${newItemTab}-${newItemPlatform}-${newItemContent}-${String(isNewItemOpen)}`}
         isOpen={isNewItemOpen}
-        onClose={() => setIsNewItemOpen(false)}
+        onClose={handleCloseNewItem}
         initialTab={newItemTab}
         initialPlatform={newItemPlatform}
+        initialContent={newItemContent}
         platforms={platforms}
         categories={categories}
         tools={tools}
         onCreateNote={handleCreateNote}
         onCreateLab={handleCreateLab}
         onCreateGlossaryTerm={handleCreateGlossaryTerm}
+      />
+
+      {/* Quick Capture Modal (Ctrl+Shift+Q) — single textarea → Inbox */}
+      <QuickCaptureModal
+        isOpen={isQuickCaptureOpen}
+        onClose={() => setIsQuickCaptureOpen(false)}
+      />
+
+      {/* Add to Note Modal (BLOQUE 5 spec #4) — opened by any tool that calls
+          useNoteStore.enqueueNote(title, html). Lets the user choose between
+          creating a new note or appending to an existing note. */}
+      <AddToNoteModal
+        isOpen={isAddToNoteOpen}
+        onClose={handleCloseAddToNote}
+        pendingAdd={pendingNote}
+        onCreateNewNote={handleCreateNewNote}
+        onAppendToExistingNote={(noteId) => void handleAppendToExistingNote(noteId)}
       />
 
       {/* Incremental Import Report Modal */}

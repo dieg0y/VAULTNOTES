@@ -1,7 +1,37 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, FileText, BookOpen, FlaskConical, CornerDownLeft, X } from 'lucide-react';
-import { Note, Lab, GlossaryTerm } from '../types';
-import { searchAllVault, SearchResultItem } from '../utils/fuzzySearch';
+import React, { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';
+import {
+  Search,
+  FileText,
+  BookOpen,
+  FlaskConical,
+  CornerDownLeft,
+  X,
+  Globe,
+  Server,
+  Shield,
+  Clock,
+  Link as LinkIcon,
+  Crosshair,
+  BookMarked,
+  Braces,
+  Fingerprint,
+  Bug,
+  Wrench,
+  Zap,
+} from 'lucide-react';
+import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
+import { searchAllVault, SearchResultItem, resultToToolDeepLink } from '../utils/fuzzySearch';
+import type { ToolDeepLink } from './ToolsView';
+
+/** Minimal HTML-escape for safe fallback rendering inside `dangerouslySetInnerHTML`. */
+function escapeHtml(text: string): string {
+  return (text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -9,9 +39,14 @@ interface GlobalSearchModalProps {
   notes: Note[];
   glossary: GlossaryTerm[];
   labs?: Lab[];
+  references?: ReferenceItem[];
   onSelectNote: (noteId: string) => void;
   onSelectGlossaryTerm: (termId: string) => void;
   onSelectLab?: (labId: string) => void;
+  onSelectReference?: (referenceId: string) => void;
+  onSelectTool?: (deepLink: ToolDeepLink) => void;
+  /** BLOQUE 5 — command palette dispatch (new note / open section / open tool / backup). */
+  onSelectCommand?: (commandId: string) => void;
 }
 
 /** Outer wrapper: mounts fresh content each time the modal opens. */
@@ -25,17 +60,27 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
   notes,
   glossary,
   labs = [],
+  references = [],
   onSelectNote,
   onSelectGlossaryTerm,
   onSelectLab,
+  onSelectReference,
+  onSelectTool,
+  onSelectCommand,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // BLOQUE 5 — debounce the search input via useDeferredValue so a fast
+  // typist doesn't rebuild the Fuse index on every keystroke. React 19's
+  // deferred value lets the UI update immediately while the search runs on
+  // a lower-priority render pass. No setTimeout/raf needed.
+  const deferredQuery = useDeferredValue(query);
+
   const results = useMemo(
-    () => searchAllVault(query, notes, glossary, labs),
-    [query, notes, glossary, labs]
+    () => searchAllVault(deferredQuery, notes, glossary, labs, references),
+    [deferredQuery, notes, glossary, labs, references]
   );
 
   useEffect(() => {
@@ -45,6 +90,28 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
   const handleQueryChange = (value: string) => {
     setQuery(value);
     setSelectedIndex(0);
+  };
+
+  const handleSelect = (item: SearchResultItem) => {
+    // BLOQUE 5 — command palette entries have their own dispatch path.
+    if (item.type === 'command' && item.commandId) {
+      if (onSelectCommand) onSelectCommand(item.commandId);
+      onClose();
+      return;
+    }
+    const toolLink = resultToToolDeepLink(item);
+    if (toolLink && onSelectTool) {
+      onSelectTool(toolLink);
+    } else if (item.type === 'reference' && onSelectReference) {
+      onSelectReference(item.id);
+    } else if (item.type === 'note') {
+      onSelectNote(item.id);
+    } else if (item.type === 'lab' && onSelectLab) {
+      onSelectLab(item.id);
+    } else if (item.type === 'glossary') {
+      onSelectGlossaryTerm(item.id);
+    }
+    onClose();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -62,15 +129,42 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
     }
   };
 
-  const handleSelect = (item: SearchResultItem) => {
-    if (item.type === 'note') {
-      onSelectNote(item.id);
-    } else if (item.type === 'lab' && onSelectLab) {
-      onSelectLab(item.id);
-    } else {
-      onSelectGlossaryTerm(item.id);
+  const typeMeta = (type: SearchResultItem['type']) => {
+    switch (type) {
+      case 'note':
+        return { label: 'Apunte', icon: <FileText className="w-3.5 h-3.5" />, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: 'bg-blue-500/10 text-blue-400' };
+      case 'lab':
+        return { label: 'Lab', icon: <FlaskConical className="w-3.5 h-3.5" />, color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', dot: 'bg-emerald-500/10 text-emerald-400' };
+      case 'glossary':
+        return { label: 'Glosario', icon: <BookOpen className="w-3.5 h-3.5" />, color: 'bg-purple-500/10 text-purple-400 border-purple-500/20', dot: 'bg-purple-500/10 text-purple-400' };
+      case 'reference':
+        return { label: 'Referencia', icon: <LinkIcon className="w-3.5 h-3.5" />, color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20', dot: 'bg-cyan-500/10 text-cyan-400' };
+      case 'tool-http':
+        return { label: 'HTTP', icon: <Globe className="w-3.5 h-3.5" />, color: 'bg-amber-500/10 text-amber-400 border-amber-500/20', dot: 'bg-amber-500/10 text-amber-400' };
+      case 'tool-port':
+        return { label: 'Puerto', icon: <Server className="w-3.5 h-3.5" />, color: 'bg-rose-500/10 text-rose-400 border-rose-500/20', dot: 'bg-rose-500/10 text-rose-400' };
+      case 'tool-winevent':
+        return { label: 'Event ID', icon: <Shield className="w-3.5 h-3.5" />, color: 'bg-red-500/10 text-red-400 border-red-500/20', dot: 'bg-red-500/10 text-red-400' };
+      case 'tool-cron':
+        return { label: 'Cron', icon: <Clock className="w-3.5 h-3.5" />, color: 'bg-teal-500/10 text-teal-400 border-teal-500/20', dot: 'bg-teal-500/10 text-teal-400' };
+      case 'tool-mitre':
+        return { label: 'MITRE', icon: <Crosshair className="w-3.5 h-3.5" />, color: 'bg-orange-500/10 text-orange-400 border-orange-500/20', dot: 'bg-orange-500/10 text-orange-400' };
+      case 'tool-sigma':
+        return { label: 'Sigma', icon: <BookMarked className="w-3.5 h-3.5" />, color: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20', dot: 'bg-fuchsia-500/10 text-fuchsia-400' };
+      // BLOQUE 5 — extended search coverage:
+      case 'tool-detection-query':
+        return { label: 'Detection', icon: <Braces className="w-3.5 h-3.5" />, color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', dot: 'bg-indigo-500/10 text-indigo-400' };
+      case 'tool-sid-rid':
+        return { label: 'SID/RID', icon: <Fingerprint className="w-3.5 h-3.5" />, color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', dot: 'bg-yellow-500/10 text-yellow-400' };
+      case 'tool-cvss':
+        return { label: 'CVSS', icon: <Bug className="w-3.5 h-3.5" />, color: 'bg-pink-500/10 text-pink-400 border-pink-500/20', dot: 'bg-pink-500/10 text-pink-400' };
+      case 'tool':
+        return { label: 'Herramienta', icon: <Wrench className="w-3.5 h-3.5" />, color: 'bg-sky-500/10 text-sky-400 border-sky-500/20', dot: 'bg-sky-500/10 text-sky-400' };
+      case 'command':
+        return { label: 'Comando', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-violet-500/10 text-violet-400 border-violet-500/20', dot: 'bg-violet-500/10 text-violet-400' };
+      default:
+        return { label: type, icon: <FileText className="w-3.5 h-3.5" />, color: 'bg-gray-500/10 text-gray-400 border-gray-500/20', dot: 'bg-gray-500/10 text-gray-400' };
     }
-    onClose();
   };
 
   return (
@@ -82,7 +176,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
           <input
             ref={inputRef}
             type="text"
-            placeholder="Búsqueda fuzzy avanzada (título, acrónimo, plataforma, herramientas, contenido)..."
+            placeholder="Buscar apuntes, labs, glosario, MITRE, Sigma, eventos, tools… o escribe &gt;new note"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -102,11 +196,12 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
         <div className="p-2 overflow-y-auto flex-1 divide-y divide-[#202020] space-y-1">
           {results.length === 0 ? (
             <div className="p-8 text-center text-[#666]">
-              <p className="text-xs">No se encontraron resultados para "{query}"</p>
+              <p className="text-xs">No se encontraron resultados para &quot;{query}&quot;</p>
             </div>
           ) : (
             results.map((item, index) => {
               const isSelected = index === selectedIndex;
+              const meta = typeMeta(item.type);
               return (
                 <div
                   key={`${item.type}-${item.id}`}
@@ -118,42 +213,22 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <div
-                        className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${
-                          item.type === 'note'
-                            ? 'bg-blue-500/10 text-blue-400'
-                            : item.type === 'lab'
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : 'bg-purple-500/10 text-purple-400'
-                        }`}
-                      >
-                        {item.type === 'note' ? (
-                          <FileText className="w-3.5 h-3.5" />
-                        ) : item.type === 'lab' ? (
-                          <FlaskConical className="w-3.5 h-3.5" />
-                        ) : (
-                          <BookOpen className="w-3.5 h-3.5" />
-                        )}
+                      <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${meta.dot}`}>
+                        {meta.icon}
                       </div>
 
                       <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
                         <span
                           className="font-semibold text-xs text-white truncate"
                           dangerouslySetInnerHTML={{
-                            __html: item.highlightedTitle || item.title
+                            __html: item.highlightedTitle || escapeHtml(item.title),
                           }}
                         />
 
                         <span
-                          className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded ${
-                            item.type === 'note'
-                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                              : item.type === 'lab'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                          }`}
+                          className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border ${meta.color}`}
                         >
-                          {item.type === 'note' ? 'Apunte' : item.type === 'lab' ? 'Lab' : 'Glosario'}
+                          {meta.label}
                         </span>
 
                         {item.platform && (
@@ -177,7 +252,9 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
                   <p
                     className="text-[11px] text-[#888] line-clamp-2 pl-9 leading-relaxed"
                     dangerouslySetInnerHTML={{
-                      __html: item.highlightedSnippet || item.snippet || item.subtitle
+                      __html:
+                        item.highlightedSnippet ||
+                        escapeHtml(item.snippet || item.subtitle || ''),
                     }}
                   />
 
@@ -220,11 +297,11 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
               Abrir
             </span>
           </div>
-          <span className="text-[10px] font-mono text-blue-400">Fuse.js Fuzzy Search</span>
+          <span className="text-[10px] font-mono text-blue-400">
+            type:note · tag:soc · platform:windows · &gt;command
+          </span>
         </div>
       </div>
     </div>
   );
 };
-
-

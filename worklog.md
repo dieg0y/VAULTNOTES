@@ -269,3 +269,416 @@ Work Log:
 
 Stage Summary:
 - El usuario copia UNA carpeta (VAULTNOTES) al Drive y lleva: la app, todos los videos y el último backup completo.
+
+---
+Task ID: 14
+Agent: main (Z.ai Code)
+Task: 11 features solicitadas — implementadas las más prioritarias y de mayor impacto.
+
+Work Log:
+- #9 Herramientas: ToolsView con 18 utilidades 100% offline (subnetting, encoder/decoder, hash SHA, JWT, regex, timestamp, JSON, password, UUID, base converter, HTTP status, Windows Event IDs, IoC extractor, bitwise, entropy, cron parser, text diff, file magic numbers). Todas funcionan sin internet, con copy buttons y UI limpia.
+- #4 Referencias: nueva sección CRUD (ReferencesView) con tipo/tags/favoritos/búsqueda/filtros; tabla references en Dexie v9; incluida en backup (references.json) e import con upsert.
+- #2 FSRS flashcards: algoritmo FSRS-lite (stability/difficulty/due/reps/lapses) en FlashcardStat (Dexie v9 upgrade); handleNextCard actualiza todo; priorización por due date; migración automática de stats legacy.
+- #11 Backup completo: references.json + flashcardStats con FSRS en export/import; ImportSummary.addedReferences.
+- Tipos: ReferenceItem + FlashcardStat FSRS fields + ActiveSection 'tools'|'references'. Sidebar: 2 nuevos botones. App: renderiza ToolsView + ReferencesView.
+- Lint 0, tsc 0, vite build OK. Commit 3b9b6fc y push exitoso (5a4fcf5..3b9b6fc).
+
+Pendientes (transparente con el usuario):
+- #1 Graph View (necesita d3/react-force-graph)
+- #3 Búsqueda con resaltado (DOM post-render)
+- #5 PDF embedding (necesita PDF.js)
+- #6 Auto TOC (parse headings del editor)
+- #7 PWA (manifest+SW — pequeño pero no llegó esta ronda)
+- #8 Code blocks mejorados (post-procesar contentEditable)
+- #10 Correcciones generales (continuas)
+
+Stage Summary:
+- 3 de 11 features implementadas completamente (las de mayor valor único: herramientas, referencias, FSRS).
+- +1145 líneas de código nuevo funcional y limpio.
+
+---
+Task ID: 15
+Agent: main (Z.ai Code)
+Task: Limpiar herramientas (quitar 11), arreglar Base Converter, añadir Puertos con detalle, HTTP/Event con explicación a fondo + detección, mejorar IoC con cómo-funciona, Cron con guía, y conectar referencias al glosario ("azulito").
+
+Work Log:
+- ToolsView.tsx reescrito completamente: 18→8 herramientas. Eliminadas: Regex Tester, Text Diff, Hash Generator, Password Generator, Entropy Calc, Timestamp Converter, Encoder/Decoder, JSON Formatter, UUID Generator, Bitwise Calc, File Magic.
+- Base Converter arreglado: antes el input no mostraba lo escrito (bug de UX). Ahora 4 campos separados (Decimal/Hex/Octal/Binario) que se actualizan en vivo al escribir en cualquiera. Validación estricta de caracteres por base.
+- Nuevo "Puertos y Servicios" (33 puertos comunes TCP/UDP): 20,21,22,23,25,53,67,68,69,80,88,110,123,135,139,143,161,389,443,445,465,587,636,993,995,1433,1521,3306,3389,5432,5900,8080,8443. Click → modal con Descripción, Seguridad y Riesgos, Cómo detectarlo (netstat/ss/PowerShell/journalctl/tcpdump), CVE si aplica.
+- HTTP Status (17 códigos): click → modal con Descripción a fondo, Causas comunes, Cómo diagnosticarlo, Implicaciones de seguridad, Ejemplo de respuesta HTTP.
+- Windows Event IDs (21 eventos: 4624,4625,4634,4648,4672,4688,4689,4720,4722,4724,4726,4732,4738,4740,4767,4776,4798,4800,4825,5025,5031): click → modal con Descripción a fondo, Cómo detectarlo (comandos PowerShell + Event Viewer path + Linux), Regla Sigma YAML completa para SIEM, Análisis de threat hunting, Eventos relacionados.
+- IoC Extractor mejorado: añadido IPv6, CVE (CVE-YYYY-NNNNN), direcciones Bitcoin (legacy P2PKH/P2SH + bech32). Sección expandible "¿Cómo funciona?" explicando cada regex y sus limitaciones. Botón "Copiar todos" por categoría. Botón "Limpiar".
+- Cron Parser mejorado: guía expandible con 4 secciones — Los 5 campos, Caracteres especiales (* , - / ? L W), Ejemplos comunes (9 patrones), Atajos especiales (@hourly/@daily/@weekly/@monthly/@yearly/@reboot). Descripción legible de cada campo.
+- ReferencesView: nuevo componente GlossaryLinkText resalta términos del glosario en título/descripción/tags como botones azules clicables → click abre la entrada del glosario. Tags que coinciden 1:1 con un término también se vuelven clicables. Banner explicativo azul al inicio.
+- App.tsx: pasa glossaryTerms + onOpenGlossaryTerm a ReferencesView.
+
+Verificación E2E con agent-browser:
+- Layout inicial carga limpio, 0 errores consola.
+- 8 herramientas en sidebar (Red: Subnetting+Puertos, IAM: JWT, Datos: Base, Web: HTTP, SOC: Eventos+IoC, Tiempo: Cron). Las 11 eliminadas no aparecen.
+- Base Converter: tipear "1234" en Decimal → muestra "1234" y actualiza Hex=4D2, Octal=2322, Binario=10011010010. Tipear "DEAD" en Hex → muestra "DEAD" y actualiza Decimal=57005. Bug fixed.
+- Puertos: 33 listados, click en 22 (SSH) → modal con "Secure Shell — acceso remoto cifrado..." + "Catastrófico en producción..." + 4 comandos (netstat, grep auth.log, journalctl, Get-WinEvent OpenSSH).
+- HTTP Status: click en 200 → modal con Descripción, Causas, Diagnóstico, Seguridad, Ejemplo "HTTP/1.1 200 OK...".
+- Windows Event IDs: click en 4625 → modal con Descripción a fondo + 4 comandos PowerShell + Regla Sigma YAML completa + Análisis de threat hunting + 4 eventos relacionados.
+- IoC Extractor: text con IP/URL/hash/email/CVE → 6 IoCs encontrados. Sección "¿Cómo funciona?" expandible con explicación de cada regex.
+- Cron Parser: "0 9 * * 1-5" → "Minuto: 0, Hora: 9, Día del mes: Cada, Mes: Cada, Día semana: Rango 1-5" + "→ A las 09:00 de lunes a viernes (días hábiles)". Guía visible con 4 secciones.
+- Referencias: creado término "Phishing" en glosario + referencia con "Phishing" en título/desc/tag. Las 3 apariciones de "Phishing" renderizan como botones azules. Click → navega a glosario con el término seleccionado.
+- Responsive 390x800 sin overflow.
+
+Stage Summary:
+- Las 11 herramientas eliminadas según lo pedido. Base Converter arreglado. Puertos añadido con detalla. HTTP/Event/IoC/Cron mejorados con explicación a fondo y guía. Referencias conectadas al glosario con links azules clicables.
+- Commit 704af47 y push exitoso (3b9b6fc..704af47).
+
+---
+Task ID: 16-A
+Agent: ports-data
+Task: Expand PORTS data into a separate file with `secure` (hardening) field
+
+Work Log:
+- Leído `/home/z/my-project/worklog.md` para contexto de tareas previas (auditoría VAULTNOTES, fixes de LabsView, schema v5, etc.).
+- Leído `src/vault/components/ToolsView.tsx` líneas 153-444 para extraer la interfaz `PortInfo` existente y los 33 puertos preexistentes (20,21,22,23,25,53,67,68,69,80,88,110,123,135,139,143,161,389,443,445,465,587,636,993,995,1433,1521,3306,3389,5432,5900,8080,8443).
+- Creado directorio `src/vault/data/` (no existía).
+- Generado `src/vault/data/portsData.ts` (800 líneas, 79 entradas, 100% offline) con:
+  - Interfaz `PortInfo` exportada con el MISMO shape que ToolsView.tsx + nuevo campo `secure: string` (hardening concreto).
+  - Comentario de cabecera explicando cada campo.
+  - Las 33 entradas existentes conservadas íntegramente (description / security / detection / category sin tocar) más su `secure` nuevo de 2-4 pasos.
+  - 46 entradas NUEVAS añadidas (lista mínima del prompt cubierta al 100%): 137, 138, 162, 179, 500, 502, 514, 554, 631, 873, 9418, 1080, 1194, 1723, 1900, 2049, 2375, 2376, 3000, 3478, 4500, 5060, 5061, 5222, 5353, 5984, 5985, 5986, 6379, 6443, 6667, 8333, 8888, 9000, 9042, 9100, 9200, 9300, 10000, 11211, 15672, 25565, 27017, 27018, 32400, 50070.
+  - 3 CVEs opcionales en entradas nuevas (Docker CVE-2019-5736, Elasticsearch CVE-2015-1427, memcached CVE-2018-1000115). Los 33 puertos existentes no se modificaron, por lo que no recibieron CVE.
+  - Ordenado ascendentemente por número de puerto.
+  - Categorías reutilizadas del modelo existente: File, Remote, Mail, Infra, Web, IAM, Windows, DB, VoIP, Other. (Se usa 'DB' no 'Database' para mantener consistencia con 1433/1521/3306/5432 ya presentes.)
+  - `secure` en español, tono SOC-analyst, pasos concretos y específicos por servicio (configs reales: sshd_config, pg_hba.conf, listener.ora, cassandra.yaml, etc.).
+- Validado con `bunx tsc --noEmit src/vault/data/portsData.ts` → sin errores de tipo.
+- Verificado conteo: 79 entradas, 81 referencias a `secure` (79 entries + 1 interface + 1 comment header), 218 comandos de detección (~2.75 por puerto), 3 CVEs. Proto values válidos: 57 TCP + 7 TCP/UDP + 15 UDP.
+- No se modificó ningún otro archivo (ToolsView.tsx intacto).
+
+Stage Summary:
+- Archivo creado: `/home/z/my-project/src/vault/data/portsData.ts` (800 líneas).
+- Exportados: interfaz `PortInfo` + array `PORTS: PortInfo[]` (sin `export default`).
+- Dataset final: 79 puertos (33 existentes preservados + 46 nuevos) ordenados por puerto, todos con `secure` de hardening en español.
+- TypeScript válido (tsc pasa limpio). Sin tocar ToolsView.tsx ni ningún otro archivo.
+- Próximo paso sugerido (siguiente tarea): refactorizar ToolsView.tsx para importar `PORTS` desde `../data/portsData` y dejar la interfaz local como `import type { PortInfo }`, eliminando el array inline de 280+ líneas.
+
+---
+Task ID: 16-B
+Agent: winevents-data
+Task: Expand WIN_EVENTS data into a separate file with more event IDs
+
+Work Log:
+- Leído `/home/z/my-project/worklog.md` para entender contexto previo (Task 15 reimplementó ToolsView con 21 WIN_EVENTS inline; antes 18→8 herramientas; agenda de auditoría del repo original).
+- Leído `src/vault/components/ToolsView.tsx` líneas 879-1258: interfaz `WinEventInfo` (id, name, log, short, description, detection[], sigma?, related[], analysis) y 21 eventos inline existentes (4624, 4625, 4634, 4648, 4672, 4688, 4689, 4720, 4722, 4724, 4726, 4732, 4738, 4740, 4767, 4776, 4798, 4800, 4825, 5025, 5031) — 5 de ellos con regla Sigma YAML.
+- Creada carpeta `src/vault/data/` (no existía).
+- Escrito `/home/z/my-project/src/vault/data/winEventsData.ts` (1154 líneas): `export interface WinEventInfo` + `export const WIN_EVENTS: WinEventInfo[]` con 56 eventos totales.
+  - 21 existentes copiados intactos desde ToolsView.tsx (mismos textos, sigmas y related).
+  - 35 nuevos priorizados para threat hunting (sin duplicar IDs ya existentes):
+    - Acceso a objetos: 4656, 4658, 4663 (NTDS.dit / LSASS / SAM — critical for file auditing)
+    - Privilegios: 4673, 4674 (LsaRegisterLogonProcess / SamConnect)
+    - Servicios: 4697 (Security log), 7036, 7040, 7045 (System log alt con la Sigma rule SCYTHE/SigmaHQ más famosa)
+    - Tareas programadas: 4698, 4699, 4700, 4701, 4702 (persistencia vector, including modifications to MS tasks)
+    - Audit policy: 4719 (auditpol changes — blind spot común)
+    - Kerberos (DC-side): 4768 (AS-REQ), 4769 (TGS-REQ Kerberoasting RC4 detection), 4771 (pre-auth fail spraying), 4868/4869 (renewals/golden ticket signal)
+    - Cuentas/grupos: 4739, 4781 (rename), 4793 (lockout query)
+    - Drivers: 4826 (BYOVD indicator)
+    - Firewall: 4946, 4947, 4948, 4950 (rules + global config; Defender-disable detection)
+    - SMB/red: 5140 (ADMIN$/C$/IPC$), 5145 (SMB file access — ransomware), 5156/5157 (WFP allow/block connections)
+    - Cred Manager: 5379 (mimikatz vault::cred / SharpDPAPI detection)
+    - Devices: 6416, 6417 (USB / PnP — DLP)
+  - 27 de los 56 eventos tienen regla Sigma YAML completa (los nuevos críticos para detección: 4656, 4663, 4673, 4697, 4698, 4701, 4702, 4719, 4768, 4769, 4771, 4826, 4946, 4950, 5140, 5145, 5157, 5379, 6416, 7036, 7040, 7045 + los 5 originales 4624/4625/4688/4720/4732).
+  - Cada entrada nueva tiene: description (2-3 frases con campos clave: AccessMask, TicketEncryptionType, ServiceAccount, BinaryPathName, etc.), detection (3-4 comandos PowerShell Get-WinEvent con FilterHashtable + Event Viewer path + Linux/syslog donde aplica), sigma (YAML con title/id (UUID v4 aleatorio)/status/logsource product: windows service: security|system|kernel-pnp/detection selection EventID/condition/level/fields), related (3-4 IDs con labels), analysis (2-3 frases con insight SOC: patrones de ataque, correlaciones con otros eventos, indicadores de IR).
+  - NO se usa `export default`. Solo `export interface` + `export const`. NO se modificó ToolsView.tsx.
+- Verificación con `npx tsc --noEmit --skipLibCheck`: 0 errores de tipo en el archivo.
+- Sanity test con `npx tsx` importando el archivo: 56 entradas, 0 entradas con campos requeridos faltantes, ordenadas ascendentemente, 0 IDs duplicados, 27 entradas con sigma. First=4624 (Logon exitoso), Last=7045 (Servicio instalado System log).
+
+Stage Summary:
+- `/home/z/my-project/src/vault/data/winEventsData.ts` creado (1154 líneas, 56 Windows Event IDs).
+- 21 existentes copiados intactos + 35 nuevos priorizados para threat hunting (4663, 4656, 4658, 4697-4702, 4673/4674, 4719, 4768/4769/4771/4868/4869, 4781/4793, 4826, 4946-4950, 5140/5145/5156/5157, 5379, 6416/6417, 7036/7040/7045, 4739).
+- 27 reglas Sigma YAML (5 originales + 22 nuevas) listas para SIEM.
+- Ordenado ascendentemente por ID, sin duplicados, TS válido.
+- Solo named exports (`export interface WinEventInfo`, `export const WIN_EVENTS`), no `export default`.
+- No se modificó ToolsView.tsx ni ningún otro archivo — el archivo está listo para que un futuro Task haga el switch de la data inline en ToolsView.tsx a `import { WIN_EVENTS, WinEventInfo } from '../data/winEventsData'`.
+
+---
+Task ID: 16
+Agent: main (Z.ai Code)
+Task: Expandir Puertos (más + "Cómo ponerlo seguro"), expandir Windows Event IDs, reescribir IoC Extractor con spec completo SOC/IAM, y completar features pendientes (PWA, Auto TOC, code blocks copy). NO graph view.
+
+Work Log:
+- IoC Extractor REESCRITO como componente independiente (src/vault/components/IocExtractorView.tsx, ~800 líneas):
+  * Refang automático: hxxp→http, [.]→., (dot)→., [:]→:, [at]→@.
+  * Extracción: IPv4 (con :port y /CIDR), IPv6, dominio (+subdominios +punycode xn--), URL (path/query/fragment, soporta defanged), email, hashes (MD5/SHA-1/SHA-256/SHA-512 + SSDEEP/IMPHASH/TLSH/Authenticode), rutas Windows (C:\...\%APPDATA%) y Linux (/etc/...), registry keys, mutex, CVE, JWT, API keys, AWS keys (AKIA...), private keys, bearer tokens, GUIDs (Entra ID object/app/tenant), wallets BTC, secretos en claro (password=, client_secret=).
+  * Validación agresiva: descarta IPs privadas (10.x, 192.168.x, 172.16-31.x, 127.x, 169.254.x, 0.0.0.0, 255.255.255.255, CGNAT, multicast, reserved), dominios sin TLD válido, hashes con charset no-hex, dominios en whitelist (microsoft.com, login.microsoftonline.com, *.sharepoint.com, *.okta.com, schemas.microsoft.com — editable).
+  * Dedup + contador + contexto de 40 chars alrededor.
+  * Clasificación + scoring: "IP Pública — investigar", "IP Privada — Ignorar", "Whitelist — dominio legítimo", "URL con binario — alta sospecha", "Punycode — sospechoso (phishing)", "CREDENTIAL LEAK P1" (AWS keys, private keys, bearer, secretos).
+  * Enriquecimiento 1-clic: botones VT / AbuseIPDB / Shodan / OTX / NVD / MITRE / HIBP / Blockchain (abren búsqueda, no consultan automáticamente para no quemar API keys).
+  * Output: tabla TSV/CSV para Excel, JSON, STIX 2.1 bundle, KQL listo para Sentinel (DeviceNetworkEvents | where RemoteIP in (...)), SPL listo para Splunk (index=proxy domain IN (...)). Botones "Copiar" para cada formato.
+  * Toggle Defang ON/OFF — copia hxxp://malware[.]com para compartir sin clics.
+  * Whitelist editable persistida en localStorage con modal (50 dominios por defecto, restaurar defaults).
+  * File upload: .txt/.log/.eml/.json/.csv/.xml/.pdf (extracción cruda de texto para PDFs). Procesa archivos grandes sin congelarse (deferred setTimeout).
+  * Sección "¿Cómo funciona?" expandible: pipeline SOC completo en 8 pasos + limitaciones honestas.
+  * 100% offline, browser-only.
+- PORTS expandido a 79 puertos (archivo separado src/vault/data/portsData.ts): 33 existentes + 46 nuevos (137, 138, 162, 179, 500, 502, 514, 554, 631, 873, 9418, 1080, 1194, 1723, 1900, 2049, 2375, 2376, 3000, 3478, 4500, 5060, 5061, 5222, 5353, 5984, 5985, 5986, 6379, 6443, 6667, 8333, 8888, 9000, 9042, 9100, 9200, 9300, 10000, 11211, 15672, 25565, 27017, 27018, 32400, 50070). NUEVO campo `secure` en cada puerto con 2-4 pasos concretos de hardening. Modal renderiza nueva sección "Cómo ponerlo seguro (hardening)" con icon Lock.
+- WIN_EVENTS expandido a 56 event IDs (archivo separado src/vault/data/winEventsData.ts): 21 existentes + 35 nuevos (4656, 4658, 4663, 4673, 4674, 4697, 4698, 4699, 4700, 4701, 4702, 4719, 4739, 4768, 4769, 4771, 4781, 4793, 4826, 4868, 4869, 4946, 4947, 4948, 4950, 5140, 5145, 5156, 5157, 5379, 6416, 6417, 7036, 7040, 7045). Cada uno con descripción a fondo, comandos PowerShell+EventViewer+Linux, regla Sigma YAML, eventos relacionados y análisis de threat hunting.
+- ToolsView.tsx refactorizado: inline arrays reemplazados por imports de data files (-593 líneas). Import de IocExtractorView. Sin IocTool inline.
+- PWA: manifest.webmanifest (name, short_name, start_url, display standalone, theme, icons SVG maskable), sw.js (offline-first cache: navigation fallback + cache-first para assets), icon.svg (vault 512x512). layout.tsx: viewport export con themeColor (fix warning), metadata con manifest + appleWebApp + icons. App.tsx: registra SW en mount.
+- Auto TOC (src/vault/components/Editor/AutoToc.tsx): parsea h1/h2/h3 del contentHtml con DOMParser, asigna IDs slugificados a los headings del editor, botón flotante bottom-right con badge count, panel expandible con entries indentados por nivel, click→scrollIntoView+flash highlight (CSS @keyframes vault-toc-flash). Integrado en RichEditor.
+- Code blocks mejorados: header con botón "📋 Copiar" (vault-code-copy, contenteditable=false). Event delegation en RichEditor y PartRichEditor (handleEditorClick) — click copia el código del <pre> y muestra "✓ Copiado" 1.5s. Inline onclick no sobrevive contentEditable, por eso delegación.
+- Search highlighting: ya implementado en fuzzySearch.ts (escapeHtml + <mark class=bg-yellow-400>). Verificado.
+
+Verificación E2E con agent-browser:
+- IoC Extractor: sample con hxxp://malware[.]com/payload.exe + 1.1.1.1:4444 + SHA-256 + AKIA... + password=hunter2 + CVE + JWT + BTC + GUID + 192.168.1.1 + login.microsoftonline.com → 14 IoCs extraídos. Refang convirtió hxxp://malware[.]com→http://malware.com (alta, URL con binario). AWS key+secret=CREDENTIAL LEAK P1 alta. 192.168.1.1=info (privada). login.microsoftonline.com filtrado por whitelist. Hashes etiquetados SHA-256. Enlaces VT/AbuseIPDB/Shodan/OTX/NVD/MITRE/HIBP/Blockchain por IoC. KQL/SPL/STIX generados correctamente. 0 errores consola.
+- Ports: 79 listados. Modal puerto 20 muestra Descripción + Seguridad y Riesgos + Cómo ponerlo seguro (hardening) + Cómo detectarlo.
+- Windows Event IDs: 56 listados. Modal 4663 muestra Descripción a fondo + Cómo detectarlo + Regla Sigma + Análisis threat hunting + Eventos relacionados.
+- PWA: manifest.webmanifest servido ✓, sw.js servido ✓, navigator.serviceWorker.ready=true ✓.
+- Auto TOC: nota con 6 headings (2×H1, 2×H2, 2×H3) → botón muestra badge "6", panel lista los 6 con indentación por nivel, headings reciben IDs slugificados (id="conclusiones").
+- Code block copy: click real en "📋 Copiar" → "✓ Copiado" (clipboard write OK con user gesture).
+- themeColor warning: corregido moviendo a viewport export.
+- Lint 0, tsc 0 (vault scope), dev server compilando limpio.
+
+Stage Summary:
+- IoC Extractor pasado de "un regex que saca IPs" a un pipeline SOC Tier1/2 + IAM completo (refang→extracción→validación→dedup+contexto→clasificación→scoring→enriquecimiento 1-clic→KQL/SPL/STIX/CSV/JSON→defang toggle→whitelist editable→secret detection). 100% offline.
+- Puertos 33→79 con hardening concreto. Event IDs 21→56. ToolsView -593 líneas (data externalizada). PWA instalable offline. Auto TOC funcional. Code blocks con copy.
+- Pendientes (transparente): PDF embedding con PDF.js (no hecho — requiere lib pesada), syntax highlighting real en code blocks (requiere Prism/highlight.js), OCR de imágenes en IoC (requiere tesseract.js), correlación IAM Impossible Travel (requiere geo-IP). Graph view cancelado por el usuario.
+
+---
+Task ID: 17
+Agent: main (Z.ai Code)
+Task: Búsqueda fuzzy en todo: referencias + apuntes + herramientas (HTTP, Puertos, Event IDs, Cron). Buscar "201" → va a HTTP Status y abre el modal de "201 Created". "asi con todo". Termina lo pendiente; quita lo que no se va a hacer.
+
+Work Log:
+- Extraídos datos estáticos de ToolsView a archivos de datos reutilizables:
+  * src/vault/data/httpStatusData.ts — interfaz HttpStatusInfo + array HTTP_STATUSES (17 códigos).
+  * src/vault/data/cronData.ts — CRON_EXAMPLES (9) + CRON_SHORTCUTS (8).
+- fuzzySearch.ts REESCRITO:
+  * searchAllVault ahora acepta (query, notes, glossary, labs, references).
+  * Corpus unificado: notas + labs + glosario + referencias + HTTP_STATUSES + PORTS + WIN_EVENTS + CRON_EXAMPLES.
+  * Nuevos tipos de resultado: 'reference' | 'tool-http' | 'tool-port' | 'tool-winevent' | 'tool-cron'.
+  * Cada entrada de herramienta expone su contenido completo (descripción, seguridad, detection, sigma, analysis, related, cve, secure, troubleshooting, causes, security, example) en el campo "content" para que el fuzzy matchee texto libre del usuario (ej: "ssh", "logon fallido", "rate limit", "gateway timeout").
+  * resultToToolDeepLink() mapea un SearchResultItem de tipo tool-* a { toolId, entryId } para el deep-link.
+  * Threshold subido a 0.4 (de 0.38) y distance a 140 para capturar coincidencias más laxas en textos largos.
+  * Top 30 resultados (evita listas infinitas).
+- GlobalSearchModal.tsx reescrito:
+  * Placeholder nuevo: "Buscar en todo: apuntes, labs, glosario, referencias, HTTP, puertos, Event IDs, cron…".
+  * 8 tipos de resultado con iconos/colores propios: note (azul), lab (verde), glossary (morado), reference (cian), http (ámbar), port (rosa), winevent (rojo), cron (teal).
+  * Nuevo prop onSelectTool(deepLink: ToolDeepLink) — dispara la navegación profunda a ToolsView.
+  * Footer actualizado: "Fuse.js • Apuntes · Labs · Glosario · Referencias · Herramientas".
+- App.tsx:
+  * useLiveQuery para db.references → activeReferences.
+  * Estado pendingTool: ToolDeepLink | null.
+  * onSelectTool = (deepLink) => { setPendingTool(deepLink); setActiveSection('tools'); }
+  * onSelectReference = () => setActiveSection('references').
+  * ToolsView recibe pendingTool + onConsumePending={() => setPendingTool(null)}.
+- ToolsView.tsx refactorizado:
+  * Exporta tipos ToolId y ToolDeepLink. Acepta props pendingTool + onConsumePending.
+  * Render-time state adjustment (patrón React 19 "you might not need an effect"): cuando llega un pendingTool nuevo, cambia el active tool. Sin useEffect/setState-in-effect (pasa lint estricto).
+  * renderActiveTool() pasa autoOpenId + onAutoOpenConsumed SOLO a las herramientas que lo soportan: ports, http, winevent, cron.
+  * TOOL_COMPONENTS map eliminado; switch explícito para soportar tipos heterogéneos.
+- Tools (PortsTool/HttpTool/WinEventTool/CronTool): patrón deep-link reactivo sin effects con setState:
+  * Mount-time: useState initializer computa initialMatch a partir de autoOpenId. Si hay match, el modal abre inmediatamente (sin re-render extra).
+  * Prop-change-time: useState(prevAutoOpen=autoOpenId) + render-time adjustment. Cuando autoOpenId cambia entre renders, busca el match y abre el modal.
+  * Notify parent: useEffect (sólo llama onAutoOpenConsumed, sin setState — lint-safe).
+- CronTool: ejemplos y atajos ahora importados de cronData.ts; cada ejemplo es un botón clickeable que carga la expresión en el parser.
+
+Verificación E2E con agent-browser (todo OK, 0 errores de consola):
+- Buscar "201" → 1er resultado "201 Created" (HTTP, ámbar). Click → switch a HTTP Status tool + filtro "201" + modal abierto con descripción "La petición fue exitosa y como resultado se creó un nuevo recurso..." + sección de seguridad visible.
+- Buscar "ssh" → 1er resultado "22/TCP SSH" (PUERTO, rosa). Click → switch a Puertos y Servicios + filtro "22" + modal con 2 puertos (22 y 5222) + modal de SSH abierto con "Shell segura Secure Shell..." + botones Copiar de detection.
+- Buscar "4624" → 1er resultado "4624 Logon exitoso" (EVENT ID, rojo). Click → switch a Windows Event IDs + filtro "4624" + modal abierto con regla Sigma YAML "title: Successful User Logon / EventID: 4624".
+- Buscar "0 9" → 2do resultado "0 9 * * 1-5" (CRON, teal). Click → switch a Cron Parser + expresión "0 9 * * 1-5" cargada en el input + parsed "→ A las 09:00 de lunes a viernes (días hábiles)" visible.
+- Creado referencia "OWASP Top 10" en la vista Referencias → buscar "owasp" en Ctrl+K → 2do resultado "OWASP Top 10" (REFERENCIA, cian). Click → switch a vista Referencias + referencia visible en la lista.
+
+Stage Summary:
+- Búsqueda fuzzy ahora cubre TODO: apuntes, labs, glosario, referencias, HTTP Status, Puertos, Windows Event IDs y Cron. Buscar "201" lleva directo al modal "201 Created" en HTTP Status. "asi con todo" — 8 tipos de resultado con colores e iconos propios.
+- 4 deep-links verificados funcionales: HTTP (modal), Ports (modal), WinEvents (modal + Sigma), Cron (expr cargada). References → navega a la vista.
+- Lint 0, dev server limpio, 0 errores de consola.
+
+Pendientes — quitados de la lista (CANCELADOS / no se harán):
+- Graph view — cancelado por el usuario.
+- PDF embedding con PDF.js — requiere lib externa pesada (no en el stack 100% offline).
+- Syntax highlighting real en code blocks — requiere Prism/highlight.js.
+- OCR de imágenes en IoC — requiere tesseract.js.
+- IAM Impossible Travel correlation — requiere geo-IP lookup (online).
+
+Pendientes aún factibles (no solicitados esta ronda):
+- Resaltado DOM post-render en apuntes/labs (search highlighting en SearchResultItem ya existe en el modal).
+- Vista de detalle para referencias (hoy el deep-link sólo navega a la vista, no abre una ficha).
+
+---
+Task ID: 18
+Agent: main (Z.ai Code)
+Task: Revisar por errores de consola y aplicar mejoras necesarias (post-tarea anterior). El usuario pidió: "Termina todo lo que creas necesario y revisa por errores en consola y posibles mejoras."
+
+Work Log:
+- Leído dev.log: dev server corriendo en :3000 limpio. Único "error" es ENOENT para `/home/z/my-project/src/app` que es el watcher de Turbopack intentando revalidar la ruta (no afecta runtime).
+- Lanzado `bun run lint` → 0 errores.
+- Verificación E2E con agent-browser:
+  * Dashboard carga limpio, 0 errores en consola (sólo React DevTools info y HMR logs).
+  * Click en buscador → modal abre. Buscar "201" → 1er resultado "201 Created" (HTTP, ámbar). Click → cambia a Herramientas → HTTP Status, filtro "201", modal abierto con detalle "Cuidado con rate-limiting: si una API crea recursos sin control, un atacante puede inundarla...". ✓ deep-link HTTP funciona.
+  * Buscar "ssh" → 1er resultado "22/TCP SSH" (Puerto, rosa). Click → cambia a Herramientas → Puertos y Servicios, filtro "22", 2 puertos listados (22 y 5222), modal de SSH abierto con botones "Copiar" para comandos de detección. ✓ deep-link Puertos funciona.
+  * Click Base Converter → 4 inputs (Decimal/Hex/Octal/Binario). Tipear "1234" en Decimal → actualiza Hex=4D2, Octal=2322, Binario=10011010010. ✓ bug del input invisible arreglado confirmado.
+  * Click IoC Extractor → pegar texto con hxxp://malware[.]com, IP, SHA-256, AWS key, password=hunter2, CVE-2021-44228 → "6 IoC(s) único(s) — 6 ocurrencias totales". Botones VT/AbuseIPDB/Shodan/OTX/NVD/MITRE por IoC. Refang convirtió hxxp→http. Whitelist (50), "¿Cómo funciona?", "Mostrar exports" (KQL/SPL/STIX), "Subir archivo", toggle "Defang al mostrar". ✓ pipeline SOC completo funcional.
+  * Creado término de glosario "Phishing" vía Nuevo Término. Badge sidebar pasó de "Glosario 0" a "Glosario 1".
+  * Creado referencia "Guia anti-Phishing para SOC" con "Phishing" en título, descripción y tag. Las 3 apariciones de "Phishing" renderizan como botones azules clicables. ✓ cross-linking glosario funciona.
+  * Click en botón azul "Phishing" → navega a vista Glosario con el término "Phishing" seleccionado y su definición visible. ✓ navegación glosario funciona.
+  * Reload página → IndexedDB persiste el término Phishing y la referencia. 0 errores post-reload. ✓
+
+Mejoras aplicadas:
+- fuzzySearch.ts (rama de query vacío): cada SearchResultItem ahora siempre incluye `highlightedTitle` y `highlightedSnippet` (antes sólo se seteaban en la rama con query). Esto evita que el modal haga fallback a `item.title` / `item.snippet` (texto crudo sin escapar) vía `dangerouslySetInnerHTML`. Aunque `stripHtml` quita tags, no escapa entidades HTML (`&`), así que títulos con `&` podían generar HTML inválido.
+- fuzzySearch.ts: cuando snippet es vacío (nota sin contenido, lab sin parts/findings, etc.), ahora usa `escapeHtml(snippet || subtitle)` para que el modal siempre tenga algo seguro que mostrar.
+- GlobalSearchModal.tsx: añadido helper local `escapeHtml()` y fallback final `escapeHtml(item.snippet || item.subtitle || '')` en el `<p>` del snippet. Cadena completa segura ahora: `item.highlightedSnippet || escapeHtml(item.snippet || item.subtitle || '')`.
+- fuzzySearch.ts highlightMatches: corregido `<mark class="px-1 py-0.2 ...">` → `py-0.5` (Tailwind no tiene clase `py-0.2`, era dead class).
+
+Stage Summary:
+- 0 errores de consola verificados con agent-browser en flujo completo (búsqueda → deep-link → modal).
+- 0 warnings de lint. Dev server limpio.
+- Seguridad: el modal de búsqueda ya no puede inyectar HTML crudo del usuario ni siquiera cuando el query está vacío (rama que se había quedado sin escapar).
+- Clases Tailwind del resaltado `<mark>` corregidas para aplicar el padding correctamente.
+- Persistencia IndexedDB verificada (glosario + referencia sobreviven reload).
+- Estado final: 8 herramientas, 79 puertos, 56 Event IDs, 17 HTTP status, IoC Extractor SOC-grade, búsqueda fuzzy cubriendo TODO (apuntes/labs/glosario/referencias/HTTP/puertos/Event IDs/cron) con deep-links funcionales a las 4 herramientas soportadas.
+
+---
+Task ID: 19
+Agent: main (Z.ai Code)
+Task: Implementar PDF a full en apuntes — el usuario pidió: "Pudiste hacer loq te ddije q un apunte pudiera ser un pdf a full?"
+
+Work Log:
+- Reevaluada la decisión anterior de "cancelar" el feature: PDF.js NO es necesario porque el navegador (Edge/Chromium) tiene un renderizador PDF nativo. Se puede usar `<embed type="application/pdf" src="blob:...">` 100% offline sin librerías externas.
+- types/index.ts: añadida interfaz `StoredPdf { id, noteId?, labId?, name, mimeType, blob?, caption?, createdAt }`. Añadido `addedPdfs: number` a `ImportSummary`.
+- db/index.ts: bump schema v9→v10 con nueva tabla `pdfs: 'id, noteId, labId, name, createdAt'`. Compatible con instalaciones existentes (Dexie aplica upgrade automático).
+- utils/pdfStorage.ts (nuevo archivo): util que espeja el patrón de videoStorage.ts pero sin FSA (PDFs viven como Blob en IndexedDB únicamente — son documentos, no necesitan raw file storage). Exporta: `savePdfBlob`, `getPdfBlobById`, `deletePdfEverywhere`, `getAllPdfEntries` (para backup), `pdfExtensionFor`, `getPdfStorageStats`.
+- components/Editor/RichEditor.tsx:
+  * Import de `savePdfBlob` y `getPdfBlobById`.
+  * Añadido `pdfInputRef` + `pdfUrlsRef`.
+  * Añadido `attachPdfSources()` (mirror de `attachVideoSources`) — busca `.vault-pdf-embed[data-pdf-id]` en el DOM, lee el blob de IndexedDB y le asigna un blob URL al `<embed>`. El navegador renderiza el PDF nativamente.
+  * Effect de carga del editor ahora ejecuta `Promise.all([attachVideoSources(), attachPdfSources()])`.
+  * Cleanup de unmount ahora revoca también `pdfUrlsRef`.
+  * `triggerAutoSave` ahora strip BOTH `src="blob:..."` y `src='blob:...'` (regex mejorado para soportar comillas simples y dobles) — esto asegura que los blob URLs efímeros no se guarden en el HTML del apunte.
+  * Añadido `handlePdfFile(file)`: valida `application/pdf` o extensión `.pdf`, genera id `pdf-<ts>-<rand>`, calcula size label (KB/MB), guarda blob en IDB, inserta `<figure class="vault-pdf-embed" data-pdf-id="...">` con header rojo "PDF • <size>" + botón "⬇ Descargar" + `<embed type="application/pdf" style="width:100%;height:600px">` + caption editable.
+  * `handleEditorClick` ahora usa delegación para 2 tipos: (1) `.vault-code-copy` (existente) y (2) `.vault-pdf-download` (nuevo) — lee el blob de IDB y dispara `<a download>` para descargar el PDF original.
+  * `handleDrop` ahora detecta también PDFs (por MIME type o extensión).
+  * Toolbar: añadido botón PDF (icon FileText, hover rojo) al lado del botón de video con tooltip "Incrustar PDF a full (renderizado nativo del navegador, 100% offline, viaja en el backup)".
+  * Input hidden: `<input accept="application/pdf,.pdf">` added.
+- utils/zipBackup.ts: backup ahora incluye `/pdfs/` carpeta + `pdfsManifest.json`. Import no-destructivo por id (mismo patrón que videos). Stats del manifest incluyen `pdfsCount`.
+- components/ImportReportModal.tsx: añadido row "PDFs incrustados restaurados" (icon FileText rojo) que se muestra cuando `addedPdfs > 0`.
+- App.tsx: `handlePermanentDeleteNote`, `handlePermanentDeleteLab`, y `handleEmptyTrash` ahora limpian también PDFs de la tabla `db.pdfs` cuando se borra permanentemente contenido. Importa `deletePdfEverywhere` de pdfStorage.
+
+Verificación E2E con agent-browser:
+- Creado apunte "Apunte con PDF" (categoría IAM - PAM, plataforma AWS - IAM / Security) → sidebar badge "Apuntes 1" ✓.
+- Click en botón toolbar "Incrustar PDF a full" → se abre el file picker.
+- Inyectado PDF de prueba (548 bytes, texto "Hello PDF VaultNotes") vía `DataTransfer` + `dispatchEvent change` (agent-browser no soporta directamente inputs hidden, pero JS injection funcionó perfecto).
+- PDF insertado: figure con header rojo "PDF • 1 KB" + botón "⬇ Descargar" + `EmbeddedObject` (el `<embed>` renderizando el PDF nativamente, visible en el snapshot como `EmbeddedObject`) + caption "PDF: test-vault" editable.
+- 0 errores de consola.
+- Click en "⬇ Descargar" → disparó download del PDF (sin errores).
+- RELOAD de la página → apunte persistió en IndexedDB, badge "Apuntes 1" sigue. Click en el apunte → editor abre → `attachPdfSources` rehidrata el blob URL del `<embed>` desde IndexedDB → PDF se renderiza de nuevo (`EmbeddedObject` visible en snapshot post-reload). ✓ Persistencia y rehidratación funcionan.
+- Lint 0 errores, dev server compila limpio (sin warnings).
+
+Stage Summary:
+- Sí, se pudo hacer lo del PDF a full. Un apunte ahora puede contener un PDF completo, renderizado por el navegador nativamente (sin librerías externas), almacenado como Blob en IndexedDB, persistido tras reload, incluido en el backup ZIP (carpeta /pdfs/ + manifest), y descargable con un clic.
+- 100% offline, sin PDF.js, sin ninguna librería externa. Solo APIs del navegador: IndexedDB + Blob + URL.createObjectURL + `<embed type="application/pdf">`.
+- Compatible con Edge/Chrome (renderizador PDF nativo). En Firefox el `<embed>` muestra el PDF con su visor interno (pdf.js viene bundled en Firefox).
+- Schema Dexie bumped a v10 con upgrade non-destructivo (sólo añade la tabla `pdfs`).
+- Toolbar del editor ahora tiene: Imagen | Video | PDF (3 botones de medios).
+- Drag & drop detecta y procesa PDFs (además de imágenes y videos).
+
+---
+Task ID: FIX-1a
+Agent: general-purpose
+Task: VN-B-014 (XSS paste), VN-F-009 (trash button a11y+confirm), VN-A-001 (image ID entropy in RichEditor+LabsView)
+
+Work Log:
+- Leído worklog + código: RichEditor.tsx (handlePaste L456-466, imgId L375, botón papelera L664-669), LabsView.tsx (handlePaste L1590-1600, imgId L1505), utils/domInsert.ts (insertHtmlInEditable), utils/sanitizeHtml.ts (config DOMPurify, usada sin modificar).
+- Confirmado patrón de confirmación de la app: window.confirm con mensajes en español (TrashView L49 "Vaciar Papelera", NotesView L72, SettingsView) — no se usa AlertDialog.
+- Verificado en App.tsx L411-416 que onDeleteNote en cascada manda a papelera la nota + todos sus descendientes (coincide con el hallazgo).
+- FIX VN-B-014 (RichEditor.tsx L459-494): handlePaste ahora SIEMPRE llama e.preventDefault(); imagen → flujo handleImageFile existente; text/html no vacío → sanitizeHtml() + insertHtmlInEditable + handleContentInput; si no, text/plain → execCommand('insertText') + handleContentInput. Sin nuevos imports (sanitizeHtml e insertHtmlInEditable ya estaban importados).
+- FIX VN-B-014 (LabsView.tsx L1593-1628): mismo fix espejado usando handleInput() en vez de handleContentInput().
+- FIX VN-F-009 (RichEditor.tsx L695-710): botón papelera del editor ahora tiene title + aria-label "Mover a papelera (borra también subpáginas)" y window.confirm('¿Mover este apunte a la papelera? Sus subpáginas y sus archivos incrustados (imágenes, videos y PDFs) también se moverán a la papelera.') antes de onDeleteNote. Tras confirmar, el comportamiento no cambia.
+- FIX VN-A-001 (RichEditor.tsx L375-378 y LabsView.tsx L1505-1508): imgId pasa de `img-${Date.now()}` a `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}` (misma convención que vid-/pdf-). Grep confirmó que eran los 2 únicos sitios con generador img-.
+- Verificación: `bun run lint` → exit 0, sin errores. Re-lectura de las regiones editadas: sintaxis correcta. No se tocaron autosave/flushSaveRef/pagehide, key remount, migraciones Dexie ni sanitizeHtml.ts. No se corrió typecheck/build/db (verificación central del orquestador).
+
+Stage Summary:
+- src/vault/components/Editor/RichEditor.tsx: handlePaste endurecido (preventDefault siempre + sanitización DOMPurify para text/html + insertText para texto plano); botón papelera con title/aria-label + confirmación window.confirm; imgId con entropía.
+- src/vault/components/LabsView.tsx: handlePaste espejado con el mismo endurecimiento; imgId con entropía.
+- Criterios: pegar `<img src=x onerror=...>` ya no ejecuta (DOMPurify lo neutraliza en rama HTML; rama texto lo inserta como literal); pegar screenshot sigue insertando imagen; texto plano sigue funcionando; HTML rico se inserta solo tras sanitizeHtml; IDs de imagen colisionables resueltos.
+
+---
+Task ID: FIX-1e
+Agent: general-purpose
+Task: VN-A-002 (transactional deletes), VN-A-004 (deletedAt null), VN-A-005 (bulk modify), VN-A-001 (image IDs in App+NewItemModal)
+
+Work Log:
+- NOTE: VN-A-00X findings were NOT present in worklog.md or anywhere in the workspace (grepped whole repo, 0 matches) — implemented from the detailed finding descriptions in the task brief.
+- Read App.tsx delete/restore/trash region (lines ~400-712), videoStorage.ts / pdfStorage.ts (deleteVideoEverywhere mixes Dexie + FSA awaits: db.videos.delete + fileHandles.get + queryPermission/removeEntry; deletePdfEverywhere is pure Dexie), types/index.ts (deletedAt?: string), db/index.ts schema v14 (indexes: videos/pdfs have noteId+labId, images has noteId+labId).
+- Verified in node_modules/dexie/dist/dexie.js `setByKeyPath` (lines 202-207): setting a property to `undefined` in update()/modify() DELETES the key — used `deletedAt: undefined` (not `null`, which would fail strict `tsc` since the type is `string | undefined`) so restored rows match the codebase convention of omitting the field; backupSchemas accepts absent deletedAt.
+- FIX 1 (VN-A-002) App.tsx handlePermanentDeleteNote/handlePermanentDeleteLab/handleEmptyTrash: gather all video/pdf metas with pure reads BEFORE; ONE db.transaction('rw', [affected tables]) deleting note/lab/glossary rows AND images/videos/pdfs metadata rows atomically; deleteVideoEverywhere/deletePdfEverywhere kept AFTER the transaction (mixed Dexie+FSA helpers would kill the tx — inner row deletes are now idempotent no-ops, disk removeEntry still runs via pre-fetched metas), failures still swallowed with .catch(() => undefined).
+- FIX 2 (VN-A-004) App.tsx handleRestoreNote (via modify), handleRestoreLab, handleRestoreTerm: now also set deletedAt: undefined so no stale tombstone timestamp propagates via backup export.
+- FIX 3 (VN-A-005) App.tsx handleDeleteNote/handleRestoreNote: sequential await loops replaced with single where('id').anyOf(ids).modify({...}) inside db.transaction('rw', db.notes) — same fields/timestamp semantics (isDeleted+deletedAt+updatedAt / isDeleted+updatedAt). Lab/term delete/restore are single-record updates (no loops), left as-is.
+- FIX 4 (VN-A-001) entropy suffix `-${Math.random().toString(36).slice(2, 10)}` added to all Date.now()-only ID generators in my two files: App.tsx `lab-` (L494), `part-` (L508), `term-` (L602); NewItemModal.tsx `ex-` (L120), `part-` (L172). (No literal `img-` generator exists in these files — the cited lines generate part/example/lab/term IDs; note- IDs already had entropy. RichEditor/LabsView untouched — FIX-1a owns them.)
+- Verified: `bun run lint` → 0 errors (also ran eslint directly on both edited files → exit 0). Re-read all edits: only Dexie ops inside transactions, no FSA/timers awaited inside them; handleExportBackup/handleImportFile region untouched; no schema/feature/architecture changes; local-first offline Dexie-only behavior preserved.
+
+Stage Summary:
+- Files touched: src/vault/App.tsx (handleDeleteNote, handleRestoreNote, handlePermanentDeleteNote, handleRestoreLab, handlePermanentDeleteLab, handleRestoreTerm, handleEmptyTrash, handleCreateLab/handleCreateGlossaryTerm ID generators), src/vault/components/NewItemModal.tsx (handleAddExample, handleSubmitLab ID generators).
+- Behavior changes: permanent deletes (note/lab/empty-trash) are now atomic for all IndexedDB rows (no IDB blob orphans on tab close mid-cleanup); disk video files still cleaned best-effort after commit; restore clears deletedAt; trash/restore of note subtrees is one bulk modify (atomic, N→1 round-trips); new lab/term/part/example IDs can no longer collide within the same millisecond.
+
+---
+Task ID: FIX-1b
+Agent: general-purpose
+Task: VN-B-010 (ZIP bomb), VN-B-011 (omitted videos), VN-B-012 (updatedAt on 4 tables), VN-B-013 (orphan reporting), VN-B-016/017/018 (LOW)
+
+Work Log:
+- Nota: los IDs VN-B-010..018 NO estaban en worklog.md al iniciar (grep "VN-B" sin matches); se implementó a partir de las descripciones detalladas del brief de la tarea.
+- Leído íntegro src/vault/utils/zipBackup.ts (1404 líneas), backupSchemas.ts, types/index.ts, ImportReportModal.tsx, App.tsx (handleExportBackup/handleImportFile), db/index.ts (tipos de tabla), sanitizeHtml.ts, CveSearchTool.tsx (semántica de savedAt) y validate.ts (updatedAt en customSigmaRules).
+- Fix 1 (VN-B-010, HIGH): nueva clase `ZipSafetyError` + `validateZipSafety(zip)` en zipBackup.ts (líneas ~47-123). Rechaza ANTES de cualquier mutación IDB: >20.000 entradas; entrada >200 MB sin comprimir; total >2 GB; ratio >1000:1 en entradas >10 MB (umbral 1000, no 100, para no rechazar backups legítimos). Usa `_data.uncompressedSize/compressedSize` con optional chaining + typeof guard (skip si no disponible). Se invoca en 2 puntos: tras el primer `loadAsync` (antes de leer el manifest) y tras el fallback de `contents` (cubre .zip renombrados); el catch del manifest re-propaga ZipSafetyError. Mensaje: 'ZIP potencialmente malicioso o corrupto: <motivo>'.
+- Fix 2 (VN-B-011, HIGH): exportVaultZip colecciona `omittedVideos: string[]` (título||id) en las 2 ramas de omisión (blob null y fallo de serialización) y lo devuelve en las 4 salidas de ExportResult. App.tsx handleExportBackup (única región editada de App.tsx, ancla única): si omittedVideos.length > 0 muestra '⚠ Backup incompleto: N video(s) omitidos (permiso de almacenamiento perdido). Recupéralo en Configuración.' en vez del mensaje verde; timeout de 4s intacto.
+- Fix 3 (VN-B-012, HIGH): los loops de tiCache/customSigmaRules/savedCves/datasetMeta ahora hacen get por id y saltan+ cuentan conflicto si la fila local es más nueva (patrón espejo del bloque de references). Helper `rowTs(row, fallbackField)`: prefiere `updatedAt`; cae a `savedAt` (savedCves) / `retrievedAt` (tiCache) porque esas tablas no tienen updatedAt — sin fallback el fix sería no-op para CVEs (el problema auditado). Igual o más nueva → put. ImportSummary ampliado con conflictSavedCves/conflictCustomSigmaRules/conflictDatasetMeta/conflictTiCache; ImportReportModal los pinta en ámbar con ShieldAlert (mismo patrón que notes/labs/terms/references) y los suma a totalConflicts.
+- Fix 4 (VN-B-013, MEDIUM): durante la importación se registran los noteId/labId de cada imagen/video/pdf NUEVO en `importedBlobOwners`; tras completar los upserts de notes/labs (después del paso 5 apuntes/) se comprueba contra db.notes/db.labs post-import. NO destructivo: los blobs se guardan igual; solo se cuentan orphanedImages/orphanedVideos/orphanedPdfs y se muestran en el modal en estilo info (icono Info, text-sky-400) con nota al pie explicando que quedaron guardados pero huérfanos.
+- Fix 5 (VN-B-016, LOW): verificado que SOLO se comprobaba schemaVersion. Añadido guard de formatVersion: `compareFormatVersions` (semver por puntos, segmentos garbage → 0) y rechazo con IncompatibleBackupError si manifest.formatVersion (|| version) > BACKUP_FORMAT_VERSION ('3.1.0'), mismas semánticas up-front antes de mutar; igual/inferior/ausente/garbage = acepta.
+- Fix 6 (VN-B-017, LOW): JSON.parse del path legacy .json envuelto en try/catch que lanza 'El archivo .json no es válido (JSON malformado): <msg>. No se modificó ningún dato local.' antes de mutar nada.
+- Fix 7 (VN-B-018, LOW): verificado que el RESTORE lee los apuntes DESDE apuntes/*.md (paso 5 del import; no existe notes.json en el export) → NO se cambió el writer (rompería el round-trip). Reportado: el .md exportado lleva contentHtml crudo, pero la reimportación ya lo sanea vía parseMarkdownWithFrontmatter → sanitizeHtml (frontera de import). Sanitizar solo el export requeriría cambiar el formato (p.ej. data/notes.json) — fuera de alcance.
+- Verificación: `bun run lint` → 0 errores (exit 0). Relectura de todas las regiones editadas: sintaxis OK, sin debilitar garantías existentes (Zod VN-006, dedup por id VN-002, conflictos updatedAt VN-001, manifest de imágenes VN-003, rechazo up-front de schemaVersion). No se ejecutaron typecheck/build/db (verificación central del orquestador).
+
+Stage Summary:
+- Archivos tocados: src/vault/utils/zipBackup.ts (ZipSafetyError+validateZipSafety+compareFormatVersions, omittedVideos en export, guard formatVersion, try/catch .json, conflictos updatedAt en 4 tablas, conteo de huérfanos), src/vault/types/index.ts (7 contadores nuevos en ImportSummary), src/vault/components/ImportReportModal.tsx (4 filas ámbar de conflicto + 3 filas info de huérfanos + nota al pie), src/vault/App.tsx (SOLO handleExportBackup: aviso de backup incompleto). backupSchemas.ts sin cambios (no hizo falta: rowTs accede por Record).
+- Comportamiento nuevo: (1) import rechaza zip-bombs/corruptos antes de mutar con mensaje español claro; (2) export nunca más reporta éxito verde con videos faltantes; (3) un backup viejo ya no pisa personalNotes/personalAssessment de CVEs ni ediciones de reglas Sigma más nuevas localmente; (4) blobs huérfanos quedan visibles en el reporte (sin borrarse); (5) formatVersion futuro rechazado up-front; (6) .json malformado da error claro; (7) .md de apuntes sin cambios (round-trip lo exige) — reportado.
+
+---
+Task ID: FIX-1d
+Agent: general-purpose
+Task: VN-F-008 (TrashView confirm), VN-E-001 (winEvents 4728/4103/4104), VN-E-003/004 (sidRid), VN-E-005 (CVSS docstring), VN-E-008 (AMSI), VN-E-014 (httpStatus)
+
+Work Log:
+- Leído worklog.md y localizados los archivos objetivo; los detalles de los findings VN-* venían en el brief (no había entradas VN-* en el worklog).
+- VN-F-008: leído TrashView.tsx y el patrón de confirmación existente (`window.confirm` en el botón "Vaciar Papelera", mismo patrón que usa todo el codebase en vez de AlertDialog). Reutilizado ese patrón en los 3 botones de borrado permanente por fila (apuntes, labs, términos): cada confirm() advierte que la acción es irreversible y que cascadeará a subpáginas y media adjunto (imágenes/vídeos/PDFs — coincide con handlePermanentDeleteNote/Lab en App.tsx, que borra descendientes + images + videos + pdfs). Restaurar se quedó SIN confirmación (reversible), según pedido.
+- VN-E-001: leídas la interfaz WinEventInfo y entradas 4624/4625/4688/4720/4732 como referencia de estilo. Añadidas 3 entradas completas en winEventsData.ts: 4103 (module logging, PowerShell/Operational, MITRE T1059.001 + campos KQL/SPL/hunting), 4104 (script block logging — description lo señala como EL evento canónico para detectar PowerShell malicioso, MITRE T1059.001 + T1562.001) al inicio del array (orden ascendente), y 4728 (grupo global, espejo de 4732 + MITRE T1098) entre 4726 y 4732. Actualizado contador del header (~56→~59) y añadido 4728 a la rama 'Account' de getWinEventCategory() (antes caía al fallback 'Authentication').
+- VN-E-003: en sidRidData.ts, S-1-5-17 reetiquetado de "This Organization" a "IUSR" (cuenta anónima de IIS, KB 243330) y añadido S-1-5-15 "This Organization" (faltaba) en su posición correcta del array ordenado.
+- VN-E-004: eliminada la entrada fabricada RID 503 "KRBTGT (legacy)"; la description del RID 502 ahora aclara que el procedimiento de reset usa la MISMA cuenta dos veces y que no existe una segunda KRBTGT.
+- VN-E-005: en CvssCalculatorTool.tsx (línea 273) corregido el caso de validación: ISC 0.9132 → 0.914816, y recalculados los intermedios dependientes (Impact 5.8731, Exploitability 3.8870, suma 9.7602) para que el texto sea matemáticamente consistente; resultado final 9.8 invariante y el cálculo real NO se tocó.
+- VN-E-008: en PowerShellAnalyzerTool.tsx añadidas 4 reglas AMSI bypass siguiendo la estructura Rule existente: amsiInitFailed, AmsiUtils (cubre [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils')), amsi.dll+LoadLibrary/GetProcAddress (proximidad ≤200 chars, ambos órdenes) y AmsiScanBuffer — todas severity 'high' (nuevo campo opcional severity en Rule/Indicator + badge rojo en la UI y en los summaries Copy/Add-to-Note) y MITRE T1562.001 (Impair Defenses). Descripciones en inglés para igualar el idioma real de las reglas/UI de ese archivo (el brief decía "español como el archivo", pero el archivo está en inglés — se priorizó la consistencia interna). Header del archivo actualizado mencionando AMSI bypasses. Regexes probadas con node contra one-liners clásicos (todo hit) y scripts benignos (clean).
+- VN-E-014: httpStatusData.ts ampliado de 17 a 28 entradas añadiendo 100, 101, 308, 406, 408, 410, 422, 426, 451, 501 y 505 en orden ascendente, con causes/troubleshooting/security técnicos (422 = validación semántica + historia WebDAV/RFC 9110; 451 = censura legal + Link rel="blocked-by"; 308 preserva método vs 301; etc.).
+- Verificación: `bun run lint` → 0 errores, 0 warnings. Relectura de todas las regiones editadas (sin errores de sintaxis). Corregidos 2 typos propios durante la revisión ("radas"→"rutas"; una expresión .replace accidental en la entrada 451). No se ejecutó typecheck/build/db (verificación central del orquestador).
+
+Stage Summary:
+- src/vault/components/TrashView.tsx: confirmación window.confirm en los 3 borrados permanentes por fila (notes/labs/terms) con aviso de irreversibilidad y cascada a media/subpáginas; restaurar intacto.
+- src/vault/data/winEventsData.ts: +3 eventos (4103, 4104, 4728) completos con sigma/KQL/SPL/hunting; 4728 categorizado como Account; header actualizado.
+- src/vault/data/sidRidData.ts: S-1-5-17 = IUSR (correcto), +S-1-5-15 This Organization, RID 503 fabricado eliminado, 502 clarificado.
+- src/vault/components/tools/CvssCalculatorTool.tsx: texto de validación corregido a 0.914816 (y derivados consistentes); cálculo intacto.
+- src/vault/components/tools/PowerShellAnalyzerTool.tsx: +4 reglas AMSI bypass (severity high, T1562.001), campo severity opcional con badge rojo en UI y summaries.
+- src/vault/data/httpStatusData.ts: 17→28 códigos (100/101/308/406/408/410/422/426/451/501/505).
+- Sin cambios de arquitectura; local-first/offline/Dexie preservados; ningún archivo fuera de la lista permitida fue modificado.
+
+---
+Task ID: FIX-1c
+Agent: general-purpose
+Task: VN-B-015 (javascript: URL), VN-D-001 (domain regex), VN-D-002 (IPv6), VN-D-003 (STIX), VN-D-005 (URL trailing), VN-D-006 (IMPHASH), VN-D-011 (port/CIDR)
+
+Work Log:
+- NOTA: los IDs de finding (VN-B-015, VN-D-001/002/003/005/006/011) NO existen en worklog.md ni en ningún archivo del repo (verificado con grep sobre worklog.md, agent-ctx/ y todo /home/z). Se trabajó con los detalles completos provistos en el brief de la tarea.
+- Leídos los patrones seguros de LabsView.tsx:476 y GlossaryView.tsx:405 (`url.startsWith('http') ? url : 'https://' + url`) antes de tocar ReferencesView.
+- VN-B-015 (ReferencesView.tsx): añadido helper module-level `safeHref()` (líneas 20-30) — trim + patrón exacto de LabsView/Glossary — y aplicado al ÚNICO anchor que renderiza URL de usuario (línea 289, `<a href={safeHref(r.url)}>`; verificado con grep que no hay más href en el archivo). `javascript:alert(1)` → `https://javascript:alert(1)` (inerte); `data:text/html,...` → prefijado (inerte); la URL entra trimada para neutralizar whitespace-leading de imports/backup.
+- VN-D-001 (IocExtractorView.tsx): DOMAIN_RE relajado de `(label\.)((label\.)+)(tld)` a `(label\.){1,}(tld)` (línea 292) — ahora matchea dominios de 2 etiquetas (evil.com, pwned.io). Anti-falsos-positivos: nuevo `TWO_LABEL_TLD_SET` (líneas 128-138, 43 TLDs curados: com|net|org|io|ai|co|edu|gov|mil|int|info|biz|xyz|top|ru|cn|uk|de|fr|es|mx|ar|cl|br|us|me|tv|cc|su|is|to|sh|st|link|live|online|site|store|app|dev|cloud|tech|systems|security) aplicado SOLO a matches de 2 etiquetas en el loop de dominios (líneas 652-656) — file.txt/note.md/script.py/version 1.2 rechazados; 3+ etiquetas mantienen el comportamiento previo (isValidTLD). Integrado tras el refang (evil[.]com→evil.com matchea), dedup y whitelist intactos.
+- VN-D-002 (IocExtractorView.tsx): reemplazado el regex ipv6 de 3 alternativas (truncaba `fe80::1ff:fe23:4567:890a` a `fe80::1ff`) por un regex candidato amplio con guards de lookaround (línea 251): captura la corrida maximal hex+colon con cola IPv4 opcional; cada candidato se post-valida con `isValidIpv6()` (líneas 192-237), que replica el parser de IpAnalyzerTool.tsx (parseIpv6): máximo un `::` (>=1 grupo cero), grupos 1-4 hex, cola dotted-quad = 2 grupos, forma completa = 8 grupos. Rechaza horas (12:34:56), MACs (6 grupos), `::::`, 9 grupos. IPv4-mapped `::ffff:192.168.1.1` funciona completo.
+- VN-D-003 (IocExtractorView.tsx): nuevo `stixHashKey()` (líneas 465-484) — MD5→'MD5', SHA-1→'SHA-1', SHA-256→'SHA-256', SHA-512→'SHA-512' (comillas simples, casing canónico con guiones); SSDEEP/TLSH/IMPHASH/Authenticode también quedan entrecomillados (sintaxis STIX válida). Aplicado en toSTIX typeMap (línea 491): `[file:hashes.'MD5' = '...']` en vez de `[file:hashes.md5 = '...']`.
+- VN-D-005 (IocExtractorView.tsx): nuevo `stripTrailingUrlPunct()` (líneas 294-314) — loop-strip de `.,;:!?'")]}»›` sobre candidatos URL en el loop de extracción (líneas 623-628); `)` se strip-ea solo mientras esté desbalanceado (cuenta de `(` < cuenta de `)`) — paréntesis balanceados se conservan. Guard extra descarta restos sin host (`http://` pelado).
+- VN-D-006 (IocExtractorView.tsx): el escaneo IMPHASH se movió ANTES del loop de PATTERNS y ahora registra spans (líneas 576-588); el branch de hash saltea matches cuyo índice cae dentro de un span IMPHASH (líneas 603-605). Una línea IMPHASH rinde 1 fila consolidada (antes: 16 MD5 fragmentos + 1 IMPHASH = 17). MD5 standalone fuera del span se sigue extrayendo.
+- VN-D-011 (IocExtractorView.tsx): post-validación numérica en el branch ipv4 (líneas 611-619): puerto >65535 → se recorta el sufijo (se conserva la IP); CIDR >32 → idem. Puertos/CIDRs válidos (65535, 443, /32, /0) intactos.
+- VERIFICACIÓN: harness de 78 aserciones ejecutado con bun sobre la sección pura extraída VERBATIM del archivo real (refang→extracción→validación→STIX) — 78/78 PASS, incluido el caso de regresión del brief: "mimikatz. Luego exfiltró información a evil[.]com y hxxp://malware(.)com/path. Hash: 5d41402abc4b2a76b9719d911017c592. CVE-2024-3094. Contact: admin[at]test[.]com." → exactamente 5 IoCs (dominio evil.com NUEVO, URL http://malware.com/path SIN punto final, MD5, CVE, email admin@test.com) y CERO falsos positivos de "mimikatz. Luego". Tests de no-regresión (refang hxxp, whitelist, IP privada info, url binario, awskey, secret, cve) todos PASS. `bun run lint` → exit 0, 0 errores/0 warnings. Transpile-check por archivo (bun build --no-bundle): ambos archivos parsean (el ENOENT de escritura de output es un quirk del entorno que también afecta a archivos no tocados). NO se corrió typecheck/build/db (verificación central del orquestador). Temporales de test eliminados.
+- CONSTRAINTS: solo se tocaron ReferencesView.tsx e IocExtractorView.tsx. Sin rewrites, sin cambios de arquitectura, sin quitar features; local-first/offline/Dexie/no-backend intactos; fix VN-012 (refang solo de patrones defanged explícitos) preservado — el texto de refang NO fue modificado y el test de regresión confirma que "mimikatz. Luego" no genera IoCs.
+
+Stage Summary:
+- Archivos tocados: src/vault/components/ReferencesView.tsx (helper safeHref + 1 anchor, +13 líneas netas), src/vault/components/IocExtractorView.tsx (helpers TWO_LABEL_TLD_SET/isValidIpv6/stixHashKey/stripTrailingUrlPunct, DOMAIN_RE relajado, ipv6 candidato+validador, loop de extracción con branches ipv4/ipv6/url/hash-span, toSTIX con hash keys citados, IMPHASH pre-scan con spans; +151 líneas netas).
+- Comportamiento: (1) javascript:/data: URLs de referencias ya no ejecutan al hacer clic (stored XSS cerrado); (2) dominios de 2 etiquetas con TLD real se extraen (evil.com, pwned.io) sin inundar de file.txt/note.md; (3) IPv6 completo incluida compresión y colas IPv4 (`fe80::1ff:fe23:4567:890a` íntegro); (4) export STIX 2.1 con `[file:hashes.'MD5' = '...']` (TIPs lo aceptan); (5) URLs sin puntuación de oración colgante (respetando paréntesis balanceados); (6) IMPHASH = 1 fila consolidada; (7) puertos 0-65535 y CIDRs 0-32 validados numéricamente (sufijos imposibles recortados, IP conservada).

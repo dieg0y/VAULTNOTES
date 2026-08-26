@@ -6,7 +6,7 @@ export interface PlatformItem {
 
 export interface CategoryItem {
   id: string;
-  name: string; // Tema / Especialidad - master list shared by Notes, Labs, Glossary
+  name: string;
   createdAt: string;
 }
 
@@ -18,10 +18,10 @@ export interface ToolItem {
 
 export interface Note {
   id: string;
-  parentId: string | null; // null = top-level note (lives directly under a Platform)
+  parentId: string | null;
   title: string;
-  platform: string; // only meaningful for top-level notes (parentId === null)
-  category: string; // Tema / Especialidad
+  platform: string;
+  category: string;
   categories?: string[];
   contentHtml: string;
   sourceUrl?: string;
@@ -46,7 +46,7 @@ export interface Lab {
   id: string;
   title: string;
   organization: string;
-  topic: string; // Tema / Especialidad (same master list)
+  topic: string;
   categories?: string[];
   subtopic?: string;
   difficulty: LabDifficulty;
@@ -55,7 +55,7 @@ export interface Lab {
   sourceLink?: string;
   parts: LabPart[];
   tools: string[];
-  commands: string[]; // Comandos clave como lista individual (uno por entrada)
+  commands: string[];
   findings: string;
   mitigation: string;
   isFavorite: boolean;
@@ -101,18 +101,25 @@ export interface StoredImage {
   createdAt: string;
 }
 
-/** Videos incrustados en apuntes/labs.
- *  Primary storage: archivos crudos en la carpeta `VaultNotesVideos` del
- *  usuario (File System Access API — sin límite práctico de tamaño).
- *  Fallback: blob en IndexedDB. La metadata siempre vive en la tabla. */
 export interface StoredVideo {
   id: string;
   noteId?: string;
   labId?: string;
   name: string;
   mimeType: string;
-  storedIn?: 'fs' | 'idb'; // where the actual bytes live
-  blob?: Blob; // only set when storedIn === 'idb'
+  storedIn?: 'fs' | 'idb';
+  blob?: Blob;
+  caption?: string;
+  createdAt: string;
+}
+
+export interface StoredPdf {
+  id: string;
+  noteId?: string;
+  labId?: string;
+  name: string;
+  mimeType: string;
+  blob?: Blob;
   caption?: string;
   createdAt: string;
 }
@@ -129,21 +136,72 @@ export interface ImportSummary {
   skippedTerms: number;
   addedImages: number;
   addedVideos: number;
+  addedPdfs: number;
+  addedReferences: number;
+  /** AUDIT VN-001: number of incoming rows skipped because the local row
+   *  has a more recent `updatedAt` (preserve local — non-destructive). */
+  conflictNotes: number;
+  conflictLabs: number;
+  conflictTerms: number;
+  conflictReferences: number;
+  /** AUDIT VN-006: number of incoming rows rejected by Zod validation. */
+  invalidNotes: number;
+  invalidLabs: number;
+  invalidTerms: number;
+  invalidReferences: number;
+  invalidImages: number;
+  invalidVideos: number;
+  invalidPdfs: number;
+  invalidMisc: number;
+  /** AUDIT VN-B-012: incoming rows on the upsert-by-id auxiliary tables
+   *  (savedCves / customSigmaRules / datasetMeta / tiCache) skipped because
+   *  the local row has a more recent timestamp (updatedAt, falling back to
+   *  the row's natural savedAt/retrievedAt). Preserves the user's local
+   *  personalNotes / Sigma edits when importing an older backup. */
+  conflictSavedCves: number;
+  conflictCustomSigmaRules: number;
+  conflictDatasetMeta: number;
+  conflictTiCache: number;
+  /** AUDIT VN-B-013: imported blobs (images/videos/PDFs) whose noteId/labId
+   *  points at an owner that doesn't exist locally after the import. The
+   *  blobs are KEPT (data preservation) but reported as orphaned. */
+  orphanedImages: number;
+  orphanedVideos: number;
+  orphanedPdfs: number;
 }
 
+/** FSRS-inspired spaced repetition stats per glossary term. */
 export interface FlashcardStat {
-  id: string; // same as termId (one stat row per glossary term)
+  id: string;
   termId: string;
   knownCount: number;
   unknownCount: number;
   lastStudiedAt: string;
+  // FSRS-lite fields
+  stability: number;   // days until next review
+  difficulty: number;  // 1-10, higher = harder
+  due: string;         // ISO date of next scheduled review
+  reps: number;        // total reviews
+  lapses: number;      // times marked "Again"
 }
 
-/** Persists the file handle chosen by the user for backups (File System Access API).
- *  Lets every export overwrite the exact same file — a real "Save". */
 export interface StoredFileHandle {
-  id: string; // 'vault-export'
+  id: string;
   handle: FileSystemFileHandle;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'trash' | 'settings';
+/** Reference / external resource (links, cheatsheets, repos, tools, articles). */
+export interface ReferenceItem {
+  id: string;
+  title: string;
+  url: string;
+  description?: string;
+  tags: string[];
+  type: 'link' | 'cheatsheet' | 'repo' | 'tool' | 'article' | 'other';
+  isFavorite: boolean;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel';
