@@ -682,3 +682,76 @@ Work Log:
 Stage Summary:
 - Archivos tocados: src/vault/components/ReferencesView.tsx (helper safeHref + 1 anchor, +13 líneas netas), src/vault/components/IocExtractorView.tsx (helpers TWO_LABEL_TLD_SET/isValidIpv6/stixHashKey/stripTrailingUrlPunct, DOMAIN_RE relajado, ipv6 candidato+validador, loop de extracción con branches ipv4/ipv6/url/hash-span, toSTIX con hash keys citados, IMPHASH pre-scan con spans; +151 líneas netas).
 - Comportamiento: (1) javascript:/data: URLs de referencias ya no ejecutan al hacer clic (stored XSS cerrado); (2) dominios de 2 etiquetas con TLD real se extraen (evil.com, pwned.io) sin inundar de file.txt/note.md; (3) IPv6 completo incluida compresión y colas IPv4 (`fe80::1ff:fe23:4567:890a` íntegro); (4) export STIX 2.1 con `[file:hashes.'MD5' = '...']` (TIPs lo aceptan); (5) URLs sin puntuación de oración colgante (respetando paréntesis balanceados); (6) IMPHASH = 1 fila consolidada; (7) puertos 0-65535 y CIDRs 0-32 validados numéricamente (sufijos imposibles recortados, IP conservada).
+
+---
+Task ID: FIX-2a
+Agent: main (Z.ai Code)
+Task: VN-F-021 (HIGH) — eslint tenía 28 reglas en "off" (lint era un no-op). Restaurar reglas por defecto y corregir todos los errores que salgan.
+
+Work Log:
+- Leído worklog.md (FIX-1a..1e completados) y eslint.config.mjs original: 28 reglas desactivadas.
+- Reescrito eslint.config.mjs: solo 2 desviaciones documentadas — no-explicit-any a "warn" (helpers legacy) y no-unused-vars con argsIgnorePattern "^_" (convención existente del codebase). Todo lo demás = presets por defecto de next core-web-vitals + typescript.
+- Primer run: 21 errores + 28 warnings. Corregidos los 21:
+  * sidebar.tsx (shadcn Skeleton): Math.random en useMemo → useState initializer (canonical fix, mismo comportamiento).
+  * DashboardView.tsx: 3× Date.now() durante render (react-hooks/purity) → estado nowTs (useState initializer) + intervalo de 60s que lo refresca; lastEditTime/relTime/smartDeck usan nowTs; deps actualizadas.
+  * GlossaryView.tsx: sort(() => 0.5 - Math.random()) en useMemo (purity) → shuffle determinista Fisher-Yates con PRNG mulberry32 + deckSeed state; seed se bumpea al entrar a modo estudio (mismo comportamiento visible: barajado fresco por sesión).
+  * 14× react/no-unescaped-entities (comillas dobles en JSX): CategoryTreeChecklist (2), GlossaryView (2), PlatformSelector (4), CommandLineAnalyzerTool (4), CvssCalculatorTool (2) → &quot;.
+  * 2× prefer-const: IpAnalyzerTool coreGroups, zipBackup imageMetaById.
+  * zipBackup.ts: import FlashcardStat no usado eliminado; eslint.config.mjs: vars __filename/__dirname no usadas eliminadas.
+- Resultado final: 0 errores, 23 warnings (advisory: exhaustive-deps de patrones useLiveQuery||[] mayormente falsos positivos + any warnings intencionales + RichEditor dep intencional de autosave).
+- Verificación: bun run lint → exit 0 (0 errores). bunx tsc --noEmit → src/ limpio (solo examples/ y skills/ con errores preexistentes ajenos). HTTP 200.
+
+Stage Summary:
+- eslint.config.mjs restaurado — lint vuelve a ser una barrera real de calidad.
+- 10 archivos tocados arreglando bugs genuinos que el lint muerto ocultaba: renders impuros (Math.random/Date.now) en sidebar/Dashboard/Glossary, 14 entidades sin escapar, 2 lets innecesarios, imports muertos.
+- Los 23 warnings restantes son advisory y documentados; no bloquean.
+
+---
+Task ID: FIX-2b
+Agent: main (Z.ai Code)
+Task: VN-F-001/002/003 (HIGH) — Performance: searchFilter lowercasing todo contentHtml por keystroke; GlossaryView recrawling contentHtml por término; tools cargados eagerly.
+
+Work Log:
+- VN-F-001 (NotesView): creado src/vault/utils/lowerTextCache.ts — factoría createLowerCache() con Map por clave que guarda el string fuente del que derivó cada lowercase (WeakMap por objeto no sirve: useLiveQuery re-emite objetos frescos). NotesView construye searchIndex (Map noteId → title+content lowercased) en useMemo([activeNotes]) con claves noteId:t / noteId:c; el filtro usa searchIndex.get(id).includes(q) — cero toLowerCase por keystroke. Además useDeferredValue(searchFilter) (React 19) para mantener el input responsivo. Semántica de matching idéntica (title OR content, self OR children).
+- VN-F-002 (GlossaryView): notesUsingTerm usa la misma factoría (instancia propia del módulo) — cambiar de término ahora es un escaneo de substrings sin re-lowercasear contentHtml.
+- VN-F-003 (ToolsView): los 19 componentes standalone de ./tools/ + IocExtractorView convertidos de imports estáticos a next/dynamic con { ssr: false, loading: () => <ToolChunkFallback/> } — ~11k líneas de tools + datasets salen del chunk inicial de ToolsView y se cargan al abrir cada herramienta. Props (incl. deep-links autoOpenId/onAutoOpenConsumed) pasan igual. NOTA: next/dynamic exige object literal inline en options (SWC lo analiza estáticamente) — aprendido tras un HTTP 500 con un objeto compartido lazyToolOpts; corregido repitiendo el literal por herramienta.
+- Verificación: lint 0 errores; tsc src/ limpio; HTTP 200. agent-browser E2E: búsqueda de notas matchea/filtra correctamente ("searchindex" mantiene la nota, "zzzznoexiste" → "No hay apuntes en esta vista"); IP Analyzer (lazy) abre y analiza 192.168.1.10 → "Private — RFC 1918 (192.168.0.0/16)"; flashcards del glosario entran/salen sin errores; viewport móvil 375px sin overflow horizontal; recarga en frío sin errores de consola y datos persistidos (local-first intacto).
+
+Stage Summary:
+- Nuevo archivo src/vault/utils/lowerTextCache.ts (cache de lowercase por id+fuente, prune para acotar memoria).
+- NotesView.tsx: searchIndex memoizado + useDeferredValue — coste por keystroke pasa de O(notas×tamaño) a O(index lookup).
+- GlossaryView.tsx: notesUsingTerm con cache — cambio de término ya no recrawlea todo el HTML.
+- ToolsView.tsx: 20 componentes lazy (19 tools + IocExtractorView) — chunk inicial de la vista de herramientas mucho más liviano; fallback visual "Cargando herramienta…" al abrir por primera vez.
+- Sin cambios de arquitectura; UX de búsqueda instantánea preservada (deferred value, no debounce con timers).
+
+---
+Task ID: FIX-2c
+Agent: main (Z.ai Code)
+Task: MEDIUM restantes identificables — Error Boundary inexistente, DetailModal sin semántica de diálogo, Cron M-N/S describía mal el paso.
+
+Work Log:
+- Error Boundary: creado src/vault/components/VaultErrorBoundary.tsx (class component con getDerivedStateFromError + componentDidCatch que solo loggea local). Panel de recuperación en español: explica que IndexedDB está a salvo, muestra el mensaje de error solo en dev (NODE_ENV), botón "Recargar VaultNotes". Envolvente añadido en App.tsx alrededor de todo el árbol raíz.
+- DetailModal (ToolsView): role="dialog" + aria-modal="true" + aria-label + botón cerrar con aria-label="Cerrar detalle". Los 3 call-sites (Puertos/HTTP/WinEvent) pasan label explícito ("HTTP 200 OK", "Puerto 443 / tcp", "Evento 4624 ..."). Escape-to-close: primer intento con onKeyDown en el overlay NO funcionaba (el overlay nunca recibe foco) → verificado con agent-browser y corregido a listener document-level en useEffect con cleanup. Escape verificado cierra el modal.
+- Cron describeField: "10-30/5" caía en la rama de rango simple → "Rango 10-30/5" (el paso se ignoraba). Nuevo branch regex ^(\d+)-(\d+)\/(\d+)$ que enumera valores: "De 10 a 30 cada 5 minutos (10, 15, 20, 25, 30)" + branch ^(\d+)\/(\d+)$ para N/S ("Desde 10 cada 20"). La guía ya documentaba la sintaxis correcta — ahora el parser coincide con su propia documentación. Verificado en browser: "10-30/5 9 * * 1-5" → "Minuto (0-59): De 10 a 30 cada 5 minutos (10, 15, 20, 25, 30)".
+- Verificación: lint 0 errores, tsc limpio, HTTP 200, agent-browser sin errores de página.
+
+Stage Summary:
+- src/vault/components/VaultErrorBoundary.tsx (nuevo) + envoltorio en App.tsx: un crash de render ya no hace pantalla blanca del PWA entero.
+- DetailModal accesible: semántica de diálogo + labels explícitos + Escape funcional (listener document-level).
+- Cron: M-N/S y N/S descritos correctamente y con valores enumerados (≤12).
+
+---
+Task ID: FIX-2-VERIFY
+Agent: main (Z.ai Code)
+Task: Verificación central post-FIX-2a/2b/2c (protocola: lint + typecheck + HTTP + agent-browser).
+
+Work Log:
+- bun run lint → exit 0, 0 errores / 23 warnings advisory.
+- bunx tsc --noEmit → src/ 100% limpio (errores preexistentes solo en examples/ y skills/, ajenos a la app).
+- curl / → HTTP 200; dev.log sin errores nuevos tras el fix del lazyToolOpts (los "Ecmascript file had an error" del log son de ese episodio intermedio, ya resuelto).
+- agent-browser E2E (sesión completa): dashboard renderiza con contadores correctos y tiempo relativo "Justo ahora"; creación de nota vía modal funciona; búsqueda de apuntes matchea y filtra; IP Analyzer lazy carga y analiza; Cron "10-30/5" describe el paso; modal HTTP 200 con aria-label correcto y Escape que cierra; flashcards del glosario (shuffle semillado) entran/salen; viewport móvil 375px sin overflow; recarga en frío sin errores de consola; datos (1 nota + 1 término de prueba) persisten tras reload.
+- Test data creada durante E2E: 1 apunte "Nota prueba searchindex" y 1 término "Zero Trust" quedan en IndexedDB del browser de test (sandbox), no afectan el repo.
+
+Stage Summary:
+- Los tres paquetes FIX-2a/2b/2c verificados end-to-end. Estado: 41 findings de la auditoría → todos los HIGH del Builder Handoff implementados (FIX-1a..1e + FIX-2a/2b) + MEDIUM clave (error boundary, a11y modal, cron, winEvents, sidRid, AMSI, httpStatus, IoC regex/IPv6/STIX, deletedAt, orphan reporting…).
+- Pendiente documentado para el usuario: warnings advisory de eslint (23), y hallazgos MEDIUM restantes de menor impacto no críticos (URL race en CveSearch si existe, dedup de búsqueda global, sub-técnicas MITRE, responsive fino) — ver informe final.

@@ -16,6 +16,7 @@ import {
 } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { VaultErrorBoundary } from './components/VaultErrorBoundary';
 import { DashboardView } from './components/DashboardView';
 import { NotesView } from './components/NotesView';
 import { LabsView } from './components/LabsView';
@@ -859,6 +860,10 @@ export default function App() {
   };
 
   return (
+    // VN-F audit fix — top-level Error Boundary: an uncaught render error
+    // used to white-screen the whole app; now it shows a recovery panel
+    // (IndexedDB data is never at risk from a render crash).
+    <VaultErrorBoundary>
     <div className="flex h-screen w-screen bg-[#0A0A0A] text-[#E5E5E5] overflow-hidden font-sans antialiased select-none">
       {/* 1. Left Persistent Sidebar */}
       <Sidebar
@@ -1135,5 +1140,6 @@ export default function App() {
         summary={importSummary}
       />
     </div>
+    </VaultErrorBoundary>
   );
 }

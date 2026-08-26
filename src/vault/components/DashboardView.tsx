@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText,
   BookOpen,
@@ -183,13 +183,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .slice(0, 5);
   }, [activeNotes, activeLabs, activeGlossary]);
 
+  // Single "current time" for all relative-time formatting (render purity:
+  // reading Date.now() during render is impure — a state value keeps renders
+  // idempotent, and the 60s interval keeps relative times fresh while the
+  // dashboard stays open).
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
   // Last edit time (relative) — reused in the Knowledge "Last Edit" mini-card.
   const lastEditTime = useMemo(() => {
     if (recentActivity.length === 0) return 'Sin actividad';
     const sorted = [...recentActivity].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-    const diffMs = Date.now() - new Date(sorted[0].updatedAt).getTime();
+    const diffMs = nowTs - new Date(sorted[0].updatedAt).getTime();
     const mins = Math.floor(diffMs / 60000);
     if (mins < 1) return 'Justo ahora';
     if (mins < 60) return `hace ${mins} min`;
@@ -197,11 +207,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (hours < 24) return `hace ${hours}h`;
     const days = Math.floor(hours / 24);
     return `hace ${days}d`;
-  }, [recentActivity]);
+  }, [recentActivity, nowTs]);
 
   // Relative time formatter for recent activity rows.
   const relTime = (iso: string): string => {
-    const diffMs = Date.now() - new Date(iso).getTime();
+    const diffMs = nowTs - new Date(iso).getTime();
     const mins = Math.floor(diffMs / 60000);
     if (mins < 1) return 'ahora';
     if (mins < 60) return `${mins}m`;
@@ -221,7 +231,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   const smartDeck = useMemo<SmartCard[]>(() => {
-    const now = Date.now();
+    const now = nowTs;
     const cards = activeGlossary.map((g) => {
       const stat = statsByTerm.get(g.id);
       const known = stat?.knownCount || 0;
@@ -246,7 +256,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       };
     });
     return cards.sort((a, b) => b.priority - a.priority).slice(0, 10);
-  }, [activeGlossary, statsByTerm]);
+  }, [activeGlossary, statsByTerm, nowTs]);
 
   const [sessionKey, setSessionKey] = useState(0);
   const [frozenDeck, setFrozenDeck] = useState<{ key: number; deck: SmartCard[] } | null>(null);

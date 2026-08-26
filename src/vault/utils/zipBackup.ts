@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredVideo, StoredPdf, ImportSummary, FlashcardStat } from '../types';
+import { Note, Lab, GlossaryTerm, StoredVideo, StoredPdf, ImportSummary } from '../types';
 import { getAllVideoEntries, saveVideoBlob, videoExtensionFor, writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
@@ -1099,7 +1099,7 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   const imagesFolder = contents.folder('images');
   if (imagesFolder) {
     // Read manifest first (if present — older backups don't have it).
-    let imageMetaById: Map<string, { noteId?: string | null; labId?: string | null; name?: string; mimeType?: string; caption?: string | null; createdAt?: string }> = new Map();
+    const imageMetaById: Map<string, { noteId?: string | null; labId?: string | null; name?: string; mimeType?: string; caption?: string | null; createdAt?: string }> = new Map();
     try {
       const imgManifestFile = contents.file('imagesManifest.json');
       if (imgManifestFile) {

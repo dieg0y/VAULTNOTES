@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Calculator, FileKey, Cpu, Globe, Shield, Network, Clock,
   Wrench, Copy, Check, X, BookOpen, Lightbulb, Terminal, Server, Code, Lock,
@@ -22,31 +23,103 @@ import { findSigmaByEventId } from '../data/sigmaData';
 // New tools (Task ID 2-a..2-f) — each is a self-contained component living
 // in src/vault/components/tools/. They reuse the helpers from _shared.tsx
 // and follow the same visual style as the inline tools below.
-import { TimestampConverterTool } from './tools/TimestampConverterTool';
-import { HashToolkitTool } from './tools/HashToolkitTool';
-import { EncodingTool } from './tools/EncodingTool';
-import { RegexTesterTool } from './tools/RegexTesterTool';
-import { IpAnalyzerTool } from './tools/IpAnalyzerTool';
-import { IocDefangerTool } from './tools/IocDefangerTool';
+//
+// VN-F-003 — all standalone tool components are LAZY-LOADED via next/dynamic:
+// the ~11k lines of tool code (+ their datasets) stay out of the initial
+// ToolsView chunk and are fetched on first open of each tool. Props (incl.
+// deep-link autoOpenId/onAutoOpenConsumed) pass through unchanged. The app is
+// client-only (App is dynamic ssr:false), so ssr:false here is valid.
+const ToolChunkFallback: React.FC = () => (
+  <div className="flex items-center justify-center gap-2 py-16 text-xs text-[#666]">
+    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#262626] border-t-blue-500" />
+    Cargando herramienta…
+  </div>
+);
+// VN-F-003 note: next/dynamic REQUIRES the options argument to be an inline
+// object literal (SWC statically analyzes it), so it is repeated per tool.
+
+const TimestampConverterTool = dynamic(
+  () => import('./tools/TimestampConverterTool').then((m) => ({ default: m.TimestampConverterTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const HashToolkitTool = dynamic(
+  () => import('./tools/HashToolkitTool').then((m) => ({ default: m.HashToolkitTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const EncodingTool = dynamic(
+  () => import('./tools/EncodingTool').then((m) => ({ default: m.EncodingTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const RegexTesterTool = dynamic(
+  () => import('./tools/RegexTesterTool').then((m) => ({ default: m.RegexTesterTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const IpAnalyzerTool = dynamic(
+  () => import('./tools/IpAnalyzerTool').then((m) => ({ default: m.IpAnalyzerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const IocDefangerTool = dynamic(
+  () => import('./tools/IocDefangerTool').then((m) => ({ default: m.IocDefangerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
 // SOC block — Task ID 3-d..3-f
-import { PowerShellAnalyzerTool } from './tools/PowerShellAnalyzerTool';
-import { CommandLineAnalyzerTool } from './tools/CommandLineAnalyzerTool';
-import { LogParserTool } from './tools/LogParserTool';
+const PowerShellAnalyzerTool = dynamic(
+  () => import('./tools/PowerShellAnalyzerTool').then((m) => ({ default: m.PowerShellAnalyzerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const CommandLineAnalyzerTool = dynamic(
+  () => import('./tools/CommandLineAnalyzerTool').then((m) => ({ default: m.CommandLineAnalyzerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const LogParserTool = dynamic(
+  () => import('./tools/LogParserTool').then((m) => ({ default: m.LogParserTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
 // SOC block — Task ID 4-6 (MITRE ATT&CK / Sigma Explorer / Detection Query Helper)
-import { MitreExplorerTool } from './tools/MitreExplorerTool';
-import { SigmaExplorerTool } from './tools/SigmaExplorerTool';
-import { DetectionQueryHelperTool } from './tools/DetectionQueryHelperTool';
+const MitreExplorerTool = dynamic(
+  () => import('./tools/MitreExplorerTool').then((m) => ({ default: m.MitreExplorerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const SigmaExplorerTool = dynamic(
+  () => import('./tools/SigmaExplorerTool').then((m) => ({ default: m.SigmaExplorerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const DetectionQueryHelperTool = dynamic(
+  () => import('./tools/DetectionQueryHelperTool').then((m) => ({ default: m.DetectionQueryHelperTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
 // BLOQUE 6 — Online-Optional. CVE Search is the only tool that touches the
 // online layer (NVD API via integrations/cve/search.ts). It still works
 // offline for browsing saved CVEs.
-import { CveSearchTool } from './tools/CveSearchTool';
+const CveSearchTool = dynamic(
+  () => import('./tools/CveSearchTool').then((m) => ({ default: m.CveSearchTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
 // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5)
-import { SidRidAnalyzerTool } from './tools/SidRidAnalyzerTool';
-import { LdapDnParserTool } from './tools/LdapDnParserTool';
-import { RbacAnalyzerTool } from './tools/RbacAnalyzerTool';
-import { CvssCalculatorTool } from './tools/CvssCalculatorTool';
-import { FileHashAnalyzerTool } from './tools/FileHashAnalyzerTool';
-import { LinuxPermissionsTool } from './tools/LinuxPermissionsTool';
+const SidRidAnalyzerTool = dynamic(
+  () => import('./tools/SidRidAnalyzerTool').then((m) => ({ default: m.SidRidAnalyzerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const LdapDnParserTool = dynamic(
+  () => import('./tools/LdapDnParserTool').then((m) => ({ default: m.LdapDnParserTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const RbacAnalyzerTool = dynamic(
+  () => import('./tools/RbacAnalyzerTool').then((m) => ({ default: m.RbacAnalyzerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const CvssCalculatorTool = dynamic(
+  () => import('./tools/CvssCalculatorTool').then((m) => ({ default: m.CvssCalculatorTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const FileHashAnalyzerTool = dynamic(
+  () => import('./tools/FileHashAnalyzerTool').then((m) => ({ default: m.FileHashAnalyzerTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
+const LinuxPermissionsTool = dynamic(
+  () => import('./tools/LinuxPermissionsTool').then((m) => ({ default: m.LinuxPermissionsTool })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
 import { usePendingToolStore } from '../store/pendingToolStore';
 import { useNoteStore } from '../store/noteStore';
 // BLOQUE 5 — favorites/recents prefs (live-query hooks) + cross-tool helper.
@@ -139,16 +212,40 @@ const inputCls = 'w-full bg-[#161616] border border-[#262626] rounded px-3 py-2 
 const taCls = inputCls + ' resize-y min-h-[80px]';
 
 /* ---------- Modal component for detail views ---------- */
-const DetailModal: React.FC<{ title: React.ReactNode; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => {
+const DetailModal: React.FC<{
+  title: React.ReactNode;
+  /** Accessible name for the dialog (aria-label); falls back to the title
+   *  when it is a plain string. */
+  label?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}> = ({ title, label, onClose, children }) => {
+  // VN-F audit fix (a11y): proper dialog semantics + Escape-to-close.
+  // Document-level listener (the overlay is not focused, so a React
+  // onKeyDown on it would never fire for keyboard users).
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const ariaLabelText = label ?? (typeof title === 'string' ? title : 'Detalle');
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabelText}
         className="bg-[#0D0D0D] border border-[#262626] rounded-lg max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 bg-[#0D0D0D] border-b border-[#262626] px-5 py-3 flex items-center justify-between">
           <div className="font-bold text-white text-sm">{title}</div>
-          <button onClick={onClose} className="p-1 rounded text-[#666] hover:text-white hover:bg-[#161616] cursor-pointer transition-colors">
+          <button onClick={onClose} aria-label="Cerrar detalle" className="p-1 rounded text-[#666] hover:text-white hover:bg-[#161616] cursor-pointer transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -464,6 +561,7 @@ const PortsTool: React.FC<PortsToolProps> = ({ autoOpenId, onAutoOpenConsumed })
               <span className="text-white">— {selected.service}</span>
             </span>
           }
+          label={`Puerto ${selected.port} / ${selected.proto}`}
           onClose={() => setSelected(null)}
         >
           <DetailSection icon={<BookOpen className="w-3 h-3" />} title="Descripción">
@@ -756,6 +854,7 @@ const HttpTool: React.FC<HttpToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666] uppercase">{selected.cat}</span>
             </span>
           }
+          label={`HTTP ${selected.code} ${selected.name}`}
           onClose={() => setSelected(null)}
         >
           <DetailSection icon={<BookOpen className="w-3 h-3" />} title="Descripción">
@@ -977,6 +1076,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666]">{selected.log}</span>
             </span>
           }
+          label={`Evento ${selected.id} ${selected.name}`}
           onClose={() => setSelected(null)}
         >
           <DetailSection icon={<BookOpen className="w-3 h-3" />} title="Descripción a fondo">
@@ -1245,7 +1345,11 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
 /*  scoring, enrichment links, KQL/SPL/STIX/CSV/JSON export,      */
 /*  defang toggle, secret detection, editable whitelist)         */
 /* ============================================================= */
-import { IocExtractorView } from './IocExtractorView';
+// VN-F-003 — lazy-loaded like the other standalone tools.
+const IocExtractorView = dynamic(
+  () => import('./IocExtractorView').then((m) => ({ default: m.IocExtractorView })),
+  { ssr: false, loading: () => <ToolChunkFallback /> }
+);
 
 /* ============================================================= */
 /* 8. CRON PARSER (with guide)                                   */
@@ -1294,6 +1398,25 @@ const CronTool: React.FC<CronToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
     const describeField = (val: string, field: string) => {
       if (val === '*') return `Cada ${field}`;
       if (val.startsWith('*/')) return `Cada ${val.slice(2)} ${field}s`;
+      // VN- audit fix — M-N/S (range with step, e.g. 10-30/5) used to fall
+      // through to the plain-range branch, so the step was silently ignored
+      // ("Rango 10-30/5"). Now it enumerates the actual values.
+      const rangeStep = /^(\d+)-(\d+)\/(\d+)$/.exec(val);
+      if (rangeStep) {
+        const start = Number(rangeStep[1]);
+        const end = Number(rangeStep[2]);
+        const step = Number(rangeStep[3]);
+        if (step > 0 && start <= end && end - start <= 1000) {
+          const values: number[] = [];
+          for (let v = start; v <= end; v += step) values.push(v);
+          const list = values.length <= 12 ? ` (${values.join(', ')})` : '';
+          return `De ${start} a ${end} cada ${step} ${field}s${list}`;
+        }
+        return `Rango con paso: ${val}`;
+      }
+      // N/S (start value with step, e.g. 10/20 = desde 10 cada 20)
+      const startStep = /^(\d+)\/(\d+)$/.exec(val);
+      if (startStep) return `Desde ${startStep[1]} cada ${startStep[2]} ${field}s`;
       if (val.includes('*/')) return `Cada ${val.split('*/')[1]} ${field}s desde ${val.split('*/')[0]}`;
       if (val.includes(',')) return `${val} (varios: ${val.split(',').join(', ')})`;
       if (val.includes('-')) return `Rango ${val} (${field}s)`;

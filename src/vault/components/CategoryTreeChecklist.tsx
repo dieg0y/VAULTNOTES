@@ -170,7 +170,7 @@ export const CategoryTreeChecklist: React.FC<CategoryTreeChecklistProps> = ({
       <div className="max-h-52 overflow-y-auto p-2 grid grid-cols-1 sm:grid-cols-2 gap-1 scrollbar-thin scrollbar-thumb-[#262626]">
         {filteredCategories.length === 0 ? (
           <div className="col-span-2 p-4 text-center text-xs text-[#666]">
-            No se encontraron categorías coincidentes. Puedes crearla con "+ Agregar categoría".
+            No se encontraron categorías coincidentes. Puedes crearla con &quot;+ Agregar categoría&quot;.
           </div>
         ) : (
           filteredCategories.map((category) => {

@@ -167,7 +167,7 @@ function parseIpv6(s: string): { ok: true; groups: number[] } | { ok: false } {
     } else {
       core = side;
     }
-    let coreGroups: number[] = [];
+    const coreGroups: number[] = [];
     if (core !== '') {
       const parts = core.split(':');
       for (const p of parts) {

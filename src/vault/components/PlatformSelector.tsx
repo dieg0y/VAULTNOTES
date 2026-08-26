@@ -149,7 +149,7 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
 
             {filteredPlatforms.length === 0 && searchQuery.trim() && (
               <div className="p-2 text-center text-xs text-[#888]">
-                No existe "{searchQuery}".
+                No existe &quot;{searchQuery}&quot;.
               </div>
             )}
           </div>
@@ -163,7 +163,7 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Crear y seleccionar "{searchQuery.trim()}"</span>
+                <span>Crear y seleccionar &quot;{searchQuery.trim()}&quot;</span>
               </button>
             </div>
           )}

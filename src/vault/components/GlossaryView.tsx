@@ -21,6 +21,7 @@ import { CategoryTreeChecklist } from './CategoryTreeChecklist';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import { addToReviewQueue } from './tools/_shared';
+import { createLowerCache } from '../utils/lowerTextCache';
 import confetti from 'canvas-confetti';
 
 interface GlossaryViewProps {
@@ -34,6 +35,26 @@ interface GlossaryViewProps {
   onDeleteTerm: (termId: string) => void;
   onCreateTerm: () => void;
   onOpenNote: (noteId: string) => void;
+}
+
+// VN-F-002 — module-level lowercase cache for the "notes using term" scan
+// (keys are scoped `noteId:t`/`:c`; only re-lowercases notes whose source
+// text actually changed, instead of recrawling every contentHtml on each
+// term selection).
+const lowerCache = createLowerCache();
+
+/** Deterministic PRNG (mulberry32) — powers the flashcard shuffle so the deck
+ *  order is stable for a given seed. Keeps render pure (no Math.random during
+ *  render); the seed is bumped on every study-mode entry for a fresh shuffle. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 export const GlossaryView: React.FC<GlossaryViewProps> = ({
@@ -114,15 +135,17 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
     return currentTerm.category ? [currentTerm.category] : [];
   }, [currentTerm]);
 
-  // Find notes that use this term in title or content (matching term or acronym)
+  // Find notes that use this term in title or content (matching term or acronym).
+  // VN-F-002 — title/content lowercase hits the shared cache, so switching
+  // between terms is a plain substring scan (no re-lowercasing of contentHtml).
   const notesUsingTerm = useMemo(() => {
     if (!currentTerm) return [];
     const termLower = currentTerm.term.toLowerCase();
     const acroLower = currentTerm.acronym ? currentTerm.acronym.toLowerCase() : null;
 
     return activeNotes.filter((n) => {
-      const titleLower = n.title.toLowerCase();
-      const contentLower = n.contentHtml.toLowerCase();
+      const titleLower = lowerCache.get(`${n.id}:t`, n.title);
+      const contentLower = lowerCache.get(`${n.id}:c`, n.contentHtml);
       const matchTerm = titleLower.includes(termLower) || contentLower.includes(termLower);
       const matchAcro = acroLower ? (titleLower.includes(acroLower) || contentLower.includes(acroLower)) : false;
       return matchTerm || matchAcro;
@@ -157,10 +180,20 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
     onUpdateTerm(currentTerm.id, { examples: nextExamples });
   };
 
-  // Flashcards Study deck
+  // Flashcards Study deck — seeded deterministic shuffle (Fisher–Yates with
+  // mulberry32). Math.random() during render violates hook purity; the seed
+  // is bumped every time study mode is entered, so each session still gets
+  // a fresh shuffle.
+  const [deckSeed, setDeckSeed] = useState(0);
   const flashcardDeck = useMemo(() => {
-    return [...activeTerms].sort(() => 0.5 - Math.random());
-  }, [activeTerms, isStudyMode]);
+    const rand = mulberry32(deckSeed);
+    const deck = [...activeTerms];
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }, [activeTerms, deckSeed]);
 
   const currentFlashcard = flashcardDeck[studyCardIndex];
 
@@ -201,6 +234,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
               setIsStudyMode(true);
               setStudyCardIndex(0);
               setIsFlipped(false);
+              setDeckSeed((s) => s + 1);
             }}
             disabled={activeTerms.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#262626] hover:border-blue-500/40 bg-[#161616] text-xs font-semibold text-[#E5E5E5] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#262626]"
@@ -245,7 +279,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {groupedTerms.size === 0 ? (
               <div className="p-6 text-center text-[#666] text-xs">
-                No se encontraron términos para "{searchQuery}"
+                No se encontraron términos para &quot;{searchQuery}&quot;
               </div>
             ) : (
               Array.from(groupedTerms.entries()).map(([letter, termsInGroup]) => (

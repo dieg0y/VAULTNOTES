@@ -268,7 +268,7 @@ export const CvssCalculatorTool: React.FC = () => {
           Caso de validación — CVSS 3.1 AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
         </summary>
         <div className="mt-2 space-y-1 text-[10px] text-[#888] leading-relaxed">
-          <p>El vector <code className="text-blue-300">CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</code> representa la vulnerabilidad "peor caso" — wormable, remotamente explotable, sin auth, sin interacción, sin propagación de scope, con impacto total en C/I/A.</p>
+          <p>El vector <code className="text-blue-300">CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</code> representa la vulnerabilidad &quot;peor caso&quot; — wormable, remotamente explotable, sin auth, sin interacción, sin propagación de scope, con impacto total en C/I/A.</p>
           <p>Base Score esperado: <code className="text-green-300">9.8 (Critical)</code>.</p>
           <p>Cálculo: ISC = 1 - (1-0.56)³ = 0.914816 → Impact (S=U) = 6.42 × 0.914816 = 5.8731 → Exploitability = 8.22 × 0.85 × 0.77 × 0.85 × 0.85 = 3.8870 → BaseScore = roundUp(5.8731 + 3.8870) = roundUp(9.7602) = 9.8. ✓</p>
         </div>

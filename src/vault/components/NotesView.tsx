@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { Layers, Plus, Star, Search, FileText, ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
 import { Note, GlossaryTerm, PlatformItem, CategoryItem } from '../types';
 import { db } from '../db';
+import { createLowerCache } from '../utils/lowerTextCache';
 import { RichEditor } from './Editor/RichEditor';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
@@ -19,6 +20,10 @@ interface NotesViewProps {
   onCreateSubnote: (parentId: string) => void;
   onOpenGlossaryTerm?: (termId: string) => void;
 }
+
+// VN-F-001 — module-level lowercase cache (keys are scoped `noteId:t`/`:c`,
+// so it survives re-renders and only re-lowercases changed notes).
+const lowerCache = createLowerCache();
 
 export const NotesView: React.FC<NotesViewProps> = ({
   notes,
@@ -107,6 +112,25 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
   const notesById = useMemo(() => new Map(activeNotes.map((n) => [n.id, n])), [activeNotes]);
 
+  /* VN-F-001 — lowercase search index, cached per note id.
+     Previously the filter lowercased EVERY note's title+contentHtml on EVERY
+     keystroke. Now the lowercase pass runs once per notes-array change, and
+     `lowerCache` reuses entries whose source text did not change (Dexie
+     re-emits fresh objects on each write, so identity-keyed caching would
+     never hit). The search value is also deferred so keystrokes stay
+     responsive while the (now cheap) filter renders at lower priority. */
+  const searchIndex = useMemo(() => {
+    const idx = new Map<string, string>();
+    const keep: string[] = [];
+    for (const n of activeNotes) {
+      idx.set(n.id, `${lowerCache.get(`${n.id}:t`, n.title)}\n${lowerCache.get(`${n.id}:c`, n.contentHtml)}`);
+      keep.push(`${n.id}:t`, `${n.id}:c`);
+    }
+    lowerCache.prune(keep);
+    return idx;
+  }, [activeNotes]);
+  const deferredSearch = useDeferredValue(searchFilter);
+
   const platformCounts = useMemo(() => {
     const map = new Map<string, number>();
     topLevelNotes.forEach((n) => map.set(n.platform, (map.get(n.platform) || 0) + 1));
@@ -120,18 +144,18 @@ export const NotesView: React.FC<NotesViewProps> = ({
         const hasCategory = note.category === selectedCategory || (note.categories || []).includes(selectedCategory);
         if (!hasCategory) return false;
       }
-      if (searchFilter.trim()) {
-        const q = searchFilter.toLowerCase();
-        const matchTitle = note.title.toLowerCase().includes(q);
-        const matchContent = note.contentHtml.toLowerCase().includes(q);
+      if (deferredSearch.trim()) {
+        const q = deferredSearch.toLowerCase();
+        const haystack = (id: string) => searchIndex.get(id) || '';
+        const matchSelf = haystack(note.id).includes(q);
         const matchInChildren = (childrenByParent.get(note.id) || []).some(
-          (sn) => sn.title.toLowerCase().includes(q) || sn.contentHtml.toLowerCase().includes(q)
+          (sn) => haystack(sn.id).includes(q)
         );
-        if (!matchTitle && !matchContent && !matchInChildren) return false;
+        if (!matchSelf && !matchInChildren) return false;
       }
       return true;
     });
-  }, [topLevelNotes, selectedPlatform, selectedCategory, searchFilter, childrenByParent]);
+  }, [topLevelNotes, selectedPlatform, selectedCategory, deferredSearch, searchIndex, childrenByParent]);
 
   const currentNote = useMemo(() => {
     return activeNotes.find((n) => n.id === selectedNoteId) || filteredNotes[0] || null;

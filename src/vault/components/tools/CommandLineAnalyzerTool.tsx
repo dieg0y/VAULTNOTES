@@ -762,7 +762,7 @@ export const CommandLineAnalyzerTool: React.FC = () => {
         </div>
       ) : (
         <InfoBanner>
-          <span className="font-semibold">100% offline.</span> Paste a command line and select a shell type. Parsing detects recon commands and suggests potential MITRE techniques. Language is hedged ("Potential", "Possible") — many recon commands are also used by legitimate admins.
+          <span className="font-semibold">100% offline.</span> Paste a command line and select a shell type. Parsing detects recon commands and suggests potential MITRE techniques. Language is hedged (&quot;Potential&quot;, &quot;Possible&quot;) — many recon commands are also used by legitimate admins.
         </InfoBanner>
       )}
     </div>
