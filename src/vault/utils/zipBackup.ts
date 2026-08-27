@@ -60,12 +60,20 @@ class ZipSafetyError extends Error {
   }
 }
 
-/** Hard limits for an imported backup ZIP. A personal vault backup has at
- *  most a few hundred entries; these ceilings are orders of magnitude above
- *  anything legitimate while still catching resource-exhaustion attacks. */
-const ZIP_MAX_ENTRIES = 20000;
-const ZIP_MAX_ENTRY_UNCOMPRESSED = 200 * 1024 * 1024;   // 200 MB per entry
-const ZIP_MAX_TOTAL_UNCOMPRESSED = 2 * 1024 * 1024 * 1024; // 2 GB total
+/** Sanity limits for an imported backup ZIP. Per the user's request
+ *  (heavy video vaults), the PER-ENTRY (200 MB) and TOTAL (2 GB) weight caps
+ *  were REMOVED — backups of any size import normally now. What remains:
+ *   - an ENTRY-COUNT ceiling (not a weight limit; 100k entries is far above
+ *     any realistic vault even with thousands of videos + notes) purely
+ *     against absurd/pathological archives;
+ *   - the decompression-RATIO heuristic below, which is size-INDEPENDENT and
+ *     is the real ZIP-bomb defense: video/PDF payloads are already-compressed
+ *     data (ratio ≈ 1:1), so unlimited-weight legit backups pass untouched.
+ *  Trade-off (documented, accepted): a multi-entry archive made of MANY
+ *  medium entries each below the ratio threshold is no longer caught by a
+ *  total-size ceiling. The ZIP comes from the user's own disk via a file
+ *  picker, so the practical attack surface is negligible. */
+const ZIP_MAX_ENTRIES = 100000;
 /** Decompression-ratio heuristic: an entry only counts as suspicious when it
  *  BOTH expands more than 1000:1 AND exceeds 10 MB uncompressed. A zero-
  *  filled gzip stream easily reaches ratio 1000, while a legit 10 MB+ text
@@ -86,7 +94,6 @@ function validateZipSafety(zip: JSZip): void {
     throw new ZipSafetyError(`demasiadas entradas (${entries.length}, máximo ${ZIP_MAX_ENTRIES})`);
   }
 
-  let totalUncompressed = 0;
   for (const entry of entries) {
     if (entry.dir) continue; // directory placeholders carry no data
     const data = (entry as unknown as {
@@ -101,15 +108,6 @@ function validateZipSafety(zip: JSZip): void {
     // Unexpected internal shape — skip the check for this entry (don't crash).
     if (uncompressedSize === undefined) continue;
 
-    if (uncompressedSize > ZIP_MAX_ENTRY_UNCOMPRESSED) {
-      throw new ZipSafetyError(
-        `la entrada "${entry.name}" descomprime a ${(uncompressedSize / 1024 / 1024).toFixed(1)} MB (máximo 200 MB)`,
-      );
-    }
-    totalUncompressed += uncompressedSize;
-    if (totalUncompressed > ZIP_MAX_TOTAL_UNCOMPRESSED) {
-      throw new ZipSafetyError('el tamaño total descomprimido supera 2 GB');
-    }
     if (
       compressedSize !== undefined &&
       uncompressedSize > ZIP_RATIO_MIN_UNCOMPRESSED &&
@@ -299,11 +297,14 @@ export async function exportVaultZip(): Promise<ExportResult> {
 
   // BLOB LIFECYCLE / TRASH FIX (Task 2-c, spec #20): include trashed items
   // (isDeleted=true) in the export so the user's trash survives a
-  // backup→restore cycle. The `isDeleted` flag travels in the JSON; the
-  // importer respects it on the add branch (see upsertNote/upsertLab/
-  // upsertTerm below). On the update branch the importer intentionally
-  // does NOT touch `isDeleted`, so importing a backup can never silently
-  // un-trash a note the user just trashed locally (non-destructive restore).
+  // backup→restore cycle. For labs/glossary/references the flag travels in
+  // their JSON files; for NOTES it travels in the .md frontmatter (see the
+  // `isDeleted`/`deletedAt` lines below — AUDIT FIX: they were missing, so
+  // trashed notes restored as active). The importer respects it on the add
+  // branch (see upsertNote/upsertLab/upsertTerm below). On the update branch
+  // the importer intentionally does NOT touch `isDeleted`, so importing a
+  // backup can never silently un-trash a note the user just trashed locally
+  // (non-destructive restore).
   const notes = await db.notes.toArray();
   const labs = await db.labs.toArray();
   const glossary = await db.glossary.toArray();
@@ -463,7 +464,10 @@ export async function exportVaultZip(): Promise<ExportResult> {
       continue;
     }
     try {
-      videosFolder?.file(`${meta.id}.${videoExtensionFor(meta)}`, blob);
+      // STORE (no deflate): video payloads are already compressed —
+      // re-deflating multi-GB backups wasted minutes of CPU for ~0% size
+      // gain. Layout/manifest unchanged; importers decompress transparently.
+      videosFolder?.file(`${meta.id}.${videoExtensionFor(meta)}`, blob, { compression: 'STORE' });
     } catch (err) {
       console.warn('Could not serialize video for zip:', meta.id, err);
       omittedVideos.push(meta.name || meta.id);
@@ -480,18 +484,41 @@ export async function exportVaultZip(): Promise<ExportResult> {
       continue;
     }
     try {
-      pdfsFolder?.file(`${meta.id}.${pdfExtensionFor(meta)}`, blob);
+      // STORE — same rationale as videos (PDFs are already compressed).
+      pdfsFolder?.file(`${meta.id}.${pdfExtensionFor(meta)}`, blob, { compression: 'STORE' });
     } catch (err) {
       console.warn('Could not serialize PDF for zip:', meta.id, err);
     }
   }
 
   // 5. /apuntes/{plataforma}/{categoria}/{nota.md}
+  //    AUDIT FIX (HIGH — backup filename collision): two notes sharing
+  //    platform+category+title used to map to the SAME zip path, and
+  //    JSZip's `file()` silently REPLACES the earlier entry — the backup
+  //    contained one of them while manifest.json counted both (silent
+  //    data loss). Every path is now unique: the first note keeps the
+  //    clean `${slug}.md` name; any collision appends the note id (the
+  //    importer reads the id from the FRONTMATTER, never from the
+  //    filename, so this is fully transparent to restores).
   const apuntesFolder = zip.folder('apuntes');
+  const usedNotePaths = new Set<string>();
   for (const note of notes) {
     const platSlug = sanitizeFilename(note.platform || 'General');
     const catSlug = sanitizeFilename(note.category || 'Notas');
     const noteSlug = sanitizeFilename(note.title || note.id);
+
+    const basePath = `apuntes/${platSlug}/${catSlug}/`;
+    let fileName = `${noteSlug}.md`;
+    if (usedNotePaths.has(basePath + fileName)) {
+      const idSuffix = sanitizeFilename(note.id);
+      let candidate = `${noteSlug}--${idSuffix}.md`;
+      let n = 2;
+      while (usedNotePaths.has(basePath + candidate)) {
+        candidate = `${noteSlug}--${idSuffix}-${n++}.md`;
+      }
+      fileName = candidate;
+    }
+    usedNotePaths.add(basePath + fileName);
 
     const categoriesArr = note.categories && note.categories.length > 0 ? note.categories : [note.category];
     const frontmatter = [
@@ -504,6 +531,11 @@ export async function exportVaultZip(): Promise<ExportResult> {
       `parentId: "${note.parentId || ''}"`,
       `sourceUrl: "${note.sourceUrl || ''}"`,
       `isFavorite: ${note.isFavorite}`,
+      // AUDIT FIX: soft-delete metadata must survive the backup round-trip
+      // (parsed back by parseMarkdownWithFrontmatter below). Older backups
+      // simply lack these lines and import as before (backward compatible).
+      `isDeleted: ${note.isDeleted}`,
+      `deletedAt: "${note.deletedAt || ''}"`,
       `createdAt: "${note.createdAt}"`,
       `updatedAt: "${note.updatedAt}"`,
       '---',
@@ -511,7 +543,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
       note.contentHtml
     ].join('\n');
 
-    apuntesFolder?.folder(platSlug)?.folder(catSlug)?.file(`${noteSlug}.md`, frontmatter);
+    apuntesFolder?.folder(platSlug)?.folder(catSlug)?.file(fileName, frontmatter);
   }
 
   // Generate the zip blob once — saving strategy depends on browser support.
@@ -849,6 +881,9 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
         sourceUrl: valid.sourceUrl || '',
         isFavorite: Boolean(valid.isFavorite),
         isDeleted: Boolean(valid.isDeleted),
+        // AUDIT FIX: carry the soft-delete timestamp through the ADD branch
+        // (only meaningful when isDeleted=true; TrashView sorts/shows it).
+        deletedAt: valid.isDeleted ? (valid.deletedAt ?? new Date().toISOString()) : undefined,
         createdAt: valid.createdAt || new Date().toISOString(),
         updatedAt: valid.updatedAt || new Date().toISOString(),
       };
@@ -1642,6 +1677,11 @@ function parseMarkdownWithFrontmatter(text: string): Partial<Note> {
     else if (key === 'parentId') note.parentId = val || null;
     else if (key === 'sourceUrl') note.sourceUrl = val;
     else if (key === 'isFavorite') note.isFavorite = val === 'true';
+    // AUDIT FIX: soft-delete metadata written by the exporter since the
+    // isDeleted/deletedAt frontmatter lines exist. Older backups without
+    // these keys keep the previous behavior (import as active note).
+    else if (key === 'isDeleted') note.isDeleted = val === 'true';
+    else if (key === 'deletedAt') note.deletedAt = val || undefined;
     else if (key === 'createdAt') note.createdAt = val;
     else if (key === 'updatedAt') note.updatedAt = val;
     else if (key === 'categories') {

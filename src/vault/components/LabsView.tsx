@@ -1420,6 +1420,13 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
 
   const handleInput = () => {
     if (editorRef.current) {
+      // AUDIT FIX (checklist state persistence): clicking a checkbox toggles
+      // the DOM *property*, but innerHTML only serializes the *attribute* —
+      // sync it before serializing so tick state survives reloads.
+      editorRef.current.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((cb) => {
+        if (cb.checked) cb.setAttribute('checked', '');
+        else cb.removeAttribute('checked');
+      });
       onChange(editorRef.current.innerHTML);
     }
   };
@@ -1435,6 +1442,17 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
   /* Event delegation: clicking "Copiar" on a code-block header copies the code text. */
   const handleEditorClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+    // AUDIT FIX (checklist state persistence): a checkbox click toggles the
+    // DOM *property*, but innerHTML serialization only keeps the *attribute*
+    // — and checkbox clicks don't fire `input` on the contentEditable host.
+    // Sync the attribute and re-serialize so the tick state persists.
+    const checkbox = target.closest('input[type=checkbox]') as HTMLInputElement | null;
+    if (checkbox) {
+      if (checkbox.checked) checkbox.setAttribute('checked', '');
+      else checkbox.removeAttribute('checked');
+      if (editorRef.current) onChange(editorRef.current.innerHTML);
+      return;
+    }
     const copyBtn = target.closest('.vault-code-copy') as HTMLElement | null;
     if (!copyBtn) return;
     e.preventDefault();
@@ -1452,7 +1470,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         copyBtn.classList.remove('text-green-400');
       }, 1500);
     });
-  }, []);
+  }, [onChange]);
 
   const insertCodeBlock = (lang: string = 'bash') => {
     const codeHtml = `
@@ -1544,14 +1562,11 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       if (!ok) markDirDeclined();
     }
 
-    // SECURITY (Task 2-b): cap video size at 1 GB when IDB is the storage
-    // backend (FSA app folder not ready/available). When the app folder
-    // is configured, raw files have no practical limit.
-    const dirReady = await isFsReady().catch(() => false);
-    if (!dirReady && file.size > 1024 * 1024 * 1024) {
-      alert('El video supera 1 GB. Configura la carpeta de la app en Configuración → Carpeta de la App para guardar videos sin límite de tamaño.');
-      return;
-    }
+    // WEIGHT LIMITS REMOVED (user request — heavy video vaults): no size
+    // cap on video uploads. With the FSA app folder there never was one
+    // (raw files on disk); the IndexedDB fallback now also accepts any
+    // size — the browser's storage quota is the natural limit, and a
+    // quota rejection is caught below with an actionable message.
 
     const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     // SECURITY (Task 2-b): also escape the single-quote (was missing) for

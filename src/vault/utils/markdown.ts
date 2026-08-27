@@ -41,12 +41,15 @@ export function htmlToMarkdown(html: string): string {
   // 3) Inline code
   t = t.replace(/<code[^>]*>([\s\S]*?)<\/code>/g, (_m, c: string) => `\`${decodeEntities(c).trim()}\``);
 
-  // 4) Checklists (editor inserts input + editable span)
+  // 4) Checklists (editor inserts input + editable span) — AUDIT FIX:
+  //    preserve the checked state ("- [x]" vs "- [ ]"); it used to export
+  //    every item as unchecked.
+  const checkboxMd = (inputTag: string): string => (/\bchecked\b/.test(inputTag) ? '- [x] ' : '- [ ] ');
   t = t.replace(
-    /<div[^>]*>\s*<input[^>]*type="checkbox"[^>]*>\s*<span[^>]*>([\s\S]*?)<\/span>\s*<\/div>/g,
-    (_m, label: string) => `- [ ] ${decodeEntities(label).trim()}`
+    /<div[^>]*>\s*(<input[^>]*type="checkbox"[^>]*>)\s*<span[^>]*>([\s\S]*?)<\/span>\s*<\/div>/g,
+    (_m, inputTag: string, label: string) => `${checkboxMd(inputTag)}${decodeEntities(label).trim()}`
   );
-  t = t.replace(/<input[^>]*type="checkbox"[^>]*>/g, '- [ ] ');
+  t = t.replace(/<input[^>]*type="checkbox"[^>]*>/g, (m) => checkboxMd(m));
 
   // 5) Figures → image note (base64 data would bloat the .md)
   t = t.replace(

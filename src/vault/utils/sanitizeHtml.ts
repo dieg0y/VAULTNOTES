@@ -20,11 +20,15 @@
  *   - <embed src="blob:..."> for inline PDF rendering (native browser viewer)
  *   - <video><source src="blob:..."></video> for embedded videos
  *   - <img src="blob:..."> for embedded images
+ *   - <input type="checkbox"> for the editor's checklists (AUDIT FIX — see
+ *     the uponSanitizeElement hook below: ONLY checkbox inputs survive;
+ *     every other input type is dropped)
  *   - inline `style`, `class`, `data-*` for formatting
  *   - standard formatting tags (h1-h6, p, ul, ol, pre, code, a, etc.)
  *
  * It strips: <script>, on* event handlers (onerror, onclick, ...),
- * javascript: URLs, data:text/html, <iframe>, and other XSS vectors.
+ * javascript: URLs, data:text/html, <iframe>, non-checkbox <input>, and
+ * other XSS vectors.
  *
  * This is a pure function — no side effects, no network, safe to call on
  * every render.
@@ -44,7 +48,18 @@ const purifyConfig: Config = {
   // Allow blob: URLs (our own object URLs for images/videos/PDFs) and the
   // data: URLs we use for small inline thumbnails. data: is restricted by
   // DOMPurify by default — we enable it for images only via ALLOWED_URI_REGEXP.
-  ADD_ATTR: ['src', 'href', 'controls', 'width', 'height', 'allow', 'type', 'allowfullscreen', 'frameborder'],
+  ADD_ATTR: ['src', 'href', 'controls', 'width', 'height', 'allow', 'type', 'allowfullscreen', 'frameborder', 'checked', 'disabled'],
+  // AUDIT FIX (root cause — silent attribute stripping): our custom
+  // ALLOWED_URI_REGEXP below is much stricter than DOMPurify's stock one
+  // (stock tolerates non-URI values like `type="checkbox"`). With it,
+  // _isValidAttribute() ends up rejecting every allowlisted attribute whose
+  // value is NOT a URI — silently stripping `type="checkbox"` from the
+  // editor's checklists, `type="application/pdf"` from <embed>,
+  // `preload="metadata"` from <video> and numeric `width`/`height`.
+  // ADD_URI_SAFE_ATTR marks attributes whose values are inert (never URLs)
+  // so they survive; URI-bearing attributes (src/href/action…) still go
+  // through the strict regexp.
+  ADD_URI_SAFE_ATTR: ['type', 'preload', 'checked', 'disabled', 'width', 'height'],
   // Permit blob: and data:image/* URLs in src/href. Default regex blocks
   // most data: URIs; ours allows http(s):, blob:, mailto:, and data:image/*.
   ALLOWED_URI_REGEXP: /^(?:(?:https?:|blob:|mailto:)|data:image\/(?:png|jpeg|gif|webp|bmp|x-icon)\??(?:;base64)?,)/i,
@@ -52,13 +67,38 @@ const purifyConfig: Config = {
   // will still strip dangerous CSS like expression() or javascript: in styles).
   ALLOW_DATA_ATTR: true,
   // Do NOT strip native form-related attributes that some pastes include.
-  FORBID_TAGS: ['script', 'iframe', 'object', 'form', 'input', 'button', 'textarea', 'select', 'style'],
+  // AUDIT FIX (HIGH — checklist data loss): `input` was in FORBID_TAGS, so
+  // every checklist checkbox inserted by the editor (RichEditor/LabsView
+  // insert `<input type="checkbox">`) was stripped by sanitizeHtml() at
+  // load/paste/import time — and the next autosave then PERSISTED the loss.
+  // Now `input` is allowed by default and the uponSanitizeElement hook
+  // below keeps only type="checkbox" inputs (the DOMPurify-canonical
+  // pattern). Buttons/textarea/select/form stay forbidden.
+  FORBID_TAGS: ['script', 'iframe', 'object', 'form', 'button', 'textarea', 'select', 'style'],
   FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'formaction'],
 };
 
 let configured = false;
 function ensureConfigured(): void {
   if (configured) return;
+  // AUDIT FIX (HIGH — checklist data loss): allow ONLY checkbox inputs.
+  // Anything else (`<input type="text">`, password, submit, …) is treated
+  // as unwanted pasted form debris and DROPPED by detaching the node —
+  // this DOMPurify build explicitly supports hooks detaching nodes in
+  // uponSanitizeElement (_handleHookDetachedNode). Detaching is per-node
+  // and order-independent; mutating data.allowedTags instead would disable
+  // `input` for the WHOLE sanitize() call after the first bad input,
+  // killing every legitimate checkbox that comes after it.
+  // Checkbox inputs carry no script-execution capability, `form` remains
+  // forbidden (so nothing is submittable), and on* handlers are stripped
+  // by the hook below.
+  DOMPurify.addHook('uponSanitizeElement', (node, data) => {
+    if (data.tagName !== 'input' || !(node instanceof Element)) return;
+    const type = (node.getAttribute('type') || '').toLowerCase();
+    if (type !== 'checkbox') {
+      node.remove();
+    }
+  });
   // Add a hook that strips any remaining inline event handlers that might
   // sneak in via attribute names we didn't explicitly forbid (defense in
   // depth — DOMPurify already does this, but the hook is a belt-and-braces

@@ -192,6 +192,16 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   const flushSaveRef = useRef<(() => Promise<void>) | null>(null);
   const flushSave = useCallback(async () => {
     setSaveStatus('saving');
+    // AUDIT FIX (checklist state persistence): clicking a checkbox toggles
+    // the DOM *property*, but innerHTML only serializes the *attribute* —
+    // without this sync the tick state was lost on every reload even when
+    // the checkbox itself survived sanitization.
+    if (editorRef.current) {
+      editorRef.current.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((cb) => {
+        if (cb.checked) cb.setAttribute('checked', '');
+        else cb.removeAttribute('checked');
+      });
+    }
     // Read live from the contentEditable when mounted; fall back to
     // latestHtmlRef (mirrored on every keystroke) when editorRef is null
     // (post-unmount timer fire or note-switch cleanup). This prevents
@@ -307,6 +317,19 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       });
       return;
     }
+    // 3. Checklist checkboxes — a click toggles the DOM *property*, but
+    //    innerHTML serialization only keeps the *attribute*. Sync it and
+    //    schedule the autosave (checkbox clicks don't fire `input` on the
+    //    contentEditable host), or the tick state would never persist.
+    //    (AUDIT FIX — checklist data loss, follow-up.)
+    const checkbox = target.closest('input[type=checkbox]') as HTMLInputElement | null;
+    if (checkbox) {
+      if (checkbox.checked) checkbox.setAttribute('checked', '');
+      else checkbox.removeAttribute('checked');
+      if (editorRef.current) latestHtmlRef.current = editorRef.current.innerHTML;
+      triggerAutoSave();
+      return;
+    }
     // 2. PDF "Descargar" — pulls the blob from IDB and triggers a download
     const dlBtn = target.closest('.vault-pdf-download') as HTMLElement | null;
     if (dlBtn) {
@@ -329,7 +352,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         console.warn('PDF download failed:', err);
       }
     }
-  }, []);
+  }, [triggerAutoSave]);
 
   const insertChecklist = () => {
     insertHtmlInEditable(editorRef.current, `
@@ -413,15 +436,12 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       if (!ok) markDirDeclined(); // don't nag again; configurable in Ajustes
     }
 
-    // SECURITY (Task 2-b): cap video size at 1 GB when falling back to IDB
-    // storage. When the FSA app folder is configured, there is no practical
-    // limit (raw files on disk); but the IDB fallback would otherwise eat
-    // the whole browser quota with one large recording.
-    const dirReady = await isFsReady().catch(() => false);
-    if (!dirReady && file.size > 1024 * 1024 * 1024) {
-      alert('El video supera 1 GB. Configura la carpeta de la app en Configuración → Carpeta de la App para guardar videos sin límite de tamaño.');
-      return;
-    }
+    // WEIGHT LIMITS REMOVED (user request — heavy video vaults): no size
+    // cap on video uploads. When the FSA app folder is configured there
+    // never was one (raw files on disk); without it, the IndexedDB
+    // fallback now also accepts any size and lets the browser's own
+    // storage quota be the natural limit — a quota rejection is caught
+    // below and surfaced with an actionable message.
 
     const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     // SECURITY (Task 2-b): escape the single-quote too (was missing) for
@@ -521,15 +541,10 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     if (!isPdf) return;
 
-    // SECURITY (Task 2-b): cap PDF size at 50 MB. PDFs are stored as raw
-    // Blobs in IndexedDB; the browser quota (typically a few hundred MB)
-    // is shared with all other vault blobs. A multi-GB PDF would either
-    // exhaust the quota (panic-mode IDB eviction) or stall the tab while
-    // the blob is read into memory.
-    if (file.size > 50 * 1024 * 1024) {
-      alert('El PDF es demasiado grande (máximo 50 MB). Redúcelo antes de insertarlo.');
-      return;
-    }
+    // WEIGHT LIMIT REMOVED (user request): PDFs are stored as raw Blobs in
+    // IndexedDB — same rationale as videos. The browser's storage quota is
+    // the natural limit; a quota rejection is caught below and surfaced
+    // with an actionable message.
 
     const pdfId = `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     // SECURITY (Task 2-b): also escape the single-quote (') char — the

@@ -1354,6 +1354,187 @@ const IocExtractorView = dynamic(
 /* ============================================================= */
 /* 8. CRON PARSER (with guide)                                   */
 /* ============================================================= */
+// ---------------------------------------------------------------------------
+// CronTool — validation helpers (AUDIT FIX: the parser used to accept
+// out-of-range values like "61 25 32 13 *" with no error, and rejected the
+// standard @macros). Every field is now validated against its bounds and
+// vixie-cron @macros are recognized.
+// ---------------------------------------------------------------------------
+
+/** Field index → [min, max] allowed numeric range. */
+const CRON_FIELD_BOUNDS: Array<[number, number]> = [
+  [0, 59],  // minute
+  [0, 23],  // hour
+  [1, 31],  // day of month
+  [1, 12],  // month
+  [0, 7],   // day of week (0 and 7 = Sunday)
+];
+const CRON_FIELD_LABELS = ['minuto', 'hora', 'día del mes', 'mes', 'día de la semana'];
+const CRON_MONTH_NAMES: Record<string, number> = { JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6, JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12 };
+const CRON_DOW_NAMES: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+
+/** Standard vixie-cron @macros (@reboot has no time fields — handled apart). */
+const CRON_MACROS: Record<string, string> = {
+  '@yearly': '0 0 1 1 *',
+  '@annually': '0 0 1 1 *',
+  '@monthly': '0 0 1 * *',
+  '@weekly': '0 0 * * 0',
+  '@daily': '0 0 * * *',
+  '@midnight': '0 0 * * *',
+  '@hourly': '0 * * * *',
+};
+const CRON_MACRO_DESC: Record<string, string> = {
+  '@yearly': 'Una vez al año — 1 de enero a medianoche',
+  '@annually': 'Una vez al año — 1 de enero a medianoche',
+  '@monthly': 'Una vez al mes — día 1 a medianoche',
+  '@weekly': 'Una vez por semana — domingo a medianoche',
+  '@daily': 'Todos los días a medianoche',
+  '@midnight': 'Todos los días a medianoche',
+  '@hourly': 'Al inicio de cada hora',
+};
+
+/** Validates one cron field (supports *, lists, ranges, steps, names and
+ *  the Quartz-only specials documented in the guide). Returns a Spanish
+ *  error message, or null when the field is valid. */
+function validateCronField(val: string, idx: number): string | null {
+  const [min, max] = CRON_FIELD_BOUNDS[idx];
+  const label = CRON_FIELD_LABELS[idx];
+  const nameMap = idx === 3 ? CRON_MONTH_NAMES : idx === 4 ? CRON_DOW_NAMES : null;
+  // "*/n" is valid; malformed composites like "5*/3" are not.
+  if (val.includes('*/') && !/^\*(\/\d+)?$/.test(val)) {
+    return `sintaxis no válida en ${label}: "${val}"`;
+  }
+  for (const token of val.split(',')) {
+    if (!token) return `valor vacío en ${label}`;
+    if (token === '*') continue;
+    if (token === '?') {
+      // Quartz-only, documented in the guide: just day-of-month / day-of-week.
+      if (idx === 2 || idx === 4) continue;
+      return `"?" solo se usa en día del mes o día de la semana (Quartz): "${token}"`;
+    }
+    // Quartz-only specials documented in the guide (L, 15W, 7L…).
+    if ((idx === 2 || idx === 4) && /^\d*[LW]$/.test(token)) continue;
+    const m = /^([A-Za-z0-9]+)(?:-([A-Za-z0-9]+))?(?:\/(\d+))?$/.exec(token);
+    if (!m) return `sintaxis no válida en ${label}: "${token}"`;
+    const parseVal = (s: string): number | null => {
+      if (/^\d+$/.test(s)) return parseInt(s, 10);
+      if (nameMap && s.toUpperCase() in nameMap) return nameMap[s.toUpperCase()];
+      return null;
+    };
+    const a = parseVal(m[1]);
+    if (a === null) return `valor no reconocido en ${label}: "${m[1]}"`;
+    if (a < min || a > max) return `"${m[1]}" fuera de rango (${min}-${max}) en ${label}`;
+    if (m[2] !== undefined) {
+      const b = parseVal(m[2]);
+      if (b === null) return `valor no reconocido en ${label}: "${m[2]}"`;
+      if (b < min || b > max) return `"${m[2]}" fuera de rango (${min}-${max}) en ${label}`;
+      if (a > b) return `rango invertido en ${label}: "${token}"`;
+    }
+    if (m[3] !== undefined && parseInt(m[3], 10) < 1) {
+      return `el paso debe ser ≥ 1 en ${label}: "${token}"`;
+    }
+  }
+  return null;
+}
+
+/** Describes a single cron field in Spanish (pure, module-level). */
+function describeCronField(val: string, field: string): string {
+  if (val === '*') return `Cada ${field}`;
+  if (val.startsWith('*/')) return `Cada ${val.slice(2)} ${field}s`;
+  // VN- audit fix — M-N/S (range with step, e.g. 10-30/5) used to fall
+  // through to the plain-range branch, so the step was silently ignored
+  // ("Rango 10-30/5"). Now it enumerates the actual values.
+  const rangeStep = /^(\d+)-(\d+)\/(\d+)$/.exec(val);
+  if (rangeStep) {
+    const start = Number(rangeStep[1]);
+    const end = Number(rangeStep[2]);
+    const step = Number(rangeStep[3]);
+    if (step > 0 && start <= end && end - start <= 1000) {
+      const values: number[] = [];
+      for (let v = start; v <= end; v += step) values.push(v);
+      const list = values.length <= 12 ? ` (${values.join(', ')})` : '';
+      return `De ${start} a ${end} cada ${step} ${field}s${list}`;
+    }
+    return `Rango con paso: ${val}`;
+  }
+  // N/S (start value with step, e.g. 10/20 = desde 10 cada 20)
+  const startStep = /^(\d+)\/(\d+)$/.exec(val);
+  if (startStep) return `Desde ${startStep[1]} cada ${startStep[2]} ${field}s`;
+  if (val.includes('*/')) return `Cada ${val.split('*/')[1]} ${field}s desde ${val.split('*/')[0]}`;
+  if (val.includes(',')) return `${val} (varios: ${val.split(',').join(', ')})`;
+  if (val.includes('-')) return `Rango ${val} (${field}s)`;
+  return `Valor exacto: ${val}`;
+}
+
+/** Full cron parse: @macros, per-field validation and description.
+ *  Pure function at module level (React Compiler can preserve the
+ *  component's useMemo when it is a single call expression). */
+function parseCronExpression(rawExpr: string): { error: string | null; lines: string[] } {
+  const trimmedExpr = rawExpr.trim();
+  if (!trimmedExpr) {
+    return { error: 'Introduce una expresión cron (5 campos) o una macro (@daily, @hourly…)', lines: [] };
+  }
+
+  // AUDIT FIX: recognize the standard @macros instead of rejecting them.
+  if (trimmedExpr.startsWith('@')) {
+    const macroKey = trimmedExpr.toLowerCase();
+    if (macroKey === '@reboot') {
+      return {
+        error: null,
+        lines: [
+          'Macro: @reboot',
+          '→ Se ejecuta UNA vez al arrancar el sistema (sin programación horaria).',
+        ],
+      };
+    }
+    const expansion = CRON_MACROS[macroKey];
+    if (!expansion) {
+      return { error: `Macro no reconocida: "${trimmedExpr}". Válidas: @yearly, @annually, @monthly, @weekly, @daily, @midnight, @hourly, @reboot`, lines: [] };
+    }
+    return {
+      error: null,
+      lines: [
+        `Macro: ${trimmedExpr} = ${expansion}`,
+        `→ ${CRON_MACRO_DESC[macroKey]}`,
+      ],
+    };
+  }
+
+  const parts = trimmedExpr.split(/\s+/);
+  if (parts.length !== 5) return { error: 'Debe tener 5 campos: minuto hora día-del-mes mes día-de-la-semana', lines: [] };
+
+  // AUDIT FIX: validate every field BEFORE describing it — out-of-range
+  // values (e.g. "61 25 32 13 *") now produce an explicit error instead
+  // of a bogus "Valor exacto" description.
+  let fieldError: string | null = null;
+  for (let i = 0; i < 5 && fieldError === null; i++) {
+    fieldError = validateCronField(parts[i], i);
+  }
+  if (fieldError !== null) {
+    return { error: `Expresión inválida — ${fieldError}.`, lines: [] };
+  }
+
+  const [m, h, dom, mon, dow] = parts;
+  const lines: string[] = [];
+
+  lines.push(`Minuto (0-59): ${describeCronField(m, 'minuto')}`);
+  lines.push(`Hora (0-23): ${describeCronField(h, 'hora')}`);
+  lines.push(`Día del mes (1-31): ${describeCronField(dom, 'día del mes')}`);
+  lines.push(`Mes (1-12 o JAN-DEC): ${describeCronField(mon, 'mes')}`);
+  lines.push(`Día de la semana (0-7 o SUN-SAT, 0=domingo): ${describeCronField(dow, 'día de la semana')}`);
+
+  // Try to describe the next run approximately
+  if (m === '*' && h === '*' && dom === '*' && mon === '*' && dow === '*') {
+    lines.push('→ Cada minuto (¡peligroso en producción!)');
+  } else if (/^\d+$/.test(m) && /^\d+$/.test(h) && mon === '*' && dom === '*') {
+    const dowName = dow === '*' ? 'cada día' : dow === '0' || dow === '7' ? 'domingo' : dow === '1' ? 'lunes' : dow === '2' ? 'martes' : dow === '3' ? 'miércoles' : dow === '4' ? 'jueves' : dow === '5' ? 'viernes' : dow === '6' ? 'sábado' : `día ${dow}`;
+    if (dow === '1-5') lines.push(`→ A las ${h.padStart(2, '0')}:${m.padStart(2, '0')} de lunes a viernes (días hábiles)`);
+    else lines.push(`→ A las ${h.padStart(2, '0')}:${m.padStart(2, '0')} ${dowName}`);
+  }
+
+  return { error: null, lines };
+}
+
 interface CronToolProps {
   /** When set, loads this cron expression into the parser (deep-link). */
   autoOpenId?: string | number;
@@ -1388,58 +1569,7 @@ const CronTool: React.FC<CronToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
   }, [autoOpenId, onAutoOpenConsumed]);
 
 
-  const parsed = useMemo(() => {
-    const parts = expr.trim().split(/\s+/);
-    if (parts.length !== 5) return { error: 'Debe tener 5 campos: minuto hora día-del-mes mes día-de-la-semana', lines: [] as string[] };
-
-    const [m, h, dom, mon, dow] = parts;
-    const lines: string[] = [];
-
-    const describeField = (val: string, field: string) => {
-      if (val === '*') return `Cada ${field}`;
-      if (val.startsWith('*/')) return `Cada ${val.slice(2)} ${field}s`;
-      // VN- audit fix — M-N/S (range with step, e.g. 10-30/5) used to fall
-      // through to the plain-range branch, so the step was silently ignored
-      // ("Rango 10-30/5"). Now it enumerates the actual values.
-      const rangeStep = /^(\d+)-(\d+)\/(\d+)$/.exec(val);
-      if (rangeStep) {
-        const start = Number(rangeStep[1]);
-        const end = Number(rangeStep[2]);
-        const step = Number(rangeStep[3]);
-        if (step > 0 && start <= end && end - start <= 1000) {
-          const values: number[] = [];
-          for (let v = start; v <= end; v += step) values.push(v);
-          const list = values.length <= 12 ? ` (${values.join(', ')})` : '';
-          return `De ${start} a ${end} cada ${step} ${field}s${list}`;
-        }
-        return `Rango con paso: ${val}`;
-      }
-      // N/S (start value with step, e.g. 10/20 = desde 10 cada 20)
-      const startStep = /^(\d+)\/(\d+)$/.exec(val);
-      if (startStep) return `Desde ${startStep[1]} cada ${startStep[2]} ${field}s`;
-      if (val.includes('*/')) return `Cada ${val.split('*/')[1]} ${field}s desde ${val.split('*/')[0]}`;
-      if (val.includes(',')) return `${val} (varios: ${val.split(',').join(', ')})`;
-      if (val.includes('-')) return `Rango ${val} (${field}s)`;
-      return `Valor exacto: ${val}`;
-    };
-
-    lines.push(`Minuto (0-59): ${describeField(m, 'minuto')}`);
-    lines.push(`Hora (0-23): ${describeField(h, 'hora')}`);
-    lines.push(`Día del mes (1-31): ${describeField(dom, 'día del mes')}`);
-    lines.push(`Mes (1-12 o JAN-DEC): ${describeField(mon, 'mes')}`);
-    lines.push(`Día de la semana (0-7 o SUN-SAT, 0=domingo): ${describeField(dow, 'día de la semana')}`);
-
-    // Try to describe the next run approximately
-    if (m === '*' && h === '*' && dom === '*' && mon === '*' && dow === '*') {
-      lines.push('→ Cada minuto (¡peligroso en producción!)');
-    } else if (/^\d+$/.test(m) && /^\d+$/.test(h) && mon === '*' && dom === '*') {
-      const dowName = dow === '*' ? 'cada día' : dow === '0' || dow === '7' ? 'domingo' : dow === '1' ? 'lunes' : dow === '2' ? 'martes' : dow === '3' ? 'miércoles' : dow === '4' ? 'jueves' : dow === '5' ? 'viernes' : dow === '6' ? 'sábado' : `día ${dow}`;
-      if (dow === '1-5') lines.push(`→ A las ${h.padStart(2, '0')}:${m.padStart(2, '0')} de lunes a viernes (días hábiles)`);
-      else lines.push(`→ A las ${h.padStart(2, '0')}:${m.padStart(2, '0')} ${dowName}`);
-    }
-
-    return { error: null, lines };
-  }, [expr]);
+  const parsed = useMemo(() => parseCronExpression(expr), [expr]);
 
   return (
     <div className="space-y-3">
@@ -1688,7 +1818,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
               <Wrench className="w-4 h-4 text-blue-400" />
               Herramientas de Ciberseguridad
             </h1>
-            <p className="text-xs text-[#888]">{TOOLS.length} utilidades 100% offline — sin llamadas a internet.</p>
+            {/* AUDIT FIX: the old claim "100% offline — sin llamadas a internet"
+                was inaccurate — the catalog includes CVE Search, whose online
+                lookup is MANUAL and opt-in. The wording now matches reality. */}
+            <p className="text-xs text-[#888]">{TOOLS.length} utilidades offline — sin llamadas automáticas a internet. La búsqueda online de CVEs es manual y opcional.</p>
           </div>
           {/* Tool search box — filters by name / desc / category / tags. */}
           <div className="relative w-full sm:w-72 max-w-full">
