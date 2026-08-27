@@ -1407,6 +1407,17 @@ function validateCronField(val: string, idx: number): string | null {
   for (const token of val.split(',')) {
     if (!token) return `valor vacío en ${label}`;
     if (token === '*') continue;
+    // "*/n" — star with step (e.g. */15 = "cada 15"). The gate above already
+    // guarantees it can only be the ENTIRE field (never "1,*/15"), but the
+    // generic token regex below requires a leading alphanumeric and would
+    // wrongly reject the leading "*" — hence this explicit branch.
+    const starStep = /^\*\/(\d+)$/.exec(token);
+    if (starStep) {
+      if (parseInt(starStep[1], 10) < 1) {
+        return `el paso debe ser ≥ 1 en ${label}: "${token}"`;
+      }
+      continue;
+    }
     if (token === '?') {
       // Quartz-only, documented in the guide: just day-of-month / day-of-week.
       if (idx === 2 || idx === 4) continue;
