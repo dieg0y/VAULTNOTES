@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useIocStore } from '../../store/iocStore';
 import { useNoteStore } from '../../store/noteStore';
+import { mitreUrl } from '../../utils/mitreUrl';
 import {
   CopyBtn, Field, CodeBlock, ErrorBanner, InfoBanner,
   taCls, btnPrimary, btnGhost, btnDanger,
@@ -369,15 +370,6 @@ function extractBase64PayloadAfter(text: string, matchEnd: number): string | nul
     token = token.slice(1, -1);
   }
   return token || null;
-}
-
-/** Build the MITRE ATT&CK URL for a technique ID (T1059.001 → .../T1059/001/). */
-function mitreUrl(id: string): string {
-  const m: RegExpExecArray | null = /^T(\d+)(?:\.(\d+))?$/.exec(id);
-  if (!m) return 'https://attack.mitre.org/techniques/enterprise/';
-  return m[2]
-    ? `https://attack.mitre.org/techniques/T${m[1]}/${m[2]}/`
-    : `https://attack.mitre.org/techniques/T${m[1]}/`;
 }
 
 /** Extract ~40 chars before+after the match, with "…" ellipsis when truncated. */

@@ -56,6 +56,7 @@ import { findSigmaByMitre } from '../../data/sigmaData';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
 import { InfoBanner, inputCls, btnGhost, btnPrimary } from './_shared';
+import { mitreUrl } from '../../utils/mitreUrl';
 
 /* ---------- helpers (no external libs) ---------- */
 
@@ -67,15 +68,6 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-/** Build the canonical attack.mitre.org URL for a technique (or subtechnique) id. */
-function mitreUrl(id: string): string {
-  const m: RegExpExecArray | null = /^T(\d+)(?:\.(\d+))?$/.exec(id);
-  if (!m) return 'https://attack.mitre.org/techniques/enterprise/';
-  return m[2]
-    ? `https://attack.mitre.org/techniques/T${m[1]}/${m[2]}/`
-    : `https://attack.mitre.org/techniques/T${m[1]}/`;
 }
 
 /** Truncate a string to ~max chars with a trailing ellipsis. */

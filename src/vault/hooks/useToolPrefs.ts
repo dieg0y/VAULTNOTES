@@ -49,15 +49,3 @@ export function useToolRecents(limit = 10): RecentEntry[] {
     ) ?? []
   );
 }
-
-/**
- * Quick boolean: is the given toolId in the favorites table?
- */
-export function useIsFavorite(toolId: string): boolean {
-  const favs = useLiveQuery(
-    async () => db.toolFavorites.get(toolId),
-    [toolId],
-    undefined
-  );
-  return !!favs;
-}

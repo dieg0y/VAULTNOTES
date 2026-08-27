@@ -15,6 +15,10 @@ import { db } from '../db';
 import type { InboxItem } from '../db';
 import type { ReferenceItem } from '../types';
 
+// Stable fallback so the useLiveQuery result keeps a constant reference while
+// the first query is in flight (inline `|| []` churns every render).
+const EMPTY_INBOX: InboxItem[] = [];
+
 interface InboxViewProps {
   onConvertToNote: (content: string, inboxItemId: string) => void;
   onConvertToGlossary: (content: string, inboxItemId: string) => void;
@@ -35,8 +39,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
   const allInbox = useLiveQuery(
     () => db.inboxItems.orderBy('createdAt').reverse().toArray(),
     [],
-    [] as InboxItem[]
-  ) || [];
+    EMPTY_INBOX
+  );
 
   const [showConverted, setShowConverted] = useState(false);
 

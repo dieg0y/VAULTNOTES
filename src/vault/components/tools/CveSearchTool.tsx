@@ -41,6 +41,10 @@ import {
 } from '../../integrations/cve/search';
 import { useIsOnline } from '../../integrations/online';
 
+// Stable fallback so the useLiveQuery result keeps a constant reference while
+// the first query is in flight (inline `?? []` churns every render).
+const EMPTY_SAVED_CVES: SavedCve[] = [];
+
 /** Snapshot shape returned by a successful search — same fields as SavedCve. */
 type CveSnapshot = NonNullable<CveSearchResult['cve']>;
 
@@ -572,8 +576,8 @@ export const CveSearchTool: React.FC = () => {
   const savedCves: SavedCve[] = useLiveQuery(
     () => db.savedCves.orderBy('savedAt').reverse().toArray(),
     [],
-    [] as SavedCve[],
-  ) ?? [];
+    EMPTY_SAVED_CVES,
+  );
 
   const savedCveIds = useMemo(() => new Set(savedCves.map((c) => c.id)), [savedCves]);
 

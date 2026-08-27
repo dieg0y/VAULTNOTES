@@ -284,15 +284,8 @@ export const datasetMetaSchema = z.object({
 // ---------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------
-
-export const manifestSchema = z.object({
-  appName: z.string().optional(),
-  version: z.string().optional(),
-  formatVersion: z.string().optional(),
-  schemaVersion: z.number().optional(),
-  exportedAt: z.string().optional(),
-  stats: z.record(z.string(), z.number()).optional(),
-}).passthrough();
+// (Manifest validation happens inline in zipBackup.ts — it reads the manifest
+// JSON before any schema validation to check formatVersion up-front.)
 
 // ---------------------------------------------------------------------------
 // Generic array validator — returns valid items + count of invalid ones.

@@ -4,6 +4,10 @@ import { ReferenceItem, GlossaryTerm } from '../types';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
+// Stable fallback so the useLiveQuery result keeps a constant reference while
+// the first query is in flight (inline `|| []` churns every render).
+const EMPTY_REFS: ReferenceItem[] = [];
+
 const TYPE_ICONS: Record<ReferenceItem['type'], React.ReactNode> = {
   link: <LinkIcon className="w-3.5 h-3.5" />,
   cheatsheet: <FileText className="w-3.5 h-3.5" />,
@@ -129,7 +133,7 @@ interface ReferencesViewProps {
 }
 
 export const ReferencesView: React.FC<ReferencesViewProps> = ({ glossaryTerms, onOpenGlossaryTerm }) => {
-  const refs = useLiveQuery(() => db.references.filter((r) => !r.isDeleted).toArray(), []) || [];
+  const refs = useLiveQuery(() => db.references.filter((r) => !r.isDeleted).toArray(), [], EMPTY_REFS);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [showFavOnly, setShowFavOnly] = useState(false);

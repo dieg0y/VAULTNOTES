@@ -12,7 +12,11 @@ import {
   LabDifficulty,
   LabStatus,
   LabPart,
-  GlossaryExample
+  GlossaryExample,
+  PlatformItem,
+  CategoryItem,
+  ToolItem,
+  ReferenceItem,
 } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -39,6 +43,18 @@ import { exportVaultZip, importVaultBackup, IncompatibleBackupError } from './ut
 import { deleteVideoEverywhere } from './utils/videoStorage';
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
+
+// Referentially-stable empty-array fallbacks for the useLiveQuery results
+// below (Dexie returns `undefined` while the first query is in flight).
+// Inline `|| []` would create a fresh array on every render and make every
+// downstream useMemo/useEffect dep churn (react-hooks/exhaustive-deps).
+const EMPTY_NOTES: Note[] = [];
+const EMPTY_LABS: Lab[] = [];
+const EMPTY_GLOSSARY: GlossaryTerm[] = [];
+const EMPTY_PLATFORMS: PlatformItem[] = [];
+const EMPTY_CATEGORIES: CategoryItem[] = [];
+const EMPTY_TOOLS: ToolItem[] = [];
+const EMPTY_REFERENCES: ReferenceItem[] = [];
 
 export default function App() {
   // Initialize / seed the local vault database once on mount (browser only)
@@ -120,13 +136,16 @@ export default function App() {
   }, []);
 
   // 1. Reactive Dexie queries
-  const notes = useLiveQuery(() => db.notes.toArray(), []) || [];
-  const labs = useLiveQuery(() => db.labs.toArray(), []) || [];
-  const glossary = useLiveQuery(() => db.glossary.toArray(), []) || [];
-  const platforms = useLiveQuery(() => db.platforms.toArray(), []) || [];
-  const categories = useLiveQuery(() => db.categories.toArray(), []) || [];
-  const tools = useLiveQuery(() => db.tools.toArray(), []) || [];
-  const references = useLiveQuery(() => db.references.toArray(), []) || [];
+  // NOTE: module-level EMPTY_* fallbacks (instead of inline `|| []`) keep the
+  // results referentially stable while Dexie is still loading (undefined),
+  // so downstream useMemo/useEffect deps don't change on every render.
+  const notes = useLiveQuery(() => db.notes.toArray(), []) ?? EMPTY_NOTES;
+  const labs = useLiveQuery(() => db.labs.toArray(), []) ?? EMPTY_LABS;
+  const glossary = useLiveQuery(() => db.glossary.toArray(), []) ?? EMPTY_GLOSSARY;
+  const platforms = useLiveQuery(() => db.platforms.toArray(), []) ?? EMPTY_PLATFORMS;
+  const categories = useLiveQuery(() => db.categories.toArray(), []) ?? EMPTY_CATEGORIES;
+  const tools = useLiveQuery(() => db.tools.toArray(), []) ?? EMPTY_TOOLS;
+  const references = useLiveQuery(() => db.references.toArray(), []) ?? EMPTY_REFERENCES;
 
   // Active UI Navigation state
   const [activeSection, setActiveSection] = useState<ActiveSection>('dashboard');

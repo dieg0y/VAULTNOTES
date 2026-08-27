@@ -51,8 +51,9 @@ export class IncompatibleBackupError extends Error {
 /** Thrown by `validateZipSafety` when a backup ZIP's entry table looks like
  *  a decompression bomb (or a corrupt archive with insane metadata). Thrown
  *  up-front, BEFORE any local data is mutated; the handler in App.tsx
- *  surfaces it as an alert. */
-export class ZipSafetyError extends Error {
+ *  surfaces it as an alert. (Internal — not imported anywhere else; the
+ *  Spanish message itself is what the user sees.) */
+class ZipSafetyError extends Error {
   constructor(reason: string) {
     super(`ZIP potencialmente malicioso o corrupto: ${reason}`);
     this.name = 'ZipSafetyError';

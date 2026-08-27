@@ -61,6 +61,10 @@ import {
 import { db, type RbacModel } from '../../db';
 import { useNoteStore } from '../../store/noteStore';
 
+// Stable fallback so the useLiveQuery result keeps a constant reference while
+// the first query is in flight (inline `?? []` churns every render).
+const EMPTY_SCENARIOS: RbacModel[] = [];
+
 /* =============================================================
  * Strict types
  * ============================================================= */
@@ -698,7 +702,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
 
   /* ---- Live list of saved scenarios from Dexie ---- */
   const scenarios: RbacModel[] =
-    useLiveQuery(() => db.rbacModels.toArray(), []) ?? [];
+    useLiveQuery(() => db.rbacModels.toArray(), [], EMPTY_SCENARIOS);
 
   /* ---- The editable RBAC model — empty by default ---- */
   const [state, setState] = useState<RbacState>(emptyState);

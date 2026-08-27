@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useIocStore } from '../../store/iocStore';
 import { useNoteStore } from '../../store/noteStore';
+import { mitreUrl } from '../../utils/mitreUrl';
 import {
   Field, Row, InfoBanner, ErrorBanner, Tabs,
   inputCls, btnPrimary, btnGhost, btnDanger,
@@ -280,15 +281,7 @@ function collectAllTokens(subs: Token[][], depth: number, acc: string[] = []): s
   return acc;
 }
 
-/* ---------- MITRE URL builder ---------- */
-function mitreUrl(id: string): string {
-  // Sub-technique: T1059.001 → techniques/T1059/001/
-  // Technique:    T1027      → techniques/T1027/
-  const m = id.match(/^(T\d{4})(?:\.(\d{3}))?$/);
-  if (!m) return 'https://attack.mitre.org/techniques/';
-  if (m[2]) return `https://attack.mitre.org/techniques/${m[1]}/${m[2]}/`;
-  return `https://attack.mitre.org/techniques/${m[1]}/`;
-}
+/* ---------- MITRE URL builder: shared helper from ../../utils/mitreUrl ---------- */
 
 /* ---------- recon rule table ----------
  * Single-token and multi-token (phrase) rules are mixed. Each rule maps a

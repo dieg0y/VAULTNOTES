@@ -3,9 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   // AUDIT VN-007: removed `typescript.ignoreBuildErrors: true`. The project
-  // passes `tsc --noEmit` cleanly (only out-of-scope errors in examples/ and
-  // skills/ remain, which are not part of the VaultNext build path). TS errors
-  // now act as a real quality gate at build time.
+  // passes `tsc --noEmit` cleanly. TS errors act as a real quality gate at
+  // build time.
   // AUDIT VN-008: enabled `reactStrictMode: true`. Verified the components
   // most at risk under StrictMode (contentEditable + autosave + event
   // listeners + object URLs + IndexedDB ops + SW registration) all use the

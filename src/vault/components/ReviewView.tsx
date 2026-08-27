@@ -5,6 +5,13 @@ import { db } from '../db';
 import type { ReviewItem, ReviewItemType } from '../db';
 import type { Note, Lab, GlossaryTerm } from '../types';
 
+// Stable fallbacks so the useLiveQuery results keep a constant reference
+// while the first query is in flight (inline `|| []` churns every render).
+const EMPTY_REVIEW: ReviewItem[] = [];
+const EMPTY_NOTES: Note[] = [];
+const EMPTY_LABS: Lab[] = [];
+const EMPTY_TERMS: GlossaryTerm[] = [];
+
 interface ReviewViewProps {
   onSelectNote: (noteId: string) => void;
   onSelectLab: (labId: string) => void;
@@ -27,19 +34,19 @@ export const ReviewView: React.FC<ReviewViewProps> = ({
   const pending = useLiveQuery(
     () => db.reviewItems.where('status').equals('pending').toArray(),
     [],
-    [] as ReviewItem[]
-  ) || [];
+    EMPTY_REVIEW
+  );
 
   const reviewed = useLiveQuery(
     () => db.reviewItems.where('status').equals('reviewed').toArray(),
     [],
-    [] as ReviewItem[]
-  ) || [];
+    EMPTY_REVIEW
+  );
 
   // Lookup tables for resolving item titles
-  const notes = useLiveQuery(() => db.notes.toArray(), [], [] as Note[]) || [];
-  const labs = useLiveQuery(() => db.labs.toArray(), [], [] as Lab[]) || [];
-  const terms = useLiveQuery(() => db.glossary.toArray(), [], [] as GlossaryTerm[]) || [];
+  const notes = useLiveQuery(() => db.notes.toArray(), [], EMPTY_NOTES);
+  const labs = useLiveQuery(() => db.labs.toArray(), [], EMPTY_LABS);
+  const terms = useLiveQuery(() => db.glossary.toArray(), [], EMPTY_TERMS);
 
   const [showReviewed, setShowReviewed] = useState(false);
 

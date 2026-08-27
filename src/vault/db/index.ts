@@ -240,7 +240,8 @@ export class VaultDatabase extends Dexie {
       })
       .upgrade(async (tx) => {
         // Migrate existing notes: drop status/folderPath/subcategory, add parentId: null
-        await tx.table('notes').toCollection().modify((n: any) => {
+        // (Rows are pre-v5 legacy shape — typed as Record<string, unknown>.)
+        await tx.table('notes').toCollection().modify((n: Record<string, unknown>) => {
           n.parentId = null;
           delete n.status;
           delete n.folderPath;
@@ -290,12 +291,13 @@ export class VaultDatabase extends Dexie {
       references: 'id, type, isFavorite, isDeleted, createdAt'
     }).upgrade(async (tx) => {
       // Add FSRS fields to existing flashcardStats rows
-      await tx.table('flashcardStats').toCollection().modify((s: any) => {
+      // (Legacy rows may miss the new fields — typed as Record<string, unknown>.)
+      await tx.table('flashcardStats').toCollection().modify((s: Record<string, unknown>) => {
         if (s.stability === undefined) s.stability = 0;
         if (s.difficulty === undefined) s.difficulty = 5;
         if (s.due === undefined) s.due = new Date().toISOString();
-        if (s.reps === undefined) s.reps = (s.knownCount || 0) + (s.unknownCount || 0);
-        if (s.lapses === undefined) s.lapses = s.unknownCount || 0;
+        if (s.reps === undefined) s.reps = Number(s.knownCount || 0) + Number(s.unknownCount || 0);
+        if (s.lapses === undefined) s.lapses = Number(s.unknownCount || 0);
       });
     });
 

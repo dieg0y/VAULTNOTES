@@ -140,13 +140,19 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   // NOTE: this component is keyed by `note.id` upstream (NotesView), so local
   // state initializes from props on every note switch — no sync effect needed.
   // Only the contentEditable DOM needs an explicit load per note.
+  // `contentRef` (latest-ref pattern, same as latestHtmlRef below) holds the
+  // freshest `note.contentHtml` WITHOUT being an effect dependency: re-loading
+  // the DOM on every contentHtml change (e.g. the useLiveQuery re-emission
+  // after autosave persists) would clobber the caret / in-progress edits.
+  const contentRef = useRef(note.contentHtml);
+  contentRef.current = note.contentHtml;
   useEffect(() => {
     if (editorRef.current) {
       // SECURITY (Audit Task 2-b, spec #26/#42/#44): contentHtml is
       // untrusted — it may originate from an imported backup ZIP or an
       // older Dexie record. Sanitize before innerHTML to prevent stored
       // XSS (<script>, <img onerror>, javascript: URLs). Pure & offline.
-      editorRef.current.innerHTML = sanitizeHtml(note.contentHtml);
+      editorRef.current.innerHTML = sanitizeHtml(contentRef.current);
       // Deferred: attachVideoSources/attachPdfSources resolve asynchronously
       // from IndexedDB and update state afterwards (never during the effect
       // body).

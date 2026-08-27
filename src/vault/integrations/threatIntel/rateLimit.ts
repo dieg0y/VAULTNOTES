@@ -33,8 +33,3 @@ export function isRateLimited(
   map.set(key, now);
   return false;
 }
-
-/** Clear the rate-limit map (called when leaving the IoC view, etc.). */
-export function clearRateLimit(): void {
-  map.clear();
-}

@@ -1,4 +1,4 @@
-import Fuse from 'fuse.js';
+import Fuse, { type FuseResultMatch } from 'fuse.js';
 import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
 import { HTTP_STATUSES, HttpStatusInfo } from '../data/httpStatusData';
 import { PORTS, PortInfo } from '../data/portsData';
@@ -783,7 +783,7 @@ export function searchAllVault(
   // Each item gets a "boost bucket": 0 = exact-title, 1 = exact-acronym/code,
   // 2 = title-startsWith, 3 = title-contains, 4 = acronym-contains,
   // 5 = fuzzy-match (fallback). Lower bucket = higher rank.
-  type BucketedItem = { item: typeof platformFilteredDataset[number]; bucket: number; matches?: any[] };
+  type BucketedItem = { item: typeof platformFilteredDataset[number]; bucket: number; matches?: FuseResultMatch[] };
   const bucketed: BucketedItem[] = [];
 
   if (q) {
@@ -818,11 +818,11 @@ export function searchAllVault(
   // Otherwise run Fuse on the FREE-TEXT portion to surface content matches.
   const fuzzyResults = q
     ? fuse.search(q).slice(0, 30)
-    : platformFilteredDataset.slice(0, 30).map((item) => ({ item, matches: [] as any[] }));
+    : platformFilteredDataset.slice(0, 30).map((item) => ({ item, matches: [] as FuseResultMatch[] }));
 
   // Build a dedup map: boosted items first, then fuzzy items not already present.
   const seenIds = new Set<string>();
-  const mergedRaw: Array<{ item: typeof platformFilteredDataset[number]; matches?: any[] }> = [];
+  const mergedRaw: Array<{ item: typeof platformFilteredDataset[number]; matches?: FuseResultMatch[] }> = [];
 
   for (const b of bucketed) {
     if (!seenIds.has(b.item.id)) {

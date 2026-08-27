@@ -6,6 +6,10 @@ import { FilePlus2, FileStack, Search, X, FileText } from 'lucide-react';
 import { db } from '../db';
 import type { Note } from '../types';
 
+// Stable fallback so the useLiveQuery result keeps a constant reference while
+// the first query is in flight (inline `|| []` churns every render).
+const EMPTY_NOTES: Note[] = [];
+
 interface AddToNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -62,8 +66,8 @@ const AddToNoteContent: React.FC<{
     useLiveQuery(
       () => db.notes.filter((n) => !n.isDeleted).toArray(),
       [],
-      [] as Note[]
-    ) || [];
+      EMPTY_NOTES
+    );
 
   // Filter by title (case-insensitive substring). Sort: parents first, then alpha.
   const filteredNotes = useMemo(() => {
