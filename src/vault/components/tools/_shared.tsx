@@ -172,31 +172,6 @@ export async function toggleToolFavorite(toolId: string): Promise<boolean> {
 }
 
 /**
- * Convenience: get a sorted list of favorite toolIds (oldest first →
- * caller can reverse for display).  Returns string[] only.
- */
-export async function getFavoriteToolIds(): Promise<string[]> {
-  try {
-    const favs = await db.toolFavorites.orderBy('addedAt').toArray();
-    return favs.map((f) => f.toolId);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Convenience: get recent toolIds sorted newest-first.
- */
-export async function getRecentToolIds(): Promise<string[]> {
-  try {
-    const recs = await db.toolRecents.orderBy('lastUsedAt').reverse().toArray();
-    return recs.map((r) => r.toolId);
-  } catch {
-    return [];
-  }
-}
-
-/**
  * Add a note/lab/glossary item to the Review Later queue (BLOQUE 5 spec #15).
  * Creates a new ReviewItem with status='pending' and nextReviewAt = now + 2 days.
  * Returns true on success, false on failure (non-fatal — caller can ignore).

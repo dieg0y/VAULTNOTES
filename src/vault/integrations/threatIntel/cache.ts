@@ -24,9 +24,6 @@
 import { db, type TiCacheEntry } from '../../db';
 import type { ProviderId, EnrichableIocType, ProviderResult } from './types';
 
-/** Re-export the cache entry type so UI modules can import it from here. */
-export type { TiCacheEntry };
-
 /** Cache TTL options as exposed in Settings. The numeric value is milliseconds;
  *  0 means "Never expire" (cache forever until manually cleared). */
 export const TTL_OPTIONS = [

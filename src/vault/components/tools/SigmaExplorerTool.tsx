@@ -67,6 +67,7 @@ import {
 } from '../../data/sigmaData';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ====================================================================
  * HELPERS
@@ -78,15 +79,6 @@ import { useNoteStore } from '../../store/noteStore';
  * so this helper is only needed for the HTML string we hand to the note
  * store. NEVER used with dangerouslySetInnerHTML.
  */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /** Severity pill className — matches the SOC color convention. */
 function severityBadgeCls(level: SigmaLevel): string {
   switch (level) {

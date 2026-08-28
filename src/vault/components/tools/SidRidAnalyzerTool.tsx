@@ -39,19 +39,11 @@ import { useNoteStore } from '../../store/noteStore';
 import {
   taCls, btnPrimary, btnGhost, Row, ErrorBanner, InfoBanner,
 } from './_shared';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ---------- helpers ---------- */
 
 /** HTML-escape user-facing strings before concatenating into the note body. */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /**
  * SID validation regex.
  *   S-1-      literal prefix

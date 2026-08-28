@@ -86,11 +86,6 @@ export async function hasAppFolder(): Promise<boolean> {
   return (await getAppDirHandle()) !== null;
 }
 
-export async function getVideosDirName(): Promise<string | null> {
-  const dir = await getDirHandle();
-  return dir ? dir.name : null;
-}
-
 /** Name of the app folder the user picked (e.g. "VAULTNOTES"). */
 export async function getAppFolderName(): Promise<string | null> {
   const dir = await getAppDirHandle();

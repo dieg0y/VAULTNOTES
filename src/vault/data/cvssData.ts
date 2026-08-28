@@ -9,7 +9,7 @@
  * (cvss4Data.ts) y no mezclar métricas con esta versión.
  *
  * Exporta:
- *  - Tipos `CvssMetricCode`, `CvssMetricValueCode`, `CvssMetricDef`, `CvssVector`
+ *  - Tipos `CvssMetricCode`, `CvssMetricDef`, `CvssVector`
  *  - Los arrays `CVSS_3_1_METRICS` (definición completa)
  *  - El helper `getMetricValueDef(metricCode, valueCode)`
  *  - El helper `calculateCvss3_1BaseScore(vector)` — implementa la fórmula oficial
@@ -18,9 +18,6 @@
 
 /** Códigos de las 8 métricas base de CVSS 3.1. */
 export type CvssMetricCode = 'AV' | 'AC' | 'PR' | 'UI' | 'S' | 'C' | 'I' | 'A';
-
-/** Códigos de los valores posibles por métrica (e.g. 'N', 'A', 'L', 'P' for AV). */
-export type CvssMetricValueCode = string;
 
 /** Definición de un valor concreto de una métrica (e.g. AV:N). */
 export interface CvssMetricValueDef {
@@ -174,11 +171,6 @@ export function getMetricValueDef(metricCode: CvssMetricCode, valueCode: string)
   const metric = CVSS_3_1_METRICS.find((m) => m.code === metricCode);
   if (!metric) return undefined;
   return metric.values.find((v) => v.code === valueCode.toUpperCase());
-}
-
-/** Helper: obtener la definición de una métrica por su código. */
-export function getMetricDef(metricCode: CvssMetricCode): CvssMetricDef | undefined {
-  return CVSS_3_1_METRICS.find((m) => m.code === metricCode);
 }
 
 /**

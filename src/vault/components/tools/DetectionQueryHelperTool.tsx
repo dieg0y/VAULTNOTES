@@ -54,6 +54,7 @@ import {
 import { DETECTION_PRESETS, DetectionPreset } from '../../data/detectionPresets';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* =============================================================
  * Strict types
@@ -114,15 +115,6 @@ function newEmptyClause(): Clause {
 }
 
 /** HTML escape for the [Add to Note] table — 5 chars, no DOM helpers needed. */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 const EMPTY_KQL = '// Construye una consulta arriba para ver el código KQL aquí.';
 const EMPTY_SPL = '// Construye una consulta arriba para ver el código SPL aquí.';
 

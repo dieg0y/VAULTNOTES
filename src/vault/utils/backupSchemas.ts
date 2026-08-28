@@ -264,6 +264,10 @@ export const savedCveSchema = z.object({
   affectedProducts: z.array(z.string()).optional(),
   published: z.string().optional(),
   modified: z.string().optional(),
+  // Deliberately permissive: legacy backups may hold raw NVD reference
+  // objects ({url: '…'}) instead of normalized strings (older builds stored
+  // them un-normalized). The importer passes elements through unchanged, so
+  // tightening this to z.string() would reject old backups.
   references: z.array(z.any()).optional(),
   personalNotes: z.union([z.string(), z.null()]).optional(),
   tags: z.array(z.string()).optional(),

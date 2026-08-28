@@ -148,7 +148,6 @@ function labToMarkdown(lab: Lab): string {
   if (lab.parts && lab.parts.length > 0) {
     lab.parts.forEach((p, i) => {
       md += `### ${i + 1}. ${p.title}\n\n`;
-      md += p.isCompleted ? '' : '';
       md += `${htmlToMarkdown(p.content)}\n`;
     });
   }

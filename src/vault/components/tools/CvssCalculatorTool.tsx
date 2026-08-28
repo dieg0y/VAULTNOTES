@@ -21,6 +21,7 @@ import {
 } from '../../data/cvssData';
 import { btnGhost, Row, CodeBlock, InfoBanner, ErrorBanner } from './_shared';
 import { useNoteStore } from '../../store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /** Estado inicial: AV=N/AC=L/PR=N/UI=N/S=U/C=N/I=N/A=N (todo "None"/"Network" lo menos severo). */
 const INITIAL_VECTOR: CvssVector = {
@@ -35,16 +36,6 @@ const SEVERITY_STYLES: Record<string, string> = {
   High: 'bg-orange-500/15 border-orange-500/30 text-orange-400',
   Critical: 'bg-red-500/15 border-red-500/30 text-red-400',
 };
-
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 export const CvssCalculatorTool: React.FC = () => {
   const [vector, setVector] = useState<CvssVector>(INITIAL_VECTOR);

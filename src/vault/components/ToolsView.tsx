@@ -128,7 +128,6 @@ import { recordToolUse, toggleToolFavorite } from './tools/_shared';
 // BLOQUE 5 — single source of truth for the tool catalog (also used by
 // global search to index tools into Ctrl+K results).
 import { TOOLS_CATALOG, type ToolId } from '../data/toolsCatalog';
-export type { ToolId } from '../data/toolsCatalog';
 
 /** Deep-link descriptor — used by the global fuzzy search to navigate the user
  *  directly into a tool + auto-open the detail modal for a specific entry. */
@@ -277,16 +276,6 @@ const CodeBlock: React.FC<{ code: string; lang?: string }> = ({ code, lang }) =>
 /* Helpers used by the WinEventTool [Add to Note] action.
  * HTML-escape user-facing strings BEFORE embedding in HTML — NO
  * dangerouslySetInnerHTML anywhere in this file. */
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function buildWinEventHtmlTable(e: WinEventInfo): string {
   const rows: [string, string][] = [
     ['Event ID', escapeHtml(e.id)],
@@ -475,6 +464,7 @@ const SubnetTool: React.FC = () => {
 /* 2. PORTS AND SERVICES                                          */
 /* ============================================================= */
 import { PortInfo, PORTS } from '../data/portsData';
+import { escapeHtml } from '../utils/escapeHtml';
 
 interface PortsToolProps {
   /** When set, auto-opens the port detail modal for this port number. */
@@ -1717,10 +1707,9 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
     void recordToolUse(id);
   }, []);
 
-  // Star/unstar toggle from the sidebar row.
-  const handleToggleFavorite = useCallback(async (e: React.MouseEvent, toolId: string) => {
-    e.stopPropagation();
-    e.preventDefault();
+  // Star/unstar toggle. Callers that own the click event stop propagation at
+  // the call site (the sidebar row must not also select the tool).
+  const handleToggleFavorite = useCallback(async (toolId: string) => {
     await toggleToolFavorite(toolId);
   }, []);
 
@@ -1929,7 +1918,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
                       <span className="truncate">{t.name}</span>
                     </button>
                     <button
-                      onClick={(e) => handleToggleFavorite(e, t.id)}
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); void handleToggleFavorite(t.id); }}
                       className={`px-1.5 py-1.5 shrink-0 transition-colors ${
                         isFav ? 'text-amber-400' : 'text-[#333] opacity-0 group-hover:opacity-100 hover:text-amber-400'
                       }`}
@@ -1961,7 +1950,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
                 <p className="text-[11px] text-[#888]">{activeToolMeta?.desc}</p>
               </div>
               <button
-                onClick={() => active && handleToggleFavorite({ stopPropagation: () => {}, preventDefault: () => {} } as unknown as React.MouseEvent, active)}
+                onClick={() => active && void handleToggleFavorite(active)}
                 className={`shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors ${
                   isCurrentFavorite
                     ? 'text-amber-400 hover:bg-amber-500/10'

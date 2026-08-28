@@ -34,6 +34,7 @@ import {
   Field, Row, InfoBanner, ErrorBanner, Tabs,
   inputCls, btnPrimary, btnGhost, btnDanger,
 } from './_shared';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ---------- strict types ---------- */
 type ShellType = 'cmd' | 'powershell' | 'linux';
@@ -551,15 +552,6 @@ function analyze(shell: ShellType, input: string): ParsedResult {
 }
 
 /* ---------- HTML escaping (no dangerouslySetInnerHTML ever) ---------- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /* ---------- build summary HTML for [Add to Note] ---------- */
 function buildSummaryHtml(input: string, r: ParsedResult): string {
   const parts: string[] = [];

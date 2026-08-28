@@ -24,6 +24,7 @@ import {
 import { Field, InfoBanner, taCls, btnPrimary, btnGhost } from './_shared';
 import { useIocStore } from '../../store/iocStore';
 import { useNoteStore } from '../../store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ---------- strict types ---------- */
 type LogFormat = 'ssh' | 'apache' | 'syslog' | 'winevent' | 'unknown';
@@ -312,15 +313,6 @@ function summarizeFormats(parsed: ParsedLog[]): { label: string; count: number }
 }
 
 /* ---------- HTML escape for [Add to Note] table ---------- */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /* ---------- Column model — shared by [Copy] (TSV) and [Add to Note] (HTML) ---------- */
 interface Col {
   label: string;

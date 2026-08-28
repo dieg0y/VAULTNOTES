@@ -16,9 +16,6 @@
 import { db, type OnlineActivityRow } from '../../db';
 import type { ProviderId, EnrichableIocType } from './types';
 
-/** Re-export the activity row type. */
-export type { OnlineActivityRow };
-
 /** Log an enrichment attempt. Called by the Enrich flow after each provider
  *  returns (success, error, cached, not_configured, or offline).
  *

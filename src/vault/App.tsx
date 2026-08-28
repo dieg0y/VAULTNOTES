@@ -279,6 +279,9 @@ export default function App() {
   const activeTerms = useMemo(() => glossary.filter((g) => !g.isDeleted), [glossary]);
   const deletedTerms = useMemo(() => glossary.filter((g) => g.isDeleted), [glossary]);
   const activeReferences = useMemo(() => references.filter((r) => !r.isDeleted), [references]);
+  // Top-level notes only (sidebar count) — memoized so any App re-render
+  // (modals, toasts, typing-driven re-emissions) doesn't re-scan the array.
+  const rootNotesCount = useMemo(() => activeNotes.filter((n) => !n.parentId).length, [activeNotes]);
 
   // Note CRUD Actions
   const handleCreateNote = async (data: {
@@ -895,7 +898,7 @@ export default function App() {
           // Al navegar desde el drawer móvil, se cierra (en escritorio no tiene efecto).
           setMobileSidebarOpen(false);
         }}
-        notesCount={activeNotes.filter((n) => !n.parentId).length}
+        notesCount={rootNotesCount}
         labsCount={activeLabs.length}
         glossaryCount={activeTerms.length}
         trashCount={deletedNotes.length + deletedLabs.length + deletedTerms.length}

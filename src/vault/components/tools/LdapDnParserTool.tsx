@@ -39,6 +39,7 @@ import {
   inputCls, btnPrimary, btnGhost, Row, InfoBanner, ErrorBanner,
 } from './_shared';
 import { useNoteStore } from '../../store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ---------- types ---------- */
 
@@ -62,15 +63,6 @@ interface ParseResult {
 /* ---------- helpers (pure local parsing, no external libs) ---------- */
 
 /** HTML-escape user-facing strings before concatenating into the note body. */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /** Split a single RDN component "ATTR=value" into { attr, value }. */
 function splitAttrValue(s: string): { attr: string; value: string } {
   const eqIdx = s.indexOf('=');

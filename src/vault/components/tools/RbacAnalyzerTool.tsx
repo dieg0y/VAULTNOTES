@@ -60,6 +60,7 @@ import {
 } from './_shared';
 import { db, type RbacModel } from '../../db';
 import { useNoteStore } from '../../store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 // Stable fallback so the useLiveQuery result keeps a constant reference while
 // the first query is in flight (inline `?? []` churns every render).
@@ -146,15 +147,6 @@ function genId(): string {
 }
 
 /** HTML escape for the [Add to Note] table — 5 chars, no DOM helpers needed. */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function newEmptyUser(): RbacUser {
   return { id: genId(), name: '', description: '', roleIds: [] };
 }

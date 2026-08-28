@@ -1330,8 +1330,12 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   // so the ImportReportModal can tell the user instead of accumulating
   // invisible orphans forever.
   if (importedBlobOwners.length > 0) {
-    const localNoteIds = new Set((await db.notes.toArray()).map((n) => n.id));
-    const localLabIds = new Set((await db.labs.toArray()).map((l) => l.id));
+    // Reuse the upsert maps (kept current by upsertNote/upsertLab above)
+    // instead of re-reading the FULL notes/labs tables — after importing
+    // thousands of rows that second full read materialized every note's
+    // contentHtml again just to collect the IDs.
+    const localNoteIds = new Set(notesById.keys());
+    const localLabIds = new Set(labsById.keys());
     for (const owner of importedBlobOwners) {
       const noteExists = owner.noteId ? localNoteIds.has(owner.noteId) : false;
       const labExists = owner.labId ? localLabIds.has(owner.labId) : false;

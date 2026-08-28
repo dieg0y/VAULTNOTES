@@ -31,6 +31,7 @@ import {
   InfoBanner,
 } from './_shared';
 import { useNoteStore } from '@/vault/store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ---------- strict types ---------- */
 type AlgoCode = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
@@ -104,15 +105,6 @@ async function hashFile(buf: ArrayBuffer): Promise<Record<string, string>> {
 }
 
 /** Escape a string for safe inclusion inside an HTML text node. */
-function escapeHtml(v: string): string {
-  return v
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /** Build an HTML table summarising the file metadata + all computed hashes. */
 function buildFileHashHtml(meta: FileMeta, hashes: Record<string, string>): string {
   const rows: string[] = [];

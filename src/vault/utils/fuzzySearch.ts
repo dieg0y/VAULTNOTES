@@ -9,6 +9,7 @@ import { SIGMA_RULES, SigmaRule } from '../data/sigmaData';
 import { DETECTION_PRESETS, DetectionPreset } from '../data/detectionPresets';
 import { KNOWN_RIDS, WELL_KNOWN_SIDS, KNOWN_SID_AUTHORITIES, KnownRid, WellKnownSid, KnownSidAuthority } from '../data/sidRidData';
 import { TOOLS_CATALOG, type ToolId } from '../data/toolsCatalog';
+import { escapeHtml } from './escapeHtml';
 
 export interface SearchMatchDetail {
   field: string;
@@ -85,6 +86,11 @@ interface SearchDocument {
   subtitle: string;
   status?: string;
   commandId?: string;
+  /** Precomputed lowercases for the boost-bucket loop (set once by
+   *  `withLowercase` — static corpus docs at module init, user docs at
+   *  corpus build). Optional so hand-built docs keep working. */
+  titleLower?: string;
+  acronymLower?: string;
   rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry;
 }
 
@@ -123,42 +129,42 @@ function parseQuery(raw: string): ParsedQuery {
 }
 
 /** Maps a user-provided `type:` value to a list of SearchResultType strings. */
+const TYPE_FILTER_MAP: Record<string, SearchResultType[]> = {
+  note: ['note'],
+  notes: ['note'],
+  apunte: ['note'],
+  apuntes: ['note'],
+  lab: ['lab'],
+  labs: ['lab'],
+  glossary: ['glossary'],
+  glosario: ['glossary'],
+  term: ['glossary'],
+  referencia: ['reference'],
+  reference: ['reference'],
+  references: ['reference'],
+  http: ['tool-http'],
+  port: ['tool-port'],
+  ports: ['tool-port'],
+  winevent: ['tool-winevent'],
+  event: ['tool-winevent'],
+  events: ['tool-winevent'],
+  cron: ['tool-cron'],
+  mitre: ['tool-mitre'],
+  attack: ['tool-mitre'],
+  sigma: ['tool-sigma'],
+  detection: ['tool-detection-query'],
+  'detection-query': ['tool-detection-query'],
+  sid: ['tool-sid-rid'],
+  rid: ['tool-sid-rid'],
+  'sid-rid': ['tool-sid-rid'],
+  cvss: ['tool-cvss'],
+  tool: ['tool'],
+  tools: ['tool'],
+  command: ['command'],
+  cmd: ['command'],
+};
 function typeFilterToTypes(t: string): SearchResultType[] | null {
-  const map: Record<string, SearchResultType[]> = {
-    note: ['note'],
-    notes: ['note'],
-    apunte: ['note'],
-    apuntes: ['note'],
-    lab: ['lab'],
-    labs: ['lab'],
-    glossary: ['glossary'],
-    glosario: ['glossary'],
-    term: ['glossary'],
-    referencia: ['reference'],
-    reference: ['reference'],
-    references: ['reference'],
-    http: ['tool-http'],
-    port: ['tool-port'],
-    ports: ['tool-port'],
-    winevent: ['tool-winevent'],
-    event: ['tool-winevent'],
-    events: ['tool-winevent'],
-    cron: ['tool-cron'],
-    mitre: ['tool-mitre'],
-    attack: ['tool-mitre'],
-    sigma: ['tool-sigma'],
-    detection: ['tool-detection-query'],
-    'detection-query': ['tool-detection-query'],
-    sid: ['tool-sid-rid'],
-    rid: ['tool-sid-rid'],
-    'sid-rid': ['tool-sid-rid'],
-    cvss: ['tool-cvss'],
-    tool: ['tool'],
-    tools: ['tool'],
-    command: ['command'],
-    cmd: ['command'],
-  };
-  return map[t] || null;
+  return TYPE_FILTER_MAP[t] || null;
 }
 
 function stripHtml(html: string): string {
@@ -166,14 +172,47 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+/** Module-level cache for stripped note/lab content, keyed by row id. The
+ *  source string is stored with each entry so a save invalidates only that
+ *  row — same pattern as `utils/lowerTextCache.ts`. Without this, every
+ *  keystroke re-ran the strip regex over EVERY note's full contentHtml. */
+const strippedCache = new Map<string, { src: string; out: string }>();
+
+function cachedStripHtml(key: string, html: string): string {
+  const hit = strippedCache.get(key);
+  if (hit !== undefined && hit.src === html) return hit.out;
+  const out = stripHtml(html);
+  strippedCache.set(key, { src: html, out });
+  return out;
 }
+
+/** Drop cache entries whose key is no longer in the live row set (bounds
+ *  memory when notes/labs are deleted). */
+function pruneStrippedCache(liveIds: Iterable<string>): void {
+  const keep = new Set(liveIds);
+  for (const key of strippedCache.keys()) {
+    if (!keep.has(key)) strippedCache.delete(key);
+  }
+}
+
+/** Precompute the lowercase fields compared by the boost-bucket loop on
+ *  every search call. Applied once at doc construction. */
+function withLowercase(doc: SearchDocument): SearchDocument {
+  doc.titleLower = doc.title.toLowerCase();
+  doc.acronymLower = (doc.acronym || '').toLowerCase();
+  return doc;
+}
+
+/** Display labels for the "matched on" chips (Fuse key → Spanish label). */
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Título',
+  acronym: 'Código / ID',
+  platform: 'Plataforma',
+  category: 'Categoría',
+  tools: 'Herramientas',
+  content: 'Contenido',
+  sourceUrl: 'Link / Fuente',
+};
 
 function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -450,14 +489,35 @@ function buildCommandDoc(c: CommandEntry): SearchDocument {
   };
 }
 
+// ------------------------------------------------------------------
+// Static search corpus — built ONCE at module init. These ~600 docs derive
+// purely from static dataset imports; rebuilding them (and their joined
+// content strings) on every keystroke was the dominant search cost.
+// The array order MUST match the previous inline spread order (references
+// are user data and stay per-call; they go BEFORE this block in the corpus).
+// ------------------------------------------------------------------
+const STATIC_TOOL_DOCS: SearchDocument[] = [
+  ...HTTP_STATUSES.map(buildHttpDoc),
+  ...PORTS.map(buildPortDoc),
+  ...WIN_EVENTS.map(buildWinEventDoc),
+  ...CRON_EXAMPLES.map(buildCronDoc),
+  // BLOQUE 3 — MITRE ATT&CK + Sigma rules indexed into global search.
+  ...MITRE_TECHNIQUES.map(buildMitreDoc),
+  ...SIGMA_RULES.map(buildSigmaDoc),
+  // BLOQUE 5 — extend search coverage to the remaining static datasets.
+  ...DETECTION_PRESETS.map(buildDetectionPresetDoc),
+  ...KNOWN_RIDS.map(buildKnownRidDoc),
+  ...WELL_KNOWN_SIDS.map(buildWellKnownSidDoc),
+  ...KNOWN_SID_AUTHORITIES.map(buildSidAuthorityDoc),
+  ...TOOLS_CATALOG.map(buildToolDoc),
+].map(withLowercase);
+
 /**
  * BLOQUE 5 — the canonical list of command palette entries (spec item #7).
- * Returned as a function so the modal can choose to surface them either
- * always (when the query is short or starts with ">") or filtered by the
- * free-text search pipeline below.
+ * Built once at module init (pure static data — read-only for all callers);
+ * `getCommandEntries()` exposes it for the modal and the search pipeline.
  */
-export function getCommandEntries(): CommandEntry[] {
-  return [
+const COMMAND_ENTRIES: CommandEntry[] = [
     { id: 'new-note', label: 'Nuevo apunte', hint: 'Crear una nota nueva', keywords: ['new', 'nuevo', 'note', 'apunte', 'crear'], commandId: 'new-note' },
     { id: 'new-lab', label: 'Nuevo lab', hint: 'Crear un hands-on lab nuevo', keywords: ['new', 'nuevo', 'lab', 'crear'], commandId: 'new-lab' },
     { id: 'new-glossary', label: 'Nuevo término de glosario', hint: 'Crear un término nuevo', keywords: ['new', 'nuevo', 'glossary', 'termino', 'glosario'], commandId: 'new-glossary' },
@@ -500,7 +560,10 @@ export function getCommandEntries(): CommandEntry[] {
     { id: 'open-settings', label: 'Abrir configuración', hint: 'Navegación', keywords: ['open', 'abrir', 'settings', 'configuracion'], commandId: 'open-section:settings' },
     { id: 'backup-now', label: 'Guardar backup ahora', hint: 'Acción', keywords: ['backup', 'guardar', 'export', 'zip'], commandId: 'backup-now' },
     { id: 'import-backup', label: 'Importar backup', hint: 'Acción', keywords: ['import', 'importar', 'restore', 'backup'], commandId: 'import-backup' },
-  ];
+];
+
+export function getCommandEntries(): CommandEntry[] {
+  return COMMAND_ENTRIES;
 }
 
 export function searchAllVault(
@@ -514,7 +577,12 @@ export function searchAllVault(
   const activeLabs = labs.filter((l) => !l.isDeleted);
   const activeGlossary = glossary.filter((g) => !g.isDeleted);
   const activeReferences = references.filter((r) => !r.isDeleted);
-
+  // Bound the stripped-content cache to the live rows (deleted rows drop out).
+  pruneStrippedCache([
+    ...activeNotes.map((n) => `note:${n.id}`),
+    ...activeLabs.map((l) => `lab:${l.id}`),
+    ...activeLabs.map((l) => `labsnip:${l.id}`),
+  ]);
   // BLOQUE 5 — parse "type:note kerberos" / "tag:soc powershell" / "platform:windows".
   const parsed = parseQuery(query);
 
@@ -529,7 +597,7 @@ export function searchAllVault(
     const noteResults: SearchResultItem[] = activeNotes.slice(0, 4).map((n) => {
       const title = n.title;
       const subtitle = `${n.platform} • ${n.category}`;
-      const snippet = stripHtml(n.contentHtml).slice(0, 140);
+      const snippet = cachedStripHtml(`note:${n.id}`, n.contentHtml).slice(0, 140);
       return {
         id: n.id,
         type: 'note',
@@ -548,7 +616,8 @@ export function searchAllVault(
     const labResults: SearchResultItem[] = activeLabs.slice(0, 4).map((l) => {
       const title = l.title;
       const subtitle = `${l.organization} • ${l.topic}${l.subtopic ? ` • ${l.subtopic}` : ''}`;
-      const snippet = stripHtml(
+      const snippet = cachedStripHtml(
+        `labsnip:${l.id}`,
         l.parts?.map((p) => `${p.title}: ${p.content}`).join(' ') ||
           l.findings ||
           (Array.isArray(l.commands) ? l.commands.join(' ') : String(l.commands || '')) ||
@@ -655,8 +724,10 @@ export function searchAllVault(
     : [];
 
   // Build unified search corpus across all sections + static tool datasets.
+  // User-content docs are per-call (they change with the DB); the ~600 static
+  // dataset docs live in STATIC_TOOL_DOCS (built once at module init).
   const searchDataset: SearchDocument[] = [
-    ...activeNotes.map((n) => ({
+    ...activeNotes.map((n) => withLowercase({
       id: n.id,
       type: 'note' as const,
       title: n.title,
@@ -665,12 +736,12 @@ export function searchAllVault(
       category: [n.category, ...(n.categories || [])].filter(Boolean).join(' '),
       tools: '',
       sourceUrl: n.sourceUrl || '',
-      content: stripHtml(n.contentHtml),
+      content: cachedStripHtml(`note:${n.id}`, n.contentHtml),
       subtitle: `${n.platform} > ${n.category}`,
       status: undefined,
       rawItem: n,
     })),
-    ...activeLabs.map((l) => ({
+    ...activeLabs.map((l) => withLowercase({
       id: l.id,
       type: 'lab' as const,
       title: l.title,
@@ -679,7 +750,7 @@ export function searchAllVault(
       category: [l.topic, l.subtopic, ...(l.categories || [])].filter(Boolean).join(' '),
       tools: (l.tools || []).join(' '),
       sourceUrl: l.sourceLink || '',
-      content: stripHtml([
+      content: cachedStripHtml(`lab:${l.id}`, [
         l.parts?.map((p) => `${p.title} ${p.content}`).join(' ') || '',
         Array.isArray(l.commands) ? l.commands.join(' ') : String(l.commands || ''),
         l.findings || '',
@@ -689,7 +760,7 @@ export function searchAllVault(
       status: l.status,
       rawItem: l,
     })),
-    ...activeGlossary.map((g) => ({
+    ...activeGlossary.map((g) => withLowercase({
       id: g.id,
       type: 'glossary' as const,
       title: g.term,
@@ -704,19 +775,7 @@ export function searchAllVault(
       rawItem: g,
     })),
     ...activeReferences.map(buildReferenceDoc),
-    ...HTTP_STATUSES.map(buildHttpDoc),
-    ...PORTS.map(buildPortDoc),
-    ...WIN_EVENTS.map(buildWinEventDoc),
-    ...CRON_EXAMPLES.map(buildCronDoc),
-    // BLOQUE 3 — MITRE ATT&CK + Sigma rules indexed into global search.
-    ...MITRE_TECHNIQUES.map(buildMitreDoc),
-    ...SIGMA_RULES.map(buildSigmaDoc),
-    // BLOQUE 5 — extend search coverage to the remaining static datasets.
-    ...DETECTION_PRESETS.map(buildDetectionPresetDoc),
-    ...KNOWN_RIDS.map(buildKnownRidDoc),
-    ...WELL_KNOWN_SIDS.map(buildWellKnownSidDoc),
-    ...KNOWN_SID_AUTHORITIES.map(buildSidAuthorityDoc),
-    ...TOOLS_CATALOG.map(buildToolDoc),
+    ...STATIC_TOOL_DOCS,
     // BLOQUE 5 — command palette entries (matched alongside everything else).
     ...matchingCommands,
   ];
@@ -788,8 +847,10 @@ export function searchAllVault(
 
   if (q) {
     for (const doc of platformFilteredDataset) {
-      const titleLower = doc.title.toLowerCase();
-      const acrLower = (doc.acronym || '').toLowerCase();
+      // Precomputed by `withLowercase` for corpus docs; the fallbacks only
+      // apply to hand-built docs that skipped it (none today — belt & braces).
+      const titleLower = doc.titleLower ?? doc.title.toLowerCase();
+      const acrLower = doc.acronymLower ?? (doc.acronym || '').toLowerCase();
 
       if (doc.title === q || doc.acronym === q) {
         bucketed.push({ item: doc, bucket: 0 });
@@ -861,15 +922,8 @@ export function searchAllVault(
       })
     : rawResults;
 
-  const fieldLabels: Record<string, string> = {
-    title: 'Título',
-    acronym: 'Código / ID',
-    platform: 'Plataforma',
-    category: 'Categoría',
-    tools: 'Herramientas',
-    content: 'Contenido',
-    sourceUrl: 'Link / Fuente',
-  };
+  // BLOQUE 5 — field labels for the "matched on" chips.
+  const fieldLabels = FIELD_LABELS;
 
   return dedupedResults.map(({ item, matches }) => {
     const matchedFields: SearchMatchDetail[] = [];
@@ -890,18 +944,16 @@ export function searchAllVault(
     }
 
     // BLOQUE 5 — highlight on the FREE-TEXT portion of the query only.
-    const qLower = parsed.text.toLowerCase();
-    const displayTitle = item.acronym && item.type !== 'tool-http' && item.type !== 'tool-port' && item.type !== 'tool-winevent'
-      ? item.title
-      : item.title;
-    const highlightedTitle = highlightMatches(displayTitle, qLower);
+    // (Same value as the outer `qLower`: parseQuery emits single-space-joined
+    // tokens with no leading/trailing whitespace, so trim() is a no-op.)
+    const highlightedTitle = highlightMatches(item.title, qLower);
     const fullSnippet = item.content.slice(0, 180);
     const highlightedSnippet = highlightMatches(fullSnippet, qLower);
 
     return {
       id: item.id,
       type: item.type,
-      title: displayTitle,
+      title: item.title,
       subtitle: item.subtitle,
       snippet: fullSnippet,
       platform: item.platform,

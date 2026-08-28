@@ -33,10 +33,12 @@ import { Lab, LabDifficulty, LabStatus, LabPart, CategoryItem } from '../types';
 import { db } from '../db';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
+import { useDebouncedAutoSave } from '../hooks/useDebouncedAutoSave';
 import { insertHtmlInEditable } from '../utils/domInsert';
 import { saveVideoBlob, getVideoBlobById, isFsSupported, hasAppFolder, isFsReady, ensureFsPermission, pickAppFolder, shouldAskForDir, markDirDeclined } from '../utils/videoStorage';
 import { addToReviewQueue } from './tools/_shared';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
+import { escapeHtml } from '../utils/escapeHtml';
 
 interface LabsViewProps {
   labs: Lab[];
@@ -643,35 +645,12 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
   const [findings, setFindings] = useState(lab.findings || '');
   const [mitigation, setMitigation] = useState(lab.mitigation || '');
 
-  // Save status indicator
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // NOTE: this component is keyed by `lab.id` upstream (LabsView), so local
-  // state initializes from props on every lab switch — no sync effect needed.
-
-  // Debounced auto-save
-  const triggerAutoSave = useCallback(() => {
-    setSaveStatus('unsaved');
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-    autoSaveTimerRef.current = setTimeout(() => {
-      void flushSaveRef.current?.();
-    }, 1500);
-  }, []);
-
   // AUTOSAVE DATA-INTEGRITY FIX (Task 2-c, spec #33 — same race + reload
-  // fix as RichEditor.tsx): the previous setTimeout closure captured all
-  // 14 lab fields at triggerAutoSave CREATION time. When the user typed
-  // in any of the title/organization/topic/etc. inputs, the inline
-  // `onChange={(e) => { setX(e.target.value); triggerAutoSave(); }}`
-  // pattern called triggerAutoSave with the PREVIOUS render's closure —
-  // so the scheduled timer captured the PREVIOUS value. After 1500ms of
-  // silence, the timer fired with one-keystroke-old state and called
-  // `db.labs.update(id, { title: <stale> })` — silently dropping the
-  // user's last keystroke. Fix: read the latest fields from a ref that's
-  // updated on every render, so the timer always sees the current value.
+  // fix as RichEditor.tsx): the debounce machinery (status, timer, pagehide
+  // flush, unmount flush) lives in useDebouncedAutoSave. The flush below
+  // reads the LATEST field values from a ref updated on every render — the
+  // old closure-capture bug saved one-keystroke-old state, e.g. "hell"
+  // instead of "hello".
   const latestFieldsRef = useRef({
     title, organization, topic, subtopic, difficulty, status,
     timeSpent, sourceLink, isFavorite, parts, tools, commands, findings, mitigation,
@@ -682,9 +661,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
       timeSpent, sourceLink, isFavorite, parts, tools, commands, findings, mitigation,
     };
   });
-  const flushSaveRef = useRef<(() => Promise<void>) | null>(null);
   const flushSave = useCallback(async () => {
-    setSaveStatus('saving');
     const f = latestFieldsRef.current;
     const updatedData: Partial<Lab> = {
       title: f.title,
@@ -704,49 +681,8 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
       updatedAt: new Date().toISOString(),
     };
     await onUpdateLab(updatedData);
-    setSaveStatus('saved');
   }, [onUpdateLab]);
-  useEffect(() => {
-    // Latest-callback ref pattern (canonical way to expose a stable timer
-    // callback that sees the LATEST closure; the rule has a known false
-    // positive on this exact pattern — see RichEditor.tsx for full note).
-    // eslint-disable-next-line react-hooks/immutability
-    flushSaveRef.current = flushSave;
-  }, [flushSave]);
-
-  // Flush pending autosave on pagehide (reload / tab close). Same
-  // rationale as RichEditor — without this the 1500ms debounce timer
-  // is cancelled by the unload and the user's last edit is dropped.
-  useEffect(() => {
-    const onUnload = () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-        void flushSaveRef.current?.();
-      }
-    };
-    window.addEventListener('pagehide', onUnload);
-    return () => window.removeEventListener('pagehide', onUnload);
-  }, []);
-
-  // AUDIT MEDIUM FOLLOW-UP: flush pending autosave on React unmount (lab
-  // switch / view change). Without this, a user who edits and switches
-  // labs within the 1500ms debounce window would have their last edits
-  // dropped — the pending timer fires after unmount and the lab component
-  // instance is gone. The unmount cleanup clears the timer AND immediately
-  // flushes via flushSaveRef (which reads latestFieldsRef.current — the
-  // TRUE latest field values including parts). The pagehide handler above
-  // covers reload/tab-close; this covers SPA navigation.
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-        void flushSaveRef.current?.();
-      }
-    };
-     
-  }, []);
+  const { saveStatus, triggerAutoSave } = useDebouncedAutoSave(flushSave);
 
   // Part management
   const handleTogglePartExpand = (partId: string) => {
@@ -1514,12 +1450,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       // text node. A filename like `"><script>alert(1)</script>` would
       // otherwise break out of the attribute and inject markup into the
       // contentEditable (self-XSS that also survives autosave + reload).
-      const safeName = file.name
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+      const safeName = escapeHtml(file.name);
       // AUDIT (VN-A-001): Date.now() alone collides when 2+ images are
       // added in the same millisecond (Dexie primary-key ConstraintError
       // silently drops the second image). Add entropy like vid- ids.
@@ -1571,12 +1502,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     // SECURITY (Task 2-b): also escape the single-quote (was missing) for
     // consistency with the new safeName pattern.
-    const safeName = file.name
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    const safeName = escapeHtml(file.name);
     try {
       await saveVideoBlob({
         id: vidId,

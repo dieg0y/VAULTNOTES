@@ -47,6 +47,7 @@ import {
   CopyBtn, Field, CodeBlock, ErrorBanner, InfoBanner,
   taCls, btnPrimary, btnGhost, btnDanger,
 } from './_shared';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ---------- types ---------- */
 interface MitreRef {
@@ -273,15 +274,6 @@ const RULES: Rule[] = [
 /* ---------- helpers ---------- */
 
 /** Escape HTML special chars — used when building note HTML for [Add to Note]. */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /**
  * Heuristic: does the decoded text look like code/commands?
  * Matches: ^powershell\b, ^Invoke-, ^IEX (anchored to start), and

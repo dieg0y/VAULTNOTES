@@ -70,12 +70,3 @@ export async function getAllPdfEntries(): Promise<PdfEntry[]> {
   });
 }
 
-/** Stats for the Settings panel. */
-export async function getPdfStorageStats(): Promise<{
-  total: number;
-  bytes: number;
-}> {
-  const metas = await db.pdfs.toArray();
-  const bytes = metas.reduce((acc, p) => acc + (p.blob?.size || 0), 0);
-  return { total: metas.length, bytes };
-}

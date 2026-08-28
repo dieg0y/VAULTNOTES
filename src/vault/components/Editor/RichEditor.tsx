@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useDebouncedAutoSave } from '../../hooks/useDebouncedAutoSave';
 import {
   Star, Trash2, ExternalLink, Plus, Heading1, Heading2, Heading3, Bold, Italic, Underline,
   List, ListOrdered, CheckSquare, Quote, Code, Image as ImageIcon, Check, BookOpen,
@@ -12,6 +13,8 @@ import { savePdfBlob, getPdfBlobById } from '../../utils/pdfStorage';
 import { AutoToc } from './AutoToc';
 import { addToReviewQueue } from '../tools/_shared';
 import { sanitizeHtml } from '../../utils/sanitizeHtml';
+import { escapeHtml } from '../../utils/escapeHtml';
+import { downloadBlob } from '../../utils/downloadBlob';
 
 interface RichEditorProps {
   note: Note;
@@ -40,7 +43,6 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   const [category, setCategory] = useState(note.category);
   const [sourceUrl, setSourceUrl] = useState(note.sourceUrl || '');
   const [isFavorite, setIsFavorite] = useState(note.isFavorite);
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [hoveredTerm, setHoveredTerm] = useState<{ term: GlossaryTerm; x: number; y: number } | null>(null);
   // BLOQUE 5 — Review Queue "Revisar después" inline toast
   const [reviewToast, setReviewToast] = useState<string | null>(null);
@@ -58,7 +60,6 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const videoUrlsRef = useRef<string[]>([]);
   const pdfUrlsRef = useRef<string[]>([]);
   // Mirror of the contentEditable's innerHTML on every keystroke. Survives
@@ -144,8 +145,14 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   // freshest `note.contentHtml` WITHOUT being an effect dependency: re-loading
   // the DOM on every contentHtml change (e.g. the useLiveQuery re-emission
   // after autosave persists) would clobber the caret / in-progress edits.
+  // The write lives in a no-dep effect (NOT during render — refs must not be
+  // written in render) declared BEFORE the load effect below: effects run in
+  // declaration order, so on a note switch the ref is updated first and the
+  // load effect reads the NEW content.
   const contentRef = useRef(note.contentHtml);
-  contentRef.current = note.contentHtml;
+  useEffect(() => {
+    contentRef.current = note.contentHtml;
+  });
   useEffect(() => {
     if (editorRef.current) {
       // SECURITY (Audit Task 2-b, spec #26/#42/#44): contentHtml is
@@ -163,35 +170,19 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     }
   }, [note.id, attachVideoSources, attachPdfSources]);
 
-  const triggerAutoSave = useCallback(() => {
-    setSaveStatus('unsaved');
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      void flushSaveRef.current?.();
-    }, 1500);
-  }, []);
-
   // AUTOSAVE DATA-INTEGRITY FIX (Task 2-c, spec #33 — race conditions +
-  // reload-during-autosave): the previous setTimeout closure captured
-  // `title`, `category`, `sourceUrl`, `isFavorite` at triggerAutoSave
-  // CREATION time. When the user typed a keystroke, the inline arrow
-  // `onChange={(e) => { setTitle(e.target.value); triggerAutoSave(); }}`
-  // called triggerAutoSave with the PREVIOUS render's closure — so the
-  // scheduled timer captured the PREVIOUS title. After 1500ms of silence
-  // the timer fired with one-keystroke-old state, calling
-  // `db.notes.update(id, { title: <stale> })` — silently dropping the
-  // user's last keystroke (e.g. typing "hello" + stop saved "hell").
-  // The fix: read the LATEST React-state-backed fields from a ref that's
-  // updated on every render, so the timer always sees the current value.
-  // The contentEditable HTML continues to be read live from
+  // reload-during-autosave): the debounce machinery (status, timer, pagehide
+  // flush, unmount flush) lives in useDebouncedAutoSave; the flush below
+  // reads the LATEST React-state-backed fields from a ref that's updated on
+  // every render, so the timer always sees the current value (the old
+  // closure-capture bug saved one-keystroke-old state, e.g. "hell" instead
+  // of "hello"). The contentEditable HTML is read live from
   // `editorRef.current.innerHTML` at fire time (DOM is already up-to-date).
   const latestFieldsRef = useRef({ title, category, sourceUrl, isFavorite });
   useEffect(() => {
     latestFieldsRef.current = { title, category, sourceUrl, isFavorite };
   });
-  const flushSaveRef = useRef<(() => Promise<void>) | null>(null);
   const flushSave = useCallback(async () => {
-    setSaveStatus('saving');
     // AUDIT FIX (checklist state persistence): clicking a checkbox toggles
     // the DOM *property*, but innerHTML only serializes the *attribute* —
     // without this sync the tick state was lost on every reload even when
@@ -223,55 +214,8 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       isFavorite: f,
       updatedAt: new Date().toISOString(),
     });
-    setSaveStatus('saved');
   }, [onUpdateNote, note.contentHtml]);
-  useEffect(() => {
-    // Latest-callback ref pattern (canonical way to expose a stable timer
-    // callback that sees the LATEST closure; the rule has a known false
-    // positive on this exact pattern — see
-    // https://github.com/facebook/react/issues/31194).
-    // eslint-disable-next-line react-hooks/immutability
-    flushSaveRef.current = flushSave;
-  }, [flushSave]);
-
-  // Flush the pending autosave on `pagehide` (reload / tab close / navigate
-  // away). Without this, the 1500ms debounce timer is cancelled by the
-  // unload and the user's last edit (< 1500ms before reload) is silently
-  // dropped. Modern browsers will hold the page long enough for an
-  // already-started IDB transaction to commit; kicking the save off
-  // synchronously inside `pagehide` lets Dexie's write commit before the
-  // page is destroyed. Per Task 2-c, spec #33 — "reload during autosave;
-  // close-after-typing" must be safe.
-  useEffect(() => {
-    const onUnload = () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-        void flushSaveRef.current?.();
-      }
-    };
-    window.addEventListener('pagehide', onUnload);
-    return () => window.removeEventListener('pagehide', onUnload);
-  }, []);
-
-  // AUDIT MEDIUM FOLLOW-UP: flush pending autosave on React unmount (note
-  // switch / view change). Without this, a user who types and switches
-  // notes within the 1500ms debounce window loses the typed content — the
-  // pending timer fires after unmount, editorRef is null, and flushSave
-  // would fall back to the STALE note.contentHtml prop. The unmount cleanup
-  // clears the timer AND immediately flushes via flushSaveRef (which reads
-  // latestHtmlRef — the true latest content, not the stale prop). The
-  // pagehide handler above covers reload/tab-close; this covers SPA nav.
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-        void flushSaveRef.current?.();
-      }
-    };
-     
-  }, []);
+  const { saveStatus, triggerAutoSave } = useDebouncedAutoSave(flushSave);
 
   const handleContentInput = () => {
     if (editorRef.current) {
@@ -340,14 +284,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       try {
         const blob = await getPdfBlobById(pid);
         if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = dlBtn.getAttribute('download-name') || `${pid}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        downloadBlob(blob, dlBtn.getAttribute('download-name') || `${pid}.pdf`);
       } catch (err) {
         console.warn('PDF download failed:', err);
       }
@@ -395,12 +332,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       // characters that break the attribute boundary (e.g. a file named
       // " onerror=alert(1) x=". Without escaping this would self-XSS the
       // editor (and any later viewer of the note's contentHtml).
-      const safeName = file.name
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+      const safeName = escapeHtml(file.name);
       // AUDIT (VN-A-001): Date.now() alone collides when 2+ images are
       // added in the same millisecond (Dexie primary-key ConstraintError
       // silently drops the second image). Add entropy like vid-/pdf- ids.
@@ -448,12 +380,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     // consistency with handleImageFile — safeName is interpolated inside
     // a figcaption text node and could later be re-rendered in a
     // single-quoted attribute context.
-    const safeName = file.name
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    const safeName = escapeHtml(file.name);
     try {
       await saveVideoBlob({
         id: vidId,
@@ -552,12 +479,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     // interpolated inside an attribute that uses double quotes; for
     // consistency with handleImageFile and to be safe against any
     // downstream single-quoted context, escape it too.
-    const safeName = file.name
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    const safeName = escapeHtml(file.name);
     const sizeLabel = file.size > 1024 * 1024
       ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
       : `${(file.size / 1024).toFixed(0)} KB`;
@@ -604,7 +526,10 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     const text = target.innerText?.trim();
     if (text && text.length > 1 && text.length < 50 && target.tagName !== 'BODY' && target.children.length === 0) {
       const cleanText = text.replace(/[.,:;!?()"']/g, '').toLowerCase();
-      const match = glossaryTerms.find((g) => g.term.toLowerCase() === cleanText || (g.acronym && g.acronym.toLowerCase() === cleanText));
+      // O(1) lookup — the map is cached (see getGlossaryMap below); a
+      // per-mousemove .find() over the glossary lowercased every term twice
+      // (~120 lookups/sec).
+      const match = getGlossaryMap().get(cleanText);
       if (match) {
         const rect = target.getBoundingClientRect();
         setHoveredTerm({ term: match, x: Math.max(16, Math.min(window.innerWidth - 380, rect.left)), y: rect.bottom + 8 });
@@ -612,6 +537,31 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       }
     }
     if (hoveredTerm) setHoveredTerm(null);
+  };
+
+  // Lowercased term/acronym → GlossaryTerm (first wins on collision, same as
+  // the previous .find() semantics). Cached in refs and (re)built inside the
+  // handler — ref writes during render are forbidden, and the React Compiler
+  // cannot preserve this cache as a useMemo (Map of prop-object references),
+  // so it is rebuilt only when the glossary prop identity changes.
+  const glossaryMapRef = useRef<Map<string, GlossaryTerm> | null>(null);
+  const glossaryMapSrcRef = useRef<GlossaryTerm[] | null>(null);
+  const getGlossaryMap = () => {
+    if (glossaryMapRef.current === null || glossaryMapSrcRef.current !== glossaryTerms) {
+      const map = new Map<string, GlossaryTerm>();
+      for (const g of glossaryTerms) {
+        const t = g.term.toLowerCase();
+        if (!map.has(t)) map.set(t, g);
+        if (g.acronym) {
+          const a = g.acronym.toLowerCase();
+          if (!map.has(a)) map.set(a, g);
+        }
+      }
+      glossaryMapRef.current = map;
+      glossaryMapSrcRef.current = glossaryTerms;
+      return map;
+    }
+    return glossaryMapRef.current;
   };
 
   // Breadcrumb: walk parentId chain

@@ -57,19 +57,11 @@ import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
 import { InfoBanner, inputCls, btnGhost, btnPrimary } from './_shared';
 import { mitreUrl } from '../../utils/mitreUrl';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ---------- helpers (no external libs) ---------- */
 
 /** HTML-escape user-facing strings before concatenating into the note body. */
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /** Truncate a string to ~max chars with a trailing ellipsis. */
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;

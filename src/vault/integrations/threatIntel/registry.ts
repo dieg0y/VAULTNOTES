@@ -16,7 +16,7 @@ import type {
   ProviderId, EnrichableIocType, EnrichmentOutcome, ProviderMeta, ThreatIntelProvider,
 } from './types';
 import { PROVIDER_IOC_SUPPORT } from './types';
-import { toUserMessage, isTransportError, notConfigured } from './errors';
+import { toUserMessage, isTransportError } from './errors';
 import { hasOnlineConsent } from './consent';
 import { isRateLimited } from './rateLimit';
 import { lookupCache, storeInCache } from './cache';
@@ -53,15 +53,6 @@ export const PROVIDER_ORDER: ProviderId[] = ['virustotal', 'abuseipdb', 'otx', '
  *  uses this to decide which [Enrich] buttons to show per finding. */
 export function providersForIocType(iocType: EnrichableIocType): ProviderId[] {
   return PROVIDER_ORDER.filter((p) => PROVIDER_IOC_SUPPORT[p].includes(iocType));
-}
-
-/** Returns the external (no-API-key) URL for a provider+IOC. Always available. */
-export function buildExternalUrl(
-  provider: ProviderId,
-  iocType: EnrichableIocType,
-  value: string,
-): string {
-  return PROVIDERS[provider].buildExternalUrl(iocType, value);
 }
 
 /** Special outcome kind returned when consent is missing — the UI shows the
@@ -185,4 +176,3 @@ export async function enrichWithProvider(
 
 /** Convenience helper for the "is this provider configured?" check used by
  *  Settings cards. Reads credential metadata only — never decrypts the key. */
-export { notConfigured };

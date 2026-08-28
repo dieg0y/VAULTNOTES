@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { inputCls, btnGhost, btnPrimary, CodeBlock, InfoBanner, ErrorBanner, Tabs } from './_shared';
 import { useNoteStore } from '../../store/noteStore';
+import { escapeHtml } from '../../utils/escapeHtml';
 
 interface OctalBreakdown {
   /** Modo numérico completo, e.g. "4755" (con special bits) o "755" (sin special bits). */
@@ -37,16 +38,6 @@ interface OctalBreakdown {
   other: number;
   /** True si el input incluía el 4to dígito (special bits). */
   hasSpecial: boolean;
-}
-
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 /** Convierte un dígito octal (0-7) a sus letras rwx — e.g. 7 → rwx, 5 → r-x, 0 → ---. */

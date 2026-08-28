@@ -74,6 +74,7 @@ import {
 } from '../integrations/sigma/validate';
 import { PROVIDER_META, PROVIDER_ORDER } from '../integrations/threatIntel/registry';
 import { hasCredential, clearAllCredentials } from '../integrations/threatIntel/credentials';
+import { downloadBlob } from '../utils/downloadBlob';
 import { countTiCache, clearTiCache } from '../integrations/threatIntel/cache';
 import { countOnlineActivity, clearOnlineActivity } from '../integrations/threatIntel/activity';
 import type { ProviderId } from '../integrations/threatIntel/types';
@@ -382,19 +383,12 @@ export const DataIntelView: React.FC = () => {
   const handleExportRule = useCallback((r: CustomSigmaRule) => {
     try {
       const blob = new Blob([r.yaml || ''], { type: 'text/yaml;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
       const slug =
         (r.title || 'sigma-rule')
           .toLowerCase()
           .replace(/[^a-z0-9-]+/g, '-')
           .replace(/^-+|-+$/g, '') || 'sigma-rule';
-      a.href = url;
-      a.download = `${slug}.yml`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadBlob(blob, `${slug}.yml`);
     } catch {
       /* non-fatal — export is best-effort */
     }

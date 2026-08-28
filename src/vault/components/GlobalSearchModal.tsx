@@ -22,17 +22,9 @@ import {
 import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
 import { searchAllVault, SearchResultItem, resultToToolDeepLink } from '../utils/fuzzySearch';
 import type { ToolDeepLink } from './ToolsView';
+import { escapeHtml } from '../utils/escapeHtml';
 
 /** Minimal HTML-escape for safe fallback rendering inside `dangerouslySetInnerHTML`. */
-function escapeHtml(text: string): string {
-  return (text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 interface GlobalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
