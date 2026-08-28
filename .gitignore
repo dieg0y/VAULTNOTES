@@ -73,8 +73,13 @@ worklog.txt
 /examples/
 /mini-services/
 
+# Sandbox gateway config (reverse proxy on :81, not part of the app)
+/Caddyfile
+
+# Sandbox infra scripts (build/dev orchestration of the container)
+/.zscripts/
+
 # Runtime artifacts that should never be committed
-.zscripts/*.pid
 download/
 db/*.db
 db/*.db-journal

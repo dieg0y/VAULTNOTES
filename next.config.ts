@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
   // unmount and re-created on the remount's load effect (which resets
   // editorRef.current.innerHTML) — the new <video> elements get fresh URLs.
   reactStrictMode: true,
+  // The sandbox preview panel reaches the dev server through a
+  // *.space-z.ai gateway origin; without this Next.js 16 flags every
+  // dev-tools request from it as cross-origin.
+  allowedDevOrigins: ["*.space-z.ai"],
 };
 
 export default nextConfig;
