@@ -23,7 +23,10 @@ export type ToolId =
   // BLOQUE 6 — Online-Optional. CVE Search is the only tool that uses the
   // online layer (NVD API, supports CORS, no API key required). It still
   // works for browsing saved CVEs when offline.
-  | 'cve-search';
+  | 'cve-search'
+  // Explorador offline de vulnerabilidades IAM/SOC (dataset
+  // data/vulnerabilities.ts, 129+ entradas).
+  | 'vuln';
 
 export interface ToolCatalogEntry {
   id: ToolId;
@@ -71,6 +74,9 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
   // BLOQUE 6 — Online-Optional. CVE Search uses NVD API (online, optional).
   // Saved CVEs are stored locally and browsable offline.
   { id: 'cve-search', name: 'CVE Search', cat: 'SECURITY', desc: 'Buscar CVE-ID en NVD online (opcional) y guardar copia local. Funciona offline para consultar CVEs guardados.', tags: ['cve', 'nvd', 'vulnerability', 'cvss', 'security', 'online'] },
+  // Vulnerabilidades IAM/SOC — dataset 100% offline (data/vulnerabilities.ts).
+  // Tags ES/EN para máxima recall en la búsqueda global (Ctrl+K).
+  { id: 'vuln', name: 'Vulnerabilidades IAM/SOC', cat: 'SECURITY', desc: 'Explorador de 129+ vulnerabilidades de identidad y SOC: JWT/OAuth/SAML, AD (Kerberos, delegación, AD CS ESC1-16), Cloud IAM, PrivEsc, evasión y persistencia — con detección KQL/SPL/Sigma y remediación paso a paso. 100% offline.', tags: ['vulnerabilidades', 'vulnerability', 'iam', 'soc', 'ad', 'esc1', 'adcs', 'kerberoasting', 'golden ticket', 'pass-the-hash', 'dcsync', 'jwt', 'oauth', 'saml', 'cloud', 'aws', 'azure', 'gcp', 'privesc', 'persistence', 'evasion', 'lateral', 'hardening', 'kql', 'sigma'] },
 ];
 
 /** Find a catalog entry by id. */

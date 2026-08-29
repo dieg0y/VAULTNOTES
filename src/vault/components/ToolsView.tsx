@@ -5,7 +5,7 @@ import {
   CalendarClock, Hash, Binary, Regex, ShieldOff, MapPin,
   SquareTerminal, FileText, Crosshair, Braces, BookMarked,
   Fingerprint, Building2, UserCog, Bug, FileSearch,
-  Star, Search, History, Clock3
+  Star, Search, History, Clock3, ShieldAlert
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -55,6 +55,8 @@ import { RbacAnalyzerTool } from './tools/RbacAnalyzerTool';
 import { CvssCalculatorTool } from './tools/CvssCalculatorTool';
 import { FileHashAnalyzerTool } from './tools/FileHashAnalyzerTool';
 import { LinuxPermissionsTool } from './tools/LinuxPermissionsTool';
+// Vulnerabilidades IAM/SOC — explorador del dataset offline de vulnerabilidades.
+import { VulnerabilityExplorerTool } from './tools/VulnerabilityExplorerTool';
 // IoC Extractor — full SOC/IAM pipeline view (see section 7 below).
 // Static import for the same HMR-robustness reason as the tools above.
 import { IocExtractorView } from './IocExtractorView';
@@ -114,6 +116,7 @@ const TOOL_ICONS: Record<ToolId, React.ReactNode> = {
   sigma: <BookMarked className="w-4 h-4" />,
   'detection-query': <Braces className="w-4 h-4" />,
   'cve-search': <Bug className="w-4 h-4" />, // reuse Bug icon (already imported); CVSS Calculator uses Bug too — fine.
+  vuln: <ShieldAlert className="w-4 h-4" />, // Vulnerabilidades IAM/SOC (dataset offline)
 };
 
 const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; desc: string; tags?: string[] }[] =
@@ -1730,6 +1733,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
       // BLOQUE 6 — Online-Optional. CVE Search has no deep-link autoOpen
       // (search is user-driven; saved CVEs are browsed in-tool).
       case 'cve-search':         return <CveSearchTool />;
+      // Vulnerabilidades IAM/SOC — soporta deep-link por id (p. ej. "AD-016").
+      case 'vuln':               return <VulnerabilityExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
       // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
       case 'sid-rid':            return <SidRidAnalyzerTool />;
       case 'ldap-dn':            return <LdapDnParserTool />;
