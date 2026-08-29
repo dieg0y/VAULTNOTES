@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import dynamic from 'next/dynamic';
 import {
   Calculator, FileKey, Cpu, Globe, Shield, Network, Clock,
   Wrench, Copy, Check, X, BookOpen, Lightbulb, Terminal, Server, Code, Lock,
@@ -24,102 +23,41 @@ import { findSigmaByEventId } from '../data/sigmaData';
 // in src/vault/components/tools/. They reuse the helpers from _shared.tsx
 // and follow the same visual style as the inline tools below.
 //
-// VN-F-003 — all standalone tool components are LAZY-LOADED via next/dynamic:
-// the ~11k lines of tool code (+ their datasets) stay out of the initial
-// ToolsView chunk and are fetched on first open of each tool. Props (incl.
-// deep-link autoOpenId/onAutoOpenConsumed) pass through unchanged. The app is
-// client-only (App is dynamic ssr:false), so ssr:false here is valid.
-const ToolChunkFallback: React.FC = () => (
-  <div className="flex items-center justify-center gap-2 py-16 text-xs text-[#666]">
-    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#262626] border-t-blue-500" />
-    Cargando herramienta…
-  </div>
-);
-// VN-F-003 note: next/dynamic REQUIRES the options argument to be an inline
-// object literal (SWC statically analyzes it), so it is repeated per tool.
-
-const TimestampConverterTool = dynamic(
-  () => import('./tools/TimestampConverterTool').then((m) => ({ default: m.TimestampConverterTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const HashToolkitTool = dynamic(
-  () => import('./tools/HashToolkitTool').then((m) => ({ default: m.HashToolkitTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const EncodingTool = dynamic(
-  () => import('./tools/EncodingTool').then((m) => ({ default: m.EncodingTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const RegexTesterTool = dynamic(
-  () => import('./tools/RegexTesterTool').then((m) => ({ default: m.RegexTesterTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const IpAnalyzerTool = dynamic(
-  () => import('./tools/IpAnalyzerTool').then((m) => ({ default: m.IpAnalyzerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const IocDefangerTool = dynamic(
-  () => import('./tools/IocDefangerTool').then((m) => ({ default: m.IocDefangerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
+// HMR-ROBUSTNESS (formerly VN-F-003): these tools were lazy-loaded via 20
+// next/dynamic calls, but Turbopack's dev runtime loses track of that many
+// separate module factories when the dev server restarts while a tab stays
+// open ("module factory is not available … deleted in an HMR update").
+// Static imports keep the whole tools module graph in one chunk, which
+// reconciles cleanly across restarts. The app is local-first on the user's
+// own machine, so the larger initial bundle is imperceptible.
+import { TimestampConverterTool } from './tools/TimestampConverterTool';
+import { HashToolkitTool } from './tools/HashToolkitTool';
+import { EncodingTool } from './tools/EncodingTool';
+import { RegexTesterTool } from './tools/RegexTesterTool';
+import { IpAnalyzerTool } from './tools/IpAnalyzerTool';
+import { IocDefangerTool } from './tools/IocDefangerTool';
 // SOC block — Task ID 3-d..3-f
-const PowerShellAnalyzerTool = dynamic(
-  () => import('./tools/PowerShellAnalyzerTool').then((m) => ({ default: m.PowerShellAnalyzerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const CommandLineAnalyzerTool = dynamic(
-  () => import('./tools/CommandLineAnalyzerTool').then((m) => ({ default: m.CommandLineAnalyzerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const LogParserTool = dynamic(
-  () => import('./tools/LogParserTool').then((m) => ({ default: m.LogParserTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
+import { PowerShellAnalyzerTool } from './tools/PowerShellAnalyzerTool';
+import { CommandLineAnalyzerTool } from './tools/CommandLineAnalyzerTool';
+import { LogParserTool } from './tools/LogParserTool';
 // SOC block — Task ID 4-6 (MITRE ATT&CK / Sigma Explorer / Detection Query Helper)
-const MitreExplorerTool = dynamic(
-  () => import('./tools/MitreExplorerTool').then((m) => ({ default: m.MitreExplorerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const SigmaExplorerTool = dynamic(
-  () => import('./tools/SigmaExplorerTool').then((m) => ({ default: m.SigmaExplorerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const DetectionQueryHelperTool = dynamic(
-  () => import('./tools/DetectionQueryHelperTool').then((m) => ({ default: m.DetectionQueryHelperTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
+import { MitreExplorerTool } from './tools/MitreExplorerTool';
+import { SigmaExplorerTool } from './tools/SigmaExplorerTool';
+import { DetectionQueryHelperTool } from './tools/DetectionQueryHelperTool';
 // BLOQUE 6 — Online-Optional. CVE Search is the only tool that touches the
 // online layer (NVD API via integrations/cve/search.ts). It still works
 // offline for browsing saved CVEs.
-const CveSearchTool = dynamic(
-  () => import('./tools/CveSearchTool').then((m) => ({ default: m.CveSearchTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
+import { CveSearchTool } from './tools/CveSearchTool';
 // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5)
-const SidRidAnalyzerTool = dynamic(
-  () => import('./tools/SidRidAnalyzerTool').then((m) => ({ default: m.SidRidAnalyzerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const LdapDnParserTool = dynamic(
-  () => import('./tools/LdapDnParserTool').then((m) => ({ default: m.LdapDnParserTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const RbacAnalyzerTool = dynamic(
-  () => import('./tools/RbacAnalyzerTool').then((m) => ({ default: m.RbacAnalyzerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const CvssCalculatorTool = dynamic(
-  () => import('./tools/CvssCalculatorTool').then((m) => ({ default: m.CvssCalculatorTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const FileHashAnalyzerTool = dynamic(
-  () => import('./tools/FileHashAnalyzerTool').then((m) => ({ default: m.FileHashAnalyzerTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
-const LinuxPermissionsTool = dynamic(
-  () => import('./tools/LinuxPermissionsTool').then((m) => ({ default: m.LinuxPermissionsTool })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
+import { SidRidAnalyzerTool } from './tools/SidRidAnalyzerTool';
+import { LdapDnParserTool } from './tools/LdapDnParserTool';
+import { RbacAnalyzerTool } from './tools/RbacAnalyzerTool';
+import { CvssCalculatorTool } from './tools/CvssCalculatorTool';
+import { FileHashAnalyzerTool } from './tools/FileHashAnalyzerTool';
+import { LinuxPermissionsTool } from './tools/LinuxPermissionsTool';
+// IoC Extractor — full SOC/IAM pipeline view (see section 7 below).
+// Static import for the same HMR-robustness reason as the tools above.
+import { IocExtractorView } from './IocExtractorView';
 import { usePendingToolStore } from '../store/pendingToolStore';
 import { useNoteStore } from '../store/noteStore';
 // BLOQUE 5 — favorites/recents prefs (live-query hooks) + cross-tool helper.
@@ -1335,11 +1273,8 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
 /*  scoring, enrichment links, KQL/SPL/STIX/CSV/JSON export,      */
 /*  defang toggle, secret detection, editable whitelist)         */
 /* ============================================================= */
-// VN-F-003 — lazy-loaded like the other standalone tools.
-const IocExtractorView = dynamic(
-  () => import('./IocExtractorView').then((m) => ({ default: m.IocExtractorView })),
-  { ssr: false, loading: () => <ToolChunkFallback /> }
-);
+/* (IocExtractorView is statically imported at the top of this file —     */
+/*  see "HMR-ROBUSTNESS" note there.)                                        */
 
 /* ============================================================= */
 /* 8. CRON PARSER (with guide)                                   */
