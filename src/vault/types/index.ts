@@ -101,18 +101,6 @@ export interface StoredImage {
   createdAt: string;
 }
 
-export interface StoredVideo {
-  id: string;
-  noteId?: string;
-  labId?: string;
-  name: string;
-  mimeType: string;
-  storedIn?: 'fs' | 'idb';
-  blob?: Blob;
-  caption?: string;
-  createdAt: string;
-}
-
 export interface StoredPdf {
   id: string;
   noteId?: string;
@@ -135,9 +123,12 @@ export interface ImportSummary {
   updatedTerms: number;
   skippedTerms: number;
   addedImages: number;
-  addedVideos: number;
   addedPdfs: number;
   addedReferences: number;
+  /** REGLA DE ORO (videos): videos found in a LEGACY backup that were
+   *  deliberately NOT imported — they never travel in backups anymore and
+   *  live only in the user's videos folder on disk. */
+  ignoredLegacyVideos: number;
   /** AUDIT VN-001: number of incoming rows skipped because the local row
    *  has a more recent `updatedAt` (preserve local — non-destructive). */
   conflictNotes: number;
@@ -150,7 +141,6 @@ export interface ImportSummary {
   invalidTerms: number;
   invalidReferences: number;
   invalidImages: number;
-  invalidVideos: number;
   invalidPdfs: number;
   invalidMisc: number;
   /** AUDIT VN-B-012: incoming rows on the upsert-by-id auxiliary tables
@@ -162,11 +152,10 @@ export interface ImportSummary {
   conflictCustomSigmaRules: number;
   conflictDatasetMeta: number;
   conflictTiCache: number;
-  /** AUDIT VN-B-013: imported blobs (images/videos/PDFs) whose noteId/labId
+  /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */
   orphanedImages: number;
-  orphanedVideos: number;
   orphanedPdfs: number;
 }
 

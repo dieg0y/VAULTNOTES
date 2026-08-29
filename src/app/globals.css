@@ -236,7 +236,7 @@
   display: none;
 }
 .vault-video-missing::after {
-  content: '⚠️ Video no encontrado (falta en este vault)';
+  content: '⚠️ Video no encontrado en la carpeta de videos — usa "Buscar archivo" en el banner';
   display: block;
   padding: 0.75rem;
   text-align: center;

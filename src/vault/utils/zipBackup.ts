@@ -1,8 +1,8 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredVideo, StoredPdf, ImportSummary } from '../types';
-import { getAllVideoEntries, saveVideoBlob, videoExtensionFor, writeFileToAppFolder } from './videoStorage';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary } from '../types';
+import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
 import { sanitizeHtml } from './sanitizeHtml';
@@ -212,9 +212,10 @@ function emptySummary(): ImportSummary {
     updatedTerms: 0,
     skippedTerms: 0,
     addedImages: 0,
-    addedVideos: 0,
     addedPdfs: 0,
     addedReferences: 0,
+    // REGLA DE ORO (videos): legacy backup videos deliberately ignored.
+    ignoredLegacyVideos: 0,
     // AUDIT VN-001: conflict counters (local newer → preserve, skip).
     conflictNotes: 0,
     conflictLabs: 0,
@@ -226,7 +227,6 @@ function emptySummary(): ImportSummary {
     invalidTerms: 0,
     invalidReferences: 0,
     invalidImages: 0,
-    invalidVideos: 0,
     invalidPdfs: 0,
     invalidMisc: 0,
     // AUDIT VN-B-012: conflict counters for the upsert-by-id auxiliary
@@ -238,7 +238,6 @@ function emptySummary(): ImportSummary {
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
-    orphanedVideos: 0,
     orphanedPdfs: 0,
   };
 }
@@ -258,11 +257,6 @@ function sanitizeFilename(str: string): string {
 export interface ExportResult {
   mode: 'app' | 'file' | 'download';
   savedTo?: string;
-  /** AUDIT VN-B-011 (HIGH): titles/ids of videos that could NOT be included
-   *  in the backup (blob unreadable — typically lost File System Access
-   *  permission to the videos folder). Empty array when the backup is
-   *  complete; App.handleExportBackup turns it into a visible warning. */
-  omittedVideos?: string[];
 }
 
 const BACKUP_FILENAME = 'VaultNotes-Backup.zip';
@@ -309,7 +303,8 @@ export async function exportVaultZip(): Promise<ExportResult> {
   const labs = await db.labs.toArray();
   const glossary = await db.glossary.toArray();
   const images = await db.images.toArray();
-  const videoEntries = await getAllVideoEntries(); // disk folder + IDB, merged
+  // REGLA DE ORO (videos): videos are NEVER exported — they live only in
+  // the user's videos folder on disk. Nothing video-related is read here.
   const pdfEntries = await getAllPdfEntries();
   const platforms = await db.platforms.toArray();
   const categories = await db.categories.toArray();
@@ -352,7 +347,6 @@ export async function exportVaultZip(): Promise<ExportResult> {
       labsCount: labs.length,
       glossaryCount: glossary.length,
       imagesCount: images.length,
-      videosCount: videoEntries.length,
       pdfsCount: pdfEntries.length,
       referencesCount: references.length,
       platformsCount: platforms.length,
@@ -445,34 +439,9 @@ export async function exportVaultZip(): Promise<ExportResult> {
     }
   }
 
-  // 4b. /videos/ — embedded videos from BOTH storages (disk folder + IDB):
-  // the .zip stays fully portable regardless of where the bytes live.
-  const videosFolder = zip.folder('videos');
-  const videoManifest = videoEntries.map(({ meta }) => meta);
-  zip.file('videosManifest.json', JSON.stringify(videoManifest, null, 2));
-  // AUDIT VN-B-011 (HIGH): a video whose blob is unreadable (usually lost
-  // File System Access permission to the videos folder) used to be dropped
-  // from the backup with only a console.warn — the user still saw a green
-  // "backup completed" while their videos were missing from the file. Now
-  // every omission is collected and returned so App.handleExportBackup can
-  // show an explicit "backup incomplete" warning.
-  const omittedVideos: string[] = [];
-  for (const { meta, blob } of videoEntries) {
-    if (!blob) {
-      console.warn('Video omitted from backup (no access to disk file):', meta.id);
-      omittedVideos.push(meta.name || meta.id);
-      continue;
-    }
-    try {
-      // STORE (no deflate): video payloads are already compressed —
-      // re-deflating multi-GB backups wasted minutes of CPU for ~0% size
-      // gain. Layout/manifest unchanged; importers decompress transparently.
-      videosFolder?.file(`${meta.id}.${videoExtensionFor(meta)}`, blob, { compression: 'STORE' });
-    } catch (err) {
-      console.warn('Could not serialize video for zip:', meta.id, err);
-      omittedVideos.push(meta.name || meta.id);
-    }
-  }
+  // 4b. REGLA DE ORO (videos): the /videos/ folder and videosManifest.json
+  //     are GONE from the export — videos never travel in backups. The zip
+  //     stays light and portable; the files live in the user's folder.
 
   // 4c. /pdfs/ — embedded PDFs (Blob-only storage in IDB).
   const pdfsFolder = zip.folder('pdfs');
@@ -553,7 +522,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
   //     the app itself, so copying one folder to Drive carries everything. ---
   const wroteToApp = await writeFileToAppFolder(BACKUP_FILENAME, blob).catch(() => false);
   if (wroteToApp) {
-    return { mode: 'app', savedTo: BACKUP_FILENAME, omittedVideos };
+    return { mode: 'app', savedTo: BACKUP_FILENAME };
   }
 
   // --- File System Access API fallback (no app folder configured) ---
@@ -576,7 +545,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
         if (perm === 'granted' && handle.createWritable) {
           try {
             await writeToHandle(handle, blob);
-            return { mode: 'file', savedTo: handle.name || BACKUP_FILENAME, omittedVideos };
+            return { mode: 'file', savedTo: handle.name || BACKUP_FILENAME };
           } catch {
             // The file was moved/deleted — fall through to re-picking it.
             await db.fileHandles.delete('vault-export');
@@ -595,7 +564,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
         id: 'vault-export',
         handle: newHandle as unknown as FileSystemFileHandle,
       });
-      return { mode: 'file', savedTo: newHandle.name || BACKUP_FILENAME, omittedVideos };
+      return { mode: 'file', savedTo: newHandle.name || BACKUP_FILENAME };
     } catch (err: unknown) {
       const name = (err as { name?: string })?.name;
       if (name === 'AbortError') {
@@ -608,17 +577,18 @@ export async function exportVaultZip(): Promise<ExportResult> {
 
   // --- Fallback: classic download with a fixed name (Firefox/Safari) ---
   saveAs(blob, BACKUP_FILENAME);
-  return { mode: 'download', savedTo: BACKUP_FILENAME, omittedVideos };
+  return { mode: 'download', savedTo: BACKUP_FILENAME };
 }
 
 export async function importVaultBackup(file: File): Promise<ImportSummary> {
   const summary = emptySummary();
 
   // AUDIT VN-B-013 (MEDIUM): owner references of every blob imported in THIS
-  // run (image/video/pdf with a noteId/labId). Checked for orphanhood AFTER
-  // the notes/labs upserts complete — see the orphan-report block below.
+  // run (image/pdf with a noteId/labId — videos never import anymore, REGLA
+  // DE ORO). Checked for orphanhood AFTER the notes/labs upserts complete —
+  // see the orphan-report block below.
   const importedBlobOwners: {
-    kind: 'image' | 'video' | 'pdf';
+    kind: 'image' | 'pdf';
     noteId?: string;
     labId?: string;
   }[] = [];
@@ -1208,52 +1178,20 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   }
 
-  // 4. Process videos (blobs + manifest) — non-destructive upsert by id.
-  //    Restored videos go to the user's disk folder when available (no
-  //    browser quota), falling back to IndexedDB.
-  //    AUDIT VN-006: validate the manifest via Zod before iterating.
+  // 4. REGLA DE ORO (videos): videos found in a LEGACY backup are
+  //    deliberately IGNORED — they never travel in backups anymore and live
+  //    only in the user's videos folder on disk. We still parse the manifest
+  //    (when present) to count them and surface the number in the import
+  //    report, so the user understands why those embeds may show the
+  //    "re-link" placeholder after the restore.
   const videosManifestFile = contents.file('videosManifest.json');
   if (videosManifestFile) {
     try {
       const rawVideoMetas: unknown = JSON.parse(await videosManifestFile.async('text'));
-      const { valid: videoMetas, invalid } = validateArray(videoMetaSchema, rawVideoMetas);
-      summary.invalidVideos += invalid;
-      for (const meta of videoMetas as Partial<StoredVideo>[]) {
-        if (!meta.id) continue;
-        try {
-          const existing = await db.videos.get(meta.id);
-          if (existing) continue; // already have this exact video
-          const ext = videoExtensionFor(meta as { name?: string; mimeType?: string });
-          const vidFile = contents.file(`videos/${meta.id}.${ext}`);
-          if (!vidFile) continue;
-          const rawBlob = await vidFile.async('blob');
-          // Re-type the blob so <video> plays it back correctly
-          const typedBlob = new Blob([rawBlob], { type: meta.mimeType || 'video/mp4' });
-          await saveVideoBlob({
-            id: meta.id,
-            noteId: meta.noteId,
-            labId: meta.labId,
-            name: meta.name || 'video',
-            mimeType: meta.mimeType || 'video/mp4',
-            blob: typedBlob,
-            caption: meta.caption,
-            createdAt: meta.createdAt,
-          });
-          summary.addedVideos++;
-          // AUDIT VN-B-013: owner reference for the orphan check below.
-          if (meta.noteId || meta.labId) {
-            importedBlobOwners.push({
-              kind: 'video',
-              noteId: meta.noteId,
-              labId: meta.labId,
-            });
-          }
-        } catch (err) {
-          console.warn('Error importing video:', meta.id, err);
-        }
-      }
+      const { valid: videoMetas, invalid: invalidVideoMetas } = validateArray(videoMetaSchema, rawVideoMetas);
+      summary.ignoredLegacyVideos = videoMetas.length + invalidVideoMetas;
     } catch (e) {
-      console.error('Error importing videos manifest:', e);
+      console.warn('Error reading legacy videos manifest (ignored):', e);
     }
   }
 
@@ -1341,7 +1279,6 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       const labExists = owner.labId ? localLabIds.has(owner.labId) : false;
       if (noteExists || labExists) continue;
       if (owner.kind === 'image') summary.orphanedImages++;
-      else if (owner.kind === 'video') summary.orphanedVideos++;
       else summary.orphanedPdfs++;
     }
   }

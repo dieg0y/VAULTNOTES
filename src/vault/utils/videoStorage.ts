@@ -1,19 +1,23 @@
 import { db } from '../db';
-import { StoredVideo } from '../types';
 
 /* ------------------------------------------------------------------ */
-/* Video storage — dual backend                                        */
+/* Video storage — File System Access API ONLY (REGLA DE ORO).         */
 /*                                                                     */
-/* 1) PRIMARY: File System Access API — a dedicated `VaultNotesVideos` */
-/*    folder on the user's real disk. Videos are stored as RAW files   */
-/*    (mp4/webm/mkv...), with NO practical size limit beyond free      */
-/*    disk space. The directory handle persists in IndexedDB.          */
+/* NINGÚN video se guarda nunca dentro de IndexedDB.                   */
+/* NINGÚN video se incluye nunca en el export/import (ZIP).            */
+/* Los videos viven únicamente en la carpeta del disco que el usuario  */
+/* elige (Configuración → Carpeta de Videos). La app guarda SOLO el    */
+/* DirectoryHandle (tabla `fileHandles`) y referencias limpias por     */
+/* nombre de archivo en el HTML de las notas:                          */
 /*                                                                     */
-/* 2) FALLBACK: IndexedDB blobs (Firefox/Safari or if the user hasn't  */
-/*    picked a folder). We request `navigator.storage.persist()` to    */
-/*    minimize eviction and maximize quota.                            */
+/*   <figure class="vault-video-embed" data-vault-video="clip.mp4">    */
+/*     <video controls></video>   ← src = ObjectURL efímero en runtime */
+/*   </figure>                                                         */
 /*                                                                     */
-/* Backups read from BOTH sources, so a single .zip stays portable.    */
+/* Compatibilidad legacy: las notas creadas por la versión anterior    */
+/* usaban `data-vid="vid-…"` con archivos `{id}.{ext}` en la carpeta.  */
+/* `resolveLegacyVideoUrl()` escanea la carpeta buscando ese prefijo   */
+/* para que los embeds existentes sigan reproduciéndose.               */
 /* ------------------------------------------------------------------ */
 
 /** Minimal structural typings (FSA isn't in lib.dom for all targets). */
@@ -24,52 +28,49 @@ interface FSWritableLike {
 interface FSFileHandleLike {
   createWritable?: (opts?: unknown) => Promise<FSWritableLike>;
   getFile?: () => Promise<File>;
-  remove?: () => Promise<void>;
 }
 interface FSDirHandleLike {
   name: string;
+  kind: string;
   queryPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
   requestPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
   getFileHandle?: (name: string, opts?: { create?: boolean }) => Promise<FSFileHandleLike>;
+  getDirectoryHandle?: (name: string, opts?: { create?: boolean }) => Promise<FSDirHandleLike>;
   removeEntry?: (name: string) => Promise<void>;
-  values?: () => AsyncIterableIterator<FSFileHandleLike & { name: string; kind: string }>;
+  values?: () => AsyncIterableIterator<FSDirHandleLike & FSFileHandleLike>;
 }
 
-export const VIDEOS_DIR_NAME = 'VaultNotesVideos';
-const DIR_HANDLE_KEY = 'vault-videos-dir';
-const APP_DIR_KEY = 'vault-app-dir'; // the app folder itself (where iniciar.bat lives)
-const DECLINED_FLAG = 'vault-videos-dir-declined';
+/** The user hasn't picked a videos folder yet (Settings → Carpeta de Videos). */
+export class NoVideosDirectoryError extends Error {
+  constructor() {
+    super('No hay carpeta de videos configurada');
+    this.name = 'NoVideosDirectoryError';
+  }
+}
+
+/** The stored folder exists but the browser needs permission again
+ *  (typically after a restart). Callers with a user gesture should call
+ *  `ensureVideosPermission()`; without one, show the banner. */
+export class VideosPermissionError extends Error {
+  constructor() {
+    super('Falta permiso sobre la carpeta de videos');
+    this.name = 'VideosPermissionError';
+  }
+}
+
+const VIDEOS_DIR_KEY = 'vault-videos-dir';
+const APP_DIR_KEY = 'vault-app-dir'; // app folder (backups target) — NOT videos
 
 export function isFsSupported(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 }
 
-export function videoExtensionFor(meta: { name?: string; mimeType?: string }): string {
-  if (meta.name && meta.name.includes('.')) {
-    return (meta.name.split('.').pop() || 'mp4').toLowerCase();
-  }
-  const sub = (meta.mimeType || 'video/mp4').split('/')[1] || 'mp4';
-  return sub.replace(/[^a-z0-9]/gi, '') || 'mp4';
-}
-
-function fileNameFor(id: string, meta: { name?: string; mimeType?: string }): string {
-  return `${id}.${videoExtensionFor(meta)}`;
-}
-
 /* ------------------------- Directory management ------------------------- */
 
-async function getDirHandle(): Promise<FSDirHandleLike | null> {
+/** Stored handle for the videos folder, or null when never picked. */
+export async function getVideosDirectory(): Promise<FSDirHandleLike | null> {
   try {
-    const stored = await db.fileHandles.get(DIR_HANDLE_KEY);
-    return (stored?.handle as unknown as FSDirHandleLike) || null;
-  } catch {
-    return null;
-  }
-}
-
-async function getAppDirHandle(): Promise<FSDirHandleLike | null> {
-  try {
-    const stored = await db.fileHandles.get(APP_DIR_KEY);
+    const stored = await db.fileHandles.get(VIDEOS_DIR_KEY);
     return (stored?.handle as unknown as FSDirHandleLike) || null;
   } catch {
     return null;
@@ -77,24 +78,19 @@ async function getAppDirHandle(): Promise<FSDirHandleLike | null> {
 }
 
 /** True when the user picked a videos folder at some point. */
-export async function hasVideosDir(): Promise<boolean> {
-  return (await getDirHandle()) !== null;
+export async function hasVideosDirectory(): Promise<boolean> {
+  return (await getVideosDirectory()) !== null;
 }
 
-/** True when the user picked THE APP FOLDER (videos + backups target). */
-export async function hasAppFolder(): Promise<boolean> {
-  return (await getAppDirHandle()) !== null;
-}
-
-/** Name of the app folder the user picked (e.g. "VAULTNOTES"). */
-export async function getAppFolderName(): Promise<string | null> {
-  const dir = await getAppDirHandle();
+/** Display name of the videos folder (e.g. "Mis Videos SOC"), or null. */
+export async function getVideosDirectoryName(): Promise<string | null> {
+  const dir = await getVideosDirectory();
   return dir ? dir.name : null;
 }
 
-/** Is the stored folder usable right now (permission granted)? */
-export async function isFsReady(): Promise<boolean> {
-  const dir = await getDirHandle();
+/** True when the stored folder is usable right now (permission granted). */
+export async function isVideosPermissionGranted(): Promise<boolean> {
+  const dir = await getVideosDirectory();
   if (!dir) return false;
   try {
     const perm = dir.queryPermission
@@ -107,11 +103,45 @@ export async function isFsReady(): Promise<boolean> {
 }
 
 /**
- * Folder exists but permission needs re-granting (e.g. after browser
- * restart). MUST be called from a user gesture (button click).
+ * Ask the user to pick THE videos folder (any folder on their disk).
+ * Stores the DirectoryHandle so the choice persists across sessions.
+ * MUST be called from a user gesture (button click). Returns false when
+ * the user cancels the picker or the browser doesn't support FSA.
  */
-export async function ensureFsPermission(): Promise<boolean> {
-  const dir = await getDirHandle();
+export async function setVideosDirectory(): Promise<boolean> {
+  const picker = (window as unknown as {
+    showDirectoryPicker?: (opts?: unknown) => Promise<FSDirHandleLike>;
+  }).showDirectoryPicker;
+  if (!picker) return false;
+  try {
+    const prev = await getVideosDirectory();
+    const dir = await picker.call(window, {
+      mode: 'readwrite',
+      id: 'vaultnotes-videos',
+      ...(prev ? { startIn: prev } : {}),
+    });
+    if (!dir.getFileHandle) throw new Error('unsupported');
+    await db.fileHandles.put({ id: VIDEOS_DIR_KEY, handle: dir as unknown as FileSystemFileHandle });
+    return true;
+  } catch (err: unknown) {
+    if ((err as { name?: string })?.name === 'AbortError') return false; // user cancelled
+    console.warn('setVideosDirectory failed:', err);
+    return false;
+  }
+}
+
+/** Stop using the videos folder (references stay in the notes; the files
+ *  are the user's and are never deleted by the app). */
+export async function forgetVideosDirectory(): Promise<void> {
+  await db.fileHandles.delete(VIDEOS_DIR_KEY);
+}
+
+/**
+ * Re-request permission on the stored videos folder. MUST be called from
+ * a user gesture (button click) — requestPermission otherwise throws.
+ */
+export async function ensureVideosPermission(): Promise<boolean> {
+  const dir = await getVideosDirectory();
   if (!dir) return false;
   try {
     let perm = dir.queryPermission
@@ -126,14 +156,223 @@ export async function ensureFsPermission(): Promise<boolean> {
   }
 }
 
+/* ----------------------------- Filenames ------------------------------ */
+
 /**
- * Asks the user to pick THE APP FOLDER (the VAULTNOTES repo folder, where
- * iniciar.bat lives). Everything then stays inside it:
- *   <app>/VaultNotesVideos/          → embedded videos (raw files)
- *   <app>/VaultNotes-Backup.zip      → every "Guardar Backup"
- * Copying that single folder to Drive carries the whole vault.
+ * Sanitize a user-provided filename for the videos folder: strip path
+ * separators / control chars, collapse whitespace, cap the length, and
+ * keep (or derive from the mime type) a sensible extension.
+ */
+export function sanitizeVideoFilename(name: string, mimeType?: string): string {
+  let base = (name || 'video')
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  let ext = '';
+  const dot = base.lastIndexOf('.');
+  if (dot > 0) {
+    ext = base.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '');
+    base = base.slice(0, dot).trim() || 'video';
+  }
+  if (!ext) {
+    const sub = (mimeType || 'video/mp4').split('/')[1] || 'mp4';
+    ext = sub.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'mp4';
+  }
+  if (base.length > 100) base = base.slice(0, 100).trim();
+  return `${base}.${ext}`;
+}
+
+async function fileExists(dir: FSDirHandleLike, filename: string): Promise<boolean> {
+  try {
+    await dir.getFileHandle!(filename, { create: false });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** `clip.mp4` → `clip (1).mp4`, `clip (2).mp4`, … (first free slot). */
+async function uniqueNameIn(dir: FSDirHandleLike, filename: string): Promise<string> {
+  const dot = filename.lastIndexOf('.');
+  const stem = dot > 0 ? filename.slice(0, dot) : filename;
+  const ext = dot > 0 ? filename.slice(dot) : '';
+  for (let i = 1; i < 1000; i++) {
+    const candidate = `${stem} (${i})${ext}`;
+    if (!(await fileExists(dir, candidate))) return candidate;
+  }
+  return `${stem}-${Date.now()}${ext}`;
+}
+
+/* ------------------------------ Saving ------------------------------- */
+
+export interface SaveVideoOpts {
+  /** What to do when the target filename already exists in the folder.
+   *  The callback typically shows a dialog ("sobrescribir" vs "nombre
+   *  único"). When omitted, the safe default is a unique name. */
+  onConflict?: (existingName: string) => Promise<'overwrite' | 'rename'> | 'overwrite' | 'rename';
+  /** Force the stored filename (used by "Buscar archivo" so a re-linked
+   *  file takes the exact name the note reference expects). */
+  forceName?: string;
+}
+
+/**
+ * COPIES a video file into the user's videos folder (raw file on disk —
+ * never IndexedDB, never the backup). Returns the FINAL filename so the
+ * caller can embed `data-vault-video="<filename>"` in the note HTML.
+ * Throws NoVideosDirectoryError / VideosPermissionError so the UI can
+ * react with the right prompt.
+ */
+export async function saveVideoToDirectory(file: File, opts: SaveVideoOpts = {}): Promise<string> {
+  const dir = await getVideosDirectory();
+  if (!dir || !dir.getFileHandle) throw new NoVideosDirectoryError();
+
+  // Permission: query first; request when we're inside a user gesture
+  // (button click / drop). Without a gesture this throws and the UI shows
+  // the "Conceder acceso" banner.
+  let perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+  if (perm !== 'granted') {
+    if (!dir.requestPermission) throw new VideosPermissionError();
+    perm = await dir.requestPermission({ mode: 'readwrite' });
+  }
+  if (perm !== 'granted') throw new VideosPermissionError();
+
+  let filename = sanitizeVideoFilename(opts.forceName || file.name, file.type || undefined);
+  if (await fileExists(dir, filename)) {
+    let action: 'overwrite' | 'rename' = 'rename';
+    if (opts.onConflict) {
+      action = await opts.onConflict(filename);
+    }
+    if (action === 'rename') filename = await uniqueNameIn(dir, filename);
+  }
+
+  const fh = await dir.getFileHandle(filename, { create: true });
+  const writable = await fh.createWritable!();
+  await writable.write(file);
+  await writable.close();
+  return filename;
+}
+
+/* ------------------------------ Reading ------------------------------- */
+
+/** Depth-limited recursive search for a file inside the folder (the user
+ *  may have organized their videos into subfolders). */
+async function findFileHandle(
+  dir: FSDirHandleLike,
+  filename: string,
+  depth = 0,
+): Promise<FSFileHandleLike | null> {
+  if (!dir.getFileHandle) return null;
+  try {
+    return await dir.getFileHandle(filename, { create: false });
+  } catch {
+    /* not directly here — search subfolders */
+  }
+  if (depth >= 3 || !dir.values || !dir.getDirectoryHandle) return null;
+  try {
+    for await (const entry of dir.values()) {
+      if (entry.kind !== 'directory') continue;
+      const sub = await dir.getDirectoryHandle(entry.name);
+      const found = await findFileHandle(sub, filename, depth + 1);
+      if (found) return found;
+    }
+  } catch {
+    /* permission or transient error — treat as not found */
+  }
+  return null;
+}
+
+/**
+ * Resolves a `data-vault-video` reference to a playable ObjectURL by
+ * finding the file inside the stored folder. Returns null when the file
+ * doesn't exist. Throws VideosPermissionError when the folder is locked
+ * (callers surface the "Conceder acceso" banner — never a silent miss).
+ * The ObjectURL must be revoked by the caller (editors revoke on unmount).
+ */
+export async function getVideoObjectURL(filename: string): Promise<string | null> {
+  const dir = await getVideosDirectory();
+  if (!dir || !dir.getFileHandle) throw new NoVideosDirectoryError();
+
+  const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+  if (perm !== 'granted') throw new VideosPermissionError();
+
+  const safeName = sanitizeVideoFilename(filename);
+  const fh = (await findFileHandle(dir, safeName)) || (await findFileHandle(dir, filename));
+  if (!fh || !fh.getFile) return null;
+  const file = await fh.getFile();
+  return URL.createObjectURL(file);
+}
+
+/**
+ * LEGACY COMPATIBILITY: notes written by the previous version embed
+ * `data-vid="vid-…"` and stored raw files named `{id}.{ext}` inside
+ * (app)/VaultNotesVideos. With the metadata table gone, we scan the
+ * folder for a file whose name starts with the id — the embed keeps
+ * playing as long as the file is still on disk.
+ */
+export async function resolveLegacyVideoUrl(vid: string): Promise<string | null> {
+  const dir = await getVideosDirectory();
+  if (!dir || !dir.getFileHandle || !dir.values) return null;
+
+  const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+  if (perm !== 'granted') throw new VideosPermissionError();
+
+  // `vid-1234567-abcd` → filename prefix `vid-1234567-abcd.`
+  const prefix = `${vid}.`;
+  const candidates: FSFileHandleLike[] = [];
+  try {
+    for await (const entry of dir.values()) {
+      if (entry.kind === 'file' && entry.name.startsWith(prefix)) {
+        candidates.push(entry);
+      }
+    }
+  } catch {
+    return null;
+  }
+  // Newest write wins when several extensions match.
+  if (candidates.length === 0) return null;
+  let best: { file: File } | null = null;
+  for (const c of candidates) {
+    try {
+      const f = await c.getFile!();
+      if (!best || f.lastModified > best.file.lastModified) best = { file: f };
+    } catch {
+      /* unreadable — skip */
+    }
+  }
+  return best ? URL.createObjectURL(best.file) : null;
+}
+
+/* ---------------------- App folder (backups only) ---------------------- */
+/* The "app folder" feature survives ONLY as the backup target: every
+ * "Guardar Backup" writes VaultNotes-Backup.zip into it. It no longer
+ * has anything to do with videos (REGLA DE ORO decoupling).            */
+
+async function getAppDirHandle(): Promise<FSDirHandleLike | null> {
+  try {
+    const stored = await db.fileHandles.get(APP_DIR_KEY);
+    return (stored?.handle as unknown as FSDirHandleLike) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when the user picked the app folder (backup target). */
+export async function hasAppFolder(): Promise<boolean> {
+  return (await getAppDirHandle()) !== null;
+}
+
+/** Name of the app folder the user picked (e.g. "VAULTNOTES"). */
+export async function getAppFolderName(): Promise<string | null> {
+  const dir = await getAppDirHandle();
+  return dir ? dir.name : null;
+}
+
+/**
+ * Ask the user to pick THE APP FOLDER (where the backups will be written).
  * MUST be called from a user gesture. Soft-verifies the folder by looking
- * for iniciar.bat / package.json markers.
+ * for iniciar.bat / package.json markers. NOTE (REGLA DE ORO): this no
+ * longer configures the videos folder — videos live wherever the user
+ * chose in Configuración → Carpeta de Videos.
  */
 export async function pickAppFolder(): Promise<boolean> {
   const picker = (window as unknown as {
@@ -141,7 +380,6 @@ export async function pickAppFolder(): Promise<boolean> {
   }).showDirectoryPicker;
   if (!picker) return false;
   try {
-    // Re-open at the previously chosen location when re-picking
     const prev = await getAppDirHandle();
     const parent = await picker.call(window, {
       mode: 'readwrite',
@@ -150,7 +388,6 @@ export async function pickAppFolder(): Promise<boolean> {
     });
     if (!parent.getFileHandle) throw new Error('unsupported');
 
-    // Soft check: does this look like the app folder?
     let looksLikeApp = false;
     try {
       await parent.getFileHandle('iniciar.bat');
@@ -166,21 +403,13 @@ export async function pickAppFolder(): Promise<boolean> {
     if (!looksLikeApp) {
       const proceed = window.confirm(
         'La carpeta elegida no parece ser la carpeta de la app (no contiene iniciar.bat).\n\n' +
-        'Para tener TODO junto (videos + backups) y poder copiar una sola carpeta a tu Drive, elige la carpeta VAULTNOTES donde está iniciar.bat.\n\n' +
+        'Los backups se guardarán DENTRO de esta carpeta.\n\n' +
         '¿Usar esta carpeta de todos modos?'
       );
       if (!proceed) return false;
     }
 
-    // Dedicated videos subfolder inside the app folder
-    const dir = await (parent as unknown as {
-      getDirectoryHandle: (name: string, opts?: { create?: boolean }) => Promise<FSDirHandleLike>;
-    }).getDirectoryHandle(VIDEOS_DIR_NAME, { create: true });
     await db.fileHandles.put({ id: APP_DIR_KEY, handle: parent as unknown as FileSystemFileHandle });
-    await db.fileHandles.put({ id: DIR_HANDLE_KEY, handle: dir as unknown as FileSystemFileHandle });
-    try {
-      localStorage.removeItem(DECLINED_FLAG);
-    } catch { /* ignore */ }
     return true;
   } catch (err: unknown) {
     if ((err as { name?: string })?.name === 'AbortError') return false; // user cancelled
@@ -210,197 +439,7 @@ export async function writeFileToAppFolder(filename: string, blob: Blob): Promis
   }
 }
 
-/** Stop using the app folder (falls back to browser storage / save picker). */
+/** Stop using the app folder (backups go back to the download picker). */
 export async function forgetAppFolder(): Promise<void> {
   await db.fileHandles.delete(APP_DIR_KEY);
-  await db.fileHandles.delete(DIR_HANDLE_KEY);
-}
-
-/* ----------------------------- Saving ------------------------------ */
-
-/** True if we should prompt the user to choose the folder (once). */
-export function shouldAskForDir(): boolean {
-  try {
-    return !localStorage.getItem(DECLINED_FLAG);
-  } catch {
-    return true;
-  }
-}
-
-export function markDirDeclined(): void {
-  try {
-    localStorage.setItem(DECLINED_FLAG, '1');
-  } catch { /* ignore */ }
-}
-
-/**
- * Persists a video. Writes it as a RAW FILE into the user's
- * VaultNotesVideos folder when available (no size limit); otherwise
- * stores an IndexedDB blob (with a persistence request to the browser).
- * Metadata always lands in the `videos` table.
- */
-export async function saveVideoBlob(meta: {
-  id: string;
-  noteId?: string;
-  labId?: string;
-  name: string;
-  mimeType: string;
-  blob: Blob;
-  caption?: string;
-  createdAt?: string;
-}): Promise<{ storedIn: 'fs' | 'idb' }> {
-  const createdAt = meta.createdAt || new Date().toISOString();
-
-  const dir = await getDirHandle();
-  if (dir && dir.getFileHandle && (await fsGranted(dir))) {
-    try {
-      const fh = await dir.getFileHandle(fileNameFor(meta.id, meta), { create: true });
-      const writable = await fh.createWritable!();
-      await writable.write(meta.blob);
-      await writable.close();
-      await db.videos.put({ ...meta, createdAt, storedIn: 'fs' });
-      return { storedIn: 'fs' };
-    } catch (err) {
-      console.warn('FSA write failed, falling back to IndexedDB:', err);
-    }
-  }
-
-  // Fallback: browser storage with a persistence request
-  try {
-    const nav = navigator as Navigator & { storage?: { persist?: () => Promise<boolean> } };
-    await nav.storage?.persist?.();
-  } catch { /* ignore */ }
-  await db.videos.put({ ...meta, createdAt, storedIn: 'idb' });
-  return { storedIn: 'idb' };
-}
-
-async function fsGranted(dir: FSDirHandleLike): Promise<boolean> {
-  try {
-    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
-    if (perm === 'granted') return true;
-    if (dir.requestPermission) {
-      return (await dir.requestPermission({ mode: 'readwrite' })) === 'granted';
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/* ----------------------------- Reading ----------------------------- */
-
-/** Resolves the playable Blob for a video id — disk folder first, then IDB. */
-export async function getVideoBlobById(id: string): Promise<Blob | null> {
-  const meta = await db.videos.get(id);
-  // 1) Disk folder (raw file)
-  const dir = await getDirHandle();
-  if (dir && dir.getFileHandle) {
-    try {
-      if (await fsGranted(dir)) {
-        const fh = await dir.getFileHandle(fileNameFor(id, meta || {}));
-        const file = await fh.getFile!();
-        return file;
-      }
-    } catch {
-      /* not on disk — try other sources */
-    }
-  }
-  // 2) IndexedDB
-  if (meta?.blob) return meta.blob;
-  return null;
-}
-
-/* ----------------------------- Backups ----------------------------- */
-
-export interface VideoEntry {
-  meta: Omit<StoredVideo, 'blob'>;
-  blob: Blob | null; // null when the file is on disk but access was denied
-}
-
-/** Everything needed by the ZIP export — merges both storages. */
-export async function getAllVideoEntries(): Promise<VideoEntry[]> {
-  const all: VideoEntry[] = [];
-  const metas = await db.videos.toArray();
-
-  const dir = await getDirHandle();
-  const fsOk = dir && dir.getFileHandle && (await fsGranted(dir));
-
-  for (const v of metas) {
-    const { blob, ...meta } = v;
-    if (fsOk) {
-      try {
-        const fh = await dir.getFileHandle!(fileNameFor(v.id, v), { create: false });
-        const file = await fh.getFile!();
-        all.push({ meta: meta as Omit<StoredVideo, 'blob'>, blob: file });
-        continue;
-      } catch {
-        /* not on disk — use IDB copy if any */
-      }
-    }
-    all.push({ meta: meta as Omit<StoredVideo, 'blob'>, blob: blob || null });
-  }
-  return all;
-}
-
-/** Removes a video from every storage (called on permanent deletes).
- *  Accepts an optional pre-fetched `meta` so callers that already have the
- *  row in hand can avoid the race where the IDB row is deleted before the
- *  disk file is removed (which would make `meta` undefined and skip the
- *  `dir.removeEntry` step, leaving an orphan file on disk forever).
- *  Bug fix (Task 2-c — Data Integrity / blob lifecycle). */
-export async function deleteVideoEverywhere(id: string, meta?: { name?: string; mimeType?: string }): Promise<void> {
-  const row = meta ?? await db.videos.get(id);
-  await db.videos.delete(id);
-  const dir = await getDirHandle();
-  if (dir && dir.removeEntry && row) {
-    try {
-      if (await fsGranted(dir)) {
-        await dir.removeEntry(fileNameFor(id, row));
-      }
-    } catch {
-      /* file already gone */
-    }
-  }
-}
-
-/* --------------------------- Migration ----------------------------- */
-
-/** Moves IndexedDB-stored videos into the disk folder. Settings action. */
-export async function migrateIdbVideosToFs(): Promise<{ moved: number; failed: number }> {
-  const dir = await getDirHandle();
-  if (!dir || !dir.getFileHandle || !(await fsGranted(dir))) {
-    return { moved: 0, failed: 0 };
-  }
-  let moved = 0;
-  let failed = 0;
-  const metas = await db.videos.toArray();
-  for (const v of metas) {
-    if (v.storedIn === 'fs' || !v.blob) continue;
-    try {
-      const fh = await dir.getFileHandle(fileNameFor(v.id, v), { create: true });
-      const writable = await fh.createWritable!();
-      await writable.write(v.blob);
-      await writable.close();
-      const { blob: _blob, ...rest } = v;
-      await db.videos.put({ ...rest, storedIn: 'fs' } as StoredVideo);
-      moved++;
-    } catch {
-      failed++;
-    }
-  }
-  return { moved, failed };
-}
-
-/** Stats for the Settings panel. */
-export async function getVideoStorageStats(): Promise<{
-  total: number;
-  inFs: number;
-  inIdb: number;
-  idbBytes: number;
-}> {
-  const metas = await db.videos.toArray();
-  const inFs = metas.filter((v) => v.storedIn === 'fs').length;
-  const inIdb = metas.filter((v) => v.storedIn !== 'fs' && v.blob).length;
-  const idbBytes = metas.reduce((acc, v) => (v.storedIn !== 'fs' && v.blob ? acc + v.blob.size : acc), 0);
-  return { total: metas.length, inFs, inIdb, idbBytes };
 }

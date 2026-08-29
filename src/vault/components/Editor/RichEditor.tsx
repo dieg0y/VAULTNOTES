@@ -8,7 +8,7 @@ import {
 import { Note, GlossaryTerm, CategoryItem } from '../../types';
 import { db } from '../../db';
 import { insertHtmlInEditable } from '../../utils/domInsert';
-import { saveVideoBlob, getVideoBlobById, isFsSupported, hasAppFolder, isFsReady, ensureFsPermission, pickAppFolder, shouldAskForDir, markDirDeclined } from '../../utils/videoStorage';
+import { saveVideoToDirectory, getVideoObjectURL, resolveLegacyVideoUrl, setVideosDirectory, hasVideosDirectory, isFsSupported, ensureVideosPermission, NoVideosDirectoryError, VideosPermissionError } from '../../utils/videoStorage';
 import { savePdfBlob, getPdfBlobById } from '../../utils/pdfStorage';
 import { AutoToc } from './AutoToc';
 import { addToReviewQueue } from '../tools/_shared';
@@ -69,37 +69,54 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   // flushSave + unmount-cleanup below. (Audit Task 2-a MEDIUM follow-up.)
   const latestHtmlRef = useRef('');
   const [fsNeedsPermission, setFsNeedsPermission] = useState(false);
+  // REGLA DE ORO (videos): reference files that exist in the note but were
+  // NOT found in the videos folder — drives the "Re-linkear / Buscar"
+  // banner. Ref (not state) so the file picker callback reads the latest.
+  const missingVideosRef = useRef<string[]>([]);
+  const [missingVideoCount, setMissingVideoCount] = useState(0);
+  const relinkInputRef = useRef<HTMLInputElement>(null);
 
-  /** Attach persistent object-URLs to every embedded video in the editor. */
+  /** Attach playable ObjectURLs to every embedded video in the editor.
+   *  REGLA DE ORO: videos resolve from the user's disk folder only.
+   *  New embeds carry data-vault-video="<filename>"; legacy ones carry
+   *  data-vid="vid-…" (resolved by scanning the folder for `{vid}.*`).
+   *  Missing files / lost permission surface as a banner + placeholder. */
   const attachVideoSources = useCallback(async () => {
     if (!editorRef.current) return;
-    const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-video-embed[data-vid]');
-    let anyMissing = false;
+    const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-video-embed');
     let permIssue = false;
-    const dirReady = await isFsReady().catch(() => false);
-    const hasDir = await hasAppFolder().catch(() => false);
+    const missing: string[] = [];
     for (const fig of Array.from(embeds)) {
-      const vid = fig.getAttribute('data-vid');
       const videoEl = fig.querySelector('video');
-      if (!vid || !videoEl || videoEl.getAttribute('src')) continue;
+      if (!videoEl || videoEl.getAttribute('src')) continue;
+      // New reference format: data-vault-video="archivo.mp4".
+      // Legacy format: data-vid="vid-…" (files named {id}.{ext} on disk).
+      const filename = fig.getAttribute('data-vault-video');
+      const legacyVid = fig.getAttribute('data-vid');
+      if (!filename && !legacyVid) continue;
       try {
-        const blob = await getVideoBlobById(vid);
-        if (blob) {
+        const url = filename
+          ? await getVideoObjectURL(filename)
+          : await resolveLegacyVideoUrl(legacyVid as string);
+        if (url) {
           fig.classList.remove('vault-video-missing');
-          const url = URL.createObjectURL(blob);
           videoUrlsRef.current.push(url);
           videoEl.src = url;
         } else {
-          anyMissing = true;
-          permIssue = permIssue || (hasDir && !dirReady);
           fig.classList.add('vault-video-missing');
+          if (filename) missing.push(filename);
         }
-      } catch {
-        anyMissing = true;
+      } catch (err) {
+        if (err instanceof VideosPermissionError || err instanceof NoVideosDirectoryError) {
+          permIssue = true;
+        }
         fig.classList.add('vault-video-missing');
+        if (filename) missing.push(filename);
       }
     }
-    setFsNeedsPermission(anyMissing && permIssue);
+    missingVideosRef.current = missing;
+    setMissingVideoCount(missing.length);
+    setFsNeedsPermission(permIssue);
   }, []);
 
   /** Attach persistent object-URLs to every embedded PDF in the editor.
@@ -357,46 +374,53 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   };
 
   /** Embed a local video file into the note.
-   *  Videos live as raw files inside <app>/VaultNotesVideos when the app
-   *  folder is configured (no size limit); otherwise in browser storage. */
+   *  REGLA DE ORO: the file is COPIED into the user's videos folder (raw
+   *  file on disk — never IndexedDB, never the backup) and the note only
+   *  stores a clean filename reference: data-vault-video="<filename>". */
   const handleVideoFile = async (file: File) => {
     if (!file.type.startsWith('video/')) return;
 
-    // First video ever + no app folder chosen yet → offer the all-in-one folder
-    if (isFsSupported() && !(await hasAppFolder().catch(() => false)) && shouldAskForDir()) {
-      const ok = await pickAppFolder(); // pick THE app folder (with iniciar.bat)
-      if (!ok) markDirDeclined(); // don't nag again; configurable in Ajustes
-    }
-
-    // WEIGHT LIMITS REMOVED (user request — heavy video vaults): no size
-    // cap on video uploads. When the FSA app folder is configured there
-    // never was one (raw files on disk); without it, the IndexedDB
-    // fallback now also accepts any size and lets the browser's own
-    // storage quota be the natural limit — a quota rejection is caught
-    // below and surfaced with an actionable message.
-
-    const vidId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    // SECURITY (Task 2-b): escape the single-quote too (was missing) for
-    // consistency with handleImageFile — safeName is interpolated inside
-    // a figcaption text node and could later be re-rendered in a
-    // single-quoted attribute context.
-    const safeName = escapeHtml(file.name);
-    try {
-      await saveVideoBlob({
-        id: vidId,
-        noteId: note.id,
-        name: file.name,
-        mimeType: file.type,
-        blob: file,
-        caption: file.name,
-      });
-    } catch (err) {
-      console.error('No se pudo guardar el video:', err);
-      alert('No se pudo guardar el video (el navegador rechazó el almacenamiento). Configura la carpeta de la app en Configuración → Carpeta de la App para guardar sin límites.');
+    if (!isFsSupported()) {
+      alert('Tu navegador no soporta carpetas locales (File System Access API).\nAbre VaultNotes en Microsoft Edge o Chrome para insertar videos.');
       return;
     }
+
+    // First video + no folder chosen yet → ask now (the click/drop IS the
+    // user gesture the directory picker requires).
+    if (!(await hasVideosDirectory())) {
+      const ok = await setVideosDirectory();
+      if (!ok) {
+        alert('Necesitas seleccionar una carpeta de videos para insertar videos.\nPuedes configurarla en Configuración → Carpeta de Videos.');
+        return;
+      }
+    }
+
+    let filename: string;
+    try {
+      filename = await saveVideoToDirectory(file, {
+        // Spec: "se pregunta si se sobrescribe o se genera un nombre único".
+        onConflict: (existing) =>
+          window.confirm(
+            `Ya existe "${existing}" en la carpeta de videos.\n\nAceptar = Sobrescribir el archivo existente\nCancelar = Guardar con un nombre único`
+          )
+            ? 'overwrite'
+            : 'rename',
+      });
+    } catch (err) {
+      if (err instanceof VideosPermissionError) {
+        alert('El navegador necesita permiso sobre la carpeta de videos.\nPulsa "Conceder acceso" en el banner de arriba y vuelve a intentarlo.');
+        return;
+      }
+      console.error('No se pudo copiar el video a la carpeta:', err);
+      alert('No se pudo copiar el video a la carpeta de videos.');
+      return;
+    }
+
+    // SECURITY (Task 2-b): the filename is user-controlled text interpolated
+    // into an attribute — escape it (also covers the figcaption text node).
+    const safeName = escapeHtml(filename);
     const videoHtml = `
-      <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D] shadow-xl" contenteditable="false" data-vid="${vidId}">
+      <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D] shadow-xl" contenteditable="false" data-vault-video="${safeName}">
         <video controls playsinline preload="metadata" style="width: 100%; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
         <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
           Video: ${safeName.replace(/\.[^/.]+$/, '')}
@@ -407,6 +431,37 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       attachVideoSources();
       handleContentInput();
     }
+  };
+
+  /** REGLA DE ORO — "Buscar archivo": re-link missing videos by picking the
+   *  file(s) from anywhere on disk; each one is COPIED into the videos
+   *  folder under the exact filename the note reference expects. */
+  const handleRelinkFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    const missing = [...missingVideosRef.current];
+    for (let i = 0; i < files.length; i++) {
+      const forceName = i < missing.length ? missing[i] : undefined;
+      try {
+        await saveVideoToDirectory(files[i], { forceName });
+      } catch (err) {
+        if (err instanceof VideosPermissionError) {
+          const ok = await ensureVideosPermission();
+          if (!ok) {
+            alert('No se pudo obtener permiso sobre la carpeta de videos.');
+            return;
+          }
+          try {
+            await saveVideoToDirectory(files[i], { forceName });
+          } catch {
+            return;
+          }
+        } else {
+          console.error('Re-link failed:', err);
+          return;
+        }
+      }
+    }
+    attachVideoSources();
   };
 
   // SECURITY (Audit VN-B-014, HIGH — DOM-XSS via paste): the old handler
@@ -584,27 +639,56 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageFile(f); }} />
       <input ref={videoInputRef} type="file" accept="video/*" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVideoFile(f); e.target.value = ''; }} />
+      {/* REGLA DE ORO — hidden picker for the "Buscar archivo" re-link flow */}
+      <input ref={relinkInputRef} type="file" accept="video/*" multiple className="hidden"
+        onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length > 0) void handleRelinkFiles(fs); e.target.value = ''; }} />
       <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePdfFile(f); e.target.value = ''; }} />
 
-      {/* FS permission reconnect banner */}
-      {fsNeedsPermission && (
-        <div className="px-6 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 shrink-0">
+      {/* REGLA DE ORO (videos) — banner: permission lost AND/OR missing files.
+          "Conceder acceso" re-grants the stored folder; "Re-linkear" picks a
+          NEW videos folder; "Buscar archivo" copies the missing file(s) back
+          into the folder under the name the note expects. */}
+      {(fsNeedsPermission || missingVideoCount > 0) && (
+        <div className="px-6 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 shrink-0 flex-wrap">
           <p className="text-[11px] text-amber-300">
-            🎬 Tus videos están en la carpeta de la app. Concede acceso para reproducirlos en esta sesión.
+            {fsNeedsPermission && missingVideoCount === 0 && '🎬 La carpeta de videos necesita acceso para reproducir los videos de esta nota.'}
+            {fsNeedsPermission && missingVideoCount > 0 && `🎬 La carpeta de videos necesita acceso y ${missingVideoCount} video(s) no se encontraron en ella.`}
+            {!fsNeedsPermission && missingVideoCount > 0 && `🎬 ${missingVideoCount} video(s) de esta nota no están en la carpeta de videos (quizá cambiaste de PC o moviste los archivos).`}
           </p>
-          <button
-            onClick={async () => {
-              const ok = await ensureFsPermission();
-              if (ok) {
-                setFsNeedsPermission(false);
-                attachVideoSources();
-              }
-            }}
-            className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold shrink-0 cursor-pointer transition-colors"
-          >
-            Conceder acceso
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {fsNeedsPermission && (
+              <button
+                onClick={async () => {
+                  const ok = await ensureVideosPermission();
+                  if (ok) {
+                    setFsNeedsPermission(false);
+                    attachVideoSources();
+                  }
+                }}
+                className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold cursor-pointer transition-colors"
+              >
+                Conceder acceso
+              </button>
+            )}
+            <button
+              onClick={async () => {
+                const ok = await setVideosDirectory();
+                if (ok) attachVideoSources();
+              }}
+              className="px-3 py-1 rounded bg-[#161616] hover:bg-[#202020] border border-[#262626] text-[#DDD] text-[11px] font-semibold cursor-pointer transition-colors"
+            >
+              Re-linkear carpeta de videos
+            </button>
+            {missingVideoCount > 0 && (
+              <button
+                onClick={() => relinkInputRef.current?.click()}
+                className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold cursor-pointer transition-colors"
+              >
+                Buscar archivo
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -743,7 +827,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         <div className="w-px h-4 bg-[#262626] mx-1" />
         <button onClick={() => insertCodeBlock('bash')} className="p-1.5 rounded text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors" title="Bloque de código"><Code className="w-3.5 h-3.5" /></button>
         <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-white hover:bg-[#161616] transition-colors" title="Insertar imagen"><ImageIcon className="w-3.5 h-3.5" /></button>
-        <button onClick={() => videoInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors" title="Incrustar video desde tu PC (se guarda en el vault y viaja en el backup)"><Video className="w-3.5 h-3.5" /></button>
+        <button onClick={() => videoInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors" title="Incrustar video — se copia a tu carpeta de videos (nunca al vault ni al backup)"><Video className="w-3.5 h-3.5" /></button>
         <button onClick={() => pdfInputRef.current?.click()} className="p-1.5 rounded text-[#888] hover:text-red-400 hover:bg-[#161616] transition-colors" title="Incrustar PDF a full (renderizado nativo del navegador, 100% offline, viaja en el backup)"><FileText className="w-3.5 h-3.5" /></button>
         <div className="w-px h-4 bg-[#262626] mx-1" />
         <span className="text-[10px] text-[#555] font-mono px-1 shrink-0 hidden sm:inline">Pega imágenes con Ctrl+V</span>

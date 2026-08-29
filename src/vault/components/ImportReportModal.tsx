@@ -46,12 +46,12 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
   const totalInvalid =
     (summary.invalidNotes || 0) + (summary.invalidLabs || 0) +
     (summary.invalidTerms || 0) + (summary.invalidReferences || 0) +
-    (summary.invalidImages || 0) + (summary.invalidVideos || 0) +
+    (summary.invalidImages || 0) +
     (summary.invalidPdfs || 0) + (summary.invalidMisc || 0);
   // AUDIT VN-B-013: informational only — orphaned blobs were KEPT (data
   // preservation), so this is NOT a conflict; the header stays green.
   const totalOrphans =
-    (summary.orphanedImages || 0) + (summary.orphanedVideos || 0) +
+    (summary.orphanedImages || 0) +
     (summary.orphanedPdfs || 0);
 
   return (
@@ -158,14 +158,13 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
             <Row icon={<AlertTriangle className="w-3.5 h-3.5" />} color="text-red-400" label="Imágenes inválidas" value={summary.invalidImages} valueClass="font-semibold text-red-400" />
           )}
 
-          {summary.addedVideos > 0 && (
+          {/* REGLA DE ORO (videos): legacy backup videos are counted and
+              deliberately ignored — they never travel in backups anymore. */}
+          {(summary.ignoredLegacyVideos || 0) > 0 && (
             <>
               <div className="h-px bg-[#262626]" />
-              <Row icon={<VideoIcon className="w-3.5 h-3.5" />} color="text-emerald-400" label="Videos incrustados restaurados" value={summary.addedVideos} valueClass="font-semibold text-green-400" />
+              <Row icon={<VideoIcon className="w-3.5 h-3.5" />} color="text-amber-400" label="Videos ignorados (viven solo en tu carpeta de videos — los backups ya no los incluyen)" value={summary.ignoredLegacyVideos || 0} valueClass="font-semibold text-amber-400" />
             </>
-          )}
-          {summary.invalidVideos > 0 && (
-            <Row icon={<AlertTriangle className="w-3.5 h-3.5" />} color="text-red-400" label="Videos inválidos" value={summary.invalidVideos} valueClass="font-semibold text-red-400" />
           )}
 
           {summary.addedPdfs > 0 && (
@@ -187,9 +186,6 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
               {(summary.orphanedImages || 0) > 0 && (
                 <Row icon={<Info className="w-3.5 h-3.5" />} color="text-sky-400" label="Imágenes huérfanas (su apunte/lab no existe — quedaron guardadas)" value={summary.orphanedImages || 0} valueClass="font-semibold text-sky-400" />
               )}
-              {(summary.orphanedVideos || 0) > 0 && (
-                <Row icon={<Info className="w-3.5 h-3.5" />} color="text-sky-400" label="Videos huérfanos (su apunte/lab no existe — quedaron guardados)" value={summary.orphanedVideos || 0} valueClass="font-semibold text-sky-400" />
-              )}
               {(summary.orphanedPdfs || 0) > 0 && (
                 <Row icon={<Info className="w-3.5 h-3.5" />} color="text-sky-400" label="PDFs huérfanos (su apunte/lab no existe — quedaron guardados)" value={summary.orphanedPdfs || 0} valueClass="font-semibold text-sky-400" />
               )}
@@ -209,6 +205,7 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
           {totalConflicts > 0 && ' Cuando la versión local es más reciente, se preserva (no se sobrescribe).'}
           {totalInvalid > 0 && ' Las filas con esquema incorrecto se rechazan antes de insertarse (validación Zod).'}
           {totalOrphans > 0 && ' Los medios huérfanos quedaron guardados, pero el apunte/lab al que apuntan no existe en este vault.'}
+          {(summary.ignoredLegacyVideos || 0) > 0 && ' Los videos de backups antiguos no se importan: viven únicamente en tu carpeta de videos. Si un apunte restaurado muestra el placeholder de video, usa "Buscar archivo" en el editor.'}
         </p>
 
         <button

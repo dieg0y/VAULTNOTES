@@ -40,7 +40,6 @@ import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { AddToNoteModal } from './components/AddToNoteModal';
 import { ImportReportModal } from './components/ImportReportModal';
 import { exportVaultZip, importVaultBackup, IncompatibleBackupError } from './utils/zipBackup';
-import { deleteVideoEverywhere } from './utils/videoStorage';
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
 
@@ -465,37 +464,26 @@ export default function App() {
 
   const handlePermanentDeleteNote = async (noteId: string) => {
     const idsToDelete = [noteId, ...collectDescendantIds(noteId)];
-    // Clean up embedded media owned by these notes (videos + images + PDFs).
-    // BLOB LIFECYCLE FIX (Task 2-c): fetch video + PDF metas BEFORE deleting
-    // the IDB rows so `deleteVideoEverywhere` can still resolve the disk
-    // filename (`fileNameFor(id, meta)` needs `meta.name`/`meta.mimeType`).
-    // Previously, the IDB delete happened first, so `db.videos.get(id)`
-    // returned undefined inside `deleteVideoEverywhere`, the disk
-    // `dir.removeEntry(...)` step was skipped, and the raw video file was
-    // orphaned in the user's app folder forever. Now we hand the meta in.
-    const ownedVideoMetas = await db.videos.where('noteId').anyOf(idsToDelete).toArray();
+    // Clean up embedded media owned by these notes (images + PDFs).
+    // REGLA DE ORO (videos): videos are NOT app-owned anymore — they live
+    // only as files in the user's videos folder, so permanent deletes never
+    // touch them (no IDB rows exist, and the disk files are the user's).
     const ownedPdfMetas = await db.pdfs.where('noteId').anyOf(idsToDelete).toArray();
     // AUDIT VN-A-002 (transactional permanent delete): ALL IDB row deletions
-    // (note + descendants + their image/video/PDF metadata rows) happen in
+    // (note + descendants + their image/PDF metadata rows) happen in
     // ONE db.transaction so they commit atomically. Previously the note rows
     // were deleted first and the blob rows after — closing the tab mid-cleanup
     // left orphaned blobs in IndexedDB forever.
-    await db.transaction('rw', [db.notes, db.images, db.videos, db.pdfs], async () => {
+    await db.transaction('rw', [db.notes, db.images, db.pdfs], async () => {
       await db.notes.bulkDelete(idsToDelete);
       // Images have no disk-side copy — straight IDB delete is safe.
       await db.images.where('noteId').anyOf(idsToDelete).delete();
-      await db.videos.where('noteId').anyOf(idsToDelete).delete();
       await db.pdfs.where('noteId').anyOf(idsToDelete).delete();
     });
     // Disk / FSA cleanup runs AFTER the transaction commits: these helpers mix
     // Dexie + File System Access awaits (permission queries, removeEntry),
-    // which would abort a live Dexie transaction. Their inner videos/pdf row
-    // deletes are now redundant no-ops (rows already gone atomically); the
-    // disk removeEntry still runs because we pass the pre-fetched meta in.
-    // Failures swallowed — disk files are benign orphans, IDB rows are not.
-    for (const v of ownedVideoMetas) {
-      await deleteVideoEverywhere(v.id, v).catch(() => undefined);
-    }
+    // which would abort a live Dexie transaction. Failures swallowed — disk
+    // files are benign orphans, IDB rows are not.
     for (const p of ownedPdfMetas) {
       await deletePdfEverywhere(p.id).catch(() => undefined);
     }
@@ -592,22 +580,17 @@ export default function App() {
     // but the `images` table had no `labId` index — that threw SchemaError
     // and aborted the whole cleanup. Now the v14 schema adds `labId` to
     // `images`, so this call succeeds.
-    const ownedVideoMetas = await db.videos.where('labId').equals(labId).toArray();
     const ownedPdfMetas = await db.pdfs.where('labId').equals(labId).toArray();
-    // AUDIT VN-A-002: all IDB row deletions (lab + image/video/PDF metadata)
+    // AUDIT VN-A-002: all IDB row deletions (lab + image/PDF metadata)
     // in ONE atomic transaction — no orphaned blob rows if the tab closes
-    // mid-cleanup.
-    await db.transaction('rw', [db.labs, db.images, db.videos, db.pdfs], async () => {
+    // mid-cleanup. (REGLA DE ORO: videos no longer have IDB rows.)
+    await db.transaction('rw', [db.labs, db.images, db.pdfs], async () => {
       await db.labs.delete(labId);
       await db.images.where('labId').equals(labId).delete();
-      await db.videos.where('labId').equals(labId).delete();
       await db.pdfs.where('labId').equals(labId).delete();
     });
     // Disk / FSA cleanup AFTER the transaction (mixed Dexie+FSA helpers —
     // see handlePermanentDeleteNote). Failures swallowed.
-    for (const v of ownedVideoMetas) {
-      await deleteVideoEverywhere(v.id, v).catch(() => undefined);
-    }
     for (const p of ownedPdfMetas) {
       await deletePdfEverywhere(p.id).catch(() => undefined);
     }
@@ -707,35 +690,29 @@ export default function App() {
     const noteIds = deletedNotes.map((n) => n.id);
     const labIds = deletedLabs.map((l) => l.id);
     const termIds = deletedTerms.map((t) => t.id);
-    const allVideoMetas: { id: string; name?: string; mimeType?: string }[] = [];
     const allPdfMetas: { id: string; name?: string; mimeType?: string }[] = [];
     // AUDIT VN-A-002: gather ALL blob metadata with pure reads BEFORE opening
     // the transaction — no queries (and no FSA awaits) inside it.
+    // (REGLA DE ORO: videos no longer have IDB rows — nothing to gather.)
     if (noteIds.length > 0) {
-      const v1 = await db.videos.where('noteId').anyOf(noteIds).toArray();
-      allVideoMetas.push(...v1);
       const p1 = await db.pdfs.where('noteId').anyOf(noteIds).toArray();
       allPdfMetas.push(...p1);
     }
     if (labIds.length > 0) {
-      const v2 = await db.videos.where('labId').anyOf(labIds).toArray();
-      allVideoMetas.push(...v2);
       const p2 = await db.pdfs.where('labId').anyOf(labIds).toArray();
       allPdfMetas.push(...p2);
     }
     // AUDIT VN-A-002: every IDB row deletion (trashed notes/labs/terms AND
-    // their image/video/PDF metadata rows) in ONE atomic transaction —
+    // their image/PDF metadata rows) in ONE atomic transaction —
     // previously the blob rows were cleaned before the note rows were
     // deleted, so a tab close mid-way could leave orphaned blobs behind.
-    await db.transaction('rw', [db.notes, db.labs, db.glossary, db.images, db.videos, db.pdfs], async () => {
+    await db.transaction('rw', [db.notes, db.labs, db.glossary, db.images, db.pdfs], async () => {
       if (noteIds.length > 0) {
         await db.images.where('noteId').anyOf(noteIds).delete();
-        await db.videos.where('noteId').anyOf(noteIds).delete();
         await db.pdfs.where('noteId').anyOf(noteIds).delete();
       }
       if (labIds.length > 0) {
         await db.images.where('labId').anyOf(labIds).delete();
-        await db.videos.where('labId').anyOf(labIds).delete();
         await db.pdfs.where('labId').anyOf(labIds).delete();
       }
       await db.notes.bulkDelete(noteIds);
@@ -744,9 +721,6 @@ export default function App() {
     });
     // Disk / FSA cleanup AFTER the transaction commits (mixed Dexie+FSA
     // helpers — see handlePermanentDeleteNote). Failures swallowed.
-    for (const v of allVideoMetas) {
-      await deleteVideoEverywhere(v.id, v).catch(() => undefined);
-    }
     for (const p of allPdfMetas) {
       await deletePdfEverywhere(p.id).catch(() => undefined);
     }
@@ -763,15 +737,9 @@ export default function App() {
         : result.mode === 'file'
           ? `Guardado en "${result.savedTo}"`
           : `Descargado: ${result.savedTo}`;
-      // AUDIT VN-B-011 (HIGH): never show a plain "saved ✓" when videos were
-      // silently dropped from the backup (lost File System Access permission
-      // to the videos folder). The user must know the file is INCOMPLETE so
-      // they can re-grant the permission in Settings before relying on it.
-      if (result.omittedVideos && result.omittedVideos.length > 0) {
-        setBackupSavedMessage(`⚠ Backup incompleto: ${result.omittedVideos.length} video(s) omitidos (permiso de almacenamiento perdido). Recupéralo en Configuración.`);
-      } else {
-        setBackupSavedMessage(savedMsg);
-      }
+      // REGLA DE ORO (videos): backups never contain videos — nothing can be
+      // "omitted" anymore, so the plain saved message is always accurate.
+      setBackupSavedMessage(savedMsg);
       setTimeout(() => setBackupSavedMessage(null), 4000);
     } catch (err: unknown) {
       // AbortError = user cancelled the save dialog → not an error

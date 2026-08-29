@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Trash2, Plus, Tag, Wrench, AlertTriangle, FolderOpen, HardDrive, RefreshCw, FolderX, CheckCircle2, ShieldCheck, Globe, KeyRound, ExternalLink, RotateCcw } from 'lucide-react';
+import { Settings, Trash2, Plus, Tag, Wrench, AlertTriangle, FolderOpen, HardDrive, RefreshCw, FolderX, CheckCircle2, ShieldCheck, Globe, KeyRound, ExternalLink, RotateCcw, Video } from 'lucide-react';
 import { CategoryItem, ToolItem } from '../types';
 import { db, countCategoryUsage, countToolUsage } from '../db';
 import {
   isFsSupported,
-  hasVideosDir,
+  hasVideosDirectory,
+  getVideosDirectoryName,
+  isVideosPermissionGranted,
+  setVideosDirectory,
+  forgetVideosDirectory,
+  ensureVideosPermission,
   hasAppFolder,
   getAppFolderName,
-  isFsReady,
   pickAppFolder,
   forgetAppFolder,
-  migrateIdbVideosToFs,
-  getVideoStorageStats,
-  VIDEOS_DIR_NAME,
 } from '../utils/videoStorage';
 // Online & Integrations layer (BLOQUE6-2B) — 100% offline-first; these helpers
 // are ONLY invoked here in Settings. The enrich flow itself lives in registry.ts
@@ -44,23 +45,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
   const [newCategory, setNewCategory] = useState('');
   const [newTool, setNewTool] = useState('');
 
-  // --- App folder panel state ---
+  // --- REGLA DE ORO: videos folder panel state ---
   const [fsSupported] = useState(() => isFsSupported());
+  const [hasVideosDir, setHasVideosDir] = useState(false);
+  const [videosDirName, setVideosDirName] = useState<string | null>(null);
+  const [videosPermOk, setVideosPermOk] = useState(false);
+  // --- App folder (backup target) panel state ---
   const [hasApp, setHasApp] = useState(false);
-  const [legacyVideosOnly, setLegacyVideosOnly] = useState(false);
   const [appName, setAppName] = useState<string | null>(null);
-  const [dirReady, setDirReady] = useState(false);
-  const [stats, setStats] = useState<{ total: number; inFs: number; inIdb: number; idbBytes: number } | null>(null);
-  const [migrating, setMigrating] = useState(false);
-  const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
   const refreshVideoStorage = useCallback(async () => {
-    const app = await hasAppFolder();
-    setHasApp(app);
+    setHasVideosDir(await hasVideosDirectory());
+    setVideosDirName(await getVideosDirectoryName());
+    setVideosPermOk(await isVideosPermissionGranted());
+    setHasApp(await hasAppFolder());
     setAppName(await getAppFolderName());
-    setLegacyVideosOnly(!app && (await hasVideosDir()));
-    setDirReady(await isFsReady());
-    setStats(await getVideoStorageStats());
   }, []);
 
   useEffect(() => {
@@ -191,44 +190,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
     }
   };
 
-  const handlePickDir = async () => {
+  const handlePickVideosDir = async () => {
+    const ok = await setVideosDirectory();
+    if (ok) await refreshVideoStorage();
+  };
+
+  const handleGrantVideosPerm = async () => {
+    const ok = await ensureVideosPermission();
+    if (ok) await refreshVideoStorage();
+  };
+
+  const handleForgetVideosDir = async () => {
+    if (window.confirm('¿Dejar de usar la carpeta de videos? Los archivos NO se borran (siguen en tu disco), pero los apuntes con videos mostrarán el placeholder hasta que vuelvas a elegir una carpeta.')) {
+      await forgetVideosDirectory();
+      await refreshVideoStorage();
+    }
+  };
+
+  const handlePickAppDir = async () => {
     const ok = await pickAppFolder();
-    if (ok) {
-      await refreshVideoStorage();
-      // auto-migrate existing browser-stored videos to the app folder
-      const res = await migrateIdbVideosToFs();
-      if (res.moved > 0) setMigrationResult(`${res.moved} video${res.moved === 1 ? '' : 's'} movido${res.moved === 1 ? '' : 's'} a la carpeta de la app.`);
-      await refreshVideoStorage();
-    }
+    if (ok) await refreshVideoStorage();
   };
 
-  const handleMigrate = async () => {
-    setMigrating(true);
-    try {
-      const res = await migrateIdbVideosToFs();
-      setMigrationResult(
-        res.moved + res.failed === 0
-          ? 'No hay videos en el almacenamiento del navegador para migrar.'
-          : `${res.moved} movido${res.moved === 1 ? '' : 's'} a la carpeta${res.failed > 0 ? `, ${res.failed} fallaron` : ''}.`
-      );
-      await refreshVideoStorage();
-    } finally {
-      setMigrating(false);
-    }
-  };
-
-  const handleForgetDir = async () => {
-    if (window.confirm('¿Dejar de usar la carpeta de la app? Los videos NUEVOS se guardarán en el almacenamiento del navegador (sujeto a su límite) y los backups volverán a pedir ubicación. Los archivos ya guardados no se borran.')) {
+  const handleForgetAppDir = async () => {
+    if (window.confirm('¿Dejar de usar la carpeta de la app? Los backups volverán a pedir ubicación al guardar. Los archivos ya guardados no se borran.')) {
       await forgetAppFolder();
       await refreshVideoStorage();
     }
-  };
-
-  const formatBytes = (b: number) => {
-    if (b < 1024) return `${b} B`;
-    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-    if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
 
   const handleDeleteCategory = async (cat: CategoryItem) => {
@@ -541,63 +529,105 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
         </div>
       </div>
 
-      {/* App Folder — everything in one place */}
+      {/* REGLA DE ORO — Videos folder (disk files, references only) */}
       <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 space-y-3">
         <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
-          <FolderOpen className="w-4 h-4 text-blue-400" /> Carpeta de la App — todo en un solo lugar
+          <Video className="w-4 h-4 text-amber-400" /> Carpeta de Videos — archivos reales en tu disco
         </h2>
         <p className="text-[11px] text-[#888] leading-relaxed">
-          Elige <strong>la carpeta de la propia app</strong> (donde está <code className="font-mono text-blue-400">iniciar.bat</code>) y todo quedará adentro:
-          los videos como archivos reales en <code className="font-mono text-blue-400">{VIDEOS_DIR_NAME}/</code> (sin límite de tamaño) y cada
-          <strong> Guardar Backup</strong> escribirá <code className="font-mono text-blue-400">VaultNotes-Backup.zip</code> ahí mismo.
-          <strong> Copiando esa única carpeta a tu Drive te llevas absolutamente todo.</strong>
+          Los videos <strong>nunca</strong> se guardan en la base de datos del navegador ni viajan en los backups.
+          Viven únicamente como archivos en <strong>esta carpeta</strong> de tu PC, y los apuntes guardan solo el
+          nombre del archivo. Al cambiar de PC, copia la carpeta tal cual y <em>Re-linkeala</em> aquí.
         </p>
 
         {!fsSupported ? (
           <div className="flex items-start gap-2 text-[11px] text-[#999] bg-[#161616] border border-[#262626] rounded p-2.5">
             <HardDrive className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <span>Abre la app en <strong>Microsoft Edge</strong> para usar la carpeta de la app (soporte completo). Los videos se guardan en el almacenamiento del navegador con persistencia activada.</span>
+            <span>Abre la app en <strong>Microsoft Edge</strong> o Chrome para usar la carpeta de videos (File System Access API).</span>
           </div>
-        ) : hasApp ? (
+        ) : hasVideosDir ? (
           <div className="space-y-2.5">
-            <div className={`flex items-center gap-2 text-[11px] rounded p-2.5 border ${dirReady ? 'bg-green-500/5 border-green-500/30 text-green-300' : 'bg-amber-500/5 border-amber-500/30 text-amber-300'}`}>
+            <div className={`flex items-center gap-2 text-[11px] rounded p-2.5 border ${videosPermOk ? 'bg-green-500/5 border-green-500/30 text-green-300' : 'bg-amber-500/5 border-amber-500/30 text-amber-300'}`}>
               <FolderOpen className="w-3.5 h-3.5 shrink-0" />
               <span className="font-mono truncate">
-                {appName}/{VIDEOS_DIR_NAME} {dirReady ? '— activa ✓' : '— concede acceso al abrir una nota con videos'}
+                {videosDirName} {videosPermOk ? '— activa ✓' : '— el navegador pedirá acceso al abrir un video'}
               </span>
             </div>
-            <div className="text-[11px] text-[#888] flex flex-col gap-1">
-              <span>📁 Videos y <code className="font-mono text-blue-400">VaultNotes-Backup.zip</code> se guardan DENTRO de <strong>{appName}</strong>.</span>
-              {stats && (
-                <span className="flex flex-wrap gap-x-4">
-                  <span>{stats.total} video{stats.total === 1 ? '' : 's'} en total</span>
-                  <span className="text-green-400">{stats.inFs} en la carpeta</span>
-                  {stats.inIdb > 0 && (
-                    <span className="text-amber-400">{stats.inIdb} en el navegador ({formatBytes(stats.idbBytes)})</span>
-                  )}
-                </span>
-              )}
-            </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {stats && stats.inIdb > 0 && dirReady && (
+              {!videosPermOk && (
                 <button
-                  onClick={handleMigrate}
-                  disabled={migrating}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  onClick={handleGrantVideosPerm}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold transition-colors cursor-pointer"
                 >
-                  <RefreshCw className={`w-3 h-3 ${migrating ? 'animate-spin' : ''}`} />
-                  {migrating ? 'Migrando...' : `Migrar ${stats.inIdb} a la carpeta`}
+                  <CheckCircle2 className="w-3 h-3" />
+                  Conceder acceso ahora
                 </button>
               )}
               <button
-                onClick={handlePickDir}
+                onClick={handlePickVideosDir}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
               >
                 <FolderOpen className="w-3 h-3" />
                 Cambiar carpeta
               </button>
               <button
-                onClick={handleForgetDir}
+                onClick={handleForgetVideosDir}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-red-500/10 hover:text-red-300 text-[#999] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
+                title="Dejar de usar la carpeta de videos (no borra los archivos)"
+              >
+                <FolderX className="w-3 h-3" />
+                Dejar de usar carpeta
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <button
+              onClick={handlePickVideosDir}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Elegir carpeta de videos
+            </button>
+            <p className="text-[10px] text-[#666] text-center">También se te pedirá automáticamente la primera vez que insertes un video en un apunte o lab.</p>
+          </div>
+        )}
+      </div>
+
+      {/* App folder — backup target only (videos decoupled, REGLA DE ORO) */}
+      <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 space-y-3">
+        <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
+          <FolderOpen className="w-4 h-4 text-blue-400" /> Carpeta de la App — destino de los backups
+        </h2>
+        <p className="text-[11px] text-[#888] leading-relaxed">
+          Elige una carpeta (p. ej. la de la propia app, donde está <code className="font-mono text-blue-400">iniciar.bat</code>) y cada
+          <strong> Guardar Backup</strong> escribirá <code className="font-mono text-blue-400">VaultNotes-Backup.zip</code> ahí mismo,
+          sobrescribiendo el anterior. <strong>Nada de videos aquí</strong> — el backup es liviano y portable.
+        </p>
+
+        {!fsSupported ? (
+          <div className="flex items-start gap-2 text-[11px] text-[#999] bg-[#161616] border border-[#262626] rounded p-2.5">
+            <HardDrive className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <span>Abre la app en <strong>Microsoft Edge</strong> o Chrome para usar esta función. Los backups se descargarán por el navegador.</span>
+          </div>
+        ) : hasApp ? (
+          <div className="space-y-2.5">
+            <div className="flex items-center gap-2 text-[11px] rounded p-2.5 border bg-green-500/5 border-green-500/30 text-green-300">
+              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+              <span className="font-mono truncate">
+                {appName}/VaultNotes-Backup.zip — activa ✓
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handlePickAppDir}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
+              >
+                <FolderOpen className="w-3 h-3" />
+                Cambiar carpeta
+              </button>
+              <button
+                onClick={handleForgetAppDir}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-red-500/10 hover:text-red-300 text-[#999] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
                 title="Dejar de usar la carpeta de la app (no borra los archivos)"
               >
@@ -605,24 +635,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
                 Dejar de usar carpeta
               </button>
             </div>
-            {migrationResult && <p className="text-[11px] text-green-400">{migrationResult}</p>}
           </div>
         ) : (
           <div className="space-y-2.5">
-            {legacyVideosOnly && (
-              <div className="flex items-start gap-2 text-[11px] text-amber-300 bg-amber-500/5 border border-amber-500/30 rounded p-2.5">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span>Tienes una carpeta de videos configurada de antes. Vuelve a elegirla (la de la app) para que los <strong>backups también se guarden ahí</strong> automáticamente.</span>
-              </div>
-            )}
             <button
-              onClick={handlePickDir}
+              onClick={handlePickAppDir}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
               <FolderOpen className="w-4 h-4" />
-              Elegir la carpeta de la app (todo junto, sin límites)
+              Elegir carpeta para los backups
             </button>
-            <p className="text-[10px] text-[#666] text-center">En el explorador, navega hasta la carpeta VAULTNOTES (donde está iniciar.bat) y selecciónala.</p>
+            <p className="text-[10px] text-[#666] text-center">Opcional: sin carpeta, cada backup pedirá dónde guardarse.</p>
           </div>
         )}
       </div>

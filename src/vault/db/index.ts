@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, StoredVideo, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem } from '../types';
 
 /**
  * BLOQUE 6 — Online-Optional integration tables. These live in the MAIN
@@ -176,7 +176,6 @@ export class VaultDatabase extends Dexie {
   tools!: Table<ToolItem, string>;
   flashcardStats!: Table<FlashcardStat, string>;
   fileHandles!: Table<StoredFileHandle, string>;
-  videos!: Table<StoredVideo, string>;
   pdfs!: Table<StoredPdf, string>;
   references!: Table<ReferenceItem, string>;
   rbacModels!: Table<RbacModel, string>;
@@ -433,6 +432,38 @@ export class VaultDatabase extends Dexie {
       savedCves: 'id, savedAt',
       datasetMeta: 'id'
     });
+
+    // v15: REGLA DE ORO SOBRE VIDEOS — the `videos` table (blobs + metadata)
+    // is REMOVED. Videos now live ONLY as raw files inside the user's
+    // videos folder (File System Access API); notes reference them by
+    // filename via data-vault-video, and they NEVER travel in backups.
+    // The upgrade counts any rows that still held an IndexedDB blob (i.e.
+    // never migrated to disk by the old Settings action) and warns — those
+    // blobs are unrecoverable from here (no user gesture / no directory
+    // access inside an upgrade transaction). Rows stored on disk
+    // (storedIn:'fs', no blob) lose nothing: the files remain in the
+    // folder and legacy data-vid embeds still resolve via
+    // videoStorage.resolveLegacyVideoUrl().
+    this.version(15)
+      .stores({
+        videos: null, // ← deletes the table + its data
+      })
+      .upgrade(async (tx) => {
+        try {
+          const legacy = await tx.table('videos').toArray();
+          const idbBlobs = legacy.filter((v) => (v as { blob?: unknown }).blob);
+          if (idbBlobs.length > 0) {
+            console.warn(
+              `[VaultNotes v15] Tabla 'videos' eliminada (REGLA DE ORO). ` +
+              `${idbBlobs.length} video(s) que SOLO existían en IndexedDB se han descartado ` +
+              `(nunca se migraron a la carpeta del disco). Los archivos de la carpeta ` +
+              `de videos no se tocan y los embeds existentes siguen funcionando.`
+            );
+          }
+        } catch {
+          /* table already gone or unreadable — nothing to report */
+        }
+      });
   }
 }
 
@@ -440,7 +471,7 @@ export class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 14;
+export const CURRENT_SCHEMA_VERSION = 15;
 
 export const db = new VaultDatabase();
 
