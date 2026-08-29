@@ -65,11 +65,45 @@ export default function App() {
     // Also listen for SW updates so the user immediately sees the new shell
     // (instead of being stuck on a stale cached version of the app).
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      // Force-unregister any stale service worker from previous sessions.
-      // This is a belt-and-suspenders fallback for cases where bumping the
-      // SW cache version alone wasn't enough (e.g. browser kept an old SW
-      // active and served cached chunks). The new SW re-registers itself
-      // immediately after, so offline support is preserved.
+      // DEV — NEVER run the service worker, regardless of hostname.
+      // Why hostname matters: the SW detects dev via `localhost`, but the
+      // dev app is also reachable through proxy hostnames (preview panels),
+      // where the SW would otherwise run in "prod mode": cache-first for
+      // chunks. Turbopack dev chunk URLs are STABLE across server restarts
+      // (e.g. src_vault_App_tsx_d14bda49._.js), so a cached SW happily
+      // serves STALE chunk bodies for the SAME urls after every restart —
+      // a mixed module graph that dies with "module factory is not
+      // available" and SURVIVES manual reloads. Unregister + wipe caches.
+      if (process.env.NODE_ENV === 'development') {
+        (async () => {
+          try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            const stale = regs.filter((r) => r.active?.scriptURL?.endsWith('/sw.js'));
+            if (stale.length > 0) {
+              await Promise.all(stale.map((r) => r.unregister()));
+              if (typeof window.caches !== 'undefined') {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((k) => caches.delete(k)));
+              }
+              // Escape the (now-unregistered but still controlling) SW with
+              // one guarded reload; the guard prevents any reload loop.
+              const KEY = '__vault_sw_heal_ts';
+              const last = Number(window.sessionStorage.getItem(KEY) ?? 0);
+              if (Date.now() - last > 30_000) {
+                window.sessionStorage.setItem(KEY, String(Date.now()));
+                window.location.reload();
+              }
+            }
+          } catch {
+            /* storage/SW edge cases (sandboxed iframe etc.) — ignore */
+          }
+        })();
+        return; // no SW registration in dev, no listeners to clean up
+      }
+
+      // PROD — register the PWA service worker for offline-first shell
+      // caching. Also listen for SW updates so the user immediately sees
+      // the new shell (instead of being stuck on a stale cached version).
       navigator.serviceWorker
         .getRegistrations()
         .then((regs) => {

@@ -3,42 +3,75 @@
 import dynamic from 'next/dynamic';
 
 /* ------------------------------------------------------------------ */
-/* DEV-ONLY SELF-HEALING (HMR robustness).                             */
+/* DEV-ONLY SELF-HEALING (HMR robustness), layer v2.                   */
 /*                                                                     */
 /* When the dev server restarts while a browser tab stays open,        */
-/* Turbopack's HMR runtime occasionally fails to reconcile module      */
-/* factories and the page dies with:                                   */
+/* Turbopack's HMR runtime can fail to reconcile module factories and  */
+/* the page dies with:                                                  */
 /*   "module factory is not available. It might have been deleted      */
 /*    in an HMR update."                                               */
-/* A clean full reload ALWAYS recovers from this, so detect it and     */
-/* reload automatically — at most once every 30 s (sessionStorage      */
-/* guard) so a persistent failure can never cause a reload loop.       */
-/* The tools module graph is now statically imported (see              */
-/* ToolsView.tsx "HMR-ROBUSTNESS"), which removes the fragile factory  */
-/* registrations that triggered this most often; this listener is the  */
-/* safety net for the remaining root dynamic boundary (VaultApp).      */
+/* A clean full reload ALWAYS recovers from this. Detection layers:    */
+/*   1. window 'error' events (uncaught exceptions)                    */
+/*   2. 'unhandledrejection' (dynamic-import evaluation failures)      */
+/*   3. Overlay watchdog — poll the Next.js dev overlay                */
+/*      (nextjs-portal shadow DOM); it is the exact symptom the user   */
+/*      sees, so this layer catches every path the first two miss.     */
+/* Anti-loop budget: at most 3 self-reloads per 2 minutes              */
+/* (sessionStorage); a genuinely broken server never loops.            */
+/* The tools module graph is statically imported (see ToolsView.tsx    */
+/* "HMR-ROBUSTNESS") and dev never runs the service worker (see        */
+/* App.tsx) — this listener is the last-resort safety net.             */
 /* ------------------------------------------------------------------ */
 if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
   const SELF_HEAL_KEY = '__vault_hmr_selfheal_ts';
-  const isHmrFactoryError = (detail: unknown): boolean =>
-    String(detail ?? '').includes('module factory is not available');
+  const isHmrFactoryError = (msg: string): boolean =>
+    msg.includes('module factory is not available');
+
+  const reloadBudgetAllows = (): boolean => {
+    try {
+      const now = Date.now();
+      const hist: number[] = JSON.parse(window.sessionStorage.getItem(SELF_HEAL_KEY) ?? '[]');
+      const recent = hist.filter((t) => now - t < 120_000);
+      if (recent.length >= 3) return false;
+      window.sessionStorage.setItem(SELF_HEAL_KEY, JSON.stringify([...recent, now]));
+      return true;
+    } catch {
+      return false; // storage unavailable — never auto-reload blind
+    }
+  };
+
+  const selfHeal = (source: string): void => {
+    if (!reloadBudgetAllows()) return;
+    console.warn(`[VaultNotes dev] error HMR detectado (${source}) — recargando…`);
+    window.location.reload();
+  };
 
   window.addEventListener('error', (ev) => {
-    if (!isHmrFactoryError((ev as ErrorEvent).message)) return;
-    const last = Number(window.sessionStorage.getItem(SELF_HEAL_KEY) ?? 0);
-    if (Date.now() - last > 30_000) {
-      window.sessionStorage.setItem(SELF_HEAL_KEY, String(Date.now()));
-      window.location.reload();
-    }
+    const e = ev as ErrorEvent;
+    const msg = e.message || String(e.error ?? '');
+    if (isHmrFactoryError(msg)) selfHeal('error');
   });
-  // Dynamic-import evaluation failures surface as unhandled rejections.
   window.addEventListener('unhandledrejection', (ev) => {
-    if (!isHmrFactoryError((ev as PromiseRejectionEvent).reason?.message ?? ev)) return;
-    const last = Number(window.sessionStorage.getItem(SELF_HEAL_KEY) ?? 0);
-    if (Date.now() - last > 30_000) {
-      window.sessionStorage.setItem(SELF_HEAL_KEY, String(Date.now()));
-      window.location.reload();
+    const r = (ev as PromiseRejectionEvent).reason;
+    const msg = r && (r.message ?? r.stack) ? String(r.message ?? r.stack) : String(r ?? '');
+    if (isHmrFactoryError(msg)) selfHeal('rejection');
+  });
+
+  const overlayHasFactoryError = (): boolean => {
+    try {
+      const portal = document.querySelector('nextjs-portal');
+      const txt = portal?.shadowRoot?.textContent ?? '';
+      return txt.includes('module factory is not available');
+    } catch {
+      return false;
     }
+  };
+  const checkOverlay = () => {
+    if (overlayHasFactoryError()) selfHeal('overlay');
+  };
+  window.setInterval(checkOverlay, 2500);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkOverlay();
   });
 }
 
