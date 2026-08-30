@@ -39,7 +39,7 @@ import { NewItemModal } from './components/NewItemModal';
 import { QuickCaptureModal } from './components/QuickCaptureModal';
 import { AddToNoteModal } from './components/AddToNoteModal';
 import { ImportReportModal } from './components/ImportReportModal';
-import { exportVaultZip, importVaultBackup, IncompatibleBackupError } from './utils/zipBackup';
+import { exportVaultZip, importVaultBackup, IncompatibleBackupError, ZipSafetyError } from './utils/zipBackup';
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
 
@@ -798,6 +798,15 @@ export default function App() {
       // `importVaultBackup` BEFORE any local data is mutated.
       if (err instanceof IncompatibleBackupError) {
         console.warn('Incompatible backup:', err.backupSchemaVersion, err.backupFormatVersion);
+        alert(err.message);
+        return;
+      }
+      // AUDIT FIX (VN-AUD-003): a zip-safety rejection (bomb / insane
+      // metadata) must surface its SPECIFIC reason — the generic
+      // "couldn't read" alert would mislead the user into thinking a
+      // legit backup is corrupt. Thrown BEFORE any local data is mutated.
+      if (err instanceof ZipSafetyError) {
+        console.warn('Zip safety rejection:', err.message);
         alert(err.message);
         return;
       }

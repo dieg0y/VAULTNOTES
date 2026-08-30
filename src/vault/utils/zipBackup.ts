@@ -51,29 +51,32 @@ export class IncompatibleBackupError extends Error {
 /** Thrown by `validateZipSafety` when a backup ZIP's entry table looks like
  *  a decompression bomb (or a corrupt archive with insane metadata). Thrown
  *  up-front, BEFORE any local data is mutated; the handler in App.tsx
- *  surfaces it as an alert. (Internal — not imported anywhere else; the
- *  Spanish message itself is what the user sees.) */
-class ZipSafetyError extends Error {
+ *  surfaces it as an alert. (Exported so App.tsx can `instanceof`-match it
+ *  and show the SPECIFIC Spanish reason — the generic "couldn't read" alert
+ *  would mislead the user into thinking their backup is corrupt.) */
+export class ZipSafetyError extends Error {
   constructor(reason: string) {
     super(`ZIP potencialmente malicioso o corrupto: ${reason}`);
     this.name = 'ZipSafetyError';
   }
 }
 
-/** Sanity limits for an imported backup ZIP. Per the user's request
- *  (heavy video vaults), the PER-ENTRY (200 MB) and TOTAL (2 GB) weight caps
- *  were REMOVED — backups of any size import normally now. What remains:
- *   - an ENTRY-COUNT ceiling (not a weight limit; 100k entries is far above
- *     any realistic vault even with thousands of videos + notes) purely
- *     against absurd/pathological archives;
- *   - the decompression-RATIO heuristic below, which is size-INDEPENDENT and
- *     is the real ZIP-bomb defense: video/PDF payloads are already-compressed
- *     data (ratio ≈ 1:1), so unlimited-weight legit backups pass untouched.
- *  Trade-off (documented, accepted): a multi-entry archive made of MANY
- *  medium entries each below the ratio threshold is no longer caught by a
- *  total-size ceiling. The ZIP comes from the user's own disk via a file
- *  picker, so the practical attack surface is negligible. */
+/** AUDIT FIX (VN-AUD-003): the per-entry and total WEIGHT caps are BACK.
+ *  They had been removed to accommodate "heavy video vaults", but that
+ *  justification died with the REGLA DE ORO — videos NEVER travel in ZIP
+ *  backups anymore. What remains in a legit backup (notes as markdown,
+ *  data-URI images, PDFs) sits far below these limits: a personal vault's
+ *  real-world export is a few MB. The caps close the multi-entry bomb gap
+ *  the ratio heuristic can't see (many medium entries, each under 1000:1).
+ *   - an ENTRY-COUNT ceiling (100k) against absurd/pathological archives;
+ *   - a PER-ENTRY uncompressed weight cap (200 MB);
+ *   - a TOTAL uncompressed weight cap (2 GB) across all entries;
+ *   - the decompression-RATIO heuristic (size-independent, the real
+ *     zip-bomb defense): video/PDF payloads are already-compressed data
+ *     (ratio ≈ 1:1), so unlimited-weight legit backups pass untouched. */
 const ZIP_MAX_ENTRIES = 100000;
+const ZIP_MAX_ENTRY_UNCOMPRESSED = 200 * 1024 * 1024; // 200 MB per entry
+const ZIP_MAX_TOTAL_UNCOMPRESSED = 2 * 1024 * 1024 * 1024; // 2 GB total
 /** Decompression-ratio heuristic: an entry only counts as suspicious when it
  *  BOTH expands more than 1000:1 AND exceeds 10 MB uncompressed. A zero-
  *  filled gzip stream easily reaches ratio 1000, while a legit 10 MB+ text
@@ -94,6 +97,7 @@ function validateZipSafety(zip: JSZip): void {
     throw new ZipSafetyError(`demasiadas entradas (${entries.length}, máximo ${ZIP_MAX_ENTRIES})`);
   }
 
+  let totalUncompressed = 0;
   for (const entry of entries) {
     if (entry.dir) continue; // directory placeholders carry no data
     const data = (entry as unknown as {
@@ -108,6 +112,16 @@ function validateZipSafety(zip: JSZip): void {
     // Unexpected internal shape — skip the check for this entry (don't crash).
     if (uncompressedSize === undefined) continue;
 
+    // VN-AUD-003: weight caps — a single entry promising to inflate past
+    // 200 MB is either a bomb or a file that was never in a legit backup.
+    if (uncompressedSize > ZIP_MAX_ENTRY_UNCOMPRESSED) {
+      throw new ZipSafetyError(
+        `entrada demasiado grande: "${entry.name}" (` +
+        `${Math.round(uncompressedSize / 1024 / 1024)} MB descomprimidos, máximo 200 MB)`
+      );
+    }
+    totalUncompressed += uncompressedSize;
+
     if (
       compressedSize !== undefined &&
       uncompressedSize > ZIP_RATIO_MIN_UNCOMPRESSED &&
@@ -118,6 +132,14 @@ function validateZipSafety(zip: JSZip): void {
         `(${Math.floor(uncompressedSize / compressedSize)}:1 con ${Math.round(uncompressedSize / 1024 / 1024)} MB descomprimidos)`,
       );
     }
+  }
+
+  // VN-AUD-003: total ceiling — catches the multi-entry bomb (many medium
+  // entries, each under the ratio threshold) before decompression starts.
+  if (totalUncompressed > ZIP_MAX_TOTAL_UNCOMPRESSED) {
+    throw new ZipSafetyError(
+      `peso total descomprimido excesivo (${Math.round(totalUncompressed / 1024 / 1024)} MB, máximo 2048 MB)`
+    );
   }
 }
 
