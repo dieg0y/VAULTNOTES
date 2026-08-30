@@ -27,9 +27,11 @@ import { findSigmaByEventId } from '../data/sigmaData';
 // next/dynamic calls, but Turbopack's dev runtime loses track of that many
 // separate module factories when the dev server restarts while a tab stays
 // open ("module factory is not available … deleted in an HMR update").
-// Static imports keep the whole tools module graph in one chunk, which
-// reconciles cleanly across restarts. The app is local-first on the user's
-// own machine, so the larger initial bundle is imperceptible.
+// Static imports keep the whole tools module graph in ONE chunk, which
+// reconciles cleanly across restarts. (PERFORMANCE note: this whole file —
+// ToolsView + the 28 tools — is itself a LAZY chunk loaded on demand by
+// App.tsx, so the initial route still ships only the shell; see the
+// code-splitting pass in App.tsx and the Performance section of README.md.)
 import { TimestampConverterTool } from './tools/TimestampConverterTool';
 import { HashToolkitTool } from './tools/HashToolkitTool';
 import { EncodingTool } from './tools/EncodingTool';
