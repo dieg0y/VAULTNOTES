@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Search, UploadCloud, Plus, FileText, FlaskConical, BookOpen, Save, CheckCircle2, Zap, Menu } from 'lucide-react';
 import { ActiveSection } from '../types';
 import { useIsOnline } from '../integrations/online';
+import { GitPullButton } from './GitPullButton';
 
 interface HeaderProps {
   activeSection: ActiveSection;
@@ -163,6 +164,10 @@ export const Header: React.FC<HeaderProps> = ({
           <UploadCloud className="w-3.5 h-3.5 text-[#888]" />
           <span className="hidden sm:inline">Importar</span>
         </button>
+
+        {/* Pull desde GitHub — descarga features/fixes/borrados de código del
+            repo SIN tocar los datos del usuario (viven en IndexedDB). */}
+        <GitPullButton />
 
         {/* Quick Capture button (Ctrl+Shift+Q) — sends text to the Inbox */}
         {onOpenQuickCapture && (
