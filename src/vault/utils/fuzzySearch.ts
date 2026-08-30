@@ -1,4 +1,4 @@
-import Fuse, { type FuseResultMatch } from 'fuse.js';
+import Fuse, { type FuseResultMatch, type IFuseOptions } from 'fuse.js';
 import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
 import { HTTP_STATUSES, HttpStatusInfo } from '../data/httpStatusData';
 import { PORTS, PortInfo } from '../data/portsData';
@@ -512,6 +512,82 @@ const STATIC_TOOL_DOCS: SearchDocument[] = [
   ...TOOLS_CATALOG.map(buildToolDoc),
 ].map(withLowercase);
 
+// ------------------------------------------------------------------
+// PERFORMANCE (search pass) — instant Ctrl+K with 1000+ notes:
+//
+// The old flow built a brand-new Fuse over the WHOLE corpus (user docs +
+// ~600 static docs) on EVERY keystroke. Now the corpus is split in two:
+//   • STATIC_FUSE  — one Fuse over the immutable static docs, built once
+//     at module init and reused forever.
+//   • user corpus  — notes/labs/glossary/references docs + their Fuse,
+//     cached in `userCorpusCache` and rebuilt ONLY when the data actually
+//     changes (cheap FNV-1a version stamp over id+updatedAt+length, so an
+//     autosave flush invalidates it but typing in the search box does not).
+// Indexed note content is also capped (MAX_INDEX_CONTENT_CHARS) so a few
+// huge notes cannot dominate the bitap scan; snippets still come from the
+// full cached strip. Queries are then resolved by searching both indexes
+// (+ a tiny throwaway Fuse for the ≤8 query-matched commands) and merging
+// hits by score — same ranking semantics as the old single index.
+// ------------------------------------------------------------------
+
+/** Fuse options shared by every index (must stay identical so scores are
+ *  comparable when merging hits from the static and user indexes). */
+const FUSE_OPTIONS: IFuseOptions<SearchDocument> = {
+  keys: [
+    { name: 'title', weight: 0.35 },
+    { name: 'acronym', weight: 0.25 },
+    { name: 'platform', weight: 0.12 },
+    { name: 'category', weight: 0.12 },
+    { name: 'content', weight: 0.15 },
+    { name: 'tools', weight: 0.1 },
+    { name: 'sourceUrl', weight: 0.05 },
+  ],
+  threshold: 0.3,
+  distance: 200,
+  ignoreLocation: true,
+  includeScore: true,
+  includeMatches: true,
+  minMatchCharLength: 1,
+};
+
+/** Single Fuse over the immutable static corpus — module lifetime. */
+const STATIC_FUSE = new Fuse(STATIC_TOOL_DOCS, FUSE_OPTIONS);
+
+/** Max characters of a note/lab body fed into the fuzzy index. Deep
+ *  content beyond this cap is still findable via title/category boosts and
+ *  remains fully visible in the note itself — the cap just keeps a few
+ *  giant notes from dominating index build time and memory. */
+const MAX_INDEX_CONTENT_CHARS = 3000;
+
+function capIndexContent(text: string): string {
+  return text.length > MAX_INDEX_CONTENT_CHARS ? text.slice(0, MAX_INDEX_CONTENT_CHARS) : text;
+}
+
+/** FNV-1a stamp over a row set (id + updatedAt + length). Two calls with
+ *  equal stamps guarantee identical row content for the search corpus —
+ *  O(n) with tiny constant cost (~0.1ms for 1000 rows). */
+function stampRowset(rows: ReadonlyArray<{ id: string; updatedAt?: string; createdAt?: string }>): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < rows.length; i++) {
+    const s = rows[i].id + '|' + (rows[i].updatedAt ?? rows[i].createdAt ?? '');
+    for (let j = 0; j < s.length; j++) {
+      h ^= s.charCodeAt(j);
+      h = Math.imul(h, 0x01000193);
+    }
+  }
+  return `${rows.length}:${(h >>> 0).toString(36)}`;
+}
+
+/** Cached user-content corpus (docs + Fuse), rebuilt only when the stamp
+ *  changes. Module-level (not React state) — searchAllVault is a plain
+ *  function called from a useMemo in GlobalSearchModal. */
+interface UserCorpusCache {
+  version: string;
+  docs: SearchDocument[];
+  fuse: Fuse<SearchDocument>;
+}
+let userCorpusCache: UserCorpusCache | null = null;
+
 /**
  * BLOQUE 5 — the canonical list of command palette entries (spec item #7).
  * Built once at module init (pure static data — read-only for all callers);
@@ -723,65 +799,81 @@ export function searchAllVault(
         .map(({ c }) => buildCommandDoc(c))
     : [];
 
-  // Build unified search corpus across all sections + static tool datasets.
-  // User-content docs are per-call (they change with the DB); the ~600 static
-  // dataset docs live in STATIC_TOOL_DOCS (built once at module init).
+  // PERFORMANCE (search pass): build the user corpus (notes/labs/glossary/
+  // references) ONCE per data change — keyed by a cheap version stamp over
+  // id+updatedAt+length. Typing in the search box no longer re-indexes;
+  // an autosave flush or create/delete (any updatedAt/length change) does.
+  // Static docs and per-query command docs are appended after the cached
+  // user docs, preserving the original corpus order
+  // (notes → labs → glossary → references → static → commands).
+  const corpusVersion =
+    stampRowset(notes) + '/' + stampRowset(labs) + '/' + stampRowset(glossary) + '/' + stampRowset(references);
+  if (userCorpusCache === null || userCorpusCache.version !== corpusVersion) {
+    const docs: SearchDocument[] = [
+      ...activeNotes.map((n) => withLowercase({
+        id: n.id,
+        type: 'note' as const,
+        title: n.title,
+        acronym: '',
+        platform: n.platform || '',
+        category: [n.category, ...(n.categories || [])].filter(Boolean).join(' '),
+        tools: '',
+        sourceUrl: n.sourceUrl || '',
+        content: capIndexContent(cachedStripHtml(`note:${n.id}`, n.contentHtml)),
+        subtitle: `${n.platform} > ${n.category}`,
+        status: undefined,
+        rawItem: n,
+      })),
+      ...activeLabs.map((l) => withLowercase({
+        id: l.id,
+        type: 'lab' as const,
+        title: l.title,
+        acronym: '',
+        platform: l.organization || '',
+        category: [l.topic, l.subtopic, ...(l.categories || [])].filter(Boolean).join(' '),
+        tools: (l.tools || []).join(' '),
+        sourceUrl: l.sourceLink || '',
+        content: capIndexContent(cachedStripHtml(`lab:${l.id}`, [
+          l.parts?.map((p) => `${p.title} ${p.content}`).join(' ') || '',
+          Array.isArray(l.commands) ? l.commands.join(' ') : String(l.commands || ''),
+          l.findings || '',
+          l.mitigation || '',
+        ].join(' '))),
+        subtitle: `${l.organization} > ${l.topic}${l.subtopic ? ` > ${l.subtopic}` : ''} [${l.difficulty}]`,
+        status: l.status,
+        rawItem: l,
+      })),
+      ...activeGlossary.map((g) => withLowercase({
+        id: g.id,
+        type: 'glossary' as const,
+        title: g.term,
+        acronym: g.acronym || '',
+        platform: g.platform || '',
+        category: [g.category, ...(g.categories || [])].filter(Boolean).join(' '),
+        tools: '',
+        sourceUrl: '',
+        content: capIndexContent([g.shortDefinition, g.longDefinition, g.example].filter(Boolean).join(' ')),
+        subtitle: `Glosario • ${g.platform || 'General'}${g.category ? ` • ${g.category}` : ''}`,
+        status: undefined,
+        rawItem: g,
+      })),
+      ...activeReferences.map(buildReferenceDoc),
+    ];
+    userCorpusCache = { version: corpusVersion, docs, fuse: new Fuse(docs, FUSE_OPTIONS) };
+  }
+  const userCorpus = userCorpusCache;
   const searchDataset: SearchDocument[] = [
-    ...activeNotes.map((n) => withLowercase({
-      id: n.id,
-      type: 'note' as const,
-      title: n.title,
-      acronym: '',
-      platform: n.platform || '',
-      category: [n.category, ...(n.categories || [])].filter(Boolean).join(' '),
-      tools: '',
-      sourceUrl: n.sourceUrl || '',
-      content: cachedStripHtml(`note:${n.id}`, n.contentHtml),
-      subtitle: `${n.platform} > ${n.category}`,
-      status: undefined,
-      rawItem: n,
-    })),
-    ...activeLabs.map((l) => withLowercase({
-      id: l.id,
-      type: 'lab' as const,
-      title: l.title,
-      acronym: '',
-      platform: l.organization || '',
-      category: [l.topic, l.subtopic, ...(l.categories || [])].filter(Boolean).join(' '),
-      tools: (l.tools || []).join(' '),
-      sourceUrl: l.sourceLink || '',
-      content: cachedStripHtml(`lab:${l.id}`, [
-        l.parts?.map((p) => `${p.title} ${p.content}`).join(' ') || '',
-        Array.isArray(l.commands) ? l.commands.join(' ') : String(l.commands || ''),
-        l.findings || '',
-        l.mitigation || '',
-      ].join(' ')),
-      subtitle: `${l.organization} > ${l.topic}${l.subtopic ? ` > ${l.subtopic}` : ''} [${l.difficulty}]`,
-      status: l.status,
-      rawItem: l,
-    })),
-    ...activeGlossary.map((g) => withLowercase({
-      id: g.id,
-      type: 'glossary' as const,
-      title: g.term,
-      acronym: g.acronym || '',
-      platform: g.platform || '',
-      category: [g.category, ...(g.categories || [])].filter(Boolean).join(' '),
-      tools: '',
-      sourceUrl: '',
-      content: [g.shortDefinition, g.longDefinition, g.example].filter(Boolean).join(' '),
-      subtitle: `Glosario • ${g.platform || 'General'}${g.category ? ` • ${g.category}` : ''}`,
-      status: undefined,
-      rawItem: g,
-    })),
-    ...activeReferences.map(buildReferenceDoc),
+    ...userCorpus.docs,
     ...STATIC_TOOL_DOCS,
     // BLOQUE 5 — command palette entries (matched alongside everything else).
     ...matchingCommands,
   ];
 
-  // BLOQUE 5 — apply type:/tag:/platform: filters BEFORE the Fuse search so
-  // the index never sees (and never ranks) entries the user has filtered out.
+  // BLOQUE 5 — apply type:/tag:/platform: filters BEFORE the boost loop so
+  // filtered-out entries are neither boosted nor ranked. (The cached Fuse
+  // indexes search everything; their hits are filtered post-search by the
+  // same predicate — see `passesFilters` below — so the semantics are
+  // identical to the old pre-filtered single index.)
   const allowedTypes = parsed.typeFilter ? new Set(typeFilterToTypes(parsed.typeFilter) || []) : null;
   const filteredDataset = allowedTypes
     ? searchDataset.filter((d) => allowedTypes.has(d.type))
@@ -807,23 +899,14 @@ export function searchAllVault(
       })
     : tagFilteredDataset;
 
-  const fuse = new Fuse(platformFilteredDataset, {
-    keys: [
-      { name: 'title', weight: 0.35 },
-      { name: 'acronym', weight: 0.25 },
-      { name: 'platform', weight: 0.12 },
-      { name: 'category', weight: 0.12 },
-      { name: 'content', weight: 0.15 },
-      { name: 'tools', weight: 0.1 },
-      { name: 'sourceUrl', weight: 0.05 },
-    ],
-    threshold: 0.3,
-    distance: 200,
-    ignoreLocation: true,
-    includeScore: true,
-    includeMatches: true,
-    minMatchCharLength: 1,
-  });
+  /** Post-search predicate — the SAME type:/tag:/platform: rules applied to
+   *  Fuse hits coming from the (unfiltered) cached indexes. */
+  const passesFilters = (d: SearchDocument): boolean => {
+    if (allowedTypes && !allowedTypes.has(d.type)) return false;
+    if (tag && !(`${d.tools} ${d.category}`.toLowerCase().includes(tag))) return false;
+    if (platform && !(d.platform || '').toLowerCase().includes(platform)) return false;
+    return true;
+  };
 
   // ──────────────────────────────────────────────────────────────
   // Boost pipeline: ranks EXACT / substring matches on title or
@@ -878,10 +961,27 @@ export function searchAllVault(
 
   // BLOQUE 5 — when there's no text but filters were applied, just return
   // the whole filtered dataset (capped at 30) so the user sees what matched.
-  // Otherwise run Fuse on the FREE-TEXT portion to surface content matches.
-  const fuzzyResults = q
-    ? fuse.search(q).slice(0, 30)
-    : platformFilteredDataset.slice(0, 30).map((item) => ({ item, matches: [] as FuseResultMatch[] }));
+  // Otherwise search the cached user index + the static index (+ a tiny
+  // throwaway Fuse over the ≤8 query-matched commands) and merge by score.
+  // PERFORMANCE (search pass): 1-char queries skip fuzzy entirely — a single
+  // fuzzy character is pure noise, and skipping it keeps those keystrokes
+  // instant even with 1000+ notes (boost buckets still apply).
+  let fuzzyResults: Array<{ item: SearchDocument; score?: number; matches?: readonly FuseResultMatch[] }>;
+  if (!q) {
+    fuzzyResults = platformFilteredDataset.slice(0, 30).map((item) => ({ item, matches: [] as readonly FuseResultMatch[] }));
+  } else if (q.length < 2) {
+    fuzzyResults = [];
+  } else {
+    const cmdFuse = matchingCommands.length > 0 ? new Fuse(matchingCommands, FUSE_OPTIONS) : null;
+    fuzzyResults = [
+      ...userCorpus.fuse.search(q),
+      ...STATIC_FUSE.search(q),
+      ...(cmdFuse ? cmdFuse.search(q) : []),
+    ]
+      .filter((fr) => passesFilters(fr.item))
+      .sort((a, b) => (a.score ?? 1) - (b.score ?? 1))
+      .slice(0, 30);
+  }
 
   // Build a dedup map: boosted items first, then fuzzy items not already present.
   const seenIds = new Set<string>();
