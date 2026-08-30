@@ -64,7 +64,7 @@ import { usePendingToolStore } from '../store/pendingToolStore';
 import { useNoteStore } from '../store/noteStore';
 // BLOQUE 5 — favorites/recents prefs (live-query hooks) + cross-tool helper.
 import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
-import { recordToolUse, toggleToolFavorite } from './tools/_shared';
+import { recordToolUse, toggleToolFavorite, inputCls, taCls, useAddToNoteToast } from './tools/_shared';
 // BLOQUE 5 — single source of truth for the tool catalog (also used by
 // global search to index tools into Ctrl+K results).
 import { TOOLS_CATALOG, type ToolId } from '../data/toolsCatalog';
@@ -147,9 +147,6 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
     {children}
   </div>
 );
-
-const inputCls = 'w-full bg-[#161616] border border-[#262626] rounded px-3 py-2 text-xs text-white font-mono placeholder:text-[#555] focus:outline-none focus:border-blue-500';
-const taCls = inputCls + ' resize-y min-h-[80px]';
 
 /* ---------- Modal component for detail views ---------- */
 const DetailModal: React.FC<{
@@ -836,7 +833,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
   // BLOQUE 3 — category filter (8 SOC categories derived via getWinEventCategory).
   const [category, setCategory] = useState<WinEventCategory | null>(null);
   // BLOQUE 3 — toast for "Added to Note" feedback (auto-dismiss after 2.5s).
-  const [addedToast, setAddedToast] = useState(false);
+  const { addedToast, showToast } = useAddToNoteToast();
 
   // Deep-link follow-up: render-time state adjustment when autoOpenId changes.
   const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
@@ -883,8 +880,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
   const addToNote = () => {
     if (!selected) return;
     useNoteStore.getState().enqueueNote('Windows Event ' + selected.id + ' — ' + selected.name, buildWinEventHtmlTable(selected));
-    setAddedToast(true);
-    window.setTimeout(() => setAddedToast(false), 2500);
+    showToast();
   };
 
   // BLOQUE 5 — Related Knowledge panel (spec #13). Live-query Dexie for

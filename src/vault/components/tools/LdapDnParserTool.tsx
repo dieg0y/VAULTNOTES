@@ -36,7 +36,7 @@ import {
   Search, Trash2, FileText, BookOpen, Network, Server, GitBranch, Layers,
 } from 'lucide-react';
 import {
-  inputCls, btnPrimary, btnGhost, Row, InfoBanner, ErrorBanner,
+  inputCls, btnPrimary, btnGhost, Row, InfoBanner, ErrorBanner, useAddToNoteToast,
 } from './_shared';
 import { useNoteStore } from '../../store/noteStore';
 import { escapeHtml } from '../../utils/escapeHtml';
@@ -197,7 +197,7 @@ const INVALID_ERROR =
 export const LdapDnParserTool: React.FC = () => {
   const [input, setInput] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [addedToast, setAddedToast] = useState(false);
+  const { addedToast, showToast } = useAddToNoteToast();
 
   // Debounce 200ms after the last keystroke before re-parsing. Pure local
   // parse is cheap, but this avoids burning cycles on every keystroke and
@@ -263,8 +263,7 @@ export const LdapDnParserTool: React.FC = () => {
       rows.join('') +
       `</table>`;
     useNoteStore.getState().enqueueNote('LDAP / DN Parse', htmlTable);
-    setAddedToast(true);
-    window.setTimeout(() => setAddedToast(false), 2500);
+    showToast();
   };
 
   /* ---------- render ---------- */

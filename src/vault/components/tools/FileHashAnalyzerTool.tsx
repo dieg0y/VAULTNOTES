@@ -14,7 +14,7 @@
  */
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   Upload,
   FileText,
@@ -29,6 +29,7 @@ import {
   CodeBlock,
   ErrorBanner,
   InfoBanner,
+  useAddToNoteToast,
 } from './_shared';
 import { useNoteStore } from '@/vault/store/noteStore';
 import { escapeHtml } from '../../utils/escapeHtml';
@@ -148,7 +149,7 @@ export const FileHashAnalyzerTool: React.FC = () => {
   const [hashing, setHashing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [addedToast, setAddedToast] = useState(false);
+  const { addedToast, showToast } = useAddToNoteToast();
 
   const hasAnyHash = Object.keys(hashes).length > 0;
 
@@ -234,15 +235,8 @@ export const FileHashAnalyzerTool: React.FC = () => {
     if (!meta || !hasAnyHash) return;
     const html = buildFileHashHtml(meta, hashes);
     useNoteStore.getState().enqueueNote('File Hash Analysis — ' + meta.name, html);
-    setAddedToast(true);
+    showToast();
   };
-
-  /* Auto-dismiss the "Added to Note" toast after 2.5s. */
-  useEffect(() => {
-    if (!addedToast) return;
-    const t = window.setTimeout(() => setAddedToast(false), 2500);
-    return () => window.clearTimeout(t);
-  }, [addedToast]);
 
   /* ---------- render ---------- */
   return (

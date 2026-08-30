@@ -7,7 +7,7 @@
  *
  * IMPORTANT: 100% offline. No fetch, no APIs, no telemetry.
  */
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 
 /* ---------- shared Tailwind class strings ---------- */
@@ -119,6 +119,32 @@ export const Tabs: React.FC<{
 export function safeStr(v: unknown, fallback = ''): string {
   if (v === null || v === undefined) return fallback;
   return String(v);
+}
+
+/* ---------- buildNoteHtmlTable: the [Add to Note] two-cell table ----------
+ * The exact table format shared by the tools whose "Add to Note" action
+ * enqueues a key/value table (byte-identical in CvssCalculatorTool and
+ * LinuxPermissionsTool before extraction). Callers pre-escape their values
+ * with escapeHtml — this helper does NOT escape again. Tools whose table
+ * style differs deliberately (Sigma/LDAP/MITRE/SidRid/…) keep their own
+ * builder so the generated note HTML stays unchanged. */
+export function buildNoteHtmlTable(rows: Array<[string, string]>): string {
+  const body = rows
+    .map(([k, v]) => `<tr><td style="vertical-align:top;font-weight:bold;color:#888;padding:4px;white-space:nowrap;">${k}</td><td style="vertical-align:top;padding:4px;font-family:monospace;">${v}</td></tr>`)
+    .join('');
+  return `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%;font-family:monospace;font-size:11px;background:#0D0D0D;color:#DDD;"><tbody>${body}</tbody></table>`;
+}
+
+/* ---------- useAddToNoteToast: the 2.5s "Añadido a Notas" feedback ----------
+ * Identical state+timer logic that was duplicated across five tools; the
+ * toast's JSX stays per-tool (each renders it slightly differently). */
+export function useAddToNoteToast(): { addedToast: boolean; showToast: () => void } {
+  const [addedToast, setAddedToast] = useState(false);
+  const showToast = useCallback(() => {
+    setAddedToast(true);
+    window.setTimeout(() => setAddedToast(false), 2500);
+  }, []);
+  return { addedToast, showToast };
 }
 
 /* ---------- Cross-tool navigation helper (BLOQUE 5) ------------------

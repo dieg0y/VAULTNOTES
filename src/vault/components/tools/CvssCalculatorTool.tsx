@@ -19,7 +19,7 @@ import {
   CVSS_3_1_METRICS, calculateCvss3_1BaseScore, getMetricValueDef,
   type CvssMetricCode, type CvssVector,
 } from '../../data/cvssData';
-import { btnGhost, Row, CodeBlock, InfoBanner, ErrorBanner } from './_shared';
+import { btnGhost, Row, CodeBlock, InfoBanner, ErrorBanner, buildNoteHtmlTable, useAddToNoteToast } from './_shared';
 import { useNoteStore } from '../../store/noteStore';
 import { escapeHtml } from '../../utils/escapeHtml';
 
@@ -40,7 +40,7 @@ const SEVERITY_STYLES: Record<string, string> = {
 export const CvssCalculatorTool: React.FC = () => {
   const [vector, setVector] = useState<CvssVector>(INITIAL_VECTOR);
   const [copied, setCopied] = useState(false);
-  const [addedToast, setAddedToast] = useState(false);
+  const { addedToast, showToast } = useAddToNoteToast();
 
   const result = useMemo(() => calculateCvss3_1BaseScore(vector), [vector]);
 
@@ -76,13 +76,9 @@ export const CvssCalculatorTool: React.FC = () => {
         rows.push([escapeHtml(`${metric.code} (${metric.label})`), escapeHtml(`${val} (${valDef?.label || '?'})`)]);
       }
     }
-    const body = rows
-      .map(([k, v]) => `<tr><td style="vertical-align:top;font-weight:bold;color:#888;padding:4px;white-space:nowrap;">${k}</td><td style="vertical-align:top;padding:4px;font-family:monospace;">${v}</td></tr>`)
-      .join('');
-    const html = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%;font-family:monospace;font-size:11px;background:#0D0D0D;color:#DDD;"><tbody>${body}</tbody></table>`;
+    const html = buildNoteHtmlTable(rows);
     useNoteStore.getState().enqueueNote('CVSS 3.1 — ' + result.vectorString, html);
-    setAddedToast(true);
-    window.setTimeout(() => setAddedToast(false), 2500);
+    showToast();
   };
 
   return (

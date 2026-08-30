@@ -21,7 +21,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Terminal, RefreshCw, Copy, Check, AlertTriangle, Info, Lock, FileText, Crown,
 } from 'lucide-react';
-import { inputCls, btnGhost, btnPrimary, CodeBlock, InfoBanner, ErrorBanner, Tabs } from './_shared';
+import { inputCls, btnGhost, btnPrimary, CodeBlock, InfoBanner, ErrorBanner, Tabs, buildNoteHtmlTable, useAddToNoteToast } from './_shared';
 import { useNoteStore } from '../../store/noteStore';
 import { escapeHtml } from '../../utils/escapeHtml';
 
@@ -205,7 +205,7 @@ function parseSymbolicMode(input: string): { ok: true; octal: string; breakdown:
 export const LinuxPermissionsTool: React.FC = () => {
   const [mode, setMode] = useState('755');
   const [copied, setCopied] = useState(false);
-  const [addedToast, setAddedToast] = useState(false);
+  const { addedToast, showToast } = useAddToNoteToast();
   const [tab, setTab] = useState<'numeric' | 'symbolic'>('numeric');
 
   // Parsear el input como numérico o simbólico según el tab activo.
@@ -252,13 +252,9 @@ export const LinuxPermissionsTool: React.FC = () => {
       ['SGID', breakdown.special & 2 ? 'Enabled' : 'Disabled'],
       ['Sticky', breakdown.special & 1 ? 'Enabled' : 'Disabled'],
     ];
-    const body = rows
-      .map(([k, v]) => `<tr><td style="vertical-align:top;font-weight:bold;color:#888;padding:4px;white-space:nowrap;">${k}</td><td style="vertical-align:top;padding:4px;font-family:monospace;">${v}</td></tr>`)
-      .join('');
-    const html = `<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;width:100%;font-family:monospace;font-size:11px;background:#0D0D0D;color:#DDD;"><tbody>${body}</tbody></table>`;
+    const html = buildNoteHtmlTable(rows);
     useNoteStore.getState().enqueueNote('Linux Permissions — ' + octalStr, html);
-    setAddedToast(true);
-    window.setTimeout(() => setAddedToast(false), 2500);
+    showToast();
   };
 
   return (
