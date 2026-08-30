@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, initializeDatabase } from './db';
 import {
@@ -21,27 +22,55 @@ import {
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { VaultErrorBoundary } from './components/VaultErrorBoundary';
-import { DashboardView } from './components/DashboardView';
-import { NotesView } from './components/NotesView';
-import { LabsView } from './components/LabsView';
-import { GlossaryView } from './components/GlossaryView';
-import { BlogView } from './components/BlogView';
-import { ToolsView, type ToolDeepLink } from './components/ToolsView';
-import { ReferencesView } from './components/ReferencesView';
-import { TrashView } from './components/TrashView';
-import { SettingsView } from './components/SettingsView';
-import { ReviewView } from './components/ReviewView';
-import { InboxView } from './components/InboxView';
-// BLOQUE 6 — Online-Optional. Data & Intelligence sync center view.
-import { DataIntelView } from './components/DataIntelView';
-import { GlobalSearchModal } from './components/GlobalSearchModal';
-import { NewItemModal } from './components/NewItemModal';
-import { QuickCaptureModal } from './components/QuickCaptureModal';
-import { AddToNoteModal } from './components/AddToNoteModal';
-import { ImportReportModal } from './components/ImportReportModal';
+// Type-only import (erased at build time) — keeps the deep-link contract with
+// the lazily-loaded ToolsView chunk without pulling it into the shell bundle.
+import type { ToolDeepLink } from './components/ToolsView';
 import { exportVaultZip, importVaultBackup, IncompatibleBackupError, ZipSafetyError } from './utils/zipBackup';
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
+
+/* ------------------------------------------------------------------ */
+/* PERFORMANCE (code-splitting pass):                                  */
+/* The initial route now ships ONLY the shell (Sidebar + Header +      */
+/* error boundary). Every view is a separate chunk loaded on demand   */
+/* via next/dynamic, and the modals only mount (and load their        */
+/* chunk) when opened. The 28 tools travel together inside the lazy   */
+/* ToolsView chunk — the tool module graph itself stays STATIC inside  */
+/* that chunk on purpose: Turbopack's dev runtime loses track of ~20  */
+/* separate per-tool dynamic factories after a dev-server restart     */
+/* (VN-F-003, "module factory is not available"). See the             */
+/* HMR-ROBUSTNESS note in ToolsView.tsx.                              */
+/* ------------------------------------------------------------------ */
+const ViewLoader = () => (
+  <div className="flex-1 flex items-center justify-center" role="status" aria-label="Cargando vista">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-6 h-6 rounded-full border-2 border-blue-500/30 border-t-blue-400 animate-spin" />
+      <p className="text-[11px] font-mono text-[#555]">Cargando…</p>
+    </div>
+  </div>
+);
+
+const DashboardView = dynamic(() => import('./components/DashboardView').then((m) => m.DashboardView), { ssr: false, loading: ViewLoader });
+const NotesView = dynamic(() => import('./components/NotesView').then((m) => m.NotesView), { ssr: false, loading: ViewLoader });
+const LabsView = dynamic(() => import('./components/LabsView').then((m) => m.LabsView), { ssr: false, loading: ViewLoader });
+const GlossaryView = dynamic(() => import('./components/GlossaryView').then((m) => m.GlossaryView), { ssr: false, loading: ViewLoader });
+const BlogView = dynamic(() => import('./components/BlogView').then((m) => m.BlogView), { ssr: false, loading: ViewLoader });
+const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.ToolsView), { ssr: false, loading: ViewLoader });
+const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
+const TrashView = dynamic(() => import('./components/TrashView').then((m) => m.TrashView), { ssr: false, loading: ViewLoader });
+const SettingsView = dynamic(() => import('./components/SettingsView').then((m) => m.SettingsView), { ssr: false, loading: ViewLoader });
+const ReviewView = dynamic(() => import('./components/ReviewView').then((m) => m.ReviewView), { ssr: false, loading: ViewLoader });
+const InboxView = dynamic(() => import('./components/InboxView').then((m) => m.InboxView), { ssr: false, loading: ViewLoader });
+// BLOQUE 6 — Online-Optional. Data & Intelligence sync center view.
+const DataIntelView = dynamic(() => import('./components/DataIntelView').then((m) => m.DataIntelView), { ssr: false, loading: ViewLoader });
+
+/* Modals — mounted (and chunk-loaded) only while open. */
+const ModalLoader = () => null;
+const GlobalSearchModal = dynamic(() => import('./components/GlobalSearchModal').then((m) => m.GlobalSearchModal), { ssr: false, loading: ModalLoader });
+const NewItemModal = dynamic(() => import('./components/NewItemModal').then((m) => m.NewItemModal), { ssr: false, loading: ModalLoader });
+const QuickCaptureModal = dynamic(() => import('./components/QuickCaptureModal').then((m) => m.QuickCaptureModal), { ssr: false, loading: ModalLoader });
+const AddToNoteModal = dynamic(() => import('./components/AddToNoteModal').then((m) => m.AddToNoteModal), { ssr: false, loading: ModalLoader });
+const ImportReportModal = dynamic(() => import('./components/ImportReportModal').then((m) => m.ImportReportModal), { ssr: false, loading: ModalLoader });
 
 // Referentially-stable empty-array fallbacks for the useLiveQuery results
 // below (Dexie returns `undefined` while the first query is in flight).
@@ -193,6 +222,24 @@ export default function App() {
           navigator.serviceWorker.removeEventListener('message', onMessage);
         }
       };
+    }
+  }, []);
+
+  // PERFORMANCE (code-splitting pass): after first paint, warm the global
+  // search chunk (fuzzy index + offline datasets) during browser idle time
+  // so the first Ctrl+K opens instantly — without weighing down the initial
+  // shell load. Shares the exact module/chunk with the dynamic() above.
+  useEffect(() => {
+    const warm = () => {
+      void import('./components/GlobalSearchModal');
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(warm, { timeout: 3000 });
+    } else {
+      setTimeout(warm, 1500);
     }
   }, []);
 
@@ -1145,82 +1192,93 @@ export default function App() {
       </div>
 
       {/* 3. Global Modals */}
-      {/* Global Search Modal (Ctrl+K) */}
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        notes={activeNotes}
-        labs={activeLabs}
-        glossary={activeTerms}
-        references={activeReferences}
-        onSelectNote={(noteId) => {
-          setSelectedNoteId(noteId);
-          setActiveSection('notes');
-        }}
-        onSelectLab={(labId) => {
-          setSelectedLabId(labId);
-          setActiveSection('labs');
-        }}
-        onSelectGlossaryTerm={(termId) => {
-          setSelectedTermId(termId);
-          setActiveSection('glossary');
-        }}
-        onSelectReference={() => {
-          // No reference detail view yet — just switch to references section.
-          setActiveSection('references');
-        }}
-        onSelectTool={(deepLink) => {
-          setPendingTool(deepLink);
-          setActiveSection('tools');
-        }}
-        // BLOQUE 5 — command palette dispatch (new note / open X / backup / etc.)
-        onSelectCommand={(commandId) => {
-          handleCommandPalette(commandId);
-        }}
-      />
+      {/* Global Search Modal (Ctrl+K) — lazily mounted (chunk warms on first
+          open; the shell also idle-prefetches it after first paint). */}
+      {isSearchOpen && (
+        <GlobalSearchModal
+          isOpen
+          onClose={() => setIsSearchOpen(false)}
+          notes={activeNotes}
+          labs={activeLabs}
+          glossary={activeTerms}
+          references={activeReferences}
+          onSelectNote={(noteId) => {
+            setSelectedNoteId(noteId);
+            setActiveSection('notes');
+          }}
+          onSelectLab={(labId) => {
+            setSelectedLabId(labId);
+            setActiveSection('labs');
+          }}
+          onSelectGlossaryTerm={(termId) => {
+            setSelectedTermId(termId);
+            setActiveSection('glossary');
+          }}
+          onSelectReference={() => {
+            // No reference detail view yet — just switch to references section.
+            setActiveSection('references');
+          }}
+          onSelectTool={(deepLink) => {
+            setPendingTool(deepLink);
+            setActiveSection('tools');
+          }}
+          // BLOQUE 5 — command palette dispatch (new note / open X / backup / etc.)
+          onSelectCommand={(commandId) => {
+            handleCommandPalette(commandId);
+          }}
+        />
+      )}
 
       {/* New Item Modal (+ Button) — keyed so it mounts fresh (clean form) every time it opens.
           newItemContent is included in the key so an Inbox "Convert to Note/Glossary"
           flow (which sets the title from the inbox content) re-mounts the modal
-          with the prefilled title state. */}
-      <NewItemModal
-        key={`new-item-${newItemTab}-${newItemPlatform}-${newItemContent}-${String(isNewItemOpen)}`}
-        isOpen={isNewItemOpen}
-        onClose={handleCloseNewItem}
-        initialTab={newItemTab}
-        initialPlatform={newItemPlatform}
-        initialContent={newItemContent}
-        platforms={platforms}
-        categories={categories}
-        tools={tools}
-        onCreateNote={handleCreateNote}
-        onCreateLab={handleCreateLab}
-        onCreateGlossaryTerm={handleCreateGlossaryTerm}
-      />
+          with the prefilled title state. Lazily mounted (chunk loads on first open). */}
+      {isNewItemOpen && (
+        <NewItemModal
+          key={`new-item-${newItemTab}-${newItemPlatform}-${newItemContent}-${String(isNewItemOpen)}`}
+          isOpen
+          onClose={handleCloseNewItem}
+          initialTab={newItemTab}
+          initialPlatform={newItemPlatform}
+          initialContent={newItemContent}
+          platforms={platforms}
+          categories={categories}
+          tools={tools}
+          onCreateNote={handleCreateNote}
+          onCreateLab={handleCreateLab}
+          onCreateGlossaryTerm={handleCreateGlossaryTerm}
+        />
+      )}
 
       {/* Quick Capture Modal (Ctrl+Shift+Q) — single textarea → Inbox */}
-      <QuickCaptureModal
-        isOpen={isQuickCaptureOpen}
-        onClose={() => setIsQuickCaptureOpen(false)}
-      />
+      {isQuickCaptureOpen && (
+        <QuickCaptureModal
+          isOpen
+          onClose={() => setIsQuickCaptureOpen(false)}
+        />
+      )}
 
       {/* Add to Note Modal (BLOQUE 5 spec #4) — opened by any tool that calls
           useNoteStore.enqueueNote(title, html). Lets the user choose between
           creating a new note or appending to an existing note. */}
-      <AddToNoteModal
-        isOpen={isAddToNoteOpen}
-        onClose={handleCloseAddToNote}
-        pendingAdd={pendingNote}
-        onCreateNewNote={handleCreateNewNote}
-        onAppendToExistingNote={(noteId) => void handleAppendToExistingNote(noteId)}
-      />
+      {isAddToNoteOpen && (
+        <AddToNoteModal
+          isOpen
+          onClose={handleCloseAddToNote}
+          pendingAdd={pendingNote}
+          onCreateNewNote={handleCreateNewNote}
+          onAppendToExistingNote={(noteId) => void handleAppendToExistingNote(noteId)}
+        />
+      )}
 
       {/* Incremental Import Report Modal */}
-      <ImportReportModal
-        isOpen={!!importSummary}
-        onClose={() => setImportSummary(null)}
-        summary={importSummary}
-      />
+      {importSummary && (
+        <ImportReportModal
+          isOpen
+          onClose={() => setImportSummary(null)}
+          summary={importSummary}
+        />
+      )}
     </div>
     </VaultErrorBoundary>
   );
