@@ -453,6 +453,20 @@ export class VaultDatabase extends Dexie {
           const legacy = await tx.table('videos').toArray();
           const idbBlobs = legacy.filter((v) => (v as { blob?: unknown }).blob);
           if (idbBlobs.length > 0) {
+            // AUDIT FIX (VN-AUD-002): the discard was console.warn-only —
+            // the user never sees the console. Write the count to
+            // localStorage (survives the upgrade; NOT exported anywhere) so
+            // App.tsx can surface a ONE-TIME alert on the next startup.
+            try {
+              if (typeof window !== 'undefined') {
+                window.localStorage.setItem(
+                  'vaultnotes-v15-discarded-videos',
+                  String(idbBlobs.length)
+                );
+              }
+            } catch {
+              /* storage unavailable (private mode etc.) — console warn remains */
+            }
             console.warn(
               `[VaultNotes v15] Tabla 'videos' eliminada (REGLA DE ORO). ` +
               `${idbBlobs.length} video(s) que SOLO existían en IndexedDB se han descartado ` +

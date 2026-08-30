@@ -58,9 +58,37 @@ const EMPTY_REFERENCES: ReferenceItem[] = [];
 export default function App() {
   // Initialize / seed the local vault database once on mount (browser only)
   useEffect(() => {
-    initializeDatabase().catch((err) => {
-      console.error('Failed to initialize vault database:', err);
-    });
+    initializeDatabase()
+      .then(() => {
+        // AUDIT FIX (VN-AUD-002): the v15 migration (REGLA DE ORO) deletes the
+        // IndexedDB `videos` table. Blobs that only ever lived there (never
+        // migrated to the user's disk folder) are unrecoverable — the
+        // migration writes the discard count to localStorage and THIS code
+        // surfaces it as a ONE-TIME alert (console.warn alone is invisible to
+        // users). Folder files and existing embeds are untouched.
+        try {
+          const raw = window.localStorage.getItem('vaultnotes-v15-discarded-videos');
+          if (raw !== null) {
+            window.localStorage.removeItem('vaultnotes-v15-discarded-videos'); // one-time
+            const count = parseInt(raw, 10);
+            if (Number.isFinite(count) && count > 0) {
+              alert(
+                `Migración a la versión 15 completada (REGLA DE ORO de videos).\n\n` +
+                `${count} video(s) que SOLO existían en la base de datos del navegador se ` +
+                `han descartado: nunca se migraron a tu carpeta de videos y no es posible ` +
+                `recuperarlos desde la app.\n\n` +
+                `Los archivos de tu carpeta de videos NO se han tocado y los videos ya ` +
+                `insertados en notas siguen funcionando con normalidad.`
+              );
+            }
+          }
+        } catch {
+          /* localStorage unavailable — the console.warn in the migration remains */
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to initialize vault database:', err);
+      });
     // Register the PWA service worker for offline-first shell caching.
     // Also listen for SW updates so the user immediately sees the new shell
     // (instead of being stuck on a stale cached version of the app).
