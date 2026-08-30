@@ -35,10 +35,12 @@ import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import { useDebouncedAutoSave } from '../hooks/useDebouncedAutoSave';
 import { insertHtmlInEditable } from '../utils/domInsert';
-import { saveVideoToDirectory, getVideoObjectURL, resolveLegacyVideoUrl, setVideosDirectory, hasVideosDirectory, isFsSupported, ensureVideosPermission, NoVideosDirectoryError, VideosPermissionError, VideoRejectedError } from '../utils/videoStorage';
+import {
+  useVaultVideoEmbeds, useImageInsert, runSanitizedPaste, runFileDrop,
+  VideoAccessBanner, VideoHiddenInputs, stripBlobUrls,
+} from './Editor/editorMedia';
 import { addToReviewQueue } from './tools/_shared';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
-import { escapeHtml } from '../utils/escapeHtml';
 
 interface LabsViewProps {
   labs: Lab[];
@@ -1302,69 +1304,6 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const videoInputRef = useRef<HTMLInputElement>(null);
-  const videoUrlsRef = useRef<string[]>([]);
-  const [fsNeedsPermission, setFsNeedsPermission] = useState(false);
-  // REGLA DE ORO (videos): missing reference files → "Re-linkear / Buscar".
-  const missingVideosRef = useRef<string[]>([]);
-  const [missingVideoCount, setMissingVideoCount] = useState(0);
-  const relinkInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    return () => {
-      videoUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-      videoUrlsRef.current = [];
-    };
-  }, []);
-
-  // REGLA DE ORO (videos): resolve embeds from the user's disk folder only.
-  // New embeds carry data-vault-video="<filename>"; legacy ones data-vid.
-  const attachVideoSources = useCallback(async () => {
-    if (!editorRef.current) return;
-    const embeds = editorRef.current.querySelectorAll<HTMLElement>('.vault-video-embed');
-    let permIssue = false;
-    const missing: string[] = [];
-    for (const fig of Array.from(embeds)) {
-      const videoEl = fig.querySelector('video');
-      if (!videoEl || videoEl.getAttribute('src')) continue;
-      const filename = fig.getAttribute('data-vault-video');
-      const legacyVid = fig.getAttribute('data-vid');
-      if (!filename && !legacyVid) continue;
-      try {
-        const url = filename
-          ? await getVideoObjectURL(filename)
-          : await resolveLegacyVideoUrl(legacyVid as string);
-        if (url) {
-          fig.classList.remove('vault-video-missing');
-          videoUrlsRef.current.push(url);
-          videoEl.src = url;
-        } else {
-          fig.classList.add('vault-video-missing');
-          if (filename) missing.push(filename);
-        }
-      } catch (err) {
-        if (err instanceof VideosPermissionError || err instanceof NoVideosDirectoryError) {
-          permIssue = true;
-        }
-        fig.classList.add('vault-video-missing');
-        if (filename) missing.push(filename);
-      }
-    }
-    missingVideosRef.current = missing;
-    setMissingVideoCount(missing.length);
-    setFsNeedsPermission(permIssue);
-  }, []);
-
-  useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== initialHtml) {
-      // SECURITY (Audit Task 2-b, spec #26/#42/#44): initialHtml is
-      // untrusted (may come from imported backup). Sanitize before
-      // innerHTML to prevent stored XSS. Pure & offline.
-      editorRef.current.innerHTML = sanitizeHtml(initialHtml);
-      void Promise.resolve().then(attachVideoSources);
-    }
-  }, [initialHtml, attachVideoSources]);
-
   const handleInput = () => {
     if (editorRef.current) {
       // AUDIT FIX (checklist state persistence): clicking a checkbox toggles
@@ -1374,9 +1313,52 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         if (cb.checked) cb.setAttribute('checked', '');
         else cb.removeAttribute('checked');
       });
-      onChange(editorRef.current.innerHTML);
+      // REGLA DE ORO: strip ephemeral blob: URLs on EVERY serialization —
+      // video srcs are re-attached from the user's videos folder on load.
+      // (Refactor fix: lab parts used to persist stale blob: URLs, and
+      // attachVideoSources skips embeds whose src is already set, so the
+      // video silently died after reload.)
+      onChange(stripBlobUrls(editorRef.current.innerHTML));
     }
   };
+
+  // ── SHARED MEDIA EMBEDS (editorMedia.tsx) ─────────────────────────────
+  // REGLA DE ORO (videos): the whole video flow lives ONCE in
+  // useVaultVideoEmbeds, shared with the notes' RichEditor.
+  const {
+    attachVideoSources, handleVideoFile, handleRelinkFiles,
+    grantAccess, relinkFolder,
+    missingVideoCount, fsNeedsPermission,
+    videoInputRef, relinkInputRef,
+  } = useVaultVideoEmbeds({ editorRef, onContentChange: handleInput });
+
+  // Image insert: data-URL image stored in db.images owned by this lab.
+  const { handleImageFile } = useImageInsert({
+    editorRef,
+    onContentChange: handleInput,
+    owner: { labId },
+    captionFor: (fileName) => fileName,
+    figureClass: 'my-4 max-w-full inline-block group relative rounded-lg overflow-hidden border border-[#262626] bg-[#161616]',
+    figcaptionClass: 'p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626]',
+    captionPrefix: 'Captura',
+  });
+
+  // SECURITY (VN-B-014): sanitized paste — see editorMedia.runSanitizedPaste.
+  const handlePaste = (e: React.ClipboardEvent) =>
+    runSanitizedPaste(e, { editorRef, onImageFile: handleImageFile, onContentChange: handleInput });
+  // Drop routing: images / videos (lab parts have no PDF embeds).
+  const handleDrop = (e: React.DragEvent) =>
+    runFileDrop(e, { onImageFile: handleImageFile, onVideoFile: handleVideoFile });
+
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== initialHtml) {
+      // SECURITY (Audit Task 2-b, spec #26/#42/#44): initialHtml is
+      // untrusted (may come from imported backup). Sanitize before
+      // innerHTML to prevent stored XSS. Pure & offline.
+      editorRef.current.innerHTML = sanitizeHtml(initialHtml);
+      void Promise.resolve().then(() => void attachVideoSources());
+    }
+  }, [initialHtml, attachVideoSources]);
 
   const execCmd = (cmd: string, val: string | undefined = undefined) => {
     document.execCommand(cmd, false, val);
@@ -1397,7 +1379,8 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     if (checkbox) {
       if (checkbox.checked) checkbox.setAttribute('checked', '');
       else checkbox.removeAttribute('checked');
-      if (editorRef.current) onChange(editorRef.current.innerHTML);
+      // REGLA DE ORO: strip blob: URLs on serialization (see handleInput).
+      if (editorRef.current) onChange(stripBlobUrls(editorRef.current.innerHTML));
       return;
     }
     const copyBtn = target.closest('.vault-code-copy') as HTMLElement | null;
@@ -1444,241 +1427,17 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     handleInput();
   };
 
-  const handleImageFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) return;
-    // SECURITY (Task 2-b): cap image upload size at 25 MB. Same rationale
-    // as RichEditor.handleImageFile — data URLs bloat IDB and could crash
-    // the tab on lower-end machines.
-    if (file.size > 25 * 1024 * 1024) {
-      alert('La imagen es demasiado grande (máximo 25 MB). Redúcela antes de insertarla.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      // SECURITY (Task 2-b): HTML-escape the user-controlled file.name before
-      // embedding it inside the <img alt="…"> attribute and the figcaption
-      // text node. A filename like `"><script>alert(1)</script>` would
-      // otherwise break out of the attribute and inject markup into the
-      // contentEditable (self-XSS that also survives autosave + reload).
-      const safeName = escapeHtml(file.name);
-      // AUDIT (VN-A-001): Date.now() alone collides when 2+ images are
-      // added in the same millisecond (Dexie primary-key ConstraintError
-      // silently drops the second image). Add entropy like vid- ids.
-      const imgId = `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      await db.images.add({
-        id: imgId,
-        labId: labId,
-        name: file.name,
-        mimeType: file.type,
-        dataUrl,
-        caption: file.name,
-        createdAt: new Date().toISOString(),
-      });
-
-      const imageHtml = `
-        <figure class="my-4 max-w-full inline-block group relative rounded-lg overflow-hidden border border-[#262626] bg-[#161616]">
-          <img src="${dataUrl}" alt="${safeName}" style="max-width: 100%; height: auto; display: block;" />
-          <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626]" contenteditable="true">
-            Captura: ${safeName.replace(/\.[^/.]+$/, '')}
-          </figcaption>
-        </figure>
-        <p><br></p>
-      `;
-
-      if (editorRef.current) {
-        insertHtmlInEditable(editorRef.current, imageHtml);
-        handleInput();
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  /** Embed a local video file into this lab part. REGLA DE ORO: the file
-   *  is COPIED into the user's videos folder (never IndexedDB / backup) and
-   *  the part only stores a filename reference. */
-  const handleVideoFile = async (file: File) => {
-    if (!file.type.startsWith('video/')) return;
-
-    if (!isFsSupported()) {
-      alert('Tu navegador no soporta carpetas locales (File System Access API).\nAbre VaultNotes en Microsoft Edge o Chrome para insertar videos.');
-      return;
-    }
-
-    if (!(await hasVideosDirectory())) {
-      const ok = await setVideosDirectory();
-      if (!ok) {
-        alert('Necesitas seleccionar una carpeta de videos para insertar videos.\nPuedes configurarla en Configuración → Carpeta de Videos.');
-        return;
-      }
-    }
-
-    let filename: string;
-    try {
-      filename = await saveVideoToDirectory(file, {
-        onConflict: (existing) =>
-          window.confirm(
-            `Ya existe "${existing}" en la carpeta de videos.\n\nAceptar = Sobrescribir el archivo existente\nCancelar = Guardar con un nombre único`
-          )
-            ? 'overwrite'
-            : 'rename',
-      });
-    } catch (err) {
-      // VN-AUD-I3: the user already declined after the magic-byte warning —
-      // abort silently, no redundant error alert.
-      if (err instanceof VideoRejectedError) return;
-      if (err instanceof VideosPermissionError) {
-        alert('El navegador necesita permiso sobre la carpeta de videos.\nPulsa "Conceder acceso" en el banner de arriba y vuelve a intentarlo.');
-        return;
-      }
-      console.error('No se pudo copiar el video a la carpeta:', err);
-      alert('No se pudo copiar el video a la carpeta de videos.');
-      return;
-    }
-
-    const safeName = escapeHtml(filename);
-    const videoHtml = `
-      <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D]" contenteditable="false" data-vault-video="${safeName}">
-        <video controls playsinline preload="metadata" style="width: 100%; display: block; background: #000; border-radius: 8px 8px 0 0;"></video>
-        <figcaption class="p-2 text-center text-xs text-[#888] italic bg-[#0D0D0D] border-t border-[#262626] outline-none" contenteditable="true">
-          Video: ${safeName.replace(/\.[^/.]+$/, '')}
-        </figcaption>
-      </figure><p><br></p>`;
-    if (editorRef.current) {
-      insertHtmlInEditable(editorRef.current, videoHtml);
-      attachVideoSources();
-      handleInput();
-    }
-  };
-
-  /** REGLA DE ORO — "Buscar archivo": copy the missing file(s) back into
-   *  the videos folder under the exact filename the reference expects. */
-  const handleRelinkFiles = async (files: File[]) => {
-    if (files.length === 0) return;
-    const missing = [...missingVideosRef.current];
-    for (let i = 0; i < files.length; i++) {
-      const forceName = i < missing.length ? missing[i] : undefined;
-      try {
-        await saveVideoToDirectory(files[i], { forceName });
-      } catch (err) {
-        // VN-AUD-I3: user declined after the magic-byte warning — stop quietly.
-        if (err instanceof VideoRejectedError) return;
-        if (err instanceof VideosPermissionError) {
-          const ok = await ensureVideosPermission();
-          if (!ok) {
-            alert('No se pudo obtener permiso sobre la carpeta de videos.');
-            return;
-          }
-          try {
-            await saveVideoToDirectory(files[i], { forceName });
-          } catch {
-            return;
-          }
-        } else {
-          console.error('Re-link failed:', err);
-          return;
-        }
-      }
-    }
-    attachVideoSources();
-  };
-
-  // SECURITY (Audit VN-B-014, HIGH — DOM-XSS via paste): mirrored fix from
-  // RichEditor.handlePaste. The old handler only called preventDefault()
-  // for image files; HTML/text pastes fell through to the browser default
-  // and raw clipboard fragments (onerror/onload handlers included) were
-  // inserted straight into the live contentEditable DOM. Now the default is
-  // ALWAYS prevented: image files keep the existing flow, text/html is
-  // sanitized with sanitizeHtml() (same DOMPurify config as the load
-  // boundary) before insertHtmlInEditable, and plain text is inserted via
-  // execCommand('insertText') so it lands as literal text (also inside
-  // code blocks).
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const items = e.clipboardData.items;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        const file = items[i].getAsFile();
-        if (file) handleImageFile(file);
-        return;
-      }
-    }
-    const html = e.clipboardData.getData('text/html');
-    if (html && html.trim()) {
-      const sanitized = sanitizeHtml(html);
-      if (sanitized) {
-        insertHtmlInEditable(editorRef.current, sanitized);
-        handleInput();
-      }
-      return;
-    }
-    const text = e.clipboardData.getData('text/plain');
-    if (text) {
-      editorRef.current?.focus();
-      document.execCommand('insertText', false, text);
-      handleInput();
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      for (let i = 0; i < e.dataTransfer.files.length; i++) {
-        const file = e.dataTransfer.files[i];
-        if (file.type.startsWith('image/')) {
-          handleImageFile(file);
-        } else if (file.type.startsWith('video/')) {
-          handleVideoFile(file);
-        }
-      }
-    }
-  };
-
   return (
     <div className="p-4 space-y-3 bg-[#0A0A0A]" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
       {/* REGLA DE ORO (videos) — banner: permission lost AND/OR missing files. */}
-      {(fsNeedsPermission || missingVideoCount > 0) && (
-        <div className="px-3 py-2 bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 rounded flex-wrap">
-          <p className="text-[11px] text-amber-300">
-            {fsNeedsPermission && missingVideoCount === 0 && '🎬 La carpeta de videos necesita acceso para reproducir los videos de esta parte.'}
-            {fsNeedsPermission && missingVideoCount > 0 && `🎬 La carpeta de videos necesita acceso y ${missingVideoCount} video(s) no se encontraron en ella.`}
-            {!fsNeedsPermission && missingVideoCount > 0 && `🎬 ${missingVideoCount} video(s) de esta parte no están en la carpeta de videos.`}
-          </p>
-          <div className="flex items-center gap-2 shrink-0">
-            {fsNeedsPermission && (
-              <button
-                onClick={async () => {
-                  const ok = await ensureVideosPermission();
-                  if (ok) {
-                    setFsNeedsPermission(false);
-                    attachVideoSources();
-                  }
-                }}
-                className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold cursor-pointer transition-colors"
-              >
-                Conceder acceso
-              </button>
-            )}
-            <button
-              onClick={async () => {
-                const ok = await setVideosDirectory();
-                if (ok) attachVideoSources();
-              }}
-              className="px-3 py-1 rounded bg-[#161616] hover:bg-[#202020] border border-[#262626] text-[#DDD] text-[11px] font-semibold cursor-pointer transition-colors"
-            >
-              Re-linkear carpeta de videos
-            </button>
-            {missingVideoCount > 0 && (
-              <button
-                onClick={() => relinkInputRef.current?.click()}
-                className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold cursor-pointer transition-colors"
-              >
-                Buscar archivo
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <VideoAccessBanner
+        variant="card" noun="parte"
+        fsNeedsPermission={fsNeedsPermission}
+        missingVideoCount={missingVideoCount}
+        onGrantAccess={() => void grantAccess()}
+        onRelinkFolder={() => void relinkFolder()}
+        onFindFiles={() => relinkInputRef.current?.click()}
+      />
       <input
         ref={fileInputRef}
         type="file"
@@ -1689,29 +1448,11 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
           if (file) handleImageFile(file);
         }}
       />
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept="video/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleVideoFile(file);
-          e.target.value = '';
-        }}
-      />
-      {/* REGLA DE ORO — hidden picker for the "Buscar archivo" re-link flow */}
-      <input
-        ref={relinkInputRef}
-        type="file"
-        accept="video/*"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          const fs = Array.from(e.target.files || []);
-          if (fs.length > 0) void handleRelinkFiles(fs);
-          e.target.value = '';
-        }}
+      <VideoHiddenInputs
+        videoInputRef={videoInputRef}
+        relinkInputRef={relinkInputRef}
+        onVideoFile={handleVideoFile}
+        onRelinkFiles={handleRelinkFiles}
       />
 
       {/* Formatting Toolbar */}
