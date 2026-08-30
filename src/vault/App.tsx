@@ -232,6 +232,27 @@ export default function App() {
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  // PERFORMANCE (cleanup pass): stable callbacks for the memoized Sidebar /
+  // Header chrome — without these, every App re-render (each live-query
+  // emission, i.e. every autosave flush) would recreate the handlers and
+  // defeat React.memo. State setters are referentially stable.
+  const handleSelectSection = useCallback((section: ActiveSection) => {
+    setActiveSection(section);
+    // Al navegar desde el drawer móvil, se cierra (en escritorio no tiene efecto).
+    setMobileSidebarOpen(false);
+  }, []);
+  const handleCloseMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
+  const handleOpenSearch = useCallback(() => setIsSearchOpen(true), []);
+  const handleOpenMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
+  const handleOpenQuickCapture = useCallback(() => setIsQuickCaptureOpen(true), []);
+  const handleOpenNewItem = useCallback((tab?: 'note' | 'lab' | 'glossary') => {
+    if (tab) setNewItemTab(tab);
+    setNewItemPlatform('');
+    setNewItemContent('');
+    setPendingInboxConvert(null);
+    setIsNewItemOpen(true);
+  }, []);
+
   // Deep-link into the Tools view — when set, ToolsView switches the active
   // tool and auto-opens the entry matching `entryId`. Cleared after consumption.
   const [pendingTool, setPendingTool] = useState<ToolDeepLink | null>(null);
@@ -932,17 +953,13 @@ export default function App() {
       {/* 1. Left Persistent Sidebar — desktop: columna fija; móvil: drawer overlay */}
       <Sidebar
         activeSection={activeSection}
-        onSelectSection={(section) => {
-          setActiveSection(section);
-          // Al navegar desde el drawer móvil, se cierra (en escritorio no tiene efecto).
-          setMobileSidebarOpen(false);
-        }}
+        onSelectSection={handleSelectSection}
         notesCount={rootNotesCount}
         labsCount={activeLabs.length}
         glossaryCount={activeTerms.length}
         trashCount={deletedNotes.length + deletedLabs.length + deletedTerms.length}
         open={mobileSidebarOpen}
-        onClose={() => setMobileSidebarOpen(false)}
+        onClose={handleCloseMobileSidebar}
       />
 
       {/* 2. Main Workstation Area */}
@@ -950,16 +967,10 @@ export default function App() {
         {/* Top Header with Contextual New Button, Fuzzy Search Bar, Export, Import */}
         <Header
           activeSection={activeSection}
-          onOpenSearch={() => setIsSearchOpen(true)}
-          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          onOpenNewItem={(tab) => {
-            if (tab) setNewItemTab(tab);
-            setNewItemPlatform('');
-            setNewItemContent('');
-            setPendingInboxConvert(null);
-            setIsNewItemOpen(true);
-          }}
-          onOpenQuickCapture={() => setIsQuickCaptureOpen(true)}
+          onOpenSearch={handleOpenSearch}
+          onOpenMobileSidebar={handleOpenMobileSidebar}
+          onOpenNewItem={handleOpenNewItem}
+          onOpenQuickCapture={handleOpenQuickCapture}
           onExport={handleExportBackup}
           onImportFile={handleImportFile}
           isExporting={isExporting}

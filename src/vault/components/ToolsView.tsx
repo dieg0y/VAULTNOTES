@@ -1647,6 +1647,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
     await toggleToolFavorite(toolId);
   }, []);
 
+  // PERFORMANCE (cleanup pass): stable identity for the deep-link consumption
+  // callback — a fresh closure per render used to re-fire the
+  // onAutoOpenConsumed effects (WinEvent/Sigma/MITRE tools) on every
+  // ToolsView re-render while a deep-link was pending.
+  const handlePendingConsumed = useCallback(() => {
+    onConsumePending?.();
+    clearZustandPending();
+  }, [onConsumePending, clearZustandPending]);
+
   // React 19 render-time state adjustment: when EITHER the prop OR the zustand
   // store hands us a new deep-link, switch the active tool AND record the use
   // (light metadata only — toolId + timestamp, no content/inputs).
@@ -1701,7 +1710,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
   // For other tools the deep-link is ignored and cleared.
   const renderActiveTool = () => {
     const entryId = effectivePending?.toolId === active ? effectivePending?.entryId : undefined;
-    const onConsumed = () => { onConsumePending?.(); clearZustandPending(); };
+    const onConsumed = handlePendingConsumed;
     switch (active) {
       case 'subnet': return <SubnetTool />;
       case 'ports': return <PortsTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;

@@ -18,7 +18,11 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+// PERFORMANCE (cleanup pass): App subscribes to 7 live queries — every DB
+// write (e.g. each autosave flush) re-renders the whole tree. memo + stable
+// callbacks (see App.tsx) let the sidebar skip re-rendering when its props
+// (counts / active section) are unchanged.
+const SidebarBase: React.FC<SidebarProps> = ({
   activeSection,
   onSelectSection,
   notesCount,
@@ -323,3 +327,5 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
+
+export const Sidebar = React.memo(SidebarBase);

@@ -17,7 +17,9 @@ interface HeaderProps {
   onOpenMobileSidebar?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+// PERFORMANCE (cleanup pass): memo + stable callbacks (see App.tsx) let the
+// header skip re-rendering on every DB write (autosave flushes).
+const HeaderBase: React.FC<HeaderProps> = ({
   activeSection,
   onOpenSearch,
   onOpenNewItem,
@@ -193,3 +195,5 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+
+export const Header = React.memo(HeaderBase);
