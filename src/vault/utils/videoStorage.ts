@@ -58,6 +58,17 @@ export class VideosPermissionError extends Error {
   }
 }
 
+/** AUDIT RECOMMENDATION (VN-AUD-I3): the user declined the copy after the
+ *  magic-byte warning ("esto no parece un video"). Callers treat it as a
+ *  SILENT abort — the user already made an informed choice, no further
+ *  error alert is needed. */
+export class VideoRejectedError extends Error {
+  constructor() {
+    super('El usuario descartó copiar el archivo que no parece un video');
+    this.name = 'VideoRejectedError';
+  }
+}
+
 const VIDEOS_DIR_KEY = 'vault-videos-dir';
 const APP_DIR_KEY = 'vault-app-dir'; // app folder (backups target) — NOT videos
 
@@ -205,6 +216,48 @@ async function uniqueNameIn(dir: FSDirHandleLike, filename: string): Promise<str
 
 /* ------------------------------ Saving ------------------------------- */
 
+/** AUDIT RECOMMENDATION (VN-AUD-I3): known video-container magic bytes.
+ *  File.type is derived from the file EXTENSION by the browser, so a
+ *  renamed executable ("virus.mp4") reports video/mp4 and sails through
+ *  the `file.type.startsWith('video/')` gate in the editors. The sniff is
+ *  ADVISORY ONLY — never a hard block: exotic-but-legit containers must
+ *  keep flowing through the REGLA DE ORO path. */
+const VIDEO_MAGIC_SIGS: ((b: Uint8Array) => boolean)[] = [
+  // MP4 / M4V / MOV / 3GP / HEVC-in-ISOBMFF — 'ftyp' box at offset 4.
+  (b) => b.length >= 8 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70,
+  // WebM / Matroska — EBML header.
+  (b) => b.length >= 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3,
+  // AVI — 'RIFF'….AVI .
+  (b) => b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x41 && b[9] === 0x56 && b[10] === 0x49 && b[11] === 0x20,
+  // Flash Video.
+  (b) => b.length >= 3 && b[0] === 0x46 && b[1] === 0x4c && b[2] === 0x56,
+  // Ogg (Theora/Vorbis).
+  (b) => b.length >= 4 && b[0] === 0x4f && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53,
+  // MPEG-TS — 0x47 sync byte every 188 bytes.
+  (b) => b.length >= 377 && b[0] === 0x47 && b[188] === 0x47 && b[376] === 0x47,
+  // MPEG-PS / VOB (0x00 00 01 BA) / MPEG video ES (0x00 00 01 B3).
+  (b) => b.length >= 4 && b[0] === 0x00 && b[1] === 0x00 && b[2] === 0x01 && (b[3] === 0xba || b[3] === 0xb3),
+  // ASF / WMV.
+  (b) => b.length >= 8 && b[0] === 0x30 && b[1] === 0x26 && b[2] === 0xb2 && b[3] === 0x75 && b[4] === 0x8e && b[5] === 0x66 && b[6] === 0xcf && b[7] === 0x11,
+  // RealMedia.
+  (b) => b.length >= 4 && b[0] === 0x2e && b[1] === 0x52 && b[2] === 0x4d && b[3] === 0x46,
+  // Material eXchange Format (broadcast cameras).
+  (b) => b.length >= 4 && b[0] === 0x06 && b[1] === 0x0e && b[2] === 0x2b && b[3] === 0x34,
+];
+
+/** True when the first bytes match a known video container signature.
+ *  Empty files return false; a read failure returns true (the sniff must
+ *  never block the REGLA DE ORO flow on its own I/O error). */
+async function looksLikeVideoFile(file: File): Promise<boolean> {
+  if (file.size === 0) return false;
+  try {
+    const head = new Uint8Array(await file.slice(0, 512).arrayBuffer());
+    return VIDEO_MAGIC_SIGS.some((sig) => sig(head));
+  } catch {
+    return true;
+  }
+}
+
 export interface SaveVideoOpts {
   /** What to do when the target filename already exists in the folder.
    *  The callback typically shows a dialog ("sobrescribir" vs "nombre
@@ -235,6 +288,20 @@ export async function saveVideoToDirectory(file: File, opts: SaveVideoOpts = {})
     perm = await dir.requestPermission({ mode: 'readwrite' });
   }
   if (perm !== 'granted') throw new VideosPermissionError();
+
+  // AUDIT RECOMMENDATION (VN-AUD-I3): immediate feedback when the file
+  // doesn't smell like a video (renamed executable, corrupt download,
+  // empty file). File.type lies (extension-derived), so sniff the actual
+  // bytes. The user keeps the final say — their disk, their file; the app
+  // never executes it. Cancelling aborts silently via VideoRejectedError.
+  if (!(await looksLikeVideoFile(file))) {
+    const proceed = window.confirm(
+      `"${file.name}" no parece ser un video: su contenido no coincide con ningún formato conocido.\n\n` +
+      'Puede ser un archivo renombrado o corrupto. Se copiaría tal cual a tu carpeta de videos.\n\n' +
+      '¿Copiarlo de todos modos?'
+    );
+    if (!proceed) throw new VideoRejectedError();
+  }
 
   let filename = sanitizeVideoFilename(opts.forceName || file.name, file.type || undefined);
   if (await fileExists(dir, filename)) {

@@ -276,6 +276,9 @@ export class VaultDatabase extends Dexie {
     });
 
     // v9: References/Resources section + FSRS flashcard fields.
+    // NOTE (audit VN-AUD-I4): there is NO v8 on purpose — a schema draft was
+    // rolled back before ever shipping, and Dexie only requires declared
+    // versions to be STRICTLY INCREASING, so v7→v9 upgrades directly.
     this.version(9).stores({
       notes: 'id, parentId, platform, category, isFavorite, isDeleted, updatedAt, createdAt',
       glossary: 'id, term, platform, isDeleted, updatedAt, createdAt',

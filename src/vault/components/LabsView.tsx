@@ -35,7 +35,7 @@ import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
 import { useDebouncedAutoSave } from '../hooks/useDebouncedAutoSave';
 import { insertHtmlInEditable } from '../utils/domInsert';
-import { saveVideoToDirectory, getVideoObjectURL, resolveLegacyVideoUrl, setVideosDirectory, hasVideosDirectory, isFsSupported, ensureVideosPermission, NoVideosDirectoryError, VideosPermissionError } from '../utils/videoStorage';
+import { saveVideoToDirectory, getVideoObjectURL, resolveLegacyVideoUrl, setVideosDirectory, hasVideosDirectory, isFsSupported, ensureVideosPermission, NoVideosDirectoryError, VideosPermissionError, VideoRejectedError } from '../utils/videoStorage';
 import { addToReviewQueue } from './tools/_shared';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { escapeHtml } from '../utils/escapeHtml';
@@ -1524,6 +1524,9 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
             : 'rename',
       });
     } catch (err) {
+      // VN-AUD-I3: the user already declined after the magic-byte warning —
+      // abort silently, no redundant error alert.
+      if (err instanceof VideoRejectedError) return;
       if (err instanceof VideosPermissionError) {
         alert('El navegador necesita permiso sobre la carpeta de videos.\nPulsa "Conceder acceso" en el banner de arriba y vuelve a intentarlo.');
         return;
@@ -1558,6 +1561,8 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       try {
         await saveVideoToDirectory(files[i], { forceName });
       } catch (err) {
+        // VN-AUD-I3: user declined after the magic-byte warning — stop quietly.
+        if (err instanceof VideoRejectedError) return;
         if (err instanceof VideosPermissionError) {
           const ok = await ensureVideosPermission();
           if (!ok) {
