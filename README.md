@@ -159,3 +159,11 @@ bun run start
 ## 📄 Licencia
 
 Uso personal / proyecto educativo de ciberseguridad. Sin garantía expresa o implícita.
+
+## Botón Pull (header, arriba a la derecha)
+
+Descarga actualizaciones de código directamente desde GitHub (`git fetch` +
+fast-forward puro): features nuevas, fixes y borrados de archivos se aplican
+sin tocar tus datos (notas, labs, glosario… viven en IndexedDB en tu
+navegador). Si cambiaron dependencias (`package.json`/`bun.lock`) reinstala
+automáticamente. Si hay commits locales sin push, aborta para no perderlos.
