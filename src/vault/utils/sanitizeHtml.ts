@@ -30,6 +30,26 @@
  * javascript: URLs, data:text/html, <iframe>, non-checkbox <input>, and
  * other XSS vectors.
  *
+ * AUDIT FIX (VN-AUD-001, MEDIO): REMOTE MEDIA BEACONS. The URI regexp
+ * below tolerates `https?:` because `<a href>` links are legitimate
+ * (navigation is an explicit user click). But MEDIA elements AUTO-LOAD their
+ * sources on render — an `<img src="https://…">` (or srcset/poster/
+ * background/svg-image href) inside pasted or imported HTML fires a request
+ * the user never consented to, leaking IP/time/UA. The
+ * `uponSanitizeAttribute` hook below therefore strips any remote scheme from
+ * every auto-loading attribute. `<embed src>` is stricter still (blob: only —
+ * a remote embed is a remote-document-execution vector, not just a beacon).
+ * Remote `url(…)` inside inline styles is scrubbed in
+ * `afterSanitizeAttributes` (style is a URI-safe attribute in DOMPurify, so
+ * it is never regexp-checked).
+ *
+ * NOTE (VN-AUD-004): `data:image/svg+xml` on `<img src>` IS allowed — not via
+ * ALLOWED_URI_REGEXP but via DOMPurify's DATA_URI_TAGS mechanism (src/href on
+ * img/video/audio/source/image/track accept any `data:` URI). Scripts inside
+ * an SVG loaded through <img> DO NOT execute (browser guarantee) and external
+ * references in image-context SVGs are blocked, so this is safe by design.
+ * E2E-verified: SVG images inserted via the picker survive save→load→sanitize.
+ *
  * This is a pure function — no side effects, no network, safe to call on
  * every render.
  */
@@ -99,6 +119,42 @@ function ensureConfigured(): void {
       node.remove();
     }
   });
+  // AUDIT FIX (VN-AUD-001, MEDIO — remote media beacons): elements that
+  // AUTO-LOAD their URI attributes on render. Stripping the attribute
+  // prevents the network request; the element itself stays (alt text,
+  // figcaption, controls chrome). SVG media elements (`image`, `use`,
+  // `feimage`) are included — inline <svg> is allowed by DOMPurify's default
+  // profile and <image href="https://…"> loads remote content.
+  const AUTOLOAD_MEDIA_TAGS = new Set([
+    'img', 'video', 'audio', 'source', 'track', 'embed',
+    'image', 'use', 'feimage',
+  ]);
+  // Remote schemes incl. protocol-relative ("//host/…") — the latter never
+  // survives the URI regexp, but the hook runs BEFORE it, so we catch it here
+  // anyway (belt-and-braces).
+  const REMOTE_URL_RE = /^(?:https?:)?\/\//i;
+  // URI attributes that trigger an automatic fetch when set on a media tag.
+  const AUTOLOAD_ATTRS = new Set(['src', 'srcset', 'poster', 'background', 'href', 'xlink:href']);
+  DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+    const tag = (node.nodeName || '').toLowerCase();
+    const attr = data.attrName;
+    const value = data.attrValue || '';
+    // <embed> exists in this config ONLY for inline PDF rendering
+    // (`<embed type="application/pdf" src="blob:…">`, re-attached at load
+    // from db.pdfs). Persisted embeds carry no src at all (flushSave strips
+    // blob: srcs). Anything else — https:, data:, … — would render a remote
+    // or inline DOCUMENT (SVG/HTML execute scripts in embed context), so we
+    // allow blob: exclusively.
+    if (tag === 'embed' && attr === 'src' && !/^blob:/i.test(value)) {
+      data.keepAttr = false;
+      return;
+    }
+    if (!AUTOLOAD_MEDIA_TAGS.has(tag) || !AUTOLOAD_ATTRS.has(attr)) return;
+    // href on <use>/<image> may be a local fragment (#icon) — keep those.
+    if (REMOTE_URL_RE.test(value)) {
+      data.keepAttr = false;
+    }
+  });
   // Add a hook that strips any remaining inline event handlers that might
   // sneak in via attribute names we didn't explicitly forbid (defense in
   // depth — DOMPurify already does this, but the hook is a belt-and-braces
@@ -115,6 +171,21 @@ function ensureConfigured(): void {
         }
       }
       toRemove.forEach((name) => node.removeAttribute(name));
+    }
+    // AUDIT FIX (VN-AUD-001 — CSS exfil variant): `style` is a URI-safe
+    // attribute in DOMPurify (never regexp-checked), so a pasted
+    // `style="background:url(https://…/pixel.png)"` would auto-load on
+    // render. Scrub remote url() tokens from inline styles; local values
+    // (colors, sizes, layout) are preserved untouched.
+    if (node instanceof Element) {
+      const style = node.getAttribute('style');
+      if (style && /url\(\s*['"]?\s*(?:https?:)?\/\//i.test(style)) {
+        const cleaned = style.replace(
+          /url\(\s*(['"]?)\s*(?:https?:)?\/\/[^)]*\)/gi,
+          'none'
+        );
+        node.setAttribute('style', cleaned);
+      }
     }
   });
   configured = true;
