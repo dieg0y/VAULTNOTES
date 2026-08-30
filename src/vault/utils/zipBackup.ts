@@ -276,7 +276,7 @@ function sanitizeFilename(str: string): string {
   return str.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
 }
 
-export interface ExportResult {
+interface ExportResult {
   mode: 'app' | 'file' | 'download';
   savedTo?: string;
 }

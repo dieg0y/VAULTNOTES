@@ -24,7 +24,6 @@ import { searchAllVault, SearchResultItem, resultToToolDeepLink } from '../utils
 import type { ToolDeepLink } from './ToolsView';
 import { escapeHtml } from '../utils/escapeHtml';
 
-/** Minimal HTML-escape for safe fallback rendering inside `dangerouslySetInnerHTML`. */
 interface GlobalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;

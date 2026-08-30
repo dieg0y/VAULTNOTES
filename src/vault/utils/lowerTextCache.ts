@@ -22,7 +22,7 @@ interface CacheEntry {
   lower: string;
 }
 
-export interface LowerCache {
+interface LowerCache {
   /** Lowercased `text`, memoized per `key` (recomputed only when text changes). */
   get(key: string, text: string): string;
   /** Drop cached entries whose key is not in `keepKeys` (bounds memory). */

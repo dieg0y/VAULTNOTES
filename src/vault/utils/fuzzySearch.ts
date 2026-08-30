@@ -11,13 +11,13 @@ import { KNOWN_RIDS, WELL_KNOWN_SIDS, KNOWN_SID_AUTHORITIES, KnownRid, WellKnown
 import { TOOLS_CATALOG, type ToolId } from '../data/toolsCatalog';
 import { escapeHtml } from './escapeHtml';
 
-export interface SearchMatchDetail {
+interface SearchMatchDetail {
   field: string;
   label: string;
   value: string;
 }
 
-export type SearchResultType =
+type SearchResultType =
   | 'note'
   | 'lab'
   | 'glossary'
@@ -64,7 +64,7 @@ export interface ToolCatalogEntry {
 }
 
 /** A synthetic command palette entry (spec items #7). */
-export interface CommandEntry {
+interface CommandEntry {
   id: string;
   label: string;
   hint?: string;
@@ -562,7 +562,7 @@ const COMMAND_ENTRIES: CommandEntry[] = [
     { id: 'import-backup', label: 'Importar backup', hint: 'Acción', keywords: ['import', 'importar', 'restore', 'backup'], commandId: 'import-backup' },
 ];
 
-export function getCommandEntries(): CommandEntry[] {
+function getCommandEntries(): CommandEntry[] {
   return COMMAND_ENTRIES;
 }
 
@@ -790,18 +790,20 @@ export function searchAllVault(
   // Tag filter: applied to the `tools` field (which doubles as a tag list
   // for tools + sigma + MITRE) and the `category` field (notes/labs/glossary
   // categories). We lowercase both sides and require a substring match.
-  const tagFilteredDataset = parsed.tagFilter
+  const tag = parsed.tagFilter;
+  const tagFilteredDataset = tag
     ? filteredDataset.filter((d) => {
         const tagHaystack = `${d.tools} ${d.category}`.toLowerCase();
-        return tagHaystack.includes(parsed.tagFilter!);
+        return tagHaystack.includes(tag);
       })
     : filteredDataset;
 
   // Platform filter: applied to the `platform` field. Substring match.
-  const platformFilteredDataset = parsed.platformFilter
+  const platform = parsed.platformFilter;
+  const platformFilteredDataset = platform
     ? tagFilteredDataset.filter((d) => {
         const platLower = (d.platform || '').toLowerCase();
-        return platLower.includes(parsed.platformFilter!);
+        return platLower.includes(platform);
       })
     : tagFilteredDataset;
 

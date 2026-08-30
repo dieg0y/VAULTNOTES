@@ -79,7 +79,7 @@ export function isFsSupported(): boolean {
 /* ------------------------- Directory management ------------------------- */
 
 /** Stored handle for the videos folder, or null when never picked. */
-export async function getVideosDirectory(): Promise<FSDirHandleLike | null> {
+async function getVideosDirectory(): Promise<FSDirHandleLike | null> {
   try {
     const stored = await db.fileHandles.get(VIDEOS_DIR_KEY);
     return (stored?.handle as unknown as FSDirHandleLike) || null;
@@ -174,7 +174,7 @@ export async function ensureVideosPermission(): Promise<boolean> {
  * separators / control chars, collapse whitespace, cap the length, and
  * keep (or derive from the mime type) a sensible extension.
  */
-export function sanitizeVideoFilename(name: string, mimeType?: string): string {
+function sanitizeVideoFilename(name: string, mimeType?: string): string {
   let base = (name || 'video')
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
     .replace(/\s+/g, ' ')
@@ -258,7 +258,7 @@ async function looksLikeVideoFile(file: File): Promise<boolean> {
   }
 }
 
-export interface SaveVideoOpts {
+interface SaveVideoOpts {
   /** What to do when the target filename already exists in the folder.
    *  The callback typically shows a dialog ("sobrescribir" vs "nombre
    *  único"). When omitted, the safe default is a unique name. */

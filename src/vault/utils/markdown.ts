@@ -19,7 +19,7 @@ function decodeEntities(s: string): string {
 }
 
 /** Converts the editor's contentHtml into clean, blog-ready markdown. */
-export function htmlToMarkdown(html: string): string {
+function htmlToMarkdown(html: string): string {
   if (!html) return '';
   let t = html;
 
@@ -161,7 +161,7 @@ function labToMarkdown(lab: Lab): string {
   return md;
 }
 
-export interface BlogDraftOptions {
+interface BlogDraftOptions {
   notes: Note[]; // selected top-level notes (their subpages are included)
   allNotes: Note[]; // full list to resolve subpages
   labs: Lab[]; // selected labs

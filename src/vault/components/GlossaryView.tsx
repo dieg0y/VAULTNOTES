@@ -114,10 +114,12 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
       }
 
       const letter = (t.term[0] || '#').toUpperCase();
-      if (!map.has(letter)) {
-        map.set(letter, []);
+      let bucket = map.get(letter);
+      if (!bucket) {
+        bucket = [];
+        map.set(letter, bucket);
       }
-      map.get(letter)!.push(t);
+      bucket.push(t);
     });
 
     return map;

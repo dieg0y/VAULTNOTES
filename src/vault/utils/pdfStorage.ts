@@ -56,7 +56,7 @@ export async function deletePdfEverywhere(id: string): Promise<void> {
   await db.pdfs.delete(id);
 }
 
-export interface PdfEntry {
+interface PdfEntry {
   meta: Omit<StoredPdf, 'blob'>;
   blob: Blob | null;
 }
