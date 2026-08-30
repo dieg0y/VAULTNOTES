@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, BookOpen, FlaskConical, X, Plus, ExternalLink, Trash2 } from 'lucide-react';
 import {
   LabDifficulty,
@@ -107,6 +107,17 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
     { id: 'ex-1', title: 'Ejemplo 1', content: '' }
   ]);
   const glossaryPlatform = glossaryPlatformOverride || platforms[0]?.name || '';
+
+  // A11y: Esc closes the modal (same contract as the app's other modals).
+  // Registered while open; the hook must run before the early return below.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

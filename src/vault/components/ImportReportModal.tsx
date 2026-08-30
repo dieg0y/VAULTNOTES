@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEffect } from 'react';
 import { ImportSummary } from '../types';
 import { CheckCircle2, FileText, FlaskConical, BookOpen, Image as ImageIcon, X, RefreshCw, Video as VideoIcon, AlertTriangle, ShieldAlert, Info } from 'lucide-react';
 
@@ -26,6 +27,17 @@ const Row: React.FC<{
 );
 
 export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, onClose, summary }) => {
+  // A11y: Esc closes (same contract as the app's other modals). Hook must run
+  // before the early return below.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !summary) return null;
 
   const totalChanged =
@@ -42,7 +54,8 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
     (summary.conflictNotes || 0) + (summary.conflictLabs || 0) +
     (summary.conflictTerms || 0) + (summary.conflictReferences || 0) +
     (summary.conflictSavedCves || 0) + (summary.conflictCustomSigmaRules || 0) +
-    (summary.conflictDatasetMeta || 0) + (summary.conflictTiCache || 0);
+    (summary.conflictDatasetMeta || 0) + (summary.conflictTiCache || 0) +
+    (summary.conflictIntelItems || 0);
   const totalInvalid =
     (summary.invalidNotes || 0) + (summary.invalidLabs || 0) +
     (summary.invalidTerms || 0) + (summary.invalidReferences || 0) +
