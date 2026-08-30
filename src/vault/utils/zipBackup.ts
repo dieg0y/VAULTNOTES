@@ -13,7 +13,7 @@ import {
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
   inboxItemSchema, reviewItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
-  savedCveSchema, datasetMetaSchema, validateArray,
+  savedCveSchema, datasetMetaSchema, intelItemSchema, validateArray,
 } from './backupSchemas';
 
 // ------------------------------------------------------------------
@@ -23,8 +23,11 @@ import {
 /** Current backup format version (independent from the Dexie schema version).
  *  Bump this when the on-disk backup ZIP layout changes in a way that older
  *  VaultNotes builds can no longer safely import (e.g. a file is renamed,
- *  a JSON shape changes structurally). */
-const BACKUP_FORMAT_VERSION = '3.1.0';
+ *  a JSON shape changes structurally).
+ *  3.2.0 — adds `intelItems.json` (DATA & INTEL v16). Older builds would
+ *  silently DROP the dataset on re-export after importing, so they now
+ *  reject v3.2.0 backups up-front (IncompatibleBackupError) instead. */
+const BACKUP_FORMAT_VERSION = '3.2.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -257,6 +260,7 @@ function emptySummary(): ImportSummary {
     conflictCustomSigmaRules: 0,
     conflictDatasetMeta: 0,
     conflictTiCache: 0,
+    conflictIntelItems: 0,
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
@@ -351,6 +355,9 @@ export async function exportVaultZip(): Promise<ExportResult> {
   const customSigmaRules = await db.customSigmaRules.toArray();
   const savedCves = await db.savedCves.toArray();
   const datasetMeta = await db.datasetMeta.toArray();
+  // DATA & INTEL (v16) — dataset de trabajo (IoCs · eventos · reglas).
+  // Texto plano escrito por el usuario o generado por tools; nada sensible.
+  const intelItems = await db.intelItems.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -383,6 +390,7 @@ export async function exportVaultZip(): Promise<ExportResult> {
       onlineActivityCount: onlineActivity.length,
       customSigmaRulesCount: customSigmaRules.length,
       savedCvesCount: savedCves.length,
+      intelItemsCount: intelItems.length,
     }
   };
 
@@ -407,6 +415,9 @@ export async function exportVaultZip(): Promise<ExportResult> {
   zip.file('customSigmaRules.json', JSON.stringify(customSigmaRules, null, 2));
   zip.file('savedCves.json', JSON.stringify(savedCves, null, 2));
   zip.file('datasetMeta.json', JSON.stringify(datasetMeta, null, 2));
+  // DATA & INTEL (v16) — IoCs · eventos · reglas (formato flat root-level,
+  // mismo convenio que el resto de tablas auxiliares).
+  zip.file('intelItems.json', JSON.stringify(intelItems, null, 2));
 
   // 2. /glosario/terminos.json
   const glossaryFolder = zip.folder('glosario');
@@ -1596,6 +1607,42 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   } catch (e) {
     console.error('Error importing datasetMeta:', e);
+  }
+
+  // intelItems — DATA & INTEL (v16) — upsert by id (user-authored IoCs /
+  // eventos / reglas; latest wins, with the VN-B-012 conflict guard).
+  try {
+    const iiFile = contents.file('intelItems.json');
+    if (iiFile) {
+      const rawRows: unknown = JSON.parse(await iiFile.async('text'));
+      const { valid: rows, invalid } = validateArray(intelItemSchema, rawRows);
+      summary.invalidMisc += invalid;
+      for (const r of rows) {
+        const existing = await db.intelItems.get(r.id);
+        if (existing && rowTs(existing) > rowTs(r)) {
+          summary.conflictIntelItems++;
+          continue;
+        }
+        await db.intelItems.put({
+          id: r.id,
+          kind: (r.kind === 'event' || r.kind === 'rule') ? r.kind : 'ioc',
+          title: String(r.title || ''),
+          iocType: r.iocType ? String(r.iocType) : undefined,
+          severity: r.severity ? String(r.severity) : undefined,
+          confidence: r.confidence ? String(r.confidence) : undefined,
+          description: r.description ? String(r.description) : undefined,
+          tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
+          source: r.source ? String(r.source) : undefined,
+          mitre: Array.isArray(r.mitre) ? r.mitre.map(String) : undefined,
+          content: r.content ? String(r.content) : undefined,
+          contentLang: r.contentLang ? String(r.contentLang) : undefined,
+          createdAt: r.createdAt || new Date().toISOString(),
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error importing intelItems:', e);
   }
 
   return summary;

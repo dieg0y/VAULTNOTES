@@ -50,6 +50,9 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { db, type OnlineActivityRow, type CustomSigmaRule } from '../db';
+// DATA & INTEL (v16) — datasets de trabajo (IoCs · eventos · reglas):
+// CRUD completo + buscador + filtros + import/export .json/.csv.
+import { DataIntelDatasets } from './DataIntelDatasets';
 import { useIsOnline } from '../integrations/online';
 import {
   getLocalMitreMeta,
@@ -179,6 +182,15 @@ const SigmaEditModal: React.FC<{
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // A11y: Esc closes the modal (same contract as the app's other modals).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const handleSave = useCallback(async () => {
     setSaving(true);
     setErrors([]);
@@ -198,6 +210,9 @@ const SigmaEditModal: React.FC<{
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Editar regla Sigma"
     >
       <div
         className="bg-[#0D0D0D] border border-[#262626] rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl"
@@ -541,10 +556,13 @@ export const DataIntelView: React.FC = () => {
           Data &amp; Intelligence
         </h1>
         <p className="text-xs text-[#888] mt-0.5">
-          Sync Center + Online Activity. Online features are optional — everything below also works
-          locally.
+          Datasets (IoCs · eventos · reglas) + Sync Center + Online Activity. Todo funciona
+          local; las funciones online son opcionales.
         </p>
       </div>
+
+      {/* 0. Datasets — IoCs · Eventos · Reglas (CRUD, buscador, filtros, export) */}
+      <DataIntelDatasets />
 
       {/* 1. Connectivity */}
       <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 space-y-2">

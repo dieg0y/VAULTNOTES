@@ -46,7 +46,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  Plus, X, Trash2, Code, Braces, Lightbulb, Copy, Check, BookOpen, Shield,
+  Plus, X, Trash2, Code, Braces, Lightbulb, Copy, Check, BookOpen, Shield, Database,
 } from 'lucide-react';
 import {
   CodeBlock, InfoBanner, Tabs, btnGhost, inputCls, safeStr,
@@ -54,6 +54,8 @@ import {
 import { DETECTION_PRESETS, DetectionPreset } from '../../data/detectionPresets';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
+// DATA & INTEL (v16) — envío de la query construida al dataset persistente.
+import { useIntelStore } from '../../store/intelStore';
 import { escapeHtml } from '../../utils/escapeHtml';
 
 /* =============================================================
@@ -412,6 +414,33 @@ export const DetectionQueryHelperTool: React.FC<DetectionQueryHelperProps> = ({
     window.setTimeout(() => setInfo(null), 2500);
   }, [clauses, kql, spl]);
 
+  /* ---- Send the ACTIVE tab's query to the Data & Intel dataset (v16) ---- */
+  const handleSendToIntel = useCallback(async (): Promise<void> => {
+    const content = activeTab === 'kql' ? kql : spl;
+    if (!content.trim()) {
+      setInfo('Nada que enviar — construye una query primero.');
+      window.setTimeout(() => setInfo(null), 2500);
+      return;
+    }
+    const title = selectedPreset
+      ? `${selectedPreset.name} (${activeTab.toUpperCase()})`
+      : `Detection Query (${activeTab.toUpperCase()})`;
+    const res = await useIntelStore.getState().addIntelItems([{
+      kind: 'rule',
+      title,
+      content,
+      contentLang: activeTab,
+      description: selectedPreset?.description || undefined,
+      mitre: selectedPreset?.mitre ?? [],
+      tags: selectedPreset ? ['preset'] : ['custom'],
+      source: 'Detection Query Helper',
+    }]);
+    setInfo(res.added > 0
+      ? `Guardado en Data & Intel ✓ (${title})`
+      : 'Ya existía en Data & Intel.');
+    window.setTimeout(() => setInfo(null), 2500);
+  }, [activeTab, kql, spl, selectedPreset]);
+
   /* ---- Render ---- */
   return (
     <div className="space-y-4">
@@ -566,6 +595,16 @@ export const DetectionQueryHelperTool: React.FC<DetectionQueryHelperProps> = ({
         >
           <span className="inline-flex items-center gap-1.5">
             <BookOpen className="w-3.5 h-3.5" /> Add to Note
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSendToIntel()}
+          className={btnGhost}
+          title="Guardar la query activa como regla del dataset de Data & Intel"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5" /> Enviar a Data &amp; Intel
           </span>
         </button>
       </div>

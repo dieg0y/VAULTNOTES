@@ -83,6 +83,45 @@ export interface DatasetMeta {
 }
 
 /**
+ * DATA & INTEL — dataset de trabajo (IoCs · Eventos · Reglas).
+ *
+ * Un único store para los tres tipos (`kind`), alimentado por las tools
+ * (IoC Extractor, Sigma Explorer, Detection Query Helper, …), por alta
+ * manual en DataIntelView y por import (.json). Todo el texto se guarda
+ * PLANO (se renderiza como texto, jamás con dangerouslySetInnerHTML) — la
+ * sanitización XSS es by-construction. Nunca se guardan API keys ni
+ * resultados de enriquecimiento online (eso vive en tiCache).
+ */
+export type IntelKind = 'ioc' | 'event' | 'rule';
+
+export interface IntelItem {
+  /** `intel-<ms>-<rand>` (sufijo de entropía — VN-A-001). */
+  id: string;
+  /** Discriminador: indicador (ioc) · evento de seguridad (event) · regla/query (rule). */
+  kind: IntelKind;
+  /** IoC: el valor del indicador (IP, dominio, hash, URL…). Event/Rule: título corto. */
+  title: string;
+  /** Solo IoC: tipo del indicador (ipv4/ipv6/domain/url/email/hash/cve/…). */
+  iocType?: string;
+  /** Severidad (event/rule) o confianza del extractor (ioc): low/medium/high/critical o alta/media/baja/info. */
+  severity?: string;
+  /** Confianza IoC (score del extractor): alta/media/baja/info. */
+  confidence?: string;
+  description?: string;
+  tags: string[];
+  /** De dónde viene: nombre de la tool, 'manual' o 'import'. */
+  source?: string;
+  /** Técnicas MITRE asociadas (T1059, …). */
+  mitre?: string[];
+  /** Solo rule/event: cuerpo (YAML Sigma, query KQL/SPL, detalle del evento). */
+  content?: string;
+  /** Solo rule: lenguaje del cuerpo — kql | spl | sigma | other. */
+  contentLang?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * RBAC Model — persistencia de escenarios RBAC creados manualmente en la herramienta
  * RBAC Analyzer. Cada fila es un "escenario" completo (users + roles + permissions +
  * assignments) serializado como JSON en el campo `model`. La tabla vive en la misma
@@ -189,6 +228,8 @@ export class VaultDatabase extends Dexie {
   customSigmaRules!: Table<CustomSigmaRule, string>;
   savedCves!: Table<SavedCve, string>;
   datasetMeta!: Table<DatasetMeta, string>;
+  // DATA & INTEL — dataset de trabajo (IoCs · eventos · reglas). v16.
+  intelItems!: Table<IntelItem, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -481,6 +522,16 @@ export class VaultDatabase extends Dexie {
           /* table already gone or unreadable — nothing to report */
         }
       });
+
+    // v16: DATA & INTEL — tabla `intelItems` para el dataset de trabajo
+    // (IoCs extraídos por tools, eventos de seguridad y reglas/queries KQL/SPL/
+    // Sigma). Alta aditiva y no destructiva: Dexie crea la tabla y sus índices
+    // al hacer upgrade; ningún dato existente se toca. Los items se deduplican
+    // por (kind + iocType + título normalizado) al insertar desde tools/store
+    // (ver store/intelStore.ts) — el backup viaja como intelItems.json.
+    this.version(16).stores({
+      intelItems: 'id, kind, iocType, createdAt, updatedAt',
+    });
   }
 }
 
@@ -488,7 +539,7 @@ export class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 15;
+export const CURRENT_SCHEMA_VERSION = 16;
 
 export const db = new VaultDatabase();
 

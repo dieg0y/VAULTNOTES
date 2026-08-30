@@ -152,6 +152,10 @@ export interface ImportSummary {
   conflictCustomSigmaRules: number;
   conflictDatasetMeta: number;
   conflictTiCache: number;
+  /** DATA & INTEL (v16): incoming intelItems rows skipped because the local
+   *  row is newer (updatedAt) — same non-destructive conflict guard as the
+   *  other upsert-by-id tables. */
+  conflictIntelItems: number;
   /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */

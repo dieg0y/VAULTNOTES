@@ -285,6 +285,26 @@ export const datasetMetaSchema = z.object({
   updatedAt: z.string().optional(),
 }).passthrough();
 
+/** DATA & INTEL (v16) — IoCs · eventos · reglas. All fields optional except
+ *  id (same tolerant-import contract as every other table: old backups and
+ *  partial hand-written .json imports keep working). */
+export const intelItemSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(['ioc', 'event', 'rule']).optional(),
+  title: z.string().optional(),
+  iocType: z.string().optional(),
+  severity: z.string().optional(),
+  confidence: z.string().optional(),
+  description: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  source: z.string().optional(),
+  mitre: z.array(z.string()).optional(),
+  content: z.string().optional(),
+  contentLang: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).passthrough();
+
 // ---------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------

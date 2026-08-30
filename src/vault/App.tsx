@@ -28,6 +28,9 @@ import type { ToolDeepLink } from './components/ToolsView';
 import { exportVaultZip, importVaultBackup, IncompatibleBackupError, ZipSafetyError } from './utils/zipBackup';
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
+// DATA & INTEL (v16) — navigation bridge: tools can ask App to switch to the
+// data-intel section via useIntelStore.getState().requestNavigate().
+import { useIntelStore } from './store/intelStore';
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -303,6 +306,17 @@ export default function App() {
   // Deep-link into the Tools view — when set, ToolsView switches the active
   // tool and auto-opens the entry matching `entryId`. Cleared after consumption.
   const [pendingTool, setPendingTool] = useState<ToolDeepLink | null>(null);
+
+  // DATA & INTEL (v16) — one-shot navigation request from any tool
+  // ("Enviar a Data & Intel" flows). Consumed immediately to avoid loops.
+  const intelNavigateRequest = useIntelStore((s) => s.navigateRequest);
+  const consumeIntelNavigate = useIntelStore((s) => s.consumeNavigate);
+  useEffect(() => {
+    if (intelNavigateRequest > 0) {
+      setActiveSection('data-intel');
+      consumeIntelNavigate();
+    }
+  }, [intelNavigateRequest, consumeIntelNavigate]);
 
   // Set initial selected note if none selected (prefer a top-level note)
   useEffect(() => {

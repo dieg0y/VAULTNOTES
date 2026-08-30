@@ -8,6 +8,8 @@ import {
   RefreshCw, Loader2, AlertTriangle, CheckCircle2, Wifi, WifiOff,
 } from 'lucide-react';
 import { useIocStore } from '../store/iocStore';
+// DATA & INTEL (v16) — envío de IoCs extraídos al dataset persistente.
+import { useIntelStore } from '../store/intelStore';
 // Block 6 — Online-Optional enrichment architecture (sole entry point: enrichWithProvider)
 import {
   enrichWithProvider,
@@ -1151,6 +1153,11 @@ export const IocExtractorView: React.FC = () => {
     }
   }, []);
 
+  // DATA & INTEL (v16) — envío de los findings (respeta el filtro activo) al
+  // dataset persistente. Dedup automático por valor+tipo en intelStore.
+  const addIntelItems = useIntelStore((s) => s.addIntelItems);
+  const [intelMsg, setIntelMsg] = useState<string | null>(null);
+
   const filtered = useMemo(() => {
     if (!filter.trim()) return findings;
     const t = filter.toLowerCase();
@@ -1164,6 +1171,26 @@ export const IocExtractorView: React.FC = () => {
   }, [findings]);
 
   const displayValue = (v: string) => defangOn ? defang(v) : v;
+
+  const sendToIntel = async () => {
+    if (filtered.length === 0) return;
+    const res = await addIntelItems(filtered.map((f) => ({
+      kind: 'ioc' as const,
+      title: f.value,
+      iocType: f.type,
+      confidence: f.score,
+      description: [f.classification, f.context ? `…${f.context}…` : '']
+        .filter(Boolean)
+        .join(' — ') || undefined,
+      tags: [],
+      source: 'IoC Extractor',
+    })));
+    const parts = [`${res.added} guardado(s) en Data & Intel`];
+    if (res.skipped > 0) parts.push(`${res.skipped} ya existía(n)`);
+    const msg = parts.join(' · ');
+    setIntelMsg(msg);
+    setTimeout(() => setIntelMsg((m) => (m === msg ? null : m)), 4000);
+  };
 
   const copyAll = (fmt: 'tsv' | 'csv' | 'json' | 'stix' | 'kql' | 'spl') => {
     let out = '';
@@ -1244,9 +1271,20 @@ export const IocExtractorView: React.FC = () => {
       {findings.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] text-green-400">{findings.length} IoC(s) único(s) — {findings.reduce((a, b) => a + b.count, 0)} ocurrencias totales</span>
-          <button onClick={() => setShowExports(!showExports)} className="ml-auto px-2 py-1 rounded text-[10px] text-blue-400 hover:bg-blue-500/10 cursor-pointer flex items-center gap-1">
-            <Database className="w-3 h-3" /> {showExports ? 'Ocultar exports' : 'Mostrar exports'}
-          </button>
+          {intelMsg && <span className="text-[10px] text-blue-300">{intelMsg}</span>}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => void sendToIntel()}
+              disabled={filtered.length === 0}
+              title="Guarda los IoC(s) visibles (respeta el filtro) en el dataset de Data & Intel"
+              className="px-2 py-1 rounded text-[10px] text-blue-300 hover:bg-blue-500/10 cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Database className="w-3 h-3" /> Guardar en Data &amp; Intel ({filtered.length})
+            </button>
+            <button onClick={() => setShowExports(!showExports)} className="px-2 py-1 rounded text-[10px] text-blue-400 hover:bg-blue-500/10 cursor-pointer flex items-center gap-1">
+              <Database className="w-3 h-3" /> {showExports ? 'Ocultar exports' : 'Mostrar exports'}
+            </button>
+          </div>
         </div>
       )}
 
