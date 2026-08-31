@@ -1,6 +1,6 @@
 # VAULTNOTES
 
-**Tu segundo cerebro de ciberseguridad.** Una PWA **local-first y 100% offline** para estudiar, trabajar y investigar en ciberseguridad: apuntes con editor rico, labs SOC/IAM, glosario con flashcards, 28 herramientas de análisis, datasets de inteligencia (IoCs · eventos · reglas) y backups ZIP portables — todo dentro de tu navegador, sin servidor, sin cuenta, sin nube.
+**Tu segundo cerebro de ciberseguridad.** Una PWA **local-first y 100% offline** para estudiar, trabajar y investigar en ciberseguridad: apuntes con editor rico, labs SOC/IAM, glosario con flashcards, 29 herramientas de análisis, datasets de inteligencia (IoCs · eventos · reglas) y backups ZIP portables — todo dentro de tu navegador, sin servidor, sin cuenta, sin nube.
 
 > 🔒 **Privacidad por diseño**: tus datos nunca salen de tu máquina. La base de datos vive en IndexedDB (tu navegador). La única funcionalidad online es **opcional y explícita** (enriquecer IOCs o buscar CVEs cuando TÚ lo pides).
 
@@ -18,7 +18,7 @@
 - **Generar Blog** — convierte apuntes/labs en un blog estático exportable.
 - **Data & Intel** — datasets de trabajo (IoCs · eventos · reglas) con CRUD completo, buscador, filtros y contadores. Integrado con las tools: envía IoCs desde el **IoC Extractor**, reglas desde el **Sigma Explorer** y queries desde el **Detection Query Helper** con un clic — todo se actualiza al instante, sin refresh. Import .json y export .json/.csv propios, además de viajar en el backup ZIP.
 
-### 🧰 28 Herramientas offline (SOC / IAM / Red / Datos / Linux)
+### 🧰 29 Herramientas offline (SOC / IAM / Red / Datos / Linux)
 
 | Categoría | Herramientas |
 |---|---|
@@ -27,10 +27,25 @@
 | **Red** | Subnetting (IPv4/CIDR) · IP Analyzer (v4/v6) · Puertos y Servicios |
 | **Web** | HTTP Status (códigos con explicación) |
 | **Datos** | Base Converter · Timestamp Converter (Unix/ISO/UTC) · Encoding (Base64/Hex/URL/ASCII/Unicode/HTML) · Regex Tester (14 presets) · Cron Parser |
-| **Security** | Hash Toolkit · File Hash Analyzer · CVSS 3.1 Calculator · CVE Search *(única online, opcional — NVD)* · Vulnerabilidades IAM/SOC (203 entradas offline) |
+| **Security** | Hash Toolkit · File Hash Analyzer · CVSS 3.1 Calculator · CVE Search *(única online, opcional — NVD)* · Vulnerabilidades IAM/SOC (203 entradas offline) · **Ataques — 140 técnicas ofensivas offline** |
 | **Linux** | Linux Permissions (chmod simbólico ↔ numérico) |
 
-Todas integradas a la **búsqueda global** (`Ctrl+K`): encuentra notas, labs, términos, herramientas y eventos Windows con ranking fuzzy.
+#### ⚔️ Ataques — 140 técnicas ofensivas (offline)
+
+Explorador de técnicas de ataque de **todo tipo, con foco IAM** — complementario a *Vulnerabilidades* (allí los fallos de implementación; aquí las **técnicas del atacante**). Sin duplicados: los sinónimos van como alias (p. ej. *ARP poisoning* es alias de *ARP Spoofing*).
+
+| Categoría (entradas) | Qué cubre |
+|---|---|
+| **IAM / Identidad (43)** | Password spraying · credential stuffing · brute force · Kerberoasting · AS-REP Roasting · Golden/Silver Ticket (y Diamond/Sapphire) · DCSync · DCShadow · Pass-the-Hash/Ticket/Key · Relay NTLM · coerción de autenticación (PetitPotam/PrinterBug/DFSCoerce) · delegaciones (unconstrained/restringida/RBCD) · AD CS (ESC1–ESC8) · abuso de ACLs · Skeleton Key · Zerologon · noPac · PrintNightmare · volcado de LSASS · SAM/LSA/NTDS.dit · LAPS · GPP cpassword · MS14-068 · tokens · SID History · MFA fatigue · phishing AiTM (Evilginx) · SIM swapping · consentimiento OAuth · device code · robo de cookies/PRT · Golden SAML · privesc AWS IAM · IMDS · BloodHound · keylogging · gMSA |
+| **Red / Sniffing (22)** | MITM (on-path) · ARP spoofing · envenenamiento DNS (spoofing + cache poisoning) · DHCP starvation y rogue DHCP · MAC flooding (CAM) · sniffing · port scanning · VLAN hopping · SSL stripping · evil twin/rogue AP · deauth Wi-Fi · LLMNR/NBT-NS (Responder) · BGP hijacking · ICMP redirect · CDP/LLDP · STP · MAC spoofing · tap físico · WPS/Pixie Dust · KRACK · Bluetooth |
+| **DoS / DDoS (15)** | Botnets y vectores · SYN flood · ICMP flood/smurf · UDP flood · ping of death · teardrop · land · HTTP flood · Slowloris/RUDY · amplificación DNS/NTP/memcached · NXDOMAIN flood (water torture) · HTTP/2 Rapid Reset · XML bomb |
+| **Web / Aplicación (19)** | SQLi · XSS · CSRF · SSRF · command injection · path traversal/LFI · XXE · subida de archivos · webshell · deserialización · open redirect · clickjacking · session hijacking/fixation · IDOR/BOLA · CORS · prototype pollution · cache poisoning · prompt injection (LLM) |
+| **Escalada (13)** | UAC bypass · Potato (SeImpersonate) · DLL hijacking · servicios mal configurados · tareas programadas · AlwaysInstallElevated · SUID/SGID · sudo (y Baron Samedit) · kernel Linux (Dirty COW/Dirty Pipe) · PATH/LD_PRELOAD · cron · escape de contenedores · privilegios Windows (SeBackup…) |
+| **Lateral · Persistencia · Social · Malware (28)** | SMB/WinRM/WMI/PSExec · secuestro RDP · pivoting · RMM · Run keys · WMI subscriptions · GPO · cuentas de persistencia · C2 beaconing · túneles DNS · exfiltración · reglas Outlook · phishing/spear/whaling · vishing · smishing · BEC · baiting/USB · tailgating · watering hole · SEO poisoning · deepfakes · ransomware · supply chain · fileless/LOLBins · rootkits · infostealers · criptojacking · wipers |
+
+Cada entrada: descripción técnica, impacto IAM/SOC, **cómo funciona** (herramientas reales), **detección** (KQL/SPL/Sigma/Event IDs), **mitigación paso a paso** (checklist interactiva) y referencias. Filtros por categoría/severidad/MITRE y deep-link por id (p. ej. `IAM-004`).
+
+Todas las herramientas están integradas a la **búsqueda global** (`Ctrl+K`): encuentra notas, labs, términos, herramientas y eventos Windows con ranking fuzzy.
 
 ### 🎥 Política de videos — LA REGLA DE ORO
 
@@ -79,16 +94,17 @@ src/
 │   ├── page.tsx          # Boundary cliente + self-healing HMR (dev)
 │   ├── layout.tsx        # Metadatos + fuentes
 │   └── globals.css       # Tema oscuro (Tailwind 4)
-├── vault/
+├── vault/                # (todo el código cliente — ver arriba)
 │   ├── App.tsx           # Shell + navegación + shortcuts + lazy views
 │   ├── components/
 │   │   ├── Editor/       # RichEditor + editorMedia (REGLA DE ORO de videos)
-│   │   ├── tools/        # 20 componentes de herramientas (autocontenidos)
+│   │   ├── tools/        # 21 componentes de herramientas (autocontenidos)
 │   │   └── …             # NotesView, LabsView, GlossaryView, ToolsView,
 │   │                     # DataIntelView + DataIntelDatasets, BlogView,
 │   │                     # ReviewView, SettingsView, Backup, etc.
 │   ├── data/             # Datasets offline (MITRE, Sigma, WinEvents, puertos,
-│   │                     # HTTP, cron, vulnerabilidades, catálogo de tools…)
+│   │                     # HTTP, cron, vulnerabilidades, ataques
+│   │                     # (attacks/ — 140 técnicas), catálogo de tools…)
 │   ├── db/               # Dexie: schema v16 + migraciones v1→v16 + seeds
 │   ├── integrations/     # Threat Intel opcional (VT, AbuseIPDB, OTX, Shodan)
 │   ├── store/            # Stores zustand (note, pendingTool, ioc, intel)
@@ -105,7 +121,7 @@ src/
 ## ⚡ Performance
 
 - **Code-splitting**: la ruta `/` carga solo el shell (Sidebar + Header). Las 12 vistas y los 5 modales son chunks separados (`next/dynamic`) que se montan al usarse; el chunk de búsqueda se pre-calienta en idle tras el primer paint.
-- **Grafo de herramientas estático dentro de su chunk**: las 28 herramientas viajan juntas en el chunk lazy de ToolsView — estático a propósito para robustez HMR en dev (VN-F-003: ~20 dynamic imports por tool rompían el runtime de Turbopack tras reinicios del dev server).
+- **Grafo de herramientas estático dentro de su chunk**: las 29 herramientas viajan juntas en el chunk lazy de ToolsView — estático a propósito para robustez HMR en dev (VN-F-003: ~20 dynamic imports por tool rompían el runtime de Turbopack tras reinicios del dev server).
 - **Búsqueda Ctrl+K**: corpus estático (~600 docs) indexado una vez a nivel de módulo; corpus de usuario re-indexado solo cuando cambian los datos (stamp FNV-1a sobre id+updatedAt); queries de 1 carácter sin fuzzy; contenido indexado acotado por nota.
 - **Blobs aislados**: imágenes y PDFs viven en tablas dedicadas — los listados nunca los leen; los videos jamás entran a IndexedDB (REGLA DE ORO).
 - **Re-renders acotados**: Sidebar y Header memoizados con callbacks estables; los modales solo se montan cuando abren; autoguardado con debounce de 1500 ms.
@@ -116,6 +132,17 @@ src/
 ## 🚀 Instalación y ejecución
 
 **Requisitos**: [Bun](https://bun.sh) 1.x · Navegador **Chromium** (Edge/Chrome recomendado — necesario para la carpeta de videos y guardado de backups vía File System Access API).
+
+### 🖱️ Arranque con un clic (Windows)
+
+> **`IniciarVaultNotes.bat`** (raíz del repo) — doble clic y la app se abre sola, sin escribir nada más.
+
+- Si ya estaba corriendo → solo abre el navegador.
+- Primera vez → instala dependencias, arranca el servidor (producción si hay build; si no, desarrollo) y espera hasta que responde para abrir `http://localhost:3000`.
+- Para **detener la app**: cierra la ventana minimizada *"VaultNotes (servidor)"*.
+- ⚠️ **No borres ni excluyas ese archivo del repo** — es el punto de entrada de un clic para Windows; solo actualízalo si cambia el puerto o la forma de arranque (el propio archivo lo advierte en su cabecera).
+
+### Manual (cualquier SO)
 
 ```bash
 # 1. Instalar dependencias
@@ -173,7 +200,7 @@ bun run start
 ## ✅ Verificación (estado actual)
 
 - `eslint` → 0 errores · `tsc --noEmit` → 0 errores · `bun run build` → compila
-- **Revisión funcional final E2E (navegador real, HEAD `06dfbaa`)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), 28/28 herramientas visibles, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
+- **Revisión funcional final E2E (navegador real)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), **29/29 herramientas visibles (incluida Ataques: contador 140/140, filtros por categoría — IAM 43, DoS 15 —, búsqueda por nombre/alias/contenido — "arp poisoning" → RED-002 —, drawer completo con detección KQL y checklist de mitigación, Esc cierra)**, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
 - E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
 - Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos del reporte están fixeados y documentados en el addendum de `AUDIT_REPORT.md`
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server
