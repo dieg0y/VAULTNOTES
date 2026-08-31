@@ -1,0 +1,505 @@
+/**
+ * AttacksExplorerTool.tsx — "Ataques" (técnicas ofensivas)
+ *
+ * Explorador del dataset offline `data/attacks/` (140 entradas: IAM/Identidad
+ * con foco AD/Cloud — password spraying, kerberoasting, tickets, relay,
+ * delegación, AD CS, MFA fatigue, AiTM, infostealers, PRT, Golden SAML…;
+ * Red — MITM, ARP/DNS spoofing, DHCP, MAC flooding, sniffing, scanning,
+ * VLAN hopping, LLMNR, BGP hijack…; DoS/DDoS; Web; escalada de
+ * privilegios; movimiento lateral; persistencia/C2; ingeniería social y
+ * malware — SIN duplicar el dataset de Vulnerabilidades: aquí viven las
+ * TÉCNICAS de ataque, allí los fallos de implementación).
+ *
+ * DISEÑO (gold standard: Puertos y Servicios / PortsTool en ToolsView):
+ *  - Buscador instantáneo: substring + fuzzy simple + IDs exactos + alias.
+ *  - Chips de filtro por Categoría, Severidad y técnica MITRE.
+ *  - Tabla/lista de resultados ordenada por severidad → id.
+ *  - Drawer lateral con: descripción técnica, impacto IAM/SOC, cómo
+ *    funciona, detección (KQL/SPL/Sigma con botón copiar + Event IDs) y
+ *    mitigación PASO A PASO con checkboxes interactivos.
+ *
+ * DEEP-LINK (autoOpenId): p. ej. "IAM-004" abre el drawer directamente
+ * (soporta el mismo contrato autoOpenId/onAutoOpenConsumed que Ports/MITRE).
+ *
+ * IMPORTANTE — 100% offline. No fetch, no APIs, no telemetry. Todo el
+ * contenido vive en src/vault/data/attacks/. Strict TypeScript,
+ * zero `any`, zero dangerouslySetInnerHTML.
+ */
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  Swords, Shield, Search, X, BookOpen, Crosshair, Terminal,
+  Lock, Wrench, FileWarning, ExternalLink, CheckSquare, Square, Copy,
+} from 'lucide-react';
+import {
+  ATTACKS, ATTACK_CATEGORY_LABELS, ATTACK_SEVERITY_ORDER,
+  ATTACK_SEVERITIES, ATTACK_CATEGORIES,
+  type AttackInfo, type AttackCategory, type AttackSeverity,
+} from '../../data/attacks';
+import { inputCls, CopyBtn, CodeBlock } from './_shared';
+
+/* ---------- severity chip colors (same palette family as the app) ---------- */
+const SEVERITY_CHIP: Record<AttackSeverity, string> = {
+  Critical: 'bg-red-500/15 text-red-300 border-red-500/40',
+  High: 'bg-orange-500/15 text-orange-300 border-orange-500/40',
+  Medium: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40',
+  Low: 'bg-[#161616] text-[#888] border-[#262626]',
+};
+const CATEGORY_CHIP: Record<AttackCategory, string> = {
+  IAM: 'bg-green-500/10 text-green-300',
+  Red: 'bg-blue-500/10 text-blue-300',
+  DoS: 'bg-red-500/10 text-red-300',
+  Web: 'bg-purple-500/10 text-purple-300',
+  PrivEsc: 'bg-orange-500/10 text-orange-300',
+  Lateral: 'bg-indigo-500/10 text-indigo-300',
+  Persistencia: 'bg-amber-500/10 text-amber-300',
+  Social: 'bg-pink-500/10 text-pink-300',
+  Malware: 'bg-cyan-500/10 text-cyan-300',
+};
+
+/** Fuzzy subsequence match (like the rest of the app's search: forgiving, ranked below exact/substring). */
+function fuzzyMatch(haystack: string, needle: string): boolean {
+  if (!needle) return true;
+  let i = 0;
+  for (const ch of haystack) {
+    if (ch === needle[i]) i++;
+    if (i === needle.length) return true;
+  }
+  return i === needle.length;
+}
+
+/* ---------- Drawer section (mirrors DetailSection from ToolsView) ---------- */
+const DrawerSection: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
+  <section className="space-y-1.5">
+    <h4 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+      {icon}{title}
+    </h4>
+    <div className="text-xs text-[#CCC] leading-relaxed space-y-1.5">{children}</div>
+  </section>
+);
+
+/** Checkbox list — used for the paso-a-paso mitigation (state lives in parent so it survives scrolling, resets per attack id). */
+const CheckList: React.FC<{ items: string[]; done: Set<number>; onToggle: (idx: number) => void }> = ({ items, done, onToggle }) => (
+  <ol className="space-y-1">
+    {items.map((step, idx) => {
+      const checked = done.has(idx);
+      return (
+        <li key={idx}>
+          <button
+            type="button"
+            onClick={() => onToggle(idx)}
+            className="w-full text-left flex items-start gap-2 p-1.5 rounded hover:bg-[#161616] transition-colors cursor-pointer group"
+            aria-pressed={checked}
+          >
+            {checked
+              ? <CheckSquare className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" />
+              : <Square className="w-3.5 h-3.5 text-[#555] group-hover:text-blue-400 shrink-0 mt-0.5" />}
+            <span className={`text-xs leading-relaxed ${checked ? 'line-through text-[#666]' : 'text-[#CCC]'}`}>
+              <span className="font-mono text-[#555] mr-1">{idx + 1}.</span>{step}
+            </span>
+          </button>
+        </li>
+      );
+    })}
+  </ol>
+);
+
+/* ---------- Bullet list for vectors / hardening ---------- */
+const BulletList: React.FC<{ items: string[]; icon?: React.ReactNode }> = ({ items }) => (
+  <ul className="space-y-1">
+    {items.map((it, i) => (
+      <li key={i} className="flex items-start gap-1.5">
+        <span className="text-blue-400 mt-0.5 shrink-0">▸</span>
+        <span className="text-xs text-[#CCC] leading-relaxed break-words">{it}</span>
+      </li>
+    ))}
+  </ul>
+);
+
+/* ============================================================= */
+/* Main component                                                */
+/* ============================================================= */
+interface AttacksExplorerProps {
+  /** Deep-link: attack id ("IAM-004") — opens the drawer on mount. */
+  autoOpenId?: string | number;
+  /** Notify parent (ToolsView) that the deep-link was consumed. */
+  onAutoOpenConsumed?: () => void;
+}
+
+export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId, onAutoOpenConsumed }) => {
+  // Deep-link initial match (computed on mount so the drawer opens immediately).
+  const initialMatch = (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '')
+    ? ATTACKS.find((a) => a.id === String(autoOpenId))
+    : undefined;
+  const [q, setQ] = useState(initialMatch ? String(autoOpenId) : '');
+  const [selected, setSelected] = useState<AttackInfo | null>(initialMatch || null);
+  const [selCat, setSelCat] = useState<AttackCategory | null>(null);
+  const [selSev, setSelSev] = useState<AttackSeverity | null>(null);
+  const [selMitre, setSelMitre] = useState<string | null>(null);
+  // Checkboxes del plan de mitigación, indexados por attack id.
+  const [doneSteps, setDoneSteps] = useState<Record<string, Set<number>>>({});
+
+  // Deep-link follow-up: react to autoOpenId changes after mount.
+  const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
+  if (autoOpenId !== prevAutoOpen) {
+    setPrevAutoOpen(autoOpenId);
+    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
+      const match = ATTACKS.find((a) => a.id === String(autoOpenId));
+      if (match) {
+        setSelected(match);
+        setQ(String(autoOpenId));
+      }
+    }
+  }
+
+  // Notify parent once per deep-link (side-effect only).
+  useEffect(() => {
+    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
+      onAutoOpenConsumed?.();
+    }
+  }, [autoOpenId, onAutoOpenConsumed]);
+
+  // Drawer Escape-to-close (same contract as DetailModal).
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selected]);
+
+  // Mitre filter options: all techniques present in the dataset (sorted).
+  const allMitre = useMemo(() => {
+    const set = new Set<string>();
+    ATTACKS.forEach((a) => a.mitre_attack.forEach((t) => set.add(t)));
+    return [...set].sort();
+  }, []);
+
+  const toggleStep = (attackId: string, idx: number) => {
+    setDoneSteps((prev) => {
+      const cur = new Set(prev[attackId] ?? []);
+      if (cur.has(idx)) cur.delete(idx);
+      else cur.add(idx);
+      return { ...prev, [attackId]: cur };
+    });
+  }
+
+  const filtered = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    let list = ATTACKS.filter((a) => {
+      if (selCat && a.categoria !== selCat) return false;
+      if (selSev && a.severidad !== selSev) return false;
+      if (selMitre && !a.mitre_attack.includes(selMitre)) return false;
+      if (!query) return true;
+      // Exact ID match first (e.g. "IAM-004").
+      if (a.id.toLowerCase() === query) return true;
+      // Substring over the searchable surface (alias incluidos — sinónimos
+      // que NUNCA son entradas propias, ver attacks/types.ts).
+      const surface = [
+        a.id, a.nombre, ...(a.alias ?? []), ATTACK_CATEGORY_LABELS[a.categoria], a.severidad,
+        ...a.mitre_attack, ...(a.cve_ejemplo ?? []),
+        a.descripcion_tecnica, a.impacto_iam_soc,
+      ].join(' ').toLowerCase();
+      if (surface.includes(query)) return true;
+      // Fuzzy over the name (subsequence) — forgiving like the app's global search.
+      return fuzzyMatch(a.nombre.toLowerCase(), query);
+    });
+    // Sort: severity (Critical first) → id.
+    list = [...list].sort((a, b) => {
+      const s = ATTACK_SEVERITY_ORDER[a.severidad] - ATTACK_SEVERITY_ORDER[b.severidad];
+      return s !== 0 ? s : a.id.localeCompare(b.id);
+    });
+    return list;
+  }, [q, selCat, selSev, selMitre]);
+
+  const activeFilters = selCat !== null || selSev !== null || selMitre !== null;
+
+  const clearFilters = () => {
+    setSelCat(null);
+    setSelSev(null);
+    setSelMitre(null);
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Search box */}
+      <div className="relative">
+        <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          className={inputCls + ' pl-8 pr-8'}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por nombre, alias, id (IAM-004), CVE, técnica MITRE (T1558.003)…"
+          aria-label="Buscar ataque"
+        />
+        {q && (
+          <button
+            type="button"
+            onClick={() => setQ('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#555] hover:text-white cursor-pointer"
+            aria-label="Limpiar búsqueda"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Filter chips: Categoría */}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por categoría">
+        <button
+          type="button"
+          onClick={() => setSelCat(null)}
+          className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${selCat === null ? 'bg-blue-500 text-white border-blue-500' : 'bg-[#161616] border-[#262626] text-[#888] hover:text-white hover:border-blue-500/40'}`}
+        >
+          Todas
+        </button>
+        {ATTACK_CATEGORIES.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => setSelCat(selCat === cat ? null : cat)}
+            className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${selCat === cat ? 'bg-blue-500 text-white border-blue-500' : `border-[#262626] ${CATEGORY_CHIP[cat]} hover:border-blue-500/40`}`}
+          >
+            {ATTACK_CATEGORY_LABELS[cat]}
+          </button>
+        ))}
+      </div>
+
+      {/* Filter chips: Severidad */}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por severidad">
+        <button
+          type="button"
+          onClick={() => setSelSev(null)}
+          className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${selSev === null ? 'bg-blue-500 text-white border-blue-500' : 'bg-[#161616] border-[#262626] text-[#888] hover:text-white hover:border-blue-500/40'}`}
+        >
+          Toda severidad
+        </button>
+        {ATTACK_SEVERITIES.map((sev) => (
+          <button
+            key={sev}
+            type="button"
+            onClick={() => setSelSev(selSev === sev ? null : sev)}
+            className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${selSev === sev ? 'bg-blue-500 text-white border-blue-500' : `${SEVERITY_CHIP[sev]} hover:border-blue-500/40`}`}
+          >
+            {sev}
+          </button>
+        ))}
+      </div>
+
+      {/* Filter chips: MITRE (select-like row of most common techniques) */}
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por técnica MITRE">
+        <button
+          type="button"
+          onClick={() => setSelMitre(null)}
+          className={`px-2 py-1 rounded text-[10px] font-mono border transition-colors cursor-pointer ${selMitre === null ? 'bg-blue-500 text-white border-blue-500' : 'bg-[#161616] border-[#262626] text-[#888] hover:text-white hover:border-blue-500/40'}`}
+        >
+          MITRE: *
+        </button>
+        {allMitre.slice(0, 24).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setSelMitre(selMitre === t ? null : t)}
+            className={`px-2 py-1 rounded text-[10px] font-mono border transition-colors cursor-pointer ${selMitre === t ? 'bg-blue-500 text-white border-blue-500' : 'bg-[#161616] border-[#262626] text-[#888] hover:text-white hover:border-blue-500/40'}`}
+            title={t}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Result counter */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] text-[#555]">
+          {filtered.length} de {ATTACKS.length} ataques. Click para abrir el detalle.
+        </div>
+        {activeFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-[10px] text-blue-400 hover:text-blue-300 cursor-pointer flex items-center gap-1"
+          >
+            <X className="w-3 h-3" /> Quitar filtros
+          </button>
+        )}
+      </div>
+
+      {/* Results list (table-like rows, same visual language as Ports) */}
+      <div className="space-y-1 max-h-[520px] overflow-y-auto" role="list">
+        {filtered.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            role="listitem"
+            onClick={() => setSelected(a)}
+            className="w-full text-left bg-[#0D0D0D] border border-[#262626] rounded p-2.5 flex items-start gap-3 hover:border-blue-500/40 hover:bg-[#161616] transition-colors cursor-pointer"
+          >
+            <span className="font-mono font-bold text-[11px] text-blue-400 shrink-0 w-16 pt-0.5">{a.id}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-white">{a.nombre}</span>
+                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${SEVERITY_CHIP[a.severidad]}`}>{a.severidad}</span>
+                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${CATEGORY_CHIP[a.categoria]}`}>{ATTACK_CATEGORY_LABELS[a.categoria]}</span>
+              </div>
+              <div className="text-[10px] text-[#888] mt-0.5 truncate">{a.descripcion_tecnica}</div>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {a.mitre_attack.map((t) => (
+                  <span key={t} className="text-[9px] font-mono px-1 py-0.5 rounded bg-[#161616] text-[#666]">{t}</span>
+                ))}
+                {a.alias?.map((al) => (
+                  <span key={al} className="text-[9px] px-1 py-0.5 rounded bg-[#161616] text-[#666] italic">{al}</span>
+                ))}
+                {a.cve_ejemplo?.map((cve) => (
+                  <span key={cve} className="text-[9px] font-mono px-1 py-0.5 rounded bg-red-500/10 text-red-300">{cve}</span>
+                ))}
+              </div>
+            </div>
+          </button>
+        ))}
+        {filtered.length === 0 && (
+          <div className="text-center py-8 text-xs text-[#666]">
+            Sin resultados para &quot;{q}&quot;{activeFilters ? ' con los filtros activos' : ''}.
+          </div>
+        )}
+      </div>
+
+      {/* ---------- Drawer (right slide-over) ---------- */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm"
+          onClick={() => setSelected(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Ataque ${selected.id}`}
+        >
+          <div
+            className="bg-[#0D0D0D] border-l border-[#262626] w-full max-w-2xl h-full overflow-y-auto animate-in slide-in-from-right duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer header */}
+            <div className="sticky top-0 z-10 bg-[#0D0D0D]/95 backdrop-blur border-b border-[#262626] px-5 py-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-bold text-sm text-blue-400">{selected.id}</span>
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${SEVERITY_CHIP[selected.severidad]}`}>{selected.severidad}</span>
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${CATEGORY_CHIP[selected.categoria]}`}>{ATTACK_CATEGORY_LABELS[selected.categoria]}</span>
+                </div>
+                <h3 className="text-sm font-bold text-white mt-1 flex items-center gap-1.5">
+                  <Swords className="w-4 h-4 text-blue-400 shrink-0" />
+                  {selected.nombre}
+                </h3>
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  {selected.alias && selected.alias.length > 0 && (
+                    <span className="text-[10px] text-[#666]">alias:</span>
+                  )}
+                  {selected.alias?.map((al) => (
+                    <span key={al} className="text-[9px] font-mono px-1 py-0.5 rounded bg-[#161616] text-[#888] italic">{al}</span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  <span className="text-[10px] text-[#666]">MITRE:</span>
+                  {selected.mitre_attack.map((t) => (
+                    <span key={t} className="text-[9px] font-mono px-1 py-0.5 rounded bg-[#161616] text-blue-300">{t}</span>
+                  ))}
+                  {selected.cve_ejemplo?.map((cve) => (
+                    <span key={cve} className="text-[9px] font-mono px-1 py-0.5 rounded bg-red-500/10 text-red-300">{cve}</span>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="p-1.5 rounded text-[#666] hover:text-white hover:bg-[#161616] transition-colors cursor-pointer shrink-0"
+                aria-label="Cerrar detalle"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Drawer body */}
+            <div className="px-5 py-4 space-y-5">
+              <DrawerSection icon={<BookOpen className="w-3 h-3" />} title="Descripción técnica">
+                <p>{selected.descripcion_tecnica}</p>
+              </DrawerSection>
+
+              <DrawerSection icon={<Shield className="w-3 h-3" />} title="Impacto IAM / SOC">
+                <p>{selected.impacto_iam_soc}</p>
+              </DrawerSection>
+
+              <DrawerSection icon={<Crosshair className="w-3 h-3" />} title="Cómo funciona (táctica del atacante)">
+                <BulletList items={selected.como_funciona} />
+              </DrawerSection>
+
+              <DrawerSection icon={<Terminal className="w-3 h-3" />} title="Detección (KQL / SPL / Sigma)">
+                <div className="space-y-2">
+                  {selected.deteccion.kql && <CodeBlock code={selected.deteccion.kql} label="KQL" lang="kql" />}
+                  {selected.deteccion.spl && <CodeBlock code={selected.deteccion.spl} label="SPL" lang="spl" />}
+                  {selected.deteccion.sigma && <CodeBlock code={selected.deteccion.sigma} label="Regla Sigma" lang="sigma" />}
+                  {selected.deteccion.win_event_ids && selected.deteccion.win_event_ids.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-[#888]">Windows Event IDs:</span>
+                      {selected.deteccion.win_event_ids.map((eid) => (
+                        <span key={eid} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#161616] border border-[#262626] text-green-300">
+                          {eid}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {!selected.deteccion.kql && !selected.deteccion.spl && !selected.deteccion.sigma && !(selected.deteccion.win_event_ids?.length) && (
+                    <p className="text-xs text-[#888] italic">Sin queries de detección para esta entrada (ver mitigación).</p>
+                  )}
+                </div>
+              </DrawerSection>
+
+              <DrawerSection icon={<Wrench className="w-3 h-3" />} title="Mitigación / Hardening paso a paso">
+                <CheckList
+                  items={selected.mitigacion}
+                  done={doneSteps[selected.id] ?? new Set<number>()}
+                  onToggle={(idx) => toggleStep(selected.id, idx)}
+                />
+                {(doneSteps[selected.id]?.size ?? 0) > 0 && (
+                  <div className="text-[10px] text-[#666] pt-1">
+                    {doneSteps[selected.id].size}/{selected.mitigacion.length} pasos completados (solo esta sesión).
+                  </div>
+                )}
+              </DrawerSection>
+
+              <DrawerSection icon={<Lock className="w-3 h-3" />} title="Contención adicional">
+                <p className="text-xs text-[#888] italic">La mitigación por pasos cubre el hardening preventivo; para contención activa prioriza: revocar sesiones/tokens del material comprometido, rotar secretos afectados y bloquear el vector de entrada en el perímetro.</p>
+              </DrawerSection>
+
+              <DrawerSection icon={<FileWarning className="w-3 h-3" />} title="Referencias">
+                <ul className="space-y-1">
+                  {selected.referencias.map((ref, i) => (
+                    <li key={i} className="flex items-start gap-1.5">
+                      <ExternalLink className="w-3 h-3 text-[#555] mt-0.5 shrink-0" />
+                      <a
+                        href={ref.startsWith('http') ? ref : undefined}
+                        target={ref.startsWith('http') ? '_blank' : undefined}
+                        rel={ref.startsWith('http') ? 'noopener noreferrer' : undefined}
+                        className={`text-xs break-all ${ref.startsWith('http') ? 'text-blue-400 hover:text-blue-300' : 'text-[#AAA]'}`}
+                      >
+                        {ref}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </DrawerSection>
+
+              {/* Footer: copy full mitigation plan */}
+              <div className="pt-2 pb-6 flex items-center gap-2">
+                <CopyBtn
+                  text={[`${selected.id} — ${selected.nombre} (${selected.severidad})`, '', 'MITIGACIÓN / HARDENING:', ...selected.mitigacion.map((s, i) => `${i + 1}. ${s}`), '', 'CÓMO FUNCIONA (IOCs/comportamiento):', ...selected.como_funciona.map((s) => `- ${s}`)].join('\n')}
+                  label="Copiar plan de mitigación completo"
+                />
+                <span className="text-[10px] text-[#666] flex items-center gap-1">
+                  <Copy className="w-3 h-3" /> Copiar plan completo (mitigación + comportamiento)
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

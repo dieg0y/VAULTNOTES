@@ -26,7 +26,10 @@ export type ToolId =
   | 'cve-search'
   // Explorador offline de vulnerabilidades IAM/SOC (dataset
   // data/vulnerabilities.ts, 203 entradas).
-  | 'vuln';
+  | 'vuln'
+  // Explorador offline de técnicas de ataque (dataset data/attacks/,
+  // 140 entradas: IAM/Red/DoS/Web/PrivEsc/Lateral/Persistencia/Social/Malware).
+  | 'ataques';
 
 export interface ToolCatalogEntry {
   id: ToolId;
@@ -37,7 +40,7 @@ export interface ToolCatalogEntry {
 }
 
 /**
- * The full catalog of 28 tools. The `cat` field uses the user-facing
+ * The full catalog of 29 tools. The `cat` field uses the user-facing
  * category labels (Red, IAM, Datos, Web, SOC, LINUX, SECURITY).
  *
  * Tags include both English and Spanish keywords to maximize recall in
@@ -77,6 +80,10 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
   // Vulnerabilidades IAM/SOC — dataset 100% offline (data/vulnerabilities.ts).
   // Tags ES/EN para máxima recall en la búsqueda global (Ctrl+K).
   { id: 'vuln', name: 'Vulnerabilidades IAM/SOC', cat: 'SECURITY', desc: 'Explorador de 203 vulnerabilidades de identidad y SOC: JWT/OAuth/SAML, AD (Kerberos, delegación, AD CS ESC1-16, DnsAdmins, AdminSDHolder), Cloud IAM (AWS/Azure/GCP/K8s/Snowflake), governance IAM (JML, PIM, access reviews), PrivEsc (privilegios Windows, caps Linux), evasión SOC (BYOVD, AiTM, fileless), movimiento lateral y persistencia — con detección KQL/SPL/Sigma y remediación paso a paso. 100% offline.', tags: ['vulnerabilidades', 'vulnerability', 'iam', 'soc', 'ad', 'esc1', 'adcs', 'kerberoasting', 'golden ticket', 'pass-the-hash', 'dcsync', 'jwt', 'oauth', 'saml', 'cloud', 'aws', 'azure', 'gcp', 'snowflake', 'pim', 'jml', 'access review', 'byovd', 'aitm', 'privesc', 'persistence', 'evasion', 'lateral', 'hardening', 'kql', 'sigma'] },
+  // Ataques — dataset 100% offline (data/attacks/, 140 entradas).
+  // Complementa a Vulnerabilidades: allí viven los fallos de implementación,
+  // aquí las TÉCNICAS ofensivas (red team). Tags ES/EN para máxima recall.
+  { id: 'ataques', name: 'Ataques (técnicas ofensivas)', cat: 'SECURITY', desc: 'Explorador de 140 técnicas de ataque de todo tipo: IAM/Identidad en profundidad (password spraying, kerberoasting, AS-REP, golden/silver ticket, DCSync, pass-the-hash/ticket/key, relay NTLM, coerción, delegaciones, AD CS, ACLs, Zerologon, LSASS, MFA fatigue, phishing AiTM, SIM swap, OAuth, PRT, Golden SAML, AWS IAM, IMDS, BloodHound), Red (MITM, ARP/DNS spoofing, DHCP starvation y rogue, MAC flooding, sniffing, port scanning, VLAN hopping, LLMNR, evil twin, BGP hijack, KRACK), DoS/DDoS (SYN flood, amplificación DNS/NTP/Memcached, slow HTTP, Rapid Reset), Web (SQLi, XSS, CSRF, SSRF, XXE, deserialización, IDOR), escalada de privilegios, movimiento lateral, persistencia/C2, ingeniería social y malware — con cómo funciona, detección KQL/SPL/Sigma y mitigación paso a paso. Sin duplicar Vulnerabilidades ni sinónimos (van como alias). 100% offline.', tags: ['ataques', 'attacks', 'ataque', 'attack', 'técnicas', 'techniques', 'red team', 'offensive', 'iam', 'ad', 'kerberoasting', 'password spraying', 'golden ticket', 'silver ticket', 'pass the hash', 'relay ntlm', 'mfa fatigue', 'evilginx', 'sim swap', 'mitm', 'arp spoofing', 'dns spoofing', 'sniffing', 'port scanning', 'mac flooding', 'dhcp', 'dos', 'ddos', 'syn flood', 'amplificación', 'sqli', 'xss', 'ssrf', 'privesc', 'lateral', 'persistencia', 'c2', 'phishing', 'ransomware', 'supply chain', 'kql', 'sigma', 'mitre'] },
 ];
 
 /** Find a catalog entry by id. */

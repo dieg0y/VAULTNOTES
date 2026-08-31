@@ -37,7 +37,7 @@ import { useIntelStore } from './store/intelStore';
 /* The initial route now ships ONLY the shell (Sidebar + Header +      */
 /* error boundary). Every view is a separate chunk loaded on demand   */
 /* via next/dynamic, and the modals only mount (and load their        */
-/* chunk) when opened. The 28 tools travel together inside the lazy   */
+/* chunk) when opened. The 29 tools travel together inside the lazy   */
 /* ToolsView chunk — the tool module graph itself stays STATIC inside  */
 /* that chunk on purpose: Turbopack's dev runtime loses track of ~20  */
 /* separate per-tool dynamic factories after a dev-server restart     */

@@ -5,7 +5,7 @@ import {
   CalendarClock, Hash, Binary, Regex, ShieldOff, MapPin,
   SquareTerminal, FileText, Crosshair, Braces, BookMarked,
   Fingerprint, Building2, UserCog, Bug, FileSearch,
-  Star, Search, History, Clock3, ShieldAlert
+  Star, Search, History, Clock3, ShieldAlert, Swords
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -29,7 +29,7 @@ import { findSigmaByEventId } from '../data/sigmaData';
 // open ("module factory is not available … deleted in an HMR update").
 // Static imports keep the whole tools module graph in ONE chunk, which
 // reconciles cleanly across restarts. (PERFORMANCE note: this whole file —
-// ToolsView + the 28 tools — is itself a LAZY chunk loaded on demand by
+// ToolsView + the 29 tools — is itself a LAZY chunk loaded on demand by
 // App.tsx, so the initial route still ships only the shell; see the
 // code-splitting pass in App.tsx and the Performance section of README.md.)
 import { TimestampConverterTool } from './tools/TimestampConverterTool';
@@ -59,6 +59,8 @@ import { FileHashAnalyzerTool } from './tools/FileHashAnalyzerTool';
 import { LinuxPermissionsTool } from './tools/LinuxPermissionsTool';
 // Vulnerabilidades IAM/SOC — explorador del dataset offline de vulnerabilidades.
 import { VulnerabilityExplorerTool } from './tools/VulnerabilityExplorerTool';
+// Ataques (técnicas ofensivas) — explorador del dataset offline de ataques.
+import { AttacksExplorerTool } from './tools/AttacksExplorerTool';
 // IoC Extractor — full SOC/IAM pipeline view (see section 7 below).
 // Static import for the same HMR-robustness reason as the tools above.
 import { IocExtractorView } from './IocExtractorView';
@@ -119,6 +121,7 @@ const TOOL_ICONS: Record<ToolId, React.ReactNode> = {
   'detection-query': <Braces className="w-4 h-4" />,
   'cve-search': <Bug className="w-4 h-4" />, // reuse Bug icon (already imported); CVSS Calculator uses Bug too — fine.
   vuln: <ShieldAlert className="w-4 h-4" />, // Vulnerabilidades IAM/SOC (dataset offline)
+  ataques: <Swords className="w-4 h-4" />, // Ataques — técnicas ofensivas (dataset offline)
 };
 
 const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; desc: string; tags?: string[] }[] =
@@ -1742,6 +1745,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
       case 'cve-search':         return <CveSearchTool />;
       // Vulnerabilidades IAM/SOC — soporta deep-link por id (p. ej. "AD-016").
       case 'vuln':               return <VulnerabilityExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
+      // Ataques — soporta deep-link por id (p. ej. "IAM-004").
+      case 'ataques':            return <AttacksExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
       // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
       case 'sid-rid':            return <SidRidAnalyzerTool />;
       case 'ldap-dn':            return <LdapDnParserTool />;
