@@ -173,7 +173,9 @@ bun run start
 ## ✅ Verificación (estado actual)
 
 - `eslint` → 0 errores · `tsc --noEmit` → 0 errores · `bun run build` → compila
-- E2E verificado: notas (crear/autoguardar/papelera/restaurar), backups ZIP round-trip (export → import, formato 3.2.0), búsqueda global con índice cacheado, flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (alta manual → envío desde IoC Extractor/Sigma/Detection Query → actualización instantánea → dedup → edición → borrado → import .json → export), 28 herramientas
+- **Revisión funcional final E2E (navegador real, HEAD `06dfbaa`)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), 28/28 herramientas visibles, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
+- E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
+- Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos del reporte están fixeados y documentados en el addendum de `AUDIT_REPORT.md`
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server
 
 ---

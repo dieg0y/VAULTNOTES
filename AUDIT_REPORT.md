@@ -191,4 +191,36 @@ Auditados `videoStorage.ts` (446 líneas, completo), `RichEditor.tsx` (rutas de 
 
 ---
 
-*Fin del reporte. Auditoría realizada en modo solo lectura; el único archivo creado es `AUDIT_REPORT.md`.*
+## 8. ADDENDUM — Estado de los hallazgos (post-auditoría)
+
+**Todas las recomendaciones de la sección 6 están aplicadas y verificadas.** Las 6 pasadas de la lista quedaron resueltas en commits posteriores sobre `main`:
+
+| # | Hallazgo | Estado | Commit | Resumen del fix |
+|---|---|---|---|---|
+| 1 | VN-AUD-001 (MEDIO) | ✅ Fixeado | `656d911` | El hook `uponSanitizeAttributes` del sanitizador elimina `src/srcset/poster/href` remotos de todo elemento media y `<embed src>` queda restringido a `blob:`; los `url(https://…)` de estilos inline se eliminan en `afterSanitizeAttributes`. Los `<a href>` legítimos siguen funcionando (navegación explícita del usuario) |
+| 2 | VN-AUD-003 (MEDIO-BAJO) | ✅ Fixeado | `0cc90a8` | `validateZipSafety` restaura los topes anti zip-bomb (200 MB/entrada, 2 GB total descomprimidos); el rechazo se superfica al usuario vía `ZipSafetyError` con mensaje específico |
+| 3 | VN-AUD-002 (BAJO) | ✅ Fixeado | `37ac771` | La migración v15 escribe el conteo de blobs descartados en localStorage; el primer arranque posterior lo muestra como alerta única en español (console.warn ya no es lo único visible) |
+| 4 | VN-AUD-004 (BAJO) | ✅ Resuelto por diseño | `656d911` | `data:image/svg+xml` en `<img src>` se permite vía `DATA_URI_TAGS` de DOMPurify: los scripts en SVG cargados por `<img>` no ejecutan (garantía del navegador) y las referencias externas quedan bloqueadas. E2E-verificado: los SVG insertados sobreviven save→load→sanitize |
+| 5 | VN-AUD-I3 (BAJO) | ✅ Fixeado | `a89b113` | `saveVideoToDirectory` huelea los magic bytes ANTES de copiar (10 firmas: MP4/MOV/3GP, WebM/MKV, AVI, FLV, OGG, MPEG-TS/PS, ASF/WMV, RealMedia, MXF); si no coinciden, aviso interactivo — nunca bloqueo duro, y cancelar aborta en silencio vía `VideoRejectedError` |
+| 6 | VN-AUD-I4 (INFO) | ✅ Fixeado | `a89b113` | El hueco v8 (migración vacía intencional) queda documentado con comentario en `src/vault/db/index.ts` |
+
+**Veredicto final: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos.** El reporte original queda arriba como snapshot histórico del HEAD `7e0b336` (27 tools, schema v15); el proyecto avanzó desde entonces a 28 tools y schema v16 (Data & Intel) con la misma disciplina de seguridad.
+
+### Re-verificación funcional final (2026-08-30, HEAD `06dfbaa`)
+
+Pasada E2E completa en navegador real (Chromium headless) sobre el HEAD actual — todo en verde:
+
+- Notas: crear → escribir → autoguardado (debounce) → reload → contenido persistido.
+- Papelera: borrado suave con confirmación → aparece en papelera → restauración.
+- Búsqueda global `Ctrl+K`: encuentra nota por CONTENIDO (IP dentro del cuerpo), instantánea.
+- Data & Intel: alta manual → contadores reactivos; IoC Extractor → "Guardar en Data & Intel (4)" → los 4 IoCs (IP, dominio, URL, hash) visibles al instante sin refresh; búsqueda/filtro por texto; dedup (re-añadir el mismo IoC no crea fila); export .json/.csv habilitados.
+- Herramientas: 28/28 visibles y abribles.
+- Captura rápida `Ctrl+Shift+Q` → Inbox.
+- Blog: seleccionar apunte → descarga .md habilitada.
+- Backup: export ZIP completo → toast "Descargado: VaultNotes-Backup.zip".
+- Responsive 390px y 1440px sin scroll horizontal; cero errores de consola y de página.
+- `bun run lint` → 0 errores · `bun run typecheck` → 0 errores.
+
+---
+
+*Fin del reporte. Auditoría original en modo solo lectura; este addendum documenta los fixes posteriores y la re-verificación final.*
