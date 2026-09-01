@@ -28,7 +28,8 @@ export type ToolId =
   // data/vulnerabilities.ts, 203 entradas).
   | 'vuln'
   // Explorador offline de técnicas de ataque (dataset data/attacks/,
-  // 140 entradas: IAM/Red/DoS/Web/PrivEsc/Lateral/Persistencia/Social/Malware).
+  // 89 entradas: IAM/Red/DoS/Web/Social/Malware — sin duplicar
+  // Vulnerabilidades).
   | 'ataques';
 
 export interface ToolCatalogEntry {
@@ -80,10 +81,13 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
   // Vulnerabilidades IAM/SOC — dataset 100% offline (data/vulnerabilities.ts).
   // Tags ES/EN para máxima recall en la búsqueda global (Ctrl+K).
   { id: 'vuln', name: 'Vulnerabilidades IAM/SOC', cat: 'SECURITY', desc: 'Explorador de 203 vulnerabilidades de identidad y SOC: JWT/OAuth/SAML, AD (Kerberos, delegación, AD CS ESC1-16, DnsAdmins, AdminSDHolder), Cloud IAM (AWS/Azure/GCP/K8s/Snowflake), governance IAM (JML, PIM, access reviews), PrivEsc (privilegios Windows, caps Linux), evasión SOC (BYOVD, AiTM, fileless), movimiento lateral y persistencia — con detección KQL/SPL/Sigma y remediación paso a paso. 100% offline.', tags: ['vulnerabilidades', 'vulnerability', 'iam', 'soc', 'ad', 'esc1', 'adcs', 'kerberoasting', 'golden ticket', 'pass-the-hash', 'dcsync', 'jwt', 'oauth', 'saml', 'cloud', 'aws', 'azure', 'gcp', 'snowflake', 'pim', 'jml', 'access review', 'byovd', 'aitm', 'privesc', 'persistence', 'evasion', 'lateral', 'hardening', 'kql', 'sigma'] },
-  // Ataques — dataset 100% offline (data/attacks/, 140 entradas).
-  // Complementa a Vulnerabilidades: allí viven los fallos de implementación,
-  // aquí las TÉCNICAS ofensivas (red team). Tags ES/EN para máxima recall.
-  { id: 'ataques', name: 'Ataques (técnicas ofensivas)', cat: 'SECURITY', desc: 'Explorador de 140 técnicas de ataque de todo tipo: IAM/Identidad en profundidad (password spraying, kerberoasting, AS-REP, golden/silver ticket, DCSync, pass-the-hash/ticket/key, relay NTLM, coerción, delegaciones, AD CS, ACLs, Zerologon, LSASS, MFA fatigue, phishing AiTM, SIM swap, OAuth, PRT, Golden SAML, AWS IAM, IMDS, BloodHound), Red (MITM, ARP/DNS spoofing, DHCP starvation y rogue, MAC flooding, sniffing, port scanning, VLAN hopping, LLMNR, evil twin, BGP hijack, KRACK), DoS/DDoS (SYN flood, amplificación DNS/NTP/Memcached, slow HTTP, Rapid Reset), Web (SQLi, XSS, CSRF, SSRF, XXE, deserialización, IDOR), escalada de privilegios, movimiento lateral, persistencia/C2, ingeniería social y malware — con cómo funciona, detección KQL/SPL/Sigma y mitigación paso a paso. Sin duplicar Vulnerabilidades ni sinónimos (van como alias). 100% offline.', tags: ['ataques', 'attacks', 'ataque', 'attack', 'técnicas', 'techniques', 'red team', 'offensive', 'iam', 'ad', 'kerberoasting', 'password spraying', 'golden ticket', 'silver ticket', 'pass the hash', 'relay ntlm', 'mfa fatigue', 'evilginx', 'sim swap', 'mitm', 'arp spoofing', 'dns spoofing', 'sniffing', 'port scanning', 'mac flooding', 'dhcp', 'dos', 'ddos', 'syn flood', 'amplificación', 'sqli', 'xss', 'ssrf', 'privesc', 'lateral', 'persistencia', 'c2', 'phishing', 'ransomware', 'supply chain', 'kql', 'sigma', 'mitre'] },
+  // Ataques — dataset 100% offline (data/attacks/, 89 entradas).
+  // Complementa a Vulnerabilidades SIN duplicarla: allí viven los fallos de
+  // implementación y las técnicas de abuso AD/IAM (Kerberoasting, PtH,
+  // tickets, delegaciones, ESC, escalada, lateral, persistencia, relay,
+  // MFA fatigue, AiTM, SIM swap, Golden SAML); aquí SOLO lo que no se
+  // repite. Tags ES/EN para máxima recall.
+  { id: 'ataques', name: 'Ataques (técnicas ofensivas)', cat: 'SECURITY', desc: 'Explorador de 89 técnicas de ataque de todo tipo SIN duplicar Vulnerabilidades: IAM/Identidad en lo que aquella no cubre (MS14-068, Bronze Bit, extracción SAM/NTDS.dit, recon AD con BloodHound, keylogging, phishing de código de dispositivo, robo de PRT, registro fraudulento de dispositivos, abuso de SCCM/Intune, AD Recycle Bin, inyección CSV), Red (MITM, ARP/DNS spoofing, DHCP starvation y rogue, MAC flooding, sniffing, port scanning, VLAN hopping, SSL stripping, evil twin, deauth, BGP hijack, KRACK, Bluetooth, mitm6, bypass de 802.1X, enumeración DNS, envenenamiento de routing interior), DoS/DDoS (SYN flood, amplificación DNS/NTP/Memcached, slow HTTP, Rapid Reset, ReDoS), Web (SQLi, XSS, SSRF, XXE, deserialización, request smuggling, CRLF, HPP, GraphQL), ingeniería social (phishing, vishing, smishing, BEC, watering hole, deepfakes) y malware/C2/exfil (ransomware, supply chain, infostealers, gusanos, beaconing, exfiltración) — con cómo funciona, detección KQL/SPL/Sigma y mitigación paso a paso. Sinónimos como alias, nunca filas duplicadas. 100% offline.', tags: ['ataques', 'attacks', 'ataque', 'attack', 'técnicas', 'techniques', 'red team', 'offensive', 'iam', 'sccm', 'intune', 'prt', 'bloodhound', 'device code', 'csv injection', 'mitm', 'arp spoofing', 'dns spoofing', 'sniffing', 'port scanning', 'mac flooding', 'dhcp', 'mitm6', '802.1x', 'bgp', 'krack', 'dos', 'ddos', 'syn flood', 'amplificación', 'redos', 'sqli', 'xss', 'ssrf', 'smuggling', 'crlf', 'graphql', 'phishing', 'bec', 'deepfake', 'ransomware', 'supply chain', 'worms', 'c2', 'kql', 'sigma', 'mitre'] },
 ];
 
 /** Find a catalog entry by id. */

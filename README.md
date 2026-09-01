@@ -27,23 +27,26 @@
 | **Red** | Subnetting (IPv4/CIDR) · IP Analyzer (v4/v6) · Puertos y Servicios |
 | **Web** | HTTP Status (códigos con explicación) |
 | **Datos** | Base Converter · Timestamp Converter (Unix/ISO/UTC) · Encoding (Base64/Hex/URL/ASCII/Unicode/HTML) · Regex Tester (14 presets) · Cron Parser |
-| **Security** | Hash Toolkit · File Hash Analyzer · CVSS 3.1 Calculator · CVE Search *(única online, opcional — NVD)* · Vulnerabilidades IAM/SOC (203 entradas offline) · **Ataques — 140 técnicas ofensivas offline** |
+| **Security** | Hash Toolkit · File Hash Analyzer · CVSS 3.1 Calculator · CVE Search *(única online, opcional — NVD)* · Vulnerabilidades IAM/SOC (203 entradas offline) · **Ataques — 89 técnicas ofensivas offline (sin duplicar Vulnerabilidades)** |
 | **Linux** | Linux Permissions (chmod simbólico ↔ numérico) |
 
-#### ⚔️ Ataques — 140 técnicas ofensivas (offline)
+#### ⚔️ Ataques — 89 técnicas ofensivas (offline)
 
-Explorador de técnicas de ataque de **todo tipo, con foco IAM** — complementario a *Vulnerabilidades* (allí los fallos de implementación; aquí las **técnicas del atacante**). Sin duplicados: los sinónimos van como alias (p. ej. *ARP poisoning* es alias de *ARP Spoofing*).
+Explorador de técnicas de ataque de **todo tipo** — **complementario a Vulnerabilidades y sin una sola entrada repetida**. El reparto:
+
+- **Vulnerabilidades (203)**: fallos de configuración/implementación **y** las técnicas de abuso AD/IAM que allí siempre vivieron — Kerberoasting, Pass-the-Hash, Golden/Silver Ticket, DCSync, delegaciones, AD CS ESC1–16, escalada de privilegios, movimiento lateral, persistencia, relay NTLM, MFA fatigue, AiTM/Evilginx, SIM swap, Golden SAML, privesc cloud…
+- **Ataques (89)**: todo lo demás — las técnicas que Vulnerabilidades no cubre. Sinónimos como alias (p. ej. *ARP poisoning* → alias de *ARP Spoofing*), nunca filas duplicadas. El buscador lo confirma: "kerberoasting" en Ataques da **0 resultados** porque vive en Vulnerabilidades.
 
 | Categoría (entradas) | Qué cubre |
 |---|---|
-| **IAM / Identidad (43)** | Password spraying · credential stuffing · brute force · Kerberoasting · AS-REP Roasting · Golden/Silver Ticket (y Diamond/Sapphire) · DCSync · DCShadow · Pass-the-Hash/Ticket/Key · Relay NTLM · coerción de autenticación (PetitPotam/PrinterBug/DFSCoerce) · delegaciones (unconstrained/restringida/RBCD) · AD CS (ESC1–ESC8) · abuso de ACLs · Skeleton Key · Zerologon · noPac · PrintNightmare · volcado de LSASS · SAM/LSA/NTDS.dit · LAPS · GPP cpassword · MS14-068 · tokens · SID History · MFA fatigue · phishing AiTM (Evilginx) · SIM swapping · consentimiento OAuth · device code · robo de cookies/PRT · Golden SAML · privesc AWS IAM · IMDS · BloodHound · keylogging · gMSA |
-| **Red / Sniffing (22)** | MITM (on-path) · ARP spoofing · envenenamiento DNS (spoofing + cache poisoning) · DHCP starvation y rogue DHCP · MAC flooding (CAM) · sniffing · port scanning · VLAN hopping · SSL stripping · evil twin/rogue AP · deauth Wi-Fi · LLMNR/NBT-NS (Responder) · BGP hijacking · ICMP redirect · CDP/LLDP · STP · MAC spoofing · tap físico · WPS/Pixie Dust · KRACK · Bluetooth |
-| **DoS / DDoS (15)** | Botnets y vectores · SYN flood · ICMP flood/smurf · UDP flood · ping of death · teardrop · land · HTTP flood · Slowloris/RUDY · amplificación DNS/NTP/memcached · NXDOMAIN flood (water torture) · HTTP/2 Rapid Reset · XML bomb |
-| **Web / Aplicación (19)** | SQLi · XSS · CSRF · SSRF · command injection · path traversal/LFI · XXE · subida de archivos · webshell · deserialización · open redirect · clickjacking · session hijacking/fixation · IDOR/BOLA · CORS · prototype pollution · cache poisoning · prompt injection (LLM) |
-| **Escalada (13)** | UAC bypass · Potato (SeImpersonate) · DLL hijacking · servicios mal configurados · tareas programadas · AlwaysInstallElevated · SUID/SGID · sudo (y Baron Samedit) · kernel Linux (Dirty COW/Dirty Pipe) · PATH/LD_PRELOAD · cron · escape de contenedores · privilegios Windows (SeBackup…) |
-| **Lateral · Persistencia · Social · Malware (28)** | SMB/WinRM/WMI/PSExec · secuestro RDP · pivoting · RMM · Run keys · WMI subscriptions · GPO · cuentas de persistencia · C2 beaconing · túneles DNS · exfiltración · reglas Outlook · phishing/spear/whaling · vishing · smishing · BEC · baiting/USB · tailgating · watering hole · SEO poisoning · deepfakes · ransomware · supply chain · fileless/LOLBins · rootkits · infostealers · criptojacking · wipers |
+| **IAM / Identidad (12)** | MS14-068 (PAC forjado) · Bronze Bit (CVE-2020-17049) · extracción SAM/LSA/NTDS.dit · recon AD (BloodHound) · keylogging · phishing de código de dispositivo · robo de PRT (Entra) · registro fraudulento de dispositivos · abuso de SCCM/MECM · abuso de Intune · AD Recycle Bin (reanimación) · inyección CSV |
+| **Red / Sniffing (25)** | MITM (on-path) · ARP spoofing · envenenamiento DNS (spoofing + cache poisoning) · DHCP starvation y rogue DHCP · MAC flooding (CAM) · sniffing · port scanning · VLAN hopping · SSL stripping · evil twin/rogue AP · deauth Wi-Fi · BGP hijacking · ICMP redirect · CDP/LLDP · STP · MAC spoofing · tap físico · WPS/Pixie Dust · KRACK · Bluetooth · **rogue DHCPv6/mitm6 (SLAAC)** · **bypass de 802.1X/NAC (MAB, EAP-Logoff)** · **enumeración DNS (AXFR, subdominios)** · **envenenamiento de routing interior (RIP/OSPF/EIGRP)** |
+| **DoS / DDoS (16)** | Botnets y vectores · SYN flood · ICMP flood/smurf · UDP flood · ping of death · teardrop · land · HTTP flood · Slowloris/RUDY · amplificación DNS/NTP/memcached · NXDOMAIN flood (water torture) · HTTP/2 Rapid Reset · XML bomb · **ReDoS** |
+| **Web / Aplicación (19)** | SQLi · XSS · SSRF · command injection · path traversal/LFI · XXE · subida de archivos · webshell · deserialización · clickjacking · session hijacking · CORS · prototype pollution · cache poisoning · prompt injection (LLM) · **HTTP request smuggling (CL.TE/TE.CL)** · **inyección CRLF** · **HPP (contaminación de parámetros)** · **abuso de GraphQL (introspección/batching)** |
+| **Ingeniería Social (9)** | Phishing/spear/whaling · vishing · smishing (y quishing) · BEC · baiting/USB · tailgating · watering hole · SEO poisoning/malvertising · deepfakes |
+| **Malware / C2 / Exfil (8)** | Ransomware y doble extorsión · supply chain (SolarWinds, dependency confusion) · infostealers · criptojacking · wipers · **gusanos (propagación autónoma)** · beaconing C2 (Cobalt Strike/Sliver) · exfiltración por canales legítimos (rclone, Telegram) |
 
-Cada entrada: descripción técnica, impacto IAM/SOC, **cómo funciona** (herramientas reales), **detección** (KQL/SPL/Sigma/Event IDs), **mitigación paso a paso** (checklist interactiva) y referencias. Filtros por categoría/severidad/MITRE y deep-link por id (p. ej. `IAM-004`).
+Cada entrada: descripción técnica, impacto IAM/SOC, **cómo funciona** (herramientas reales), **detección** (KQL/SPL/Sigma/Event IDs), **mitigación paso a paso** (checklist interactiva) y referencias. Filtros por categoría/severidad/MITRE, aviso anti-duplicados en el encabezado y deep-link por id (p. ej. `IAM-001`).
 
 Todas las herramientas están integradas a la **búsqueda global** (`Ctrl+K`): encuentra notas, labs, términos, herramientas y eventos Windows con ranking fuzzy.
 
@@ -104,7 +107,7 @@ src/
 │   │                     # ReviewView, SettingsView, Backup, etc.
 │   ├── data/             # Datasets offline (MITRE, Sigma, WinEvents, puertos,
 │   │                     # HTTP, cron, vulnerabilidades, ataques
-│   │                     # (attacks/ — 140 técnicas), catálogo de tools…)
+│   │                     # (attacks/ — 89 técnicas sin duplicar), catálogo de tools…)
 │   ├── db/               # Dexie: schema v16 + migraciones v1→v16 + seeds
 │   ├── integrations/     # Threat Intel opcional (VT, AbuseIPDB, OTX, Shodan)
 │   ├── store/            # Stores zustand (note, pendingTool, ioc, intel)
@@ -200,7 +203,7 @@ bun run start
 ## ✅ Verificación (estado actual)
 
 - `eslint` → 0 errores · `tsc --noEmit` → 0 errores · `bun run build` → compila
-- **Revisión funcional final E2E (navegador real)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), **29/29 herramientas visibles (incluida Ataques: contador 140/140, filtros por categoría — IAM 43, DoS 15 —, búsqueda por nombre/alias/contenido — "arp poisoning" → RED-002 —, drawer completo con detección KQL y checklist de mitigación, Esc cierra)**, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
+- **Revisión funcional final E2E (navegador real)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), **29/29 herramientas visibles (incluida Ataques: contador 89/89, aviso anti-duplicados visible, filtros por categoría — IAM 12, Red 25, DoS 16, Web 19, Social 9, Malware 8 —, búsqueda por alias — "arp poisoning" → RED-002 —, verificación de dedup — "kerberoasting" → 0 resultados en Ataques y presente en Vulnerabilidades (3/203) —, drawer completo con detección KQL y checklist de mitigación, Esc cierra)**, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
 - E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
 - Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos del reporte están fixeados y documentados en el addendum de `AUDIT_REPORT.md`
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server

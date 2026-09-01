@@ -1,14 +1,17 @@
 /**
  * AttacksExplorerTool.tsx — "Ataques" (técnicas ofensivas)
  *
- * Explorador del dataset offline `data/attacks/` (140 entradas: IAM/Identidad
- * con foco AD/Cloud — password spraying, kerberoasting, tickets, relay,
- * delegación, AD CS, MFA fatigue, AiTM, infostealers, PRT, Golden SAML…;
- * Red — MITM, ARP/DNS spoofing, DHCP, MAC flooding, sniffing, scanning,
- * VLAN hopping, LLMNR, BGP hijack…; DoS/DDoS; Web; escalada de
- * privilegios; movimiento lateral; persistencia/C2; ingeniería social y
- * malware — SIN duplicar el dataset de Vulnerabilidades: aquí viven las
- * TÉCNICAS de ataque, allí los fallos de implementación).
+ * Explorador del dataset offline `data/attacks/` (89 entradas · 6
+ * categorías, SIN duplicar el dataset de Vulnerabilidades):
+ * IAM/Identidad (MS14-068, bronze bit, SAM/NTDS at-rest, recon AD,
+ * keylogging, device code phishing, PRT, registro de dispositivos,
+ * SCCM/Intune, Recycle Bin, CSV injection), Red (MITM, ARP/DNS spoofing,
+ * DHCP, MAC flooding, sniffing, scanning, VLAN hopping, evil twin, BGP,
+ * KRACK, mitm6, NAC bypass, routing interior…), DoS/DDoS, Web (SQLi,
+ * XSS, SSRF, smuggling, GraphQL…), ingeniería social y malware/C2/exfil.
+ * Las técnicas de abuso AD/IAM clásicas (Kerberoasting, PtH, tickets,
+ * relay, delegaciones, AD CS ESC, escalada, lateral, persistencia)
+ * viven en Vulnerabilidades — el aviso del encabezado lo explica.
  *
  * DISEÑO (gold standard: Puertos y Servicios / PortsTool en ToolsView):
  *  - Buscador instantáneo: substring + fuzzy simple + IDs exactos + alias.
@@ -18,7 +21,7 @@
  *    funciona, detección (KQL/SPL/Sigma con botón copiar + Event IDs) y
  *    mitigación PASO A PASO con checkboxes interactivos.
  *
- * DEEP-LINK (autoOpenId): p. ej. "IAM-004" abre el drawer directamente
+ * DEEP-LINK (autoOpenId): p. ej. "IAM-001" abre el drawer directamente
  * (soporta el mismo contrato autoOpenId/onAutoOpenConsumed que Ports/MITRE).
  *
  * IMPORTANTE — 100% offline. No fetch, no APIs, no telemetry. Todo el
@@ -49,9 +52,6 @@ const CATEGORY_CHIP: Record<AttackCategory, string> = {
   Red: 'bg-blue-500/10 text-blue-300',
   DoS: 'bg-red-500/10 text-red-300',
   Web: 'bg-purple-500/10 text-purple-300',
-  PrivEsc: 'bg-orange-500/10 text-orange-300',
-  Lateral: 'bg-indigo-500/10 text-indigo-300',
-  Persistencia: 'bg-amber-500/10 text-amber-300',
   Social: 'bg-pink-500/10 text-pink-300',
   Malware: 'bg-cyan-500/10 text-cyan-300',
 };
@@ -222,6 +222,18 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
 
   return (
     <div className="space-y-3">
+      {/* Anti-duplicate explainer: division of labor with Vulnerabilidades */}
+      <div className="flex items-start gap-2 bg-[#161616] border border-[#262626] rounded p-2 text-[10px] text-[#888] leading-relaxed">
+        <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+        <p>
+          <span className="text-[#AAA] font-semibold">Sin duplicar Vulnerabilidades:</span>{' '}
+          las técnicas de abuso AD/IAM (Kerberoasting, Pass-the-Hash, Golden/Silver Ticket, DCSync,
+          delegaciones, AD CS ESC1-16, escalada de privilegios, movimiento lateral, persistencia,
+          relay NTLM, MFA fatigue, AiTM, SIM swap, Golden SAML) viven en la herramienta{' '}
+          <span className="text-blue-300 font-semibold">Vulnerabilidades</span> — aquí solo lo que no se repite.
+        </p>
+      </div>
+
       {/* Search box */}
       <div className="relative">
         <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />

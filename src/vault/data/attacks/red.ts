@@ -1,16 +1,19 @@
 // attacks/red.ts — dataset de ataques de RED (L2/L3, Wi-Fi, routing).
 //
-// 22 entradas con categoria: 'Red': MITM on-path y sus vectores (ARP, DNS,
-// DHCP, VLAN, Wi-Fi), ataques de infraestructura (BGP, STP, CDP/LLDP),
-// suplantación L2 e interceptación física. Las TÉCNICAS viven aquí; los
-// fallos de implementación viven en ../vulnerabilities.ts.
+// 25 entradas con categoria: 'Red': MITM on-path y sus vectores (ARP, DNS,
+// DHCP, VLAN, Wi-Fi), ataques de infraestructura (BGP, STP, CDP/LLDP,
+// routing interior), suplantación L2, interceptación física, bypass de
+// NAC/802.1X y recon DNS. Las TÉCNICAS viven aquí; los fallos de
+// implementación viven en ../vulnerabilities.ts (y el envenenamiento
+// LLMNR/NBT-NS + relay NTLM vive allí como entrada combinada — no se
+// repite aquí).
 //
 // UMBRELLA: RED-001 (MITM on-path) engloba como VECTORES a ARP spoofing
 // (RED-002), DNS spoofing (RED-003), rogue DHCP (RED-005), evil twin
 // (RED-011) y SSL stripping (RED-010) — por eso existen entradas propias
 // de cada vector. Los sinónimos van en `alias`, nunca como fila aparte.
 //
-// IDs: RED-001..RED-022. 100% offline — se concatena en ./index.ts.
+// IDs: RED-001..RED-025. 100% offline — se concatena en ./index.ts.
 // No usar `export default`.
 
 import type { AttackInfo } from './types';
@@ -245,7 +248,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     como_funciona: [
       'Switch spoofing: yersinia dtp -attack 0 (negociación DTP) — el puerto pasa de access a trunk dinámico.',
       'Double tagging: scapy sendp(Ether()/Dot1Q(vlan=10)/Dot1Q(vlan=20)/IP(dst="10.20.0.5")/TCP()) desde un puerto cuya native VLAN es 10.',
-      'Enumerar VLANs antes: nmap --script broadcast-cisco-discovery o CDP/LLDP spoof (RED-016) para leer VTP/VLANs del switch.',
+      'Enumerar VLANs antes: nmap --script broadcast-cisco-discovery o CDP/LLDP spoof (RED-015) para leer VTP/VLANs del switch.',
       'Explotar el canal one-way: inyección de tráfico hacia la VLAN objetivo (exploits sin callback, poisoning de servicios broadcast).',
     ],
     deteccion: {
@@ -343,33 +346,6 @@ export const RED_ATTACKS: AttackInfo[] = [
   },
   {
     id: 'RED-013',
-    nombre: 'Envenenamiento LLMNR / NBT-NS (Responder)',
-    alias: ['Responder poisoning', 'LLMNR poisoning', 'NBT-NS poisoning', 'envenenamiento NBNS'],
-    categoria: 'Red',
-    severidad: 'Critical',
-    mitre_attack: ['T1557.001'],
-    descripcion_tecnica: 'Cuando un host Windows no resuelve un nombre por DNS, pregunta por broadcast/multicast (LLMNR, UDP 5355; NBT-NS, UDP 137). Responder contesta "yo soy ese host" y recibe el reto NTLM del cliente: captura el hash NTLMv2 para crackearlo offline o lo relaya (ntlmrelayx) hacia servicios sin firma SMB/LDAP. Domina en dominios que no han deshabilitado los protocolos legacy.',
-    impacto_iam_soc: 'Captura masiva de hashes NTLMv2 y relay hacia DCs/servidores: de usuario común a Domain Admin sin malware previo — técnica de reproducción inicial nº1 en pruebas internas de AD. En SOC: un host respondiendo LLMNR/NBT-NS por muchos nombres y logins NTLM (4624 tipo 3) hacia sistemas atípicos.',
-    como_funciona: [
-      'Responder -I eth0 -dwv (poisoning de LLMNR/NBT-NS/MDNS + servidores SMB/HTTP falsos + captura de hashes NTLMv2).',
-      'Crackear offline: hashcat -m 5600 hashes.txt rockyou.txt (NetNTLMv2 = modo 5600).',
-      'Relay en vez de crackear: impacket-ntlmrelayx -tf targets.txt contra hosts sin SMB signing (más rápido que el crack).',
-      'Escalar con credenciales válidas: bloodhound o ldapdomaindump para mapear rutas hacia Domain Admin.',
-    ],
-    deteccion: {
-      spl: 'index=net sourcetype=stream:udp (dest_port=5355 OR dest_port=137) | stats count by src_ip, dest_ip | where count > 20 | head 20 // un solo host respondiendo por muchos nombres',
-      kql: 'DeviceNetworkEvents | where RemotePort in (137, 5355) and Protocol == "UDP" | summarize count() by DeviceName, RemoteIP | where count_ > 50 | take 20 // correlar con 4624 logon type 3 NTLM hacia hosts atípicos',
-    },
-    mitigacion: [
-      'Deshabilitar LLMNR y NBT-NS por GPO en todos los hosts (y mDNS si no se usa).',
-      'Forzar firma SMB en todos los servidores (mata el relay) y LDAP signing/LDAPS.',
-      'Reducir NTLM: Kerberos donde se pueda, bloquear NTLM saliente, cuentas Protected Users.',
-      'Crackear tú primero: ejecutar Responder en modo análisis interna para medir la exposición real de hashes.',
-    ],
-    referencias: ['https://attack.mitre.org/techniques/T1557/001/', 'https://github.com/lgandx/Responder', 'https://hashcat.net/hashcat/'],
-  },
-  {
-    id: 'RED-014',
     nombre: 'BGP Hijacking',
     alias: ['prefix hijacking', 'route hijack', 'route leak', 'anuncio de prefijo ilegítimo'],
     categoria: 'Red',
@@ -396,7 +372,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://bgpstream.caida.org/', 'https://www.ripe.net/publications/docs/ripe-680', 'https://en.wikipedia.org/wiki/BGP_hijacking'],
   },
   {
-    id: 'RED-015',
+    id: 'RED-014',
     nombre: 'Redirección ICMP',
     alias: ['ICMP redirect attack', 'redirección de router ICMP', 'ICMP type 5 attack'],
     categoria: 'Red',
@@ -423,7 +399,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://www.rfc-editor.org/rfc/rfc792', 'https://scapy.readthedocs.io/'],
   },
   {
-    id: 'RED-016',
+    id: 'RED-015',
     nombre: 'Suplantación CDP / LLDP',
     alias: ['CDP spoofing', 'LLDP spoofing', 'CDP flood attack', 'falsificación CDP'],
     categoria: 'Red',
@@ -450,7 +426,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://github.com/tomac/yersinia', 'https://scapy.readthedocs.io/', 'https://www.ieee802.org/1/pages/802.1ab.html'],
   },
   {
-    id: 'RED-017',
+    id: 'RED-016',
     nombre: 'Manipulación de STP (root bridge)',
     alias: ['STP attack', 'root bridge attack', 'ataque de spanning tree', 'BPDU spoofing'],
     categoria: 'Red',
@@ -477,7 +453,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://github.com/tomac/yersinia', 'https://scapy.readthedocs.io/'],
   },
   {
-    id: 'RED-018',
+    id: 'RED-017',
     nombre: 'MAC Spoofing',
     alias: ['suplantación de MAC', 'MAC cloning', 'clonado de MAC', 'spoofing de dirección MAC'],
     categoria: 'Red',
@@ -504,7 +480,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://github.com/alobbs/macchanger', 'https://en.wikipedia.org/wiki/MAC_spoofing'],
   },
   {
-    id: 'RED-019',
+    id: 'RED-018',
     nombre: 'Interceptación física del enlace (tap / inline)',
     alias: ['network tap físico', 'tap pasivo', 'splitter de fibra', 'rogue device físico'],
     categoria: 'Red',
@@ -531,7 +507,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://attack.mitre.org/techniques/T1040/', 'https://en.wikipedia.org/wiki/Network_tap'],
   },
   {
-    id: 'RED-020',
+    id: 'RED-019',
     nombre: 'Ataque WPS (Pixie Dust / fuerza bruta de PIN)',
     alias: ['WPS Pixie Dust', 'WPS PIN brute force', 'WPS attack', 'offline WPS attack'],
     categoria: 'Red',
@@ -558,7 +534,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://github.com/wiire/pixiewps', 'https://github.com/t6x/reaver-wps-fork-t6x', 'https://www.kali.org/tools/reaver/'],
   },
   {
-    id: 'RED-021',
+    id: 'RED-020',
     nombre: 'KRACK (WPA2)',
     alias: ['Key Reinstallation Attack', 'ataque de reinstalación de clave', 'KRACK attack'],
     categoria: 'Red',
@@ -586,7 +562,7 @@ export const RED_ATTACKS: AttackInfo[] = [
     referencias: ['https://www.krackattacks.com/', 'https://nvd.nist.gov/vuln/detail/CVE-2017-13077', 'https://github.com/vanhoefm/krackattacks-scripts'],
   },
   {
-    id: 'RED-022',
+    id: 'RED-021',
     nombre: 'Ataques Bluetooth (bluejacking / bluesnarfing / bluebugging)',
     alias: ['bluejacking', 'bluesnarfing', 'bluebugging', 'ataques BT de proximidad'],
     categoria: 'Red',
@@ -611,5 +587,117 @@ export const RED_ATTACKS: AttackInfo[] = [
       'Sensibilizar: aceptar vCards o emparejamientos "no pedidos" es el vector de entrada.',
     ],
     referencias: ['https://en.wikipedia.org/wiki/Bluejacking', 'https://en.wikipedia.org/wiki/Bluesnarfing', 'https://en.wikipedia.org/wiki/Bluebugging'],
+  },
+  {
+    id: 'RED-022',
+    nombre: 'Rogue DHCPv6 / mitm6 (SLAAC y DNS IPv6)',
+    alias: ['mitm6', 'DHCPv6 rogue', 'SLAAC attack', 'RA spoofing', 'IPv6 MITM'],
+    categoria: 'Red',
+    severidad: 'High',
+    mitre_attack: ['T1557'],
+    descripcion_tecnica: 'Windows prefiere IPv6 sobre IPv4 en dual-stack: si nadie desplegó IPv6, el host igual ACCEPTA anuncios. mitm6 responde a las consultas DHCPv6/SOLICIT y Router Advertisements del segmento, se proclama router IPv6 y entrega como DNS (opción 6 del DHCPv6 / RDNSS del RA) al atacante — el host le pregunta a ÉL por cualquier nombre. Con DNS IPv6 controlado, los nombres internos (adfs.corp, portales) resuelven a la IP del atacante, que fuerza autenticación HTTP y la reenvía hacia donde le interesa (el relay NTLM vive en Vulnerabilidades como técnica combinada). Complemento IPv6 del rogue DHCP (RED-005), no lo mismo: distinta pila, distintas detecciones y ni siquiera hace falta agotar el pool v4.',
+    impacto_iam_soc: 'La mayoría de redes corporativas no usan IPv6 pero no lo BLOQUEAN: cada segmento dual-stack es una superficie de posicionamiento gratis. Para el SOC es un punto ciego clásico — nadie mira DHCPv6/RA en los logs del switch. Señales: tráfico ICMPv6 RA/DHCPv6 donde no hay despliegue IPv6 documentado, y hosts con DNS IPv6 nuevo de un día para otro.',
+    como_funciona: [
+      'mitm6 -d corp.local en el segmento: responde DHCPv6 SOLICIT y SLAAC/RA, asignando al atacante como gateway y DNS IPv6 de los hosts',
+      'Los hosts (Windows default) consultan el DNS del atacante por IPv6 ANTES que el DNS v4 corporativo',
+      'Responder con A/AAAA del .corp hacia la IP del atacante para los servicios de autenticación (ADFS/portal)',
+      'El tráfico forzado al atacante alimenta relay de autenticación hacia LDAPS/HTTP (la técnica de relay completa: Vulnerabilidades) o captura directa',
+    ],
+    deteccion: {
+      kql: 'DeviceNetworkEvents | where RemotePort in (547, 546) or RemoteIP startswith "fe80::" | where LocalIP !startswith "fe80::" | take 20 // tráfico DHCPv6 en una red sin IPv6 desplegado = rogue; + ICMPv6 type 134 (RA) desde MACs no-router',
+      spl: 'index=net dest_port IN (546, 547) OR protocol=ipv6-icmp | stats count by src, dest, mac | where src NOT IN (known_routers) | sort - count',
+      sigma: 'net_rogue_dhcpv6_ra (custom)',
+    },
+    mitigacion: [
+      'Decisión explícita: si no hay IPv6, BLOQUEAR IPv6 en switches (RA guard / DHCPv6 guard / no ipv6 unicast-routing) y deshabilitar IPv6 en hosts donde no aplique',
+      'Si hay IPv6: RA Guard y DHCPv6 Guard con whitelist de routers legítimos, como se hace con ARP inspection en v4',
+      'Alertas de RA/DHCPv6 desde MACs no autorizadas y de hosts que cambian su DNS IPv6',
+      'SMB signing y LDAP signing + NTLMv2 en LDAPS — cortan la utilidad del relay que mitm6 alimenta',
+    ],
+    referencias: ['https://blog.fox-it.com/2018/01/11/mitm6-compromising-ipv4-networks-via-ipv6/', 'https://github.com/fox-it/mitm6', 'https://attack.mitre.org/techniques/T1557/'],
+  },
+  {
+    id: 'RED-023',
+    nombre: 'Bypass de 802.1X / NAC',
+    alias: ['NAC bypass', 'MAB abuse', 'MAC Authentication Bypass abuse', 'EAP-Logoff attack', 'guest VLAN escape'],
+    categoria: 'Red',
+    severidad: 'High',
+    mitre_attack: ['T1557'],
+    descripcion_tecnica: 'El portátil se conecta a la red corporativa sin credenciales: en vez de romper 802.1X, se abusa de sus excepciones. (1) MAB: los dispositivos que no saben EAP (impresoras, cámaras) se autentican por MAC — el atacante suplanta la MAC de una impresora inventariada y entra con su perfil (a menudo con acceso amplio por VLAN de "dispositivos"). (2) EAP-Logoff: trama EAPOL-Logoff falsa que "desconecta" al legítimo dejando el puerto auth-open. (3) guest/quarantine VLAN: el perfil de invitado con acceso "limitado" que en la práctica deja pasar SMB/DNS/relays. (4) Hub dual-homed: un mini-hub oculto comparte la sesión 802.1X legítima con el equipo del atacante.',
+    impacto_iam_soc: 'Ingreso físico/lógico sin tocar credenciales NI exploits: la inversión en NAC se anula con una MAC clonada. Para el SOC: la MISMA MAC (o MAC del fabricante HP* de impresora) en dos puertos/switches a la vez, cambios de MAC en un mismo puerto y EAPOL-Logoff en puertos de usuarios — telemetría que existe en los switches pero casi nunca llega al SIEM.',
+    como_funciona: [
+      'Recon del vecindario: CDP/LLDP y fingerprints DHCP para identificar impresoras/dispositivos MAB autorizados del segmento',
+      'Clonar identidad: cambiar la MAC del portátil a la de la impresora inventariada (el NAC la reconoce y asigna su perfil/VLAN)',
+      'En un puerto de usuario: enviar EAPOL-Logoff spoofeado para cerrar la sesión del legítimo o aprovechar un perfil guest/quarantine mal aislado',
+      'Persistencia física: mini-hub entre la toma y el host legítimo comparte la sesión autenticada con un segundo equipo',
+    ],
+    deteccion: {
+      kql: 'DeviceNetworkEvents | where MACAddress in (mac_inventory_printers) | summarize ports=dcount(DeviceName) by MACAddress, bin(TimeGenerated, 1h) | where ports > 1 | take 20 // misma MAC en dos sitios; + eventos del switch: dot1x auth-fail, EAPOL-Logoff, MAC flapping',
+      spl: 'index=net | stats dc(port) as ports, dc(switch) as switches by mac, bin(_time, 1h) | where ports > 1 | sort - _time | head 20 // + dot1x_supplicant events Category="auth-fail"',
+      sigma: 'nac_mab_duplicate_mac (custom)',
+    },
+    mitigacion: [
+      'Per-VLAN assignment + ACLs para perfiles MAB (las impresoras no necesitan SMB ni RDP): el bypass hereda solo lo que el perfil permite',
+      'Configurar dot1x: single-host por puerto, inactivity timer corto y manejo EAPOL-Logoff con re-autenticación — no dejar puerto auth-open tras logoff',
+      'Ingesta al SIEM de eventos dot1x/MAB, ACL dinámica por dispositivo (no por clase), y alertas de MAC flapping/learn duplicado de los switches',
+      'Guest/quarantine VLAN con deny-all intra-VLAN y solo egress a internet: un perfil de invitado que puede hablar SMB no es aislamiento',
+    ],
+    referencias: ['https://www.optiv.com/insights/source-code/blog/attacking-8021x', 'https://www.firewalls.com/blog/802-1x-bypass', 'https://en.wikipedia.org/wiki/MAC_authentication_bypass'],
+  },
+  {
+    id: 'RED-024',
+    nombre: 'Enumeración DNS (AXFR y subdominios)',
+    alias: ['DNS recon', 'zone transfer attack', 'DNS enumeration', 'subdomain brute force', 'DNSSEC walking'],
+    categoria: 'Red',
+    severidad: 'Low',
+    mitre_attack: ['T1590.002'],
+    descripcion_tecnica: 'El DNS es un mapa del dominio digital antes de pisarlo: pedir AXFR a los servidores autoritativos (si están mal configurados responde con TODA la zona: hosts, IPs internas, nombres de servicio) y bruteforcar subdominios (dev., vpn., mail., staging.) contra resolvers públicos con diccionarios. NSEC/NSEC3 walking: si la zona firma con DNSSEC y no usa NSEC3+white-lie, se puede "caminar" la zona orden alfabético. Cada nombre descubierto alimenta phishing creíble, targeting VPN/portales y finding de superficie expuesta. Es la fase RECON externa previa a casi todo lo demás (complemento del port scanning RED-008 — este enumera nombres, no puertos).',
+    impacto_iam_soc: 'La ventana de exposición externa en un solo comando: un AXFR abierto entrega la lista de activos que "nadie sabía que existía". Para el SOC externo apenas hay telemetría propia: se detecta por AXFR desde IPs no-slave hacia los autoritativos y picos de NXDOMAIN desde una misma IP en los resolvers públicos — o mejor: hazlo tú antes (recon de tu propio dominio) y financia el descubrimiento en CHANGE control.',
+    como_funciona: [
+      'dig @ns1.corp.com corp.com AXFR +noall +answer — si el autoritativo permite la transferencia a cualquiera, la zona entera cae',
+      'Subdomain brute: dnsrecon -d corp.com -t brt -D wordlist o subfinder/amass pasivos (cert-transparency logs: crt.sh enumera nombres vistos en certificados)',
+      'DNSSEC walking: walk una zona NSEC (rrsig démonstration) listando nombres existentes en orden lexicográfico',
+      'Correlación pasiva: OSINT (crt.sh, censys, shodan) sobre los nombres descubiertos para mapear IPs/ports expuestos',
+    ],
+    deteccion: {
+      kql: '// DNS propio (autoritativo): sumarizar AXFR permitidos vs deny por source; los permitidos solo desde IPs de slaves\nDnsEvents | where Name == "corp.com" and ResultData == "AXFR" | summarize cnt=count() by ClientIP | where ClientIP !in (slave_ips) | take 20 // y en resolver público: dc(Name) alto con ratio NXDOMAIN alto por IP',
+      spl: 'index=dns | stats dc(query) as doms, count as total, eval(sum(status="NXDOMAIN")) as nx by src | where doms > 500 OR (nx / total) > 0.8 | sort - doms | head 20',
+      sigma: 'dns_axfr_from_unauthorized (custom)',
+    },
+    mitigacion: [
+      'AXFR: allow-list de slaves en TODOS los autoritativos (y probarlo: dig desde fuera debe fallar) — check de hardening básico y eterno',
+      'DNSSEC con NSEC3 (o white-lie/minimization de datos) para cerrar el walking; en DNS interno, bloquear consultas recursivas externas',
+      'Gobernanza de superficie: monitoreo externo continuo (crt.sh, amass pasivo contra tu propio dominio) y baja de registros muertos — nombres viejos son superficie y phishing creíble',
+      'En resolvers públicos/cloud: rate-limit por IP y alertas de volumetría (los bruteforcers generan miles de NXDOMAIN)',
+    ],
+    referencias: ['https://attack.mitre.org/techniques/T1590/002/', 'https://digi.ninja/projects/zonetransfer.php', 'https://crt.sh/'],
+  },
+  {
+    id: 'RED-025',
+    nombre: 'Envenenamiento de routing interior (RIP / OSPF / EIGRP)',
+    alias: ['OSPF poisoning', 'RIP route injection', 'routing protocol attack', 'LSA spoofing', 'rogue router interior'],
+    categoria: 'Red',
+    severidad: 'High',
+    mitre_attack: ['T1557'],
+    descripcion_tecnica: 'El interior de la red confía en protocolos que (históricamente) no autentican: un atacante en el segmento habla RIP (broadcast 224.0.0.9, routers sin auth: aceptan rutas nuevas al instante) o se hace OSPF-vecino (224.0.0.5/6, hello + LSA) y publica LSAs que le dan la ruta preferida hacia el tráfico de las víctimas (0.0.0.0/0 o subnets específicas). EIGRP: hello sin auth → vecino falso → topología falsa. Es el MITM a escala de backbone (el mismo patrón del MITM on-path RED-001, pero por capa 3 interna) — distinto del BGP hijack (RED-013: exterior, entre AS).',
+    impacto_iam_soc: 'Interceptar TODO el tráfico inter-sede/oficina sin tocar un solo host: la posición del atacante se convierte en el camino de la red. Detección: las rutas nuevas aparecen sin cambio registrado y las adjacencias OSPF cambian (vecino NUEVO de un día para otro desde una MAC no-router); en SIEM con syslog de routing (poca gente lo ingesta).',
+    como_funciona: [
+      'RIP: responder a los broadcasts 224.0.0.9 con rutas de métrica 1 hacia 0.0.0.0/0 desde una herramienta (Loki, scapy) — los routers RIP sin auth las instalan',
+      'OSPF: capturar un hello (con área, autenticación si la hay — MD5 roto o inexistente), inyectarse como ABR y publicar LSAs type 5 (externas) que redirigen subnets a tu IP',
+      'EIGRP: hello sin auth → formar adyacencia con el router legítimo y anunciar rutas con métrica ganadora',
+      'Resultado: default/subnets enrutadas al atacante → sniffing + manipulación de todo lo que cruza (protocolos internos, LDAPS, SMB, herramientas de gestión)',
+    ],
+    deteccion: {
+      kql: '// syslogs de routing (ingestarlos!): OSPF neighbor changes y rutas nuevas sin change ticket\nSyslogEvent | where Message contains "OSPF" and Message contains_any ("adjacency", "NEIGHBOR", "state change") | where Interface in (core) | take 20 // + rutas nuevas con origination externa (BGP no) fuera de ventana de cambio',
+      spl: 'index=routing | search "OSPF-5-ADJCHG" OR "RIP" OR "EIGRP-NEIGHBOR" | stats count by host, _time | sort - _time | head 20 // y: route-table snapshots diff cada 15 min — rutas nuevas = alerta',
+      sigma: 'routing_neighbor_change_unplanned (custom)',
+    },
+    mitigacion: [
+      'Autenticación de protocolo en TODA la red interna: OSPF/EIGRP/RIPv2 con HMAC-SHA (no MD5 legacy) y áreas/tareas diseñadas — sin esto todo lo demás es cosmético',
+      'Passive interfaces: los protocolos de routing NO deben hablar en segmentos de usuario/access — solo entre routers (ni hello ni updates en VLANs de oficina)',
+      'Ingesta de routing logs al SIEM + baseline de adyacencias y rutas: alerta de vecino nuevo, LSA externa nueva y cambios de ruta fuera de ventana',
+      'Filtrado L2-L3: bloquear 224.0.0.5/6/9/10 fuera de los enlaces core-distribution con ACLs en los switches — el hello del atacante nunca llega al router',
+    ],
+    referencias: ['https://www.hackerfactor.com/blog/index.php?/archives/29-Attacking-Routers.html', 'https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/13703-22.html', 'https://attack.mitre.org/techniques/T1557/'],
   },
 ];

@@ -1,14 +1,17 @@
 // attacks/web.ts — dataset de ATAQUES de aplicación web (categoría 'Web').
 //
-// 19 técnicas: inyección (SQLi, XSS, comandos, XXE), sesión (hijacking,
-// fixation, CSRF), autorización rota (IDOR/BOLA), SSRF, deserialización,
-// subida de archivos, webshells, CORS, prototype pollution, cache
-// poisoning y prompt injection (LLM).
+// 19 técnicas: inyección (SQLi, XSS, comandos, XXE), sesión (hijacking),
+// SSRF, deserialización, subida de archivos, webshells, CORS, prototype
+// pollution, cache poisoning, prompt injection (LLM), HTTP request
+// smuggling, inyección CRLF, HPP y abuso de GraphQL.
 //
 // REGLA ANTI-DUPLICADOS: los fallos de implementación JWT/OAuth/SAML
 // (alg-none, key confusion, jku/x5u) viven en ../vulnerabilities.ts —
 // NO aquí. La SSRF a IMDS (robo de credenciales cloud) también vive
-// allí como fallo Cloud_IAM: aquí solo la técnica SSRF genérica.
+// allí como fallo Cloud_IAM: aquí solo la técnica SSRF genérica. Las
+// técnicas de identidad con entrada propia allí TAMPOCO se repiten
+// aquí: CSRF (operaciones de cuenta), open redirect (logout), session
+// fixation (rotación post-login) e IDOR/BOLA (APIs de identidad).
 //
 // IDs: WEB-001..WEB-019. 100% offline — alimenta AttacksExplorerTool.tsx
 // vía ./index.ts. Las detecciones son ejemplos de partida: ajústalas a
@@ -82,37 +85,6 @@ export const WEB_ATTACKS: AttackInfo[] = [
   },
   {
     id: 'WEB-003',
-    nombre: 'Cross-Site Request Forgery (CSRF)',
-    alias: ['XSRF', 'one-click attack', 'session riding'],
-    categoria: 'Web',
-    severidad: 'High',
-    mitre_attack: ['T1189'],
-    descripcion_tecnica: 'El navegador de la víctima ya tiene la sesión autenticada y manda la cookie automáticamente en cada petición. El atacante monta una página que dispara una petición cross-site al endpoint sensible (cambio de email, transferencia, añadir admin): el servidor la procesa como legítima porque la cookie llega sola. No se roban credenciales — se abusa de que la cookie viaja sola.',
-    impacto_iam_soc: 'Acciones como la víctima sin tocar su contraseña: cambio de email → takeover, aprobaciones, pagos. En SOC: POSTs legítimos (200) con Referer/Sec-Fetch-Site cross-site sobre endpoints state-changing.',
-    como_funciona: [
-      'Identificar endpoint sensible sin token CSRF: en Burp, quitar el token del request y ver si sigue en 200',
-      'Montar la página maliciosa: form POST oculto hacia https://app/profile/email con document.forms[0].submit() automático',
-      'Delivery del link (correo, chat, QR): la víctima solo necesita la sesión activa — ni siquiera debe hacer clic si hay auto-submit',
-      'Bypass de SameSite=Lax: endpoints legacy que aceptan GET state-changing, o form POST top-level donde el navegador igual envía la cookie',
-    ],
-    deteccion: {
-      kql: 'AppHttpRequest | where HttpMethod == "POST" and HttpStatusCode == 200 and Referrer !has "empresa.com" and Referrer != "" | project TimeGenerated, SourceIp, Url, Referrer | take 20',
-      spl: 'index=web sourcetype=access_combined method=POST status=200 referer!="*empresa.com*" referer!="-" | table _time, clientip, uri_path, referer',
-      sigma: 'web_csrf_cross_site_post (custom)',
-    },
-    mitigacion: [
-      'Token CSRF por sesión y por formulario, validado server-side (SameSite solo no basta)',
-      'Cookies SameSite=Lax/Strict como segunda capa',
-      'Re-autenticación (password/MFA) en operaciones críticas: cambio de email, transferencias, gestión de usuarios',
-      'Verificar Origin / Sec-Fetch-Site y rechazar peticiones cross-site sobre endpoints state-changing',
-    ],
-    referencias: [
-      'https://owasp.org/www-community/attacks/csrf',
-      'https://portswigger.net/web-security/csrf',
-    ],
-  },
-  {
-    id: 'WEB-004',
     nombre: 'Server-Side Request Forgery (SSRF)',
     alias: ['SSRF', 'server-side request forgery'],
     categoria: 'Web',
@@ -144,7 +116,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-005',
+    id: 'WEB-004',
     nombre: 'Command Injection (OS)',
     alias: ['OS command injection', 'inyección de comandos', 'command execution'],
     categoria: 'Web',
@@ -175,7 +147,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-006',
+    id: 'WEB-005',
     nombre: 'Path Traversal / LFI (y RFI)',
     alias: ['LFI', 'RFI', 'directory traversal', 'dot-dot-slash'],
     categoria: 'Web',
@@ -206,7 +178,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-007',
+    id: 'WEB-006',
     nombre: 'XML External Entity (XXE)',
     alias: ['XXE', 'XML injection', 'entity expansion attack'],
     categoria: 'Web',
@@ -237,7 +209,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-008',
+    id: 'WEB-007',
     nombre: 'Subida de archivos maliciosos',
     alias: ['unrestricted file upload', 'subida insegura de archivos', 'malicious file upload'],
     categoria: 'Web',
@@ -268,16 +240,16 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-009',
+    id: 'WEB-008',
     nombre: 'Webshell',
     alias: ['web shell', 'shell HTTP', 'one-liner shell'],
     categoria: 'Web',
     severidad: 'Critical',
     mitre_attack: ['T1505.003'],
-    descripcion_tecnica: 'Código plantado en el servidor (PHP/JSP/ASPX) que ejecuta comandos arbitrarios vía HTTP. Es el ARTEFACTO de persistencia post-compromiso — el VECTOR de entrada ya es WEB-008 (upload) o un RCE/deserialización de tercero. Un one-liner basta: <?php system($_GET["c"]); ?>. Familias avanzadas: China Chopper (script servidor de ~4KB con cliente GUI, base64 en cookie), WSO/b374k (file manager + SQL client), Behinder/AntSword (cifrado AES, .NET/Java).',
+    descripcion_tecnica: 'Código plantado en el servidor (PHP/JSP/ASPX) que ejecuta comandos arbitrarios vía HTTP. Es el ARTEFACTO de persistencia post-compromiso — el VECTOR de entrada ya es WEB-007 (upload) o un RCE/deserialización de tercero. Un one-liner basta: <?php system($_GET["c"]); ?>. Familias avanzadas: China Chopper (script servidor de ~4KB con cliente GUI, base64 en cookie), WSO/b374k (file manager + SQL client), Behinder/AntSword (cifrado AES, .NET/Java).',
     impacto_iam_soc: 'Terminal HTTP sobre el servidor web con los privilegios del pool — persistencia silenciosa durante meses si nadie audita el webroot. En SOC: China Chopper tiene firma de tráfico (POST corto, UA peculiar), requests al mismo .php con params base64/hex y procesos hijos del servicio web.',
     como_funciona: [
-      'Plantar (vía WEB-008, RCE o FTP débil): <?php echo shell_exec($_GET["c"]); ?> guardado como footer.php en el tema del CMS',
+      'Plantar (vía WEB-007, RCE o FTP débil): <?php echo shell_exec($_GET["c"]); ?> guardado como footer.php en el tema del CMS',
       'Operar: GET /footer.php?c=whoami — o el cliente de China Chopper (comando via cookie codificada) para stealth',
       'Empaquetar en extensiones no obvias (.ashx handler en web.config, .jspx en Tomcat, .jpg + .htaccess) para sobrevivir hunts de extensiones',
       'Encubrir: inyectar el código en un archivo legítimo (append al footer.php real del tema) y ofuscar con eval(gzinflate(base64_decode(...)))',
@@ -300,7 +272,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-010',
+    id: 'WEB-009',
     nombre: 'Deserialización insegura',
     alias: ['insecure deserialization', 'object injection', 'deserialización Java/PHP/.NET'],
     categoria: 'Web',
@@ -333,38 +305,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-011',
-    nombre: 'Open Redirect',
-    alias: ['unvalidated redirect', 'redirect abierto'],
-    categoria: 'Web',
-    severidad: 'Medium',
-    mitre_attack: ['T1566.002'],
-    descripcion_tecnica: 'El parámetro de redirección (returnUrl, next, url, continue) acepta destinos arbitrarios: ?next=https://evil.com produce un 302 del dominio legítimo hacia el atacante. Bypasses de allowlist: //evil.com (protocol-relative), https:evil.com (sin //), backslashes, o subdominios look-alike (empresa.com.evil.com).',
-    impacto_iam_soc: 'No compromete el servidor: compromete a las personas — es el disfraz perfecto para phishing (el link empieza con el dominio real y pasa allowlists de mail gateway). En SOC: clicks en redirects hacia dominios recién registrados; casi no se reporta.',
-    como_funciona: [
-      'Buscar parámetros de redirect post-login/logout/OAuth: ?next=, ?url=, ?continue= — probar //evil.com y confirmar el 302',
-      'Bypass de allowlists: https:evil.com, //evil.com, https:\\\\evil.com, dominios con prefijo del real (empresa.com.evil.com)',
-      'Delivery de phishing: https://empresa.com/sso?next=https://evil.com/login (página clonada) — el gateway ve el dominio legítimo',
-      'Encadenar: redirect como paso intermedio de flujos OAuth (redirect_uri débil) o robo de tokens vía Referer',
-    ],
-    deteccion: {
-      kql: 'AppHttpRequest | where HttpStatusCode == 302 and ResponseLocation !has "empresa.com" | project TimeGenerated, Url, ResponseLocation | take 20',
-      spl: 'index=web sourcetype=access_combined status=302 | regex _raw="Location:\\s*https?://(?!empresa\\.com)" | table _time, clientip, uri_path',
-      sigma: 'web_open_redirect_external (custom)',
-    },
-    mitigacion: [
-      'Allowlist estricta de destinos server-side (mapa id → URL), nunca tomar el dominio del input',
-      'Rechazar esquemas relativos raros (//, \\, https: sin //) — comparar tras normalizar la URL',
-      'Filtrar dominios look-alike y recién registrados en el gateway de correo (ataque derivado)',
-      'Registrar todos los redirects externos para auditar abusos del parámetro',
-    ],
-    referencias: [
-      'https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html',
-      'https://cwe.mitre.org/data/definitions/601.html',
-    ],
-  },
-  {
-    id: 'WEB-012',
+    id: 'WEB-010',
     nombre: 'Clickjacking',
     alias: ['UI redressing', 'iframe overlay', 'click hijacking'],
     categoria: 'Web',
@@ -395,7 +336,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-013',
+    id: 'WEB-011',
     nombre: 'Session Hijacking',
     alias: ['session theft', 'robo de sesión', 'cookie hijacking'],
     categoria: 'Web',
@@ -426,69 +367,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-014',
-    nombre: 'Session Fixation',
-    alias: ['fijación de sesión', 'session pre-hijacking'],
-    categoria: 'Web',
-    severidad: 'High',
-    mitre_attack: [],
-    descripcion_tecnica: 'El atacante obtiene un session id válido ANTES de que la víctima se autentique y se lo hace usar: la app asigna la cookie pre-login (o acepta el id por URL/subdominio) y NO la regenera tras el login. La sesión autenticada de la Víctima conserva el id que el atacante ya conoce — le basta con usarlo. Se distingue del hijacking (WEB-013): el id no se roba, se siembra.',
-    impacto_iam_soc: 'Takeover de sesión sin robar nada después del login — solo fijar antes. Frecuente en portales legacy con JSESSIONID en URL. En SOC: session ids presentes en URLs/cookies pre-login que persisten idénticos tras autenticación.',
-    como_funciona: [
-      'Verificar: abrir la app sin login, anotar la cookie de sesión, autenticarse y comprobar si el id cambia (Burp + Cookie Jar)',
-      'Fijar el id: link https://app/login;jsessionid=ABC123 (si la app acepta el id por URL) o cookie plantada desde un subdominio con domain=.empresa.com',
-      'Entregar el link a la víctima (correo/chat); ella se autentica sobre ese id fijado',
-      'El atacante usa el mismo id: sesión autenticada de la víctima sin conocer credenciales',
-    ],
-    deteccion: {
-      kql: 'AppHttpRequest | where Url matches regex "(?i)(jsessionid|phpsessid|\\bsid\\b|sessionid)=" | summarize count() by Url | take 10 // y en pentest: comparar cookie pre/post login',
-      spl: 'index=web sourcetype=access_combined | regex uri_path="(?i)\\?(jsessionid|phpsessid|sid|sessionid)=" | stats count by clientip, uri_path',
-      sigma: 'web_session_id_in_url (custom)',
-    },
-    mitigacion: [
-      'Regenerar SIEMPRE el session id en el login: session_regenerate_id(true) en PHP / invalidate de la sesión JEE',
-      'Solo cookies HttpOnly + Secure + SameSite (__Host- prefix); jamás aceptar session ids por URL o POST',
-      'Caducar sesiones pre-auth y abandonadas (timeout corto)',
-      'Re-autenticación al cambiar datos críticos (limita el daño si alguien fijó)',
-    ],
-    referencias: [
-      'https://owasp.org/www-community/attacks/Session_fixation',
-      'https://cwe.mitre.org/data/definitions/384.html',
-    ],
-  },
-  {
-    id: 'WEB-015',
-    nombre: 'IDOR / BOLA',
-    alias: ['Insecure Direct Object References', 'Broken Object Level Authorization', 'horizontal privilege escalation'],
-    categoria: 'Web',
-    severidad: 'High',
-    mitre_attack: [],
-    descripcion_tecnica: 'El endpoint autentica pero no autoriza por objeto: GET /api/orders/1042/invoice responde igual al dueño que a cualquier otro usuario autenticado. El atacante itera identificadores (secuenciales, UUIDs filtrados en respuestas, emails) y accede a datos ajenos. En APIs modernas se llama BOLA (Broken Object Level Authorization, #1 del OWASP API Top 10). Variante: cambiar el id dentro del body (user_id ajeno) aunque la URL sea propia.',
-    impacto_iam_soc: 'Fuga masiva horizontal (todas las cuentas) y a veces vertical (objetos admin con el mismo patrón). Invisible en logs: son requests autenticados que devuelven 200 — el patrón es UN caller tocando MUCHOS ids de objetos distintos.',
-    como_funciona: [
-      'Mapear endpoints con ids de objeto (GET/PUT/DELETE /api/{recurso}/{id}) con crawler de Burp sobre una cuenta de test',
-      'Cambiar el id al de otro objeto y comparar la respuesta — la extensión Autorize de Burp automatiza el replay con una segunda sesión',
-      'Enumerar: ids secuenciales (1..N con ffuf) o UUIDs recolectados de exports/respuestas públicas de la API',
-      'Escalar: PATCH con user_id/role en el body (mass assignment) o descubrir el mismo fallo en endpoints admin',
-    ],
-    deteccion: {
-      kql: 'AppHttpRequest | where HttpStatusCode == 200 and Url startswith "/api/" | summarize objects=dcount(ObjectId) by UserId, bin(TimeGenerated, 1h) | where objects > 50 | take 20',
-      spl: 'index=api status=200 uri="/api/*" | stats dc(object_id) as objs by user | where objs > 50 | sort - objs',
-      sigma: 'api_bola_mass_object_access (custom)',
-    },
-    mitigacion: [
-      'Autorización objeto-por-objeto en CADA endpoint: ¿el caller es dueño o tiene rol sobre ESTE objeto? (política ABAC, no confiar en solo-auth)',
-      'Referencias indirectas (mapa server-side id → objeto) y UUIDs como capa de disuasión — nunca única defensa',
-      'Tests automatizados de autorización en CI (Autorize) — regresión en cada endpoint nuevo',
-      'Rate limiting + alerta de enumeración: un user → N objetos distintos en ventana corta',
-    ],
-    referencias: [
-      'https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/',
-      'https://portswigger.net/web-security/access-control/idor',
-    ],
-  },
-  {
-    id: 'WEB-016',
+    id: 'WEB-012',
     nombre: 'Abuso de CORS mal configurado',
     alias: ['CORS misconfiguration', 'reflection de Origin', 'CORS abuse'],
     categoria: 'Web',
@@ -519,7 +398,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-017',
+    id: 'WEB-013',
     nombre: 'Prototype Pollution',
     alias: ['contaminación de prototipo', '__proto__ injection'],
     categoria: 'Web',
@@ -551,7 +430,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-018',
+    id: 'WEB-014',
     nombre: 'Web Cache Poisoning / Deception',
     alias: ['cache poisoning', 'web cache deception', 'cache deception attack'],
     categoria: 'Web',
@@ -582,7 +461,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     ],
   },
   {
-    id: 'WEB-019',
+    id: 'WEB-015',
     nombre: 'Prompt Injection (LLM)',
     alias: ['inyección de prompts', 'LLM injection', 'indirect prompt injection'],
     categoria: 'Web',
@@ -612,5 +491,117 @@ export const WEB_ATTACKS: AttackInfo[] = [
       'https://atlas.mitre.org/techniques/AML.T0051',
       'https://simonwillison.net/tags/prompt-injection/',
     ],
+  },
+  {
+    id: 'WEB-016',
+    nombre: 'HTTP Request Smuggling',
+    alias: ['request smuggling', 'HTTP desync', 'CL.TE', 'TE.CL', 'TE.TE desync'],
+    categoria: 'Web',
+    severidad: 'High',
+    mitre_attack: ['T1190'],
+    descripcion_tecnica: 'Cuando hay DOS servidores en serie (proxy/CDN/load balancer → backend), cada uno puede leer DIFERENTE dónde termina un request: uno mira Content-Length (CL), el otro Transfer-Encoding (TE). El atacante envía un request ambiguo (CL.TE, TE.CL, TE.TE) y la parte "sobrante" que un servidor ve como inicio del SIGUIENTE request queda interpretada por el otro como cola del anterior. Resultado: el backend procesa como request legítimo de la VÍCTIMA un fragmento que escribió el ATACANTE — envenenar su respuesta cacheada, capturar su siguiente request (con Authorization/cookies), bypassear controles de front-end o desincronizar la cola de conexiones.',
+    impacto_iam_soc: 'Ataque contra la INFRAESTRUCTURA, invisible por request: el payload de la víctima viaja dentro del stream de la conexión. Para el SOC: 400s extraños del backend sin causa en el front-end, respuestas cacheadas con contenido que no cuadra (otro usuario lo reporta) y discrepancias de timing/byte-count entre pares front-end/backend en el access log. Sin correlación de ambos logs no se ve.',
+    como_funciona: [
+      'Detectar el desync: Burp Repeater con variaciones CL.TE (CL dice 6, TE termina antes: la cola se interpreta como request nuevo), TE.CL y TE.TE (dos TE que no coinciden)',
+      'Poisoning: la cola smuggleada redirige al backend a pedir un contenido que el front-end CACHEA — la próxima víctima recibe esa respuesta envenenada (cache poisoning encadenado)',
+      'Captura: dejar la conexión abierta con smuggle pendiente y el SIGUIENTE usuario legítimo de esa conexión entrega su request (con Authorization header) al parser del atacante',
+      'Bypass de controles front-end: reglas de WAF, IP allowlist y rate-limit viven en el proxy — el request smuggleado entra "ya dentro" sin pasar esas reglas',
+    ],
+    deteccion: {
+      kql: 'AppHttpRequest | where HttpStatusCode == 400 and SourceSystem == "backend" | join kind=leftouter (AppHttpRequest | where HttpStatusCode == 200 and SourceSystem == "frontend") on RequestId | where isnotempty(RequestId) | take 20 // 200 en front + 400 en backend de la MISMA petición = desync confirmado',
+      spl: 'index=web sourcetype=access_combined | stats count by status, server_role, uri_path | where status >= 400 | sort -count | head 20 // correlar front/backend por jsession + byte_in front vs backend (diferencias = smuggling activo)',
+      sigma: 'http_request_smuggling_desync (custom)',
+    },
+    mitigacion: [
+      'Normalizar la configuración HTTP: un solo body parsing en toda la cadena, y deshabilitar HTTP/1.0 o keep-alive heredados donde no se necesiten',
+      'Rechazar requests AMBIGUOS por regla: si un request trae Content-Length Y Transfer-Encoding, error 400 en el front-end (RFC 7230 §3.3.3 — aplicar en CDN/proxy y app server)',
+      'Actualizar el stack (Apache/Tomcat/nginx/IIS/CDN tienen patches por CVEs de smuggling 2019-2023) — es una familia que sigue viva',
+      'No cachear respuestas de POST/requests parciales y correlar logs front+backend (400 sin causa, byte-count desigual) como alerta de desync',
+    ],
+    referencias: ['https://portswigger.net/web-security/request-smuggling', 'https://cwe.mitre.org/data/definitions/444.html', 'https://owasp.org/www-community/attacks/HTTP_Request_Smuggling'],
+  },
+  {
+    id: 'WEB-017',
+    nombre: 'Inyección CRLF',
+    alias: ['CRLF injection', 'HTTP response splitting', 'header injection', 'log injection'],
+    categoria: 'Web',
+    severidad: 'Medium',
+    mitre_attack: ['T1190'],
+    descripcion_tecnica: 'Insertar saltos de línea (CR LF: %0d%0a) en un parámetro que la app refleja en CABECERAS de la respuesta (Location, Set-Cookie, custom headers) o en logs: la app no valida y el atacante "cierra" la cabecera legítima y escribe cabeceras o incluso BODY propios. En respuesta: inyectar Set-Cookie, Location (phishing desde la URL legítima) o cachear contenido fraudulento (response splitting). En logs: falsificar entradas de auditoría (p. ej. inyectar líneas con otro user/IP para despistar al SOC) — la misma técnica, dos víctimas.',
+    impacto_iam_soc: 'Rompe la confianza en los LOGS (la línea inyectada parece legítima: otro usuario, otra IP) y en las cabeceras (la app "firma" cookies que el atacante diseñó). Casi nunca hay detección directa: se descubre por auditorías de código o en forense cuando el log no cuadra. Previo a phishing creíble (Location inyectado desde el dominio real).',
+    como_funciona: [
+      'Buscar reflejo en header: https://app/redir?next=%0d%0aSet-Cookie:%20session=abc (la app pone el valor del parámetro en una cabecera sin sanitizar)',
+      'Response splitting: el CRLF+CRLF abre BODY — el atacante escribe HTML/JS que el browser de la víctima recibe como respuesta de la app',
+      'Log injection: escribir en el user-agent/referer líneas falsas completas (timestamp falso, otro user/IP) para contaminar la auditoría del incidente',
+      'Encadenar con headers: X-Forwarded-For inyectado para bypasear controles que confían en la cabecera, o Set-Cookie para sostener un session fixation (esa técnica vive en Vulnerabilidades)',
+    ],
+    deteccion: {
+      kql: 'AppHttpRequest | where RequestUrl contains "%0d%0a" or RequestUrl contains "%0a%0d" or Referrer contains "%0d%0a" | take 20 // y: cabeceras de respuesta con más de un Set-Cookie en requests donde solo aplica uno',
+      spl: 'index=web | regex _raw="%0d%0a|%0a" | stats count by clientip, uri_path | sort -count | head 20 // + correlar: respuestas 302 con Location multilínea en el log crudo',
+      sigma: 'web_crlf_injection_attempt (custom)',
+    },
+    mitigacion: [
+      'Sanitizar/encodear CRLF (%0d, %0a, \\r, \\n) en TODO input que llegue a cabeceras, cookies o logs — validación por whitelist de caracteres, no blacklist de saltos',
+      'Nunca construir Set-Cookie/Location concatenando input del usuario: plantillas de redirect por ID (mapas) y cookies firmadas por el framework',
+      'Logs: escapear la secuencia de línea antes de escribir (y prohibir saltos en campos de identidad del log: user-agent, referer, params)',
+      'WAF: regla base de %0d%0a en URL/cabeceras hacia endpoints que reflejan headers',
+    ],
+    referencias: ['https://owasp.org/www-community/vulnerabilities/CRLF_Injection', 'https://cwe.mitre.org/data/definitions/93.html'],
+  },
+  {
+    id: 'WEB-018',
+    nombre: 'Contaminación de parámetros HTTP (HPP)',
+    alias: ['HTTP Parameter Pollution', 'HTTP Parameter tampering', 'parameter pollution', 'duplicación de parámetros'],
+    categoria: 'Web',
+    severidad: 'Medium',
+    mitre_attack: ['T1190'],
+    descripcion_tecnica: 'Enviar el MISMO parámetro dos veces (?rol=user&rol=admin): el framework, el WAF, el app server y el backend pueden leer valores distintos (el primero, el último, una lista). El atacante usa la discrepancia: el WAF valida un valor (limpio), el backend procesa otro (malicioso); o la lógica de negocio compara un parámetro y usa el otro. Es el arte de que dos capas vean realidades diferentes con la MISMA petición.',
+    impacto_iam_soc: 'Bypass silencioso de WAF/validaciones (la capa de seguridad leyó el valor "bueno"), tomas de decisión de negocio confundidas (amount=100&amount=900000 en apps que procesan el último valor y validan el primero) y log-grooming (el SIEM registra el parámetro que el logging elige — no necesariamente el que se ejecutó). Difícil de ver: cada capa está "funcionando bien" por separado.',
+    como_funciona: [
+      'Mapear el parsing: probar ?a=1&a=2 en cada endpoint y ver qué refleja la app (primero/último/lista) — la divergencia entre capas es el vector',
+      'Bypass de WAF: el WAF escanea la URL completa y decide por un valor; el backend usa otro — el payload viaja en el valor que la capa de control no miró',
+      'Lógica de negocio: password reset con dos tokens, overrides de precio/cantidad, o aceptación de terms duplicando el checkbox de consent',
+      'Fuzzing con Burp Intruder (Param Miner): detectar duplicaciones aceptadas y cabeceras ocultas que el backend honra',
+    ],
+    deteccion: {
+      kql: 'AppHttpRequest | where RequestUrl matches regex "[?&](\\w+)=([^&]*)&\\1=" | take 20 // parámetros repetidos en la misma URL; afinar por endpoint y correlar el valor PROCESADO con el LOGEADO',
+      spl: 'index=web | regex uri_path="[?&](\\w+)=[^&]*&\\1=" | stats count by clientip, uri_path | sort -count | head 20',
+      sigma: 'web_duplicate_parameter_hpp (custom)',
+    },
+    mitigacion: [
+      'Rechazar (o normalizar explícitamente) parámetros duplicados en el edge/framework: parseo único y determinista documentado — la ambigüedad es el bug',
+      'WAF y app leyendo IGUAL: validar en el mismo punto del stack donde se consume, y no reglas de seguridad basadas en una lectura distinta de la que ejecuta el backend',
+      'Fuzzing periódico (Burp Param Miner) de endpoints críticos: pagos, reset de password, roles/permisos',
+      'Logging del valor efectivamente procesado (no el raw de la URL): en incidencias, el log raw lleva a la conclusión equivocada',
+    ],
+    referencias: ['https://owasp.org/www-community/attacks/HTTP_Parameter_Pollution', 'https://portswigger.net/burp/documentation/desktop/tools/intruder'],
+  },
+  {
+    id: 'WEB-019',
+    nombre: 'Abuso de GraphQL (introspección y autorización)',
+    alias: ['GraphQL abuse', 'GraphQL introspection', 'GraphQL batching attack', 'query depth abuse', 'GraphQL brute force'],
+    categoria: 'Web',
+    severidad: 'High',
+    mitre_attack: ['T1190'],
+    descripcion_tecnica: 'GraphQL expone en el MISMO endpoint toda la API: la introspección (query __schema) entrega el mapa completo de tipos/campos/mutaciones — el atacante no adivina rutas, las descarga. Sobre ese mapa: (1) buscar campos sin autorización por objeto (el resolver de lista filtra, el de detalle no — el IDOR clásico de GraphQL); (2) nesting profundo para DoS (query en loop con alias); (3) batching para bypasear rate-limits (100 passwords en UN request "en paralelo"); (4) mutaciones de password/rol con argumentos que nadie pensó que llegarían del exterior.',
+    impacto_iam_soc: 'Un solo endpoint POST /graphql donde viven TODAS las operaciones: el access log no dice QUÉ se pidió (todo es "POST /graphql") y los controles por-URL (WAF, rate-limit, allowlist) quedan ciegos. El IDOR GraphQL (campo detail sin permisos) es el finding #1 en pentests de APIs modernas — y el batching hace el brute force invisible para los límites por-request.',
+    como_funciona: [
+      'Introspección: query { __schema { types { name fields { name } } } } — el mapa de la API cae (si no está deshabilitado); con él, graphiql/inql para explorar',
+      'Autorización por campo: pedir el detalle de un objeto que la UI nunca muestra (user(id: 999) { email roles }) — el resolver de detalle sin check de permisos entrega',
+      'Batching: mutation { login1: login(...), login2: login(...), ... login100: login(...) } — 100 intentos en un request: el rate-limit por-request los cuenta como UNO',
+      'DoS por profundidad: query anidada con aliases (a: user { friends { friends { ... } } }) — resolver exponencial con un payload de 300 bytes',
+    ],
+    deteccion: {
+      kql: 'AppHttpRequest | where Url endswith "/graphql" and HttpMethod == "POST" | summarize cnt=count(), body_avg=avg(RequestSize) by SourceIp, bin(TimeGenerated, 5m) | where cnt > 60 or body_avg > 5000 | take 20 // + WAF/edge con parseo del body: alertar __schema, depth > 10, aliases repetidos',
+      spl: 'index=web uri_path="*graphql*" method=POST | stats count, avg(bytes_in) by client_ip, bin(_time, 5m) | where count > 60 OR avg(bytes_in) > 5000 | sort -_time | head 20 // y: bodies con "__schema" o más de 10 niveles de anidación',
+      sigma: 'graphql_introspection_or_depth_abuse (custom)',
+    },
+    mitigacion: [
+      'Introspección deshabilitada en producción (o solo con auth interna) y graphiql/playground fuera del build público',
+      'Autorización por CAMPO/objeto (no por endpoint — no hay endpoints): check de permisos en cada resolver, con tests automáticos de "campo X accesible sin rol"',
+      'Límites de consulta: depth limit, cost/complexity limit (calculado por query), timeout y rate-limit por operación lógica (login, reset) — no por request HTTP',
+      'WAF/edge con comprensión de GraphQL (reglas de __schema, aliases y depth) y logging del NOMBRE de las operaciones (persisted queries/whitelist como opción dura)',
+    ],
+    referencias: ['https://cheatsheetseries.owasp.org/cheatsheets/GraphQL_Cheat_Sheet.html', 'https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/12-Testing_API/01-Testing_GraphQL'],
   },
 ];

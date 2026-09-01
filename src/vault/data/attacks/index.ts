@@ -1,9 +1,15 @@
 // attacks/index.ts — punto de entrada del dataset de ATAQUES.
 //
 // Las entradas viven en archivos por categoría (iam.ts, red.ts, dos.ts,
-// web.ts, priv.ts, misc.ts) para mantener cada archivo manejable; este
-// index los concatena y expone la API pública que consume
-// AttacksExplorerTool.tsx (mismo contrato que ../vulnerabilities.ts).
+// web.ts, misc.ts) para mantener cada archivo manejable; este index los
+// concatena y expone la API pública que consume AttacksExplorerTool.tsx
+// (mismo contrato que ../vulnerabilities.ts).
+//
+// 89 entradas · 6 categorías · 0 duplicados con Vulnerabilidades:
+// IAM/Identidad 12 (lo que no vive en Vulnerabilidades: MS14-068, bronze
+// bit, SAM/NTDS at-rest, recon, keylogging, device code, PRT, registro de
+// dispositivos, SCCM, Intune, Recycle Bin, CSV injection), Red 25, DoS 16,
+// Web 19, Social 9, Malware/C2/Exfil 8.
 //
 // 100% offline. No usar `export default`.
 
@@ -12,8 +18,7 @@ import { IAM_ATTACKS } from './iam';
 import { RED_ATTACKS } from './red';
 import { DOS_ATTACKS } from './dos';
 import { WEB_ATTACKS } from './web';
-import { PRIV_ATTACKS } from './priv';
-import { LAT_ATTACKS, PER_ATTACKS, SE_ATTACKS, MAL_ATTACKS } from './misc';
+import { SE_ATTACKS, MAL_ATTACKS } from './misc';
 
 export type { AttackCategory, AttackSeverity, AttackInfo } from './types';
 
@@ -22,9 +27,6 @@ export const ATTACKS: AttackInfo[] = [
   ...RED_ATTACKS,
   ...DOS_ATTACKS,
   ...WEB_ATTACKS,
-  ...PRIV_ATTACKS,
-  ...LAT_ATTACKS,
-  ...PER_ATTACKS,
   ...SE_ATTACKS,
   ...MAL_ATTACKS,
 ];
@@ -34,11 +36,8 @@ export const ATTACK_CATEGORY_LABELS: Record<AttackCategory, string> = {
   Red: 'Red / Sniffing',
   DoS: 'DoS / DDoS',
   Web: 'Web / Aplicación',
-  PrivEsc: 'Escalada de Privilegios',
-  Lateral: 'Movimiento Lateral',
-  Persistencia: 'Persistencia / C2 / Exfil',
   Social: 'Ingeniería Social',
-  Malware: 'Malware / Supply Chain',
+  Malware: 'Malware / C2 / Exfil',
 };
 
 /** Orden de severidad para chips y ordenación. */
@@ -54,7 +53,7 @@ export const ATTACK_SEVERITIES: AttackSeverity[] = ['Critical', 'High', 'Medium'
 
 /** Lista de categorías (para filtros) — IAM primero (foco del usuario). */
 export const ATTACK_CATEGORIES: AttackCategory[] = [
-  'IAM', 'Red', 'DoS', 'Web', 'PrivEsc', 'Lateral', 'Persistencia', 'Social', 'Malware',
+  'IAM', 'Red', 'DoS', 'Web', 'Social', 'Malware',
 ];
 
 /** Busca un ataque por su id (p. ej. "IAM-004") — usado por deep-links. */

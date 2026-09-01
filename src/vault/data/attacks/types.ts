@@ -4,22 +4,26 @@
 // `alias` de la entrada canónica (p. ej. "ARP poisoning" es alias de
 // "ARP Spoofing", no una segunda fila). Antes de añadir una entrada nueva,
 // verificar que no exista ya el MISMO concepto con otro nombre en este
-// dataset NI en ../vulnerabilities.ts (los fallos de implementación
-// viven allí: JWT alg-none, ESC de AD CS, etc. — las TÉCNICAS aquí).
+// dataset NI en ../vulnerabilities.ts — el reparto es:
+//   · Vulnerabilidades (203): fallos de implementación/configuración Y
+//     técnicas de abuso AD/IAM (Kerberoasting, PtH, DCSync, delegaciones,
+//     AD CS ESC, escalada de privilegios, movimiento lateral, persistencia,
+//     evasión SOC, phishing AiTM/SIM swap/spraying, relay NTLM…).
+//   · Ataques (89): técnicas de ataque NO cubiertas allí — Red (L2/L3,
+//     Wi-Fi, routing), DoS/DDoS, explotación web, ingeniería social,
+//     malware/C2/exfiltración y el IAM restante (exploits Kerberos sin
+//     parche, extracción at-rest, recon, PRT, SCCM/Intune, device code…).
 //
 // 100% offline — alimenta AttacksExplorerTool.tsx vía ./index.ts.
 //
-// IDs: <CATEGORÍA>-<NNN> (IAM-001, RED-002, DOS-003, WEB-004, PRIV-005,
-// LAT-006, PER-007, SE-008, MAL-009). No usar `export default`.
+// IDs: <CATEGORÍA>-<NNN> (IAM-001, RED-002, DOS-003, WEB-004, SE-005,
+// MAL-006). No usar `export default`.
 
 export type AttackCategory =
   | 'IAM'
   | 'Red'
   | 'DoS'
   | 'Web'
-  | 'PrivEsc'
-  | 'Lateral'
-  | 'Persistencia'
   | 'Social'
   | 'Malware';
 

@@ -1,18 +1,18 @@
 // attacks/dos.ts — dataset de ataques DoS / DDoS (L3/L4/L7).
 //
-// 15 entradas con categoria: 'DoS': el umbrella DDoS (DOS-001) y sus
+// 16 entradas con categoria: 'DoS': el umbrella DDoS (DOS-001) y sus
 // vectores concretos — volumétricos (SYN/ICMP/UDP), de reflección y
 // amplificación (DNS/NTP/memcached), de aplicación (HTTP flood, slow
-// HTTP, NXDOMAIN, HTTP/2 rapid reset) y de parseo (XML bomb). Los
-// ataques legacy (ping of death, teardrop, land) se mantienen como
-// referencia histórica con severidad Low.
+// HTTP, NXDOMAIN, HTTP/2 rapid reset), de parseo (XML bomb) y de
+// computación (ReDoS). Los ataques legacy (ping of death, teardrop,
+// land) se mantienen como referencia histórica con severidad Low.
 //
 // Distinción clave para no duplicar conceptos: DOS-008 (HTTP flood) es
 // VOLUMEN de peticiones; DOS-009 (slowloris/RUDY) son conexiones
 // ABIERTAS con volumen mínimo. "Smurf" es alias/variante de ICMP flood
 // (DOS-003), no una entrada propia.
 //
-// IDs: DOS-001..DOS-015. 100% offline — se concatena en ./index.ts.
+// IDs: DOS-001..DOS-016. 100% offline — se concatena en ./index.ts.
 // No usar `export default`.
 
 import type { AttackInfo } from './types';
@@ -424,5 +424,33 @@ export const DOS_ATTACKS: AttackInfo[] = [
       'Timeouts y aislamiento de proceso por request para que un parse loco no arrastre el pool entero.',
     ],
     referencias: ['https://owasp.org/www-community/attacks/XML_Entity_Expansion', 'https://cwe.mitre.org/data/definitions/776.html', 'https://en.wikipedia.org/wiki/Billion_laughs_attack'],
+  },
+  {
+    id: 'DOS-016',
+    nombre: 'ReDoS (Denial of Service por expresiones regulares)',
+    alias: ['ReDoS', 'regex DoS', 'catastrophic backtracking', 'regular expression denial of service'],
+    categoria: 'DoS',
+    severidad: 'Medium',
+    mitre_attack: [],
+    descripcion_tecnica: 'El DoS de computación: una regex "patológica" con backtracking catastrófico (grupos anidados con cuantificadores ambiguos: (a+)+, (a|aa?)+, (.*a){20}) entra en un loop exponencial al no matchear. Una entrada de ~30-50 caracteres hace que el motor evalúe 2^n combinaciones: segundos/minutos/horas de CPU por UN solo request. Se aplica contra cualquier endpoint que valide input con regex insegura (login, búsqueda, routing de URL, WAF — sí: los WAF tienen regex y un ReDoS contra el WAF lo neutraliza como capa de control). Primo del XML bomb (DOS-015), pero con firmas regex en vez de DTD.',
+    impacto_iam_soc: 'Un request de 40 bytes cuelga un worker/threads del app server: con pocos requests en serie, el pool entero queda ocupado y el servicio muere SIN volumen de tráfico anómalo (los umbrales de pps/bytes no se disparan — la métrica que sube es CPU del backend con QPS normal). Cazar: requests diminutos + latencia extrema + CPU, y timeouts del backend concentrados en un mismo endpoint.',
+    como_funciona: [
+      'Identificar la regex vulnerable: patrones de riesgo (grupos anidados + cuantificadores ambiguos) en validadores de email/username, routers y filtros de búsqueda',
+      'Payload mínimo: 40-60 chars sin matchear la última parte esperada (p. ej. "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaX" contra (a+)+) — el motor retrocede en cascada exponencial',
+      'Aplicarlo a todos los workers: pocas peticiones secuenciales (o con keep-alive múltiple) saturan el pool de threads del app server',
+      'Variante deprecada pero viva: regex del WAF/reverse-proxy (un payload diseñado contra SUS reglas congela la capa de seguridad mientras el resto del stack sigue vivo — blindaje invertido)',
+    ],
+    deteccion: {
+      kql: 'AppHttpRequest | summarize p95=percentile(DurationMs, 95), avg_size=avg(RequestSize) by Url, bin(TimeGenerated, 5m) | where p95 > 5000 and avg_size < 200 | take 20 // request diminuto + latencia extrema = ReDoS; correlar con CPU del backend',
+      spl: 'index=web sourcetype=access_combined | stats avg(duration) as lat, avg(bytes_in) as sz by uri_path | where lat > 5 AND sz < 200 | sort -lat | head 20 // y métrica de CPU del backend con QPS plano',
+      sigma: 'web_redos_tiny_high_latency (custom)',
+    },
+    mitigacion: [
+      'Regex seguras: grupos atómicos/poseivos donde el lenguaje lo permita (Java (?>...), .NET (?>...), RE2/Go sin backtracking por diseño), y evitar grupos anidados con cuantificador',
+      'Timeout y límites de computación por validación (p. ej. RegexTimeout en .NET, timeouts de PCRE2) — un match que no resuelve en X ms, falla y se loguea',
+      'Fuzzing de regex con generadores de payloads ReDoS (regexploit) sobre las expresiones del código antes de desplegar',
+      'Límite de input length en TODOS los campos validados por regex y monitoreo de latencia por endpoint (request pequeño + p95 alto = alerta, no solo umbrales de tráfico)',
+    ],
+    referencias: ['https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS', 'https://cwe.mitre.org/data/definitions/1333.html', 'https://github.com/doyensec/regexploit'],
   },
 ];
