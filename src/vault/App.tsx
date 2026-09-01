@@ -25,7 +25,10 @@ import { VaultErrorBoundary } from './components/VaultErrorBoundary';
 // Type-only import (erased at build time) — keeps the deep-link contract with
 // the lazily-loaded ToolsView chunk without pulling it into the shell bundle.
 import type { ToolDeepLink } from './components/ToolsView';
-import { exportVaultZip, importVaultBackup, IncompatibleBackupError, ZipSafetyError } from './utils/zipBackup';
+// PERF (shell slimming): zipBackup arrastra JSZip + DOMPurify + zod +
+// file-saver al bundle del shell para handlers que solo corren cuando el
+// usuario exporta/importa un backup. Se importa dinámicamente en el handler
+// (mismo módulo cacheado ⇒ instanceof de las clases de error sigue válido).
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
 // DATA & INTEL (v16) — navigation bridge: tools can ask App to switch to the
@@ -875,6 +878,7 @@ export default function App() {
   const handleExportBackup = async () => {
     try {
       setIsExporting(true);
+      const { exportVaultZip } = await import('./utils/zipBackup');
       const result = await exportVaultZip();
       const savedMsg = result.mode === 'app'
         ? 'Guardado en la carpeta de la app ✓'
@@ -897,8 +901,20 @@ export default function App() {
 
   // Import Incremental Backup handler
   const handleImportFile = async (file: File) => {
+    // El módulo se carga ANTES del try/catch de importación para que las
+    // clases de error usadas en los instanceof vengan del MISMO módulo
+    // cacheado. Los callers lo invocan fire-and-forget desde inputs de
+    // archivo, así que un fallo cargando el chunk se maneja aquí mismo.
+    let zipBackup: typeof import('./utils/zipBackup');
     try {
-      const summary = await importVaultBackup(file);
+      zipBackup = await import('./utils/zipBackup');
+    } catch (err) {
+      console.error('No se pudo cargar el módulo de backup:', err);
+      alert('Error al cargar el módulo de backup. Recarga la página e inténtalo de nuevo.');
+      return;
+    }
+    try {
+      const summary = await zipBackup.importVaultBackup(file);
       setImportSummary(summary);
     } catch (err) {
       // Spec #35: incompatible backup version (backup schemaVersion > app)
@@ -906,7 +922,7 @@ export default function App() {
       // the generic "couldn't read" alert, and NOT a partial import.
       // The IncompatibleBackupError class is thrown up-front by
       // `importVaultBackup` BEFORE any local data is mutated.
-      if (err instanceof IncompatibleBackupError) {
+      if (err instanceof zipBackup.IncompatibleBackupError) {
         console.warn('Incompatible backup:', err.backupSchemaVersion, err.backupFormatVersion);
         alert(err.message);
         return;
@@ -915,7 +931,7 @@ export default function App() {
       // metadata) must surface its SPECIFIC reason — the generic
       // "couldn't read" alert would mislead the user into thinking a
       // legit backup is corrupt. Thrown BEFORE any local data is mutated.
-      if (err instanceof ZipSafetyError) {
+      if (err instanceof zipBackup.ZipSafetyError) {
         console.warn('Zip safety rejection:', err.message);
         alert(err.message);
         return;
