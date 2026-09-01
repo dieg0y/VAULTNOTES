@@ -124,6 +124,7 @@ src/
 ## ⚡ Performance
 
 - **Code-splitting**: la ruta `/` carga solo el shell (Sidebar + Header). Las 12 vistas y los 5 modales son chunks separados (`next/dynamic`) que se montan al usarse; el chunk de búsqueda se pre-calienta en idle tras el primer paint.
+- **Shell mínimo**: el módulo de backup (JSZip + DOMPurify + zod + file-saver, ~100 KB) se carga con `import()` dinámico solo al exportar/importar un ZIP — nunca pesa en el arranque.
 - **Grafo de herramientas estático dentro de su chunk**: las 29 herramientas viajan juntas en el chunk lazy de ToolsView — estático a propósito para robustez HMR en dev (VN-F-003: ~20 dynamic imports por tool rompían el runtime de Turbopack tras reinicios del dev server).
 - **Búsqueda Ctrl+K**: corpus estático (~600 docs) indexado una vez a nivel de módulo; corpus de usuario re-indexado solo cuando cambian los datos (stamp FNV-1a sobre id+updatedAt); queries de 1 carácter sin fuzzy; contenido indexado acotado por nota.
 - **Blobs aislados**: imágenes y PDFs viven en tablas dedicadas — los listados nunca los leen; los videos jamás entran a IndexedDB (REGLA DE ORO).
@@ -205,8 +206,9 @@ bun run start
 - `eslint` → 0 errores · `tsc --noEmit` → 0 errores · `bun run build` → compila
 - **Revisión funcional final E2E (navegador real)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), **29/29 herramientas visibles (incluida Ataques: contador 89/89, aviso anti-duplicados visible, filtros por categoría — IAM 12, Red 25, DoS 16, Web 19, Social 9, Malware 8 —, búsqueda por alias — "arp poisoning" → RED-002 —, verificación de dedup — "kerberoasting" → 0 resultados en Ataques y presente en Vulnerabilidades (3/203) —, drawer completo con detección KQL y checklist de mitigación, Esc cierra)**, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
 - E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
-- Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos del reporte están fixeados y documentados en el addendum de `AUDIT_REPORT.md`
+- Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos de la auditoría interna están fixeados y verificados en navegador (el reporte interno de proceso se retiró del repo: la evidencia que importa es el código y esta lista)
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server
+- **Limpieza de repo (pasada final)**: análisis de grafo de imports — 0 archivos huérfanos (los 113 módulos de `src/` están referenciados), 2 funciones muertas eliminadas (`findVulnerabilityById`/`findAttackById`), 27 símbolos internos sin exportar, cero `console.log` de depuración y todas las dependencias de `package.json` en uso. El repo solo contiene lo que corre: `AUDIT_REPORT.md` (artefacto interno de proceso) se retiró.
 
 ---
 
@@ -221,3 +223,16 @@ fast-forward puro): features nuevas, fixes y borrados de archivos se aplican
 sin tocar tus datos (notas, labs, glosario… viven en IndexedDB en tu
 navegador). Si cambiaron dependencias (`package.json`/`bun.lock`) reinstala
 automáticamente. Si hay commits locales sin push, aborta para no perderlos.
+
+**Modo desarrollo** (`bun run dev`): tras el pull la página se recarga sola y
+Turbopack compila el código nuevo al vuelo — no haces nada más.
+
+**Modo producción** (arrancado desde `IniciarVaultNotes.bat` con build): el
+pull regenera el build (`bun run build`) automáticamente si el cambio tocó
+código real (un pull que solo cambia `*.md` no rebuild) y te pide **reiniciar
+la app**: cierra la ventana *"VaultNotes (servidor)"* y vuelve a hacer doble
+clic en `IniciarVaultNotes.bat`. Sin ese reinicio el servidor seguiría
+sirviendo el build viejo desde memoria.
+
+Si GitHub rechaza el acceso (clone sin token), el propio botón te enseña el
+comando exacto para configurarlo (`git remote set-url origin …`).
