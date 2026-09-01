@@ -54,7 +54,7 @@ export function stripBlobUrls(html: string): string {
 
 /** HTML for a video embed. REGLA DE ORO: ONLY the escaped filename reference
  *  is persisted — the src is attached at runtime as an ephemeral ObjectURL. */
-export function videoEmbedHtml(safeFilename: string, opts: { shadow?: boolean } = {}): string {
+function videoEmbedHtml(safeFilename: string, opts: { shadow?: boolean } = {}): string {
   const shadow = opts.shadow ? ' shadow-xl' : '';
   return `
       <figure class="vault-video-embed my-5 max-w-full rounded-lg overflow-hidden border border-[#262626] bg-[#0D0D0D]${shadow}" contenteditable="false" data-vault-video="${safeFilename}">

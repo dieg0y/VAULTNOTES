@@ -49,7 +49,7 @@ export interface IntelItemInput {
   contentLang?: string;
 }
 
-export interface IntelAddResult {
+interface IntelAddResult {
   /** Rows written to IndexedDB. */
   added: number;
   /** Rows refused as duplicates of an existing (or in-batch) item. */

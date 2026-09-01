@@ -13,7 +13,7 @@
  */
 
 /** Fetch options extended with a timeout. */
-export interface FetchOpts {
+interface FetchOpts {
   method?: 'GET' | 'POST';
   headers?: Record<string, string>;
   body?: string;
@@ -24,7 +24,7 @@ export interface FetchOpts {
 /** The result of a fetchWithTimeout call. On a non-2xx status, throws a
  *  FetchHttpError so providers can classify it. On network/CORS/timeout,
  *  throws the raw error — classifyError() handles it. */
-export interface FetchResult {
+interface FetchResult {
   status: number;
   ok: boolean;
   json: () => Promise<unknown>;

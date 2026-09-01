@@ -42,7 +42,7 @@ class IntelDatabase extends Dexie {
   }
 }
 
-export const intelDb = new IntelDatabase();
+const intelDb = new IntelDatabase();
 
 // ---------------------------------------------------------------------------
 // Web Crypto helpers — AES-GCM with a per-install derived key.

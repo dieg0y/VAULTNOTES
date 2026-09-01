@@ -18,7 +18,7 @@ import { SIGMA_RULES } from '../../data/sigmaData';
 import { db } from '../../db';
 import { isOnline } from '../online';
 
-export const BUNDLED_SIGMA_VERSION = '2024.01-bundled';
+const BUNDLED_SIGMA_VERSION = '2024.01-bundled';
 
 export interface SigmaLocalMeta {
   version: string;

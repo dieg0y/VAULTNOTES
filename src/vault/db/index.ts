@@ -71,7 +71,7 @@ export interface SavedCve {
   savedAt: string;
 }
 
-export interface DatasetMeta {
+interface DatasetMeta {
   /** Single-row table — id is always 'singleton'. */
   id: string;
   mitreVersion: string;
@@ -191,7 +191,7 @@ export interface InboxItem {
  * - nextReviewAt = fecha sugerida (por defecto +2 días)
  */
 export type ReviewItemType = 'note' | 'glossary' | 'lab';
-export type ReviewStatus = 'pending' | 'reviewed';
+type ReviewStatus = 'pending' | 'reviewed';
 
 export interface ReviewItem {
   /** UUID string. */
@@ -205,7 +205,7 @@ export interface ReviewItem {
   nextReviewAt: string;
 }
 
-export class VaultDatabase extends Dexie {
+class VaultDatabase extends Dexie {
   notes!: Table<Note, string>;
   glossary!: Table<GlossaryTerm, string>;
   images!: Table<StoredImage, string>;

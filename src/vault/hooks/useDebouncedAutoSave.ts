@@ -25,7 +25,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type SaveStatus = 'saved' | 'saving' | 'unsaved';
+type SaveStatus = 'saved' | 'saving' | 'unsaved';
 
 export function useDebouncedAutoSave(
   flushFn: () => Promise<void>,

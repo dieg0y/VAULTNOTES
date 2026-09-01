@@ -27,7 +27,7 @@ import { isOnline } from '../online';
 
 /** The version string baked into the bundled dataset. Bumped manually when
  *  we update mitreData.ts. */
-export const BUNDLED_MITRE_VERSION = '15.0.0-bundled';
+const BUNDLED_MITRE_VERSION = '15.0.0-bundled';
 
 /** Metadata about the locally-installed MITRE dataset. */
 export interface MitreLocalMeta {

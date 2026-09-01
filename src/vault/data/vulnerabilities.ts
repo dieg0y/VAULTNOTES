@@ -3713,11 +3713,6 @@ export const VULN_SEVERITY_ORDER: Record<VulnerabilitySeverity, number> = {
   Low: 3,
 };
 
-/** Busca una vulnerabilidad por su id (p. ej. "AD-016") — usado por deep-links. */
-export function findVulnerabilityById(id: string): VulnerabilityInfo | undefined {
-  return VULNERABILITIES.find((v) => v.id === id);
-}
-
 /** Lista de severidades (para filtros). */
 export const VULN_SEVERITIES: VulnerabilitySeverity[] = ['Critical', 'High', 'Medium', 'Low'];
 

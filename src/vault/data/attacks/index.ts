@@ -55,8 +55,3 @@ export const ATTACK_SEVERITIES: AttackSeverity[] = ['Critical', 'High', 'Medium'
 export const ATTACK_CATEGORIES: AttackCategory[] = [
   'IAM', 'Red', 'DoS', 'Web', 'Social', 'Malware',
 ];
-
-/** Busca un ataque por su id (p. ej. "IAM-004") — usado por deep-links. */
-export function findAttackById(id: string): AttackInfo | undefined {
-  return ATTACKS.find((a) => a.id === id);
-}

@@ -19,7 +19,7 @@
 import { db, type CustomSigmaRule } from '../../db';
 
 /** The minimal shape we extract from a Sigma rule YAML. */
-export interface ParsedSigmaRule {
+interface ParsedSigmaRule {
   title: string;
   id?: string;
   status: string;

@@ -67,7 +67,7 @@ export interface ConsentMissingOutcome {
 
 /** Special outcome kind returned when a fresh cache hit exists — the UI shows
  *  "Cached result available" with [Use Cached] / [Refresh]. */
-export interface CacheHitOutcome {
+interface CacheHitOutcome {
   ok: true;
   cached: true;
   result: import('./types').ProviderResult;

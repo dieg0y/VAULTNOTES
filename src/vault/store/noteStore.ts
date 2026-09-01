@@ -20,7 +20,7 @@
  */
 import { create } from 'zustand';
 
-export interface PendingNote {
+interface PendingNote {
   /** Note title (plain text, used as the H1 for new notes or H2 when appended). */
   title: string;
   /** HTML body for the note — already wrapped in <p> or a <table> by the
@@ -28,7 +28,7 @@ export interface PendingNote {
   contentHtml: string;
 }
 
-export interface NoteStore {
+interface NoteStore {
   pendingNote: PendingNote | null;
   /** Stage an "add to note" request. App.tsx opens AddToNoteModal when set.
    *  Signature kept stable for backward compat with the 13 existing callers. */

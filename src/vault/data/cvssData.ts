@@ -20,7 +20,7 @@
 export type CvssMetricCode = 'AV' | 'AC' | 'PR' | 'UI' | 'S' | 'C' | 'I' | 'A';
 
 /** Definición de un valor concreto de una métrica (e.g. AV:N). */
-export interface CvssMetricValueDef {
+interface CvssMetricValueDef {
   /** Código corto — e.g. 'N' for Network. */
   code: string;
   /** Etiqueta larga — e.g. 'Network'. */
@@ -39,7 +39,7 @@ export interface CvssMetricValueDef {
 }
 
 /** Definición de una métrica base de CVSS 3.1. */
-export interface CvssMetricDef {
+interface CvssMetricDef {
   /** Código corto — e.g. 'AV'. */
   code: CvssMetricCode;
   /** Etiqueta larga — e.g. 'Attack Vector'. */
@@ -149,10 +149,10 @@ export const CVSS_3_1_METRICS: CvssMetricDef[] = [
 export type CvssVector = Partial<Record<CvssMetricCode, string>>;
 
 /** Severidad calculada a partir del base score. */
-export type CvssSeverity = 'None' | 'Low' | 'Medium' | 'High' | 'Critical';
+type CvssSeverity = 'None' | 'Low' | 'Medium' | 'High' | 'Critical';
 
 /** Resultado del cálculo. */
-export interface CvssCalculationResult {
+interface CvssCalculationResult {
   baseScore: number;
   severity: CvssSeverity;
   impact: number;
@@ -187,7 +187,7 @@ function roundUp(input: number): number {
 }
 
 /** Determinar la severidad a partir del base score. */
-export function severityFromScore(score: number): CvssSeverity {
+function severityFromScore(score: number): CvssSeverity {
   if (score === 0) return 'None';
   if (score < 4) return 'Low';
   if (score < 7) return 'Medium';

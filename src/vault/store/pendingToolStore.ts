@@ -18,14 +18,14 @@
  */
 import { create } from 'zustand';
 
-export interface PendingTool {
+interface PendingTool {
   /** ID de la herramienta destino (debe matchear un ToolId de ToolsView). */
   toolId: string;
   /** Opcional: ID de entrada a pre-seleccionar (ej: ID de técnica MITRE o regla Sigma). */
   entryId?: string | number;
 }
 
-export interface PendingToolStore {
+interface PendingToolStore {
   pending: PendingTool | null;
   /** Dispara navegación a otra herramienta con un ID opcional. */
   setPending: (p: PendingTool) => void;

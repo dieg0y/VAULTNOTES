@@ -19,7 +19,7 @@
 export type SigmaLevel = 'critical' | 'high' | 'medium' | 'low' | 'informational';
 export type SigmaStatus = 'stable' | 'test' | 'experimental' | 'deprecated';
 
-export interface SigmaDetectionField {
+interface SigmaDetectionField {
   /** ej: "EventID" o "CommandLine" o "Image" */
   field: string;
   /** valores a matchear */
@@ -28,7 +28,7 @@ export interface SigmaDetectionField {
   modifier?: string;
 }
 
-export interface SigmaDetection {
+interface SigmaDetection {
   /** Reglas de selección — cada objeto en el array es un selector ANDed internamente. */
   selectors: SigmaDetectionField[][];
   /** Condición lógica: "selection1", "selection1 and selection2", "selection1 or selection2" */

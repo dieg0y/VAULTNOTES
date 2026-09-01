@@ -11,7 +11,7 @@
  */
 import { create } from 'zustand';
 
-export interface IocStore {
+interface IocStore {
   pendingText: string | null;
   /** Set the text that should be loaded into the IoC Extractor.
    *  Passing null clears it (used by the consumer after picking it up). */

@@ -63,7 +63,7 @@ function computeExpires(retrievedAt: string, ttlMs: number): string {
   return new Date(new Date(retrievedAt).getTime() + ttlMs).toISOString();
 }
 
-export interface CacheLookup {
+interface CacheLookup {
   /** Whether a cache entry exists for this key at all. */
   exists: boolean;
   /** Whether the entry is still within its TTL window. */

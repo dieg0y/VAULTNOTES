@@ -19,7 +19,7 @@ export const CRON_EXAMPLES: CronExample[] = [
   { expr: '0,30 * * * *', desc: 'A los 0 y 30 minutos (cada media hora)' },
 ];
 
-export interface CronShortcut {
+interface CronShortcut {
   shortcut: string;
   equivalent: string;
 }

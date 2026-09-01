@@ -15,8 +15,8 @@ import type { ToolFavorite, ToolRecent } from '../db';
 // Single-sourced from the Dexie table schemas in `db/index.ts` (they are
 // field-for-field identical — this alias keeps the hook's public API
 // unchanged while removing the duplicated shape).
-export type FavoriteEntry = ToolFavorite;
-export type RecentEntry = ToolRecent;
+type FavoriteEntry = ToolFavorite;
+type RecentEntry = ToolRecent;
 
 /**
  * Live list of favorite toolIds (sorted oldest → newest so the user's first
