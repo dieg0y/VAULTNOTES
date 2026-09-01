@@ -15,6 +15,12 @@ import { promisify } from 'util';
  *     archivos con cambios locales sin confirmar (git aborta solo).
  *  4. Si package.json / bun.lock cambiaron → `bun install` para sincronizar
  *     node_modules.
+ *  5. Servidor de PRODUCCIÓN (NODE_ENV=production): regenera el build
+ *     standalone (`bun run build`) para que el siguiente arranque sirva el
+ *     código nuevo, y responde `needsRestart: true` para que la UI pida
+ *     reiniciar (cerrar la ventana del servidor + reabrir el .bat). En
+ *     desarrollo no hace falta: Turbopack recompila solo al recargar.
+ *     Si solo cambió documentación (*.md) se salta el rebuild.
  *
  * Los datos del usuario (notas, labs, glosario, IOCs…) viven en IndexedDB en
  * el NAVEGADOR: este pull solo toca archivos de código del repositorio.
@@ -64,7 +70,31 @@ export async function POST() {
 
   try {
     // ── 1) Fetch: trae refs remotas, no toca el working tree ──────────────
-    await git(['fetch', 'origin', '--prune']);
+    // Autenticación: si el clone local no tiene el token en el remote,
+    // GitHub rechaza el fetch — se lo explicamos con el comando exacto.
+    try {
+      await git(['fetch', 'origin', '--prune']);
+    } catch (err) {
+      const raw = describeError(err);
+      if (
+        /authentication|autenticaci|could not read username|terminal prompts|permission denied|\b403\b|private/i.test(
+          raw,
+        )
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            updated: false,
+            error:
+              'GitHub rechazó el acceso al repositorio (autenticación). Configura el remote con tu token:\n' +
+              'git remote set-url origin https://TU_TOKEN@github.com/dieg0y/VAULTNOTES.git\n' +
+              'y vuelve a pulsar Pull.',
+          },
+          { status: 502 },
+        );
+      }
+      throw err;
+    }
 
     // ── 2) Resolver la rama remota por defecto (main → master fallback) ───
     let remoteRef = 'origin/main';
@@ -127,6 +157,36 @@ export async function POST() {
       installRan = true;
     }
 
+    // ── 5) Producción: regenerar el build standalone tras el pull ──────────
+    // Solo si el servidor corre en producción Y el pull tocó código real
+    // (src/ · public/ · dependencias · config). Un pull solo-docs no rebuild.
+    // El rebuild escribe .next/ mientras el server viejo sigue sirviendo:
+    // por eso la respuesta pide REINICIAR en lugar de auto-recargar.
+    const codeChanged = changedFiles.some((line) => {
+      const path = (line.split('\t').pop() || '').toLowerCase();
+      return (
+        path.startsWith('src/') ||
+        path.startsWith('public/') ||
+        needsInstall ||
+        /(?:^|\/)(next\.config\.ts|tsconfig\.json|eslint\.config\.mjs|postcss\.config\.mjs)$/.test(path)
+      );
+    });
+    let needsRestart = false;
+    let rebuildError: string | null = null;
+    if (process.env.NODE_ENV === 'production' && codeChanged) {
+      needsRestart = true;
+      try {
+        await exec('bun', ['run', 'build'], {
+          cwd: CWD,
+          timeout: 360_000,
+          maxBuffer: 16 * 1024 * 1024,
+          windowsHide: true,
+        });
+      } catch (err) {
+        rebuildError = describeError(err);
+      }
+    }
+
     // Resumen legible de los commits que entraron.
     let logSummary: string[] = [];
     try {
@@ -138,6 +198,18 @@ export async function POST() {
       logSummary = []; // no fatal
     }
 
+    let message: string;
+    if (needsRestart) {
+      message = rebuildError
+        ? `${behind} commit(s) aplicados, PERO el rebuild de producción falló: ${rebuildError} — el código en disco está actualizado; ejecuta "bun run build" y reinicia la app.`
+        : `${behind} commit(s) aplicados y build de producción regenerado — reinicia la app: cierra la ventana "VaultNotes (servidor)" y vuelve a abrir IniciarVaultNotes.bat.`;
+    } else {
+      message =
+        process.env.NODE_ENV === 'production' && !codeChanged
+          ? `${behind} commit(s) aplicados (solo documentación — no hace falta reiniciar).`
+          : `${behind} commit(s) aplicados desde GitHub.`;
+    }
+
     return NextResponse.json({
       ok: true,
       updated: true,
@@ -145,10 +217,24 @@ export async function POST() {
       head: newHead.slice(0, 7),
       changedFiles,
       needsInstall: installRan,
+      needsRestart,
+      rebuildError,
       log: logSummary,
-      message: `${behind} commit(s) aplicados desde GitHub.`,
+      message,
     });
   } catch (err) {
+    // git/binario no encontrado → mensaje accionable en vez de stack críptico.
+    if ((err as { code?: string })?.code === 'ENOENT') {
+      return NextResponse.json(
+        {
+          ok: false,
+          updated: false,
+          error:
+            'Git no está instalado o no está en el PATH. Instálalo desde https://git-scm.com y vuelve a pulsar Pull.',
+        },
+        { status: 500 },
+      );
+    }
     return NextResponse.json(
       { ok: false, updated: false, error: describeError(err) },
       { status: 500 },

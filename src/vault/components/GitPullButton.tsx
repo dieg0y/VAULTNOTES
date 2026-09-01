@@ -12,6 +12,9 @@ import { DownloadCloud, Loader2, CheckCircle2, AlertTriangle } from 'lucide-reac
  * el navegador, el pull solo actualiza archivos de código).
  *
  * Si el pull trajo cambios → recarga la página para cargar el bundle nuevo.
+ * Excepción: servidor de producción → la API regenera el build y responde
+ * `needsRestart`; el botón muestra la instrucción de reinicio (cerrar la
+ * ventana del servidor + reabrir IniciarVaultNotes.bat) sin auto-recargar.
  */
 
 interface PullResponse {
@@ -23,6 +26,11 @@ interface PullResponse {
   error?: string;
   changedFiles?: string[];
   needsInstall?: boolean;
+  /** true si el servidor corre en producción: se regeneró el build y hace
+   *  falta reiniciar la app (cerrar ventana del servidor + reabrir el .bat).
+   *  En ese caso NO se auto-recarga: el server viejo seguiría sirviendo
+   *  chunks/manifests obsoletos hasta el reinicio. */
+  needsRestart?: boolean;
   log?: string[];
   head?: string;
 }
@@ -64,6 +72,15 @@ export const GitPullButton: React.FC = () => {
       }
 
       if (data.updated) {
+        // Producción con rebuild: el server en memoria sigue sirviendo el
+        // build viejo → auto-recargar no pinta el código nuevo. Mostrar la
+        // instrucción de reinicio y mantenerla visible (30 s) en vez de
+        // recargar. En dev, Turbopack ya recompiló al recargar.
+        if (data.needsRestart) {
+          setStatus({ kind: 'ok', message: data.message || 'Actualizado — reinicia la app' });
+          scheduleReset(30_000);
+          return;
+        }
         // Hubo cambios de código → recargar para servir el bundle nuevo.
         const n = typeof data.commits === 'number' ? data.commits : 1;
         const extra = data.needsInstall ? ' (dependencias instaladas)' : '';
