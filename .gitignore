@@ -17,6 +17,9 @@ node_modules
 /.next/
 /out/
 
+# bundlers output (never in the repo)
+dist/
+
 # production
 /build
 

@@ -4,6 +4,17 @@
 
 > 🔒 **Privacidad por diseño**: tus datos nunca salen de tu máquina. La base de datos vive en IndexedDB (tu navegador). La única funcionalidad online es **opcional y explícita** (enriquecer IOCs o buscar CVEs cuando TÚ lo pides).
 
+## ⚡ Resumen en 3 minutos
+
+| Pregunta | Respuesta |
+|---|---|
+| **¿Qué es?** | Tu segundo cerebro de ciberseguridad, 100% en tu navegador — sin cuenta, sin nube, sin servidor de datos. |
+| **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` (instala, arranca y abre el navegador solo). Cualquier SO: `bun install` + `bun run dev`. |
+| **¿Dónde están mis datos?** | En IndexedDB de tu navegador (tu PC). Exporta/importa backups ZIP cuando quieras cambiar de máquina o navegador. |
+| **¿Qué hay dentro?** | 29 herramientas offline (SOC · IAM · Red · Datos · Linux), explorador de Vulnerabilidades (203) y Ataques (89, sin duplicados), apuntes con editor rico, labs, glosario con flashcards, datasets de intel (IoCs · eventos · reglas). |
+| **¿Y si actualizo el código?** | Botón **Pull** del header: descarga los cambios desde GitHub sin tocar tus datos. En producción regenera el build solo y te pide reiniciar. |
+| **Regla de oro** | Los **videos nunca entran a la base ni a los backups** — viven en tu carpeta de videos (disco). |
+
 ---
 
 ## ✨ Características
@@ -144,6 +155,7 @@ src/
 - Si ya estaba corriendo → solo abre el navegador.
 - Primera vez → instala dependencias, arranca el servidor (producción si hay build; si no, desarrollo) y espera hasta que responde para abrir `http://localhost:3000`.
 - Para **detener la app**: cierra la ventana minimizada *"VaultNotes (servidor)"*.
+- 💡 Si SmartScreen o tu antivirus bloquea el `.bat` la primera vez: clic derecho → Propiedades → **Desbloquear**, y vuelve a ejecutarlo.
 - ⚠️ **No borres ni excluyas ese archivo del repo** — es el punto de entrada de un clic para Windows; solo actualízalo si cambia el puerto o la forma de arranque (el propio archivo lo advierte en su cabecera).
 
 ### Manual (cualquier SO)
@@ -187,6 +199,8 @@ bun run start
 | `Ctrl+V` | Pegar imágenes directo al editor |
 | `Esc` | Cerrar modales |
 
+> ⌨️ Los atajos de herramientas también aparecen en `Ctrl+K` (sección comandos) — no hace falta memorizarlos.
+
 > Los atajos con `Ctrl+Shift` están desactivados mientras escribes en un campo — nunca interfieren con el navegador (por eso no hay atajos con solo `Ctrl`, p. ej. `Ctrl+T`/`Ctrl+S` siguen siendo del navegador).
 
 ---
@@ -208,7 +222,8 @@ bun run start
 - E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
 - Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos de la auditoría interna están fixeados y verificados en navegador (el reporte interno de proceso se retiró del repo: la evidencia que importa es el código y esta lista)
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server
-- **Limpieza de repo (pasada final)**: análisis de grafo de imports — 0 archivos huérfanos (los 113 módulos de `src/` están referenciados), 2 funciones muertas eliminadas (`findVulnerabilityById`/`findAttackById`), 27 símbolos internos sin exportar, cero `console.log` de depuración y todas las dependencias de `package.json` en uso. El repo solo contiene lo que corre: `AUDIT_REPORT.md` (artefacto interno de proceso) se retiró.
+- **Limpieza de repo (pasadas 1+2)**: análisis de grafo de imports — 0 archivos huérfanos (los 113 módulos de `src/` están referenciados), 2 funciones muertas eliminadas (`findVulnerabilityById`/`findAttackById`), 27 símbolos internos sin exportar, 0 `console.log`, 0 TODOs/FIXMEs, 0 `any`, todas las dependencias de `package.json` en uso y `.gitignore` completo (node_modules · .env · .next · out · dist · build · vercel). El repo solo contiene lo que corre: `AUDIT_REPORT.md` (artefacto interno) y la rama huérfana remota se retiraron.
+- **Botón Pull — verificado E2E con navegador real (7 escenarios)**: al día ✓, pull con merge fast-forward + auto-recarga (commit aplicado en `git log`) ✓, repo sucio → abort con `git stash`/`git restore .` ✓, commits locales sin push → abort ✓, red caída (503 humano) ✓, auth GitHub 401 → estado ámbar con el comando `git remote set-url` exacto ✓, Git ausente (ENOENT) ✓. `GIT_TERMINAL_PROMPT=0` evita cualquier espera interactiva de credenciales.
 
 ---
 
@@ -216,23 +231,26 @@ bun run start
 
 Uso personal / proyecto educativo de ciberseguridad. Sin garantía expresa o implícita.
 
-## Botón Pull (header, arriba a la derecha)
+## 🔄 Botón Pull (header, arriba a la derecha)
 
 Descarga actualizaciones de código directamente desde GitHub (`git fetch` +
 fast-forward puro): features nuevas, fixes y borrados de archivos se aplican
 sin tocar tus datos (notas, labs, glosario… viven en IndexedDB en tu
 navegador). Si cambiaron dependencias (`package.json`/`bun.lock`) reinstala
-automáticamente. Si hay commits locales sin push, aborta para no perderlos.
+automáticamente. Si hay commits locales sin push o cambios sin confirmar,
+aborta para no perder nada — con instrucciones exactas de qué hacer.
 
-**Modo desarrollo** (`bun run dev`): tras el pull la página se recarga sola y
-Turbopack compila el código nuevo al vuelo — no haces nada más.
+Estados del botón (icono + color):
 
-**Modo producción** (arrancado desde `IniciarVaultNotes.bat` con build): el
-pull regenera el build (`bun run build`) automáticamente si el cambio tocó
-código real (un pull que solo cambia `*.md` no rebuild) y te pide **reiniciar
-la app**: cierra la ventana *"VaultNotes (servidor)"* y vuelve a hacer doble
-clic en `IniciarVaultNotes.bat`. Sin ese reinicio el servidor seguiría
-sirviendo el build viejo desde memoria.
+| Estado | Significado |
+|---|---|
+| ⬇ gris `Pull` | normal |
+| ⟳ verde `Pull…` | trabajando (fetch + merge) |
+| ✅ verde | al día, o cambios aplicados (dev: la página se recarga sola y Turbopack recompila) |
+| 🟡 ámbar ⟳ `restart` | **producción**: el build se regeneró — cierra la ventana *"VaultNotes (servidor)"* y vuelve a abrir `IniciarVaultNotes.bat` (no auto-recarga: el server viejo seguiría sirviendo el build anterior) |
+| 🟡 ámbar 🔑 `token` | GitHub rechazó el acceso — el tooltip lleva el comando exacto: `git remote set-url origin https://TU_TOKEN@github.com/...` |
+| ⚠ rojo | error con mensaje humano: red caída, Git no instalado, repo sucio (`git stash` / `git restore .`), commits sin push… |
 
-Si GitHub rechaza el acceso (clone sin token), el propio botón te enseña el
-comando exacto para configurarlo (`git remote set-url origin …`).
+En producción el pull solo regenera el build (`bun run build`) si el cambio
+tocó código real (`*.ts/tsx`, `src/`, `public/`, deps, config) — un pull que
+solo cambia `*.md` no rebuild y no pide reiniciar.
