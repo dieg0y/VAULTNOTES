@@ -222,14 +222,11 @@ bun run start
 - E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
 - Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos de la auditoría interna están fixeados y verificados en navegador (el reporte interno de proceso se retiró del repo: la evidencia que importa es el código y esta lista)
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server
-- **Limpieza de repo (pasadas 1+2)**: análisis de grafo de imports — 0 archivos huérfanos (los 113 módulos de `src/` están referenciados), 2 funciones muertas eliminadas (`findVulnerabilityById`/`findAttackById`), 27 símbolos internos sin exportar, 0 `console.log`, 0 TODOs/FIXMEs, 0 `any`, todas las dependencias de `package.json` en uso y `.gitignore` completo (node_modules · .env · .next · out · dist · build · vercel). El repo solo contiene lo que corre: `AUDIT_REPORT.md` (artefacto interno) y la rama huérfana remota se retiraron.
+- **Limpieza de repo (pasadas 1+2+3)**: análisis de grafo de imports — 0 archivos huérfanos (los 113 módulos de `src/` están referenciados), 2 funciones muertas eliminadas (`findVulnerabilityById`/`findAttackById`), 27 símbolos internos sin exportar, 0 `console.log`, 0 TODOs/FIXMEs, 0 `any`, todas las dependencias de `package.json` en uso y `.gitignore` completo (node_modules · .env · .next · out · dist · build · vercel). El repo solo contiene lo que corre: `AUDIT_REPORT.md` (artefacto interno) y la rama huérfana remota se retiraron.
 - **Botón Pull — verificado E2E con navegador real (7 escenarios)**: al día ✓, pull con merge fast-forward + auto-recarga (commit aplicado en `git log`) ✓, repo sucio → abort con `git stash`/`git restore .` ✓, commits locales sin push → abort ✓, red caída (503 humano) ✓, auth GitHub 401 → estado ámbar con el comando `git remote set-url` exacto ✓, Git ausente (ENOENT) ✓. `GIT_TERMINAL_PROMPT=0` evita cualquier espera interactiva de credenciales.
+- **Ciclo de máquina de estados re-verificado en navegador** (última pasada): `idle → pulling → mensaje → idle` completo, con la API respondiendo en <1 s y detección de commits-locals-sin-push funcionando (mensaje exacto, sin tocar nada).
 
 ---
-
-## 📄 Licencia
-
-Uso personal / proyecto educativo de ciberseguridad. Sin garantía expresa o implícita.
 
 ## 🔄 Botón Pull (header, arriba a la derecha)
 
@@ -254,3 +251,9 @@ Estados del botón (icono + color):
 En producción el pull solo regenera el build (`bun run build`) si el cambio
 tocó código real (`*.ts/tsx`, `src/`, `public/`, deps, config) — un pull que
 solo cambia `*.md` no rebuild y no pide reiniciar.
+
+---
+
+## 📄 Licencia
+
+Uso personal / proyecto educativo de ciberseguridad. Sin garantía expresa o implícita.
