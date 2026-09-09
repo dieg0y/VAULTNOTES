@@ -154,12 +154,30 @@ src/
 
 1. **Si Bun falta** → lo instala solo vía PowerShell (1–2 min, una única vez) y sigue con la ruta completa del binario — no depende de que el PATH se refresque ni de abrir ventanas nuevas.
 2. **Si faltan dependencias** → `bun install` automático (solo la primera vez o si quedó a medias).
-3. **Arranca el servidor** — producción si hay build; si no, desarrollo — en una ventana minimizada *"VaultNotes (servidor) - NO CERRAR"* que **nunca se cierra sola**: si algo falla, queda abierta mostrando el error exacto.
-4. **Espera a que la app responda** (hasta ~4 min: la primera compilación puede tardar) y **abre tu navegador** en `http://localhost:3000`.
+3. **Activa el Modo de desarrolladores de Windows** si hace falta (1 clic de permiso, una única vez) — el compilador Turbopack de Next 16 crea symlinks y en Windows los necesita (fix oficial de Vercel; sin él: panics *"Failed to write app endpoint"*). Si lo rechazas, arranca igual con el compilador **webpack** — funciona todo, solo compila más lento la primera vez.
+4. **Arranca el servidor** — producción si hay build; si no, desarrollo — en una ventana minimizada *"VaultNotes (servidor) - NO CERRAR"* que **nunca se cierra sola**: si algo falla, queda abierta mostrando el error exacto.
+5. **Espera a que la app responda** (hasta ~4 min: la primera compilación puede tardar) y **abre tu navegador** en `http://localhost:3000`.
 - Si ya estaba corriendo → solo abre el navegador.
 - Para **detener la app**: cierra la ventana minimizada *"VaultNotes (servidor)"*.
 - 💡 Si SmartScreen o tu antivirus bloquea el `.bat` la primera vez: clic derecho → Propiedades → **Desbloquear**, y vuelve a ejecutarlo.
 - ⚠️ **No borres ni excluyas ese archivo del repo** — es el punto de entrada de un clic para Windows; solo actualízalo si cambia el puerto o la forma de arranque (el propio archivo lo advierte en su cabecera).
+
+### 🩹 Windows: errores de Turbopack en dev (solución de problemas)
+
+Si arrancas el dev server a mano (`bun run dev`) y ves en la consola:
+
+```
+Failed to benchmark file I/O: ... (os error 3)
+FATAL: An unexpected Turbopack error occurred ...
+Turbopack Error: Failed to write app endpoint /page
+```
+
+es el problema conocido de **Turbopack + symlinks en Windows**. En orden de eficacia:
+
+1. **Activa el Modo de desarrolladores** (lo hace el `.bat` solo): Configuración → Privacidad y seguridad → Para desarrolladores → *Modo de desarrolladores: Activado*. Luego **borra la carpeta `.next`** y reinicia el server.
+2. Si persiste: **excluye la carpeta del proyecto en Windows Defender** (Protección contra ransomware y análisis en tiempo real bloquean escrituras de `.next` a mitad de compilación).
+3. Si el proyecto vive en una carpeta **sincronizada por OneDrive/Drive**, muévelo fuera (los archivos bloqueados/dehidratados rompen el compilador).
+4. Alternativa estable sin cambiar nada: `bun run dev --webpack` (el compilador webpack no usa symlinks; solo compila más lento la primera vez). El botón **Pull** también reintenta el build de producción con webpack si Turbopack falla.
 
 ### Manual (cualquier SO)
 
@@ -228,7 +246,7 @@ bun run start
 - **Limpieza de repo (pasadas 1+2+3)**: análisis de grafo de imports — 0 archivos huérfanos (los 113 módulos de `src/` están referenciados), 2 funciones muertas eliminadas (`findVulnerabilityById`/`findAttackById`), 27 símbolos internos sin exportar, 0 `console.log`, 0 TODOs/FIXMEs, 0 `any`, todas las dependencias de `package.json` en uso y `.gitignore` completo (node_modules · .env · .next · out · dist · build · vercel). El repo solo contiene lo que corre: `AUDIT_REPORT.md` (artefacto interno) y la rama huérfana remota se retiraron.
 - **Botón Pull — verificado E2E con navegador real (7 escenarios)**: al día ✓, pull con merge fast-forward + auto-recarga (commit aplicado en `git log`) ✓, repo sucio → abort con `git stash`/`git restore .` ✓, commits locales sin push → abort ✓, red caída (503 humano) ✓, auth GitHub 401 → estado ámbar con el comando `git remote set-url` exacto ✓, Git ausente (ENOENT) ✓. `GIT_TERMINAL_PROMPT=0` evita cualquier espera interactiva de credenciales.
 - **Ciclo de máquina de estados re-verificado en navegador** (última pasada): `idle → pulling → mensaje → idle` completo, con la API respondiendo en <1 s y detección de commits-locals-sin-push funcionando (mensaje exacto, sin tocar nada).
-- **Compatibilidad Windows (pasada 4)**: el `IniciarVaultNotes.bat` ahora es 100% automático — instala Bun solo (ruta completa `%USERPROFILE%\.bun\bin`, sin depender del PATH de ventanas nuevas ni de re-ejecutar), dependencias con detección de instalaciones a medias, servidor en ventana que **no se cierra sola** (muestra el error si falla) y finales de línea **CRLF garantizados** vía `.gitattributes`. Scripts de `package.json` multi-SO (fuera `tee`/`cp`/`NODE_ENV=` bash-isms que mataban el arranque silenciosamente en cmd): el copy del standalone vive en `scripts/postbuild.mjs` (fs puro) y también endurece el rebuild del botón **Pull** en Windows.
+- **Compatibilidad Windows (pasadas 4+5)**: el `IniciarVaultNotes.bat` es 100% automático — instala Bun solo (ruta completa `%USERPROFILE%\.bun\bin`, sin depender del PATH de ventanas nuevas ni de re-ejecutar), dependencias con detección de instalaciones a medias, **activa el Modo de desarrolladores de Windows solo (1 clic de UAC)** para que Turbopack pueda crear symlinks — con fallback automático a `next dev --webpack` si lo rechazas —, limpieza de `.next` cuando toca, servidor en ventana que **no se cierra sola** y finales de línea **CRLF garantizados** vía `.gitattributes`. Scripts de `package.json` multi-SO (fuera `tee`/`cp`/`NODE_ENV=` bash-isms): el copy del standalone vive en `scripts/postbuild.mjs` (fs puro) y el rebuild del botón **Pull** reintenta con webpack (`build:webpack`) si Turbopack falla — verificado que `--webpack` arranca y sirve la app completa en ambos modos.
 
 ---
 

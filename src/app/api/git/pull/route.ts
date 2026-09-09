@@ -243,6 +243,9 @@ export async function POST() {
     // ── 6) Producción: regenerar el build standalone tras el pull ─────────
     // El rebuild escribe .next/ mientras el server viejo sigue sirviendo:
     // por eso la respuesta pide REINICIAR en lugar de auto-recargar.
+    // Fallback: Turbopack (default de Next 16) crea symlinks y en Windows
+    // sin "Modo de desarrolladores" falla con panic — si el build con
+    // Turbopack falla, se reintenta UNA vez con webpack (mismo output).
     const codeChanged = touchedCode(changedFiles, needsInstall);
     let needsRestart = false;
     let rebuildError: string | null = null;
@@ -250,8 +253,12 @@ export async function POST() {
       needsRestart = true;
       try {
         await runBun(['run', 'build'], 360_000);
-      } catch (err) {
-        rebuildError = describeError(err);
+      } catch {
+        try {
+          await runBun(['run', 'build:webpack'], 360_000);
+        } catch (err2) {
+          rebuildError = describeError(err2);
+        }
       }
     }
 

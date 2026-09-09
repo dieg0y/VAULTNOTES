@@ -11,12 +11,16 @@ REM
 REM  Doble clic y la app se abre sola, SIN pasos manuales ni re-ejecutar:
 REM    1. Si falta Bun      -> lo instala sola con PowerShell - 1 sola vez
 REM    2. Si faltan deps    -> las instala sola - solo la primera vez
-REM    3. Arranca servidor  -> produccion si hay build, si no desarrollo
-REM    4. Espera respuesta  -> y abre tu navegador en localhost:3000
+REM    3. Modo desarrolladores de Windows -> lo activa sola con 1 clic
+REM       de permiso - es lo que el compilador Turbopack necesita para
+REM       crear symlinks en Windows; sin el falla con panics
+REM       "Failed to write app endpoint" y "Failed to benchmark"
+REM    4. Arranca servidor  -> produccion si hay build, si no desarrollo
+REM    5. Espera respuesta  -> y abre tu navegador en localhost:3000
 REM
-REM  Nunca pide "volver a ejecutar este archivo": tras instalar Bun
-REM  sigue sola usando la carpeta estandar %USERPROFILE%\.bun\bin
-REM  agregada al PATH de esta misma sesion.
+REM  Nunca pide "volver a ejecutar este archivo". Si no activas el Modo
+REM  de desarrolladores cuando lo pide, arranca igual con el compilador
+REM  webpack - estable pero la 1a compilacion tarda mas.
 REM
 REM  Como DETENER la app: cierra la ventana minimizada
 REM  "VaultNotes (servidor)" de la barra de tareas.
@@ -30,6 +34,8 @@ REM =====================================================================
 
 cd /d "%~dp0"
 set "URL=http://localhost:3000"
+set "DEVMODE=0"
+set "JUSTENABLED=0"
 
 REM --- 1) Ya estaba corriendo? -> solo abrir el navegador --------------
 call :check_up
@@ -41,8 +47,6 @@ if not errorlevel 1 (
 )
 
 REM --- 2) Resolver Bun: PATH + carpeta estandar del instalador ---------
-REM  La carpeta se agrega ANTES de buscar: cubre un Bun recien instalado
-REM  cuyo PATH todavia no se refresco en nuevas ventanas de cmd.
 set "PATH=%PATH%;%USERPROFILE%\.bun\bin"
 where bun >nul 2>&1
 if not errorlevel 1 goto have_bun
@@ -75,20 +79,57 @@ if errorlevel 1 (
 )
 :have_deps
 
-REM --- 4) Arrancar servidor: ventana minimizada que NO se cierra sola --
-REM  cmd /k en vez de /c: si el servidor falla, la ventana queda abierta
-REM  mostrando el error exacto en vez de desaparecer sin rastro.
-if not exist ".next\standalone\server.js" goto dev_start
+REM --- 4) Modo de desarrolladores de Windows ----------------------------
+REM  Turbopack -el compilador de Next 16- crea symlinks dentro de .next;
+REM  en Windows eso exige Modo de desarrolladores o permisos de admin.
+REM  Sin el: "Failed to benchmark file I/O" + panics "Failed to write
+REM  app endpoint /page" en cada peticion. Fix oficial documentado por
+REM  Vercel: activar Developer Mode.
+reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense 2>nul | findstr /i /c:"0x1" >nul
+if not errorlevel 1 set "DEVMODE=1"
+if "%DEVMODE%"=="1" goto dev_ok
+
+echo El compilador necesita el Modo de desarrolladores de Windows
+echo -1 sola vez, para poder crear symlinks-. Sin el, Next 16 falla con
+echo panics de Turbopack en cada peticion.
+echo.
+echo Se abrira ahora una ventana de permiso de Windows: pulsa SI.
+echo.
+set "JUSTENABLED=1"
+powershell -NoProfile -Command "try { Start-Process cmd -Verb RunAs -Wait -ArgumentList '/c reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock /t REG_DWORD /f /v AllowDevelopmentWithoutDevLicense /d 1'; exit 0 } catch { exit 1 }"
+reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense 2>nul | findstr /i /c:"0x1" >nul
+if not errorlevel 1 set "DEVMODE=1"
+
+:dev_ok
+REM --- 5) Arrancar servidor: ventana minimizada que NO se cierra sola --
+if exist ".next\standalone\server.js" goto prod_start
+goto dev_start
+
+:prod_start
 echo Build de produccion encontrado. Arrancando en modo PRODUCCION...
 start "VaultNotes (servidor) - NO CERRAR" /min cmd /k "set NODE_ENV=production&& bun run start"
 goto wait_up
 
 :dev_start
-echo Arrancando en modo DESARROLLO - compila la primera pagina que abras...
+echo Arrancando en modo DESARROLLO...
+REM Cache limpia solo si: recien activado el Modo desarrolladores o
+REM caemos a webpack - el .next anterior puede tener symlinks rotos.
+if "%DEVMODE%"=="1" if not "%JUSTENABLED%"=="1" goto dev_turbo
+if exist ".next" rd /s /q ".next"
+echo Cache del compilador limpiada para partir de cero.
+if "%DEVMODE%"=="1" goto dev_turbo
+echo.
+echo Usando compilador WEBPACK estable: no activaste el Modo de
+echo desarrolladores. La app funciona igual - solo la 1a compilacion
+echo tarda un poco mas.
+start "VaultNotes (servidor) - NO CERRAR" /min cmd /k "bun run dev --webpack"
+goto wait_up
+
+:dev_turbo
 start "VaultNotes (servidor) - NO CERRAR" /min cmd /k "bun run dev"
 
 :wait_up
-REM --- 5) Esperar a que la app responda - hasta ~4 minutos -------------
+REM --- 6) Esperar a que la app responda - hasta ~4 minutos -------------
 echo Esperando a que la app este lista...
 set /a tries=0
 :waitloop
@@ -98,7 +139,7 @@ timeout /t 3 /nobreak >nul
 call :check_up
 if errorlevel 1 goto waitloop
 
-REM --- 6) Listo: abrir el navegador -------------------------------------
+REM --- 7) Listo: abrir el navegador -------------------------------------
 start "" "%URL%"
 echo.
 echo  ===============================================

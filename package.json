@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build && bun scripts/postbuild.mjs",
+    "build:webpack": "next build --webpack && bun scripts/postbuild.mjs",
     "start": "bun .next/standalone/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
