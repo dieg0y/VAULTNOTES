@@ -9,7 +9,7 @@
 | Pregunta | Respuesta |
 |---|---|
 | **¿Qué es?** | Tu segundo cerebro de ciberseguridad, 100% en tu navegador — sin cuenta, sin nube, sin servidor de datos. |
-| **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` (instala, arranca y abre el navegador solo). Cualquier SO: `bun install` + `bun run dev`. |
+| **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` — instala **todo** solo (Bun incluido si falta), arranca y abre el navegador. Cualquier SO: `bun install` + `bun run dev`. |
 | **¿Dónde están mis datos?** | En IndexedDB de tu navegador (tu PC). Exporta/importa backups ZIP cuando quieras cambiar de máquina o navegador. |
 | **¿Qué hay dentro?** | 29 herramientas offline (SOC · IAM · Red · Datos · Linux), explorador de Vulnerabilidades (203) y Ataques (89, sin duplicados), apuntes con editor rico, labs, glosario con flashcards, datasets de intel (IoCs · eventos · reglas). |
 | **¿Y si actualizo el código?** | Botón **Pull** del header: descarga los cambios desde GitHub sin tocar tus datos. En producción regenera el build solo y te pide reiniciar. |
@@ -146,14 +146,17 @@ src/
 
 ## 🚀 Instalación y ejecución
 
-**Requisitos**: [Bun](https://bun.sh) 1.x · Navegador **Chromium** (Edge/Chrome recomendado — necesario para la carpeta de videos y guardado de backups vía File System Access API).
+**Requisitos (Windows)**: nada — el `IniciarVaultNotes.bat` instala **Bun** solo si falta. Navegador **Chromium** (Edge/Chrome recomendado — necesario para la carpeta de videos y guardado de backups vía File System Access API). Otros SO: [Bun](https://bun.sh) 1.x manual.
 
-### 🖱️ Arranque con un clic (Windows)
+### 🖱️ Arranque con un clic (Windows) — 100% automático
 
-> **`IniciarVaultNotes.bat`** (raíz del repo) — doble clic y la app se abre sola, sin escribir nada más.
+> **`IniciarVaultNotes.bat`** (raíz del repo) — doble clic y la app se abre sola. **Sin pasos manuales y sin re-ejecutar nada**: el script resuelve todo en la misma ejecución.
 
+1. **Si Bun falta** → lo instala solo vía PowerShell (1–2 min, una única vez) y sigue con la ruta completa del binario — no depende de que el PATH se refresque ni de abrir ventanas nuevas.
+2. **Si faltan dependencias** → `bun install` automático (solo la primera vez o si quedó a medias).
+3. **Arranca el servidor** — producción si hay build; si no, desarrollo — en una ventana minimizada *"VaultNotes (servidor) - NO CERRAR"* que **nunca se cierra sola**: si algo falla, queda abierta mostrando el error exacto.
+4. **Espera a que la app responda** (hasta ~4 min: la primera compilación puede tardar) y **abre tu navegador** en `http://localhost:3000`.
 - Si ya estaba corriendo → solo abre el navegador.
-- Primera vez → instala dependencias, arranca el servidor (producción si hay build; si no, desarrollo) y espera hasta que responde para abrir `http://localhost:3000`.
 - Para **detener la app**: cierra la ventana minimizada *"VaultNotes (servidor)"*.
 - 💡 Si SmartScreen o tu antivirus bloquea el `.bat` la primera vez: clic derecho → Propiedades → **Desbloquear**, y vuelve a ejecutarlo.
 - ⚠️ **No borres ni excluyas ese archivo del repo** — es el punto de entrada de un clic para Windows; solo actualízalo si cambia el puerto o la forma de arranque (el propio archivo lo advierte en su cabecera).
@@ -225,6 +228,7 @@ bun run start
 - **Limpieza de repo (pasadas 1+2+3)**: análisis de grafo de imports — 0 archivos huérfanos (los 113 módulos de `src/` están referenciados), 2 funciones muertas eliminadas (`findVulnerabilityById`/`findAttackById`), 27 símbolos internos sin exportar, 0 `console.log`, 0 TODOs/FIXMEs, 0 `any`, todas las dependencias de `package.json` en uso y `.gitignore` completo (node_modules · .env · .next · out · dist · build · vercel). El repo solo contiene lo que corre: `AUDIT_REPORT.md` (artefacto interno) y la rama huérfana remota se retiraron.
 - **Botón Pull — verificado E2E con navegador real (7 escenarios)**: al día ✓, pull con merge fast-forward + auto-recarga (commit aplicado en `git log`) ✓, repo sucio → abort con `git stash`/`git restore .` ✓, commits locales sin push → abort ✓, red caída (503 humano) ✓, auth GitHub 401 → estado ámbar con el comando `git remote set-url` exacto ✓, Git ausente (ENOENT) ✓. `GIT_TERMINAL_PROMPT=0` evita cualquier espera interactiva de credenciales.
 - **Ciclo de máquina de estados re-verificado en navegador** (última pasada): `idle → pulling → mensaje → idle` completo, con la API respondiendo en <1 s y detección de commits-locals-sin-push funcionando (mensaje exacto, sin tocar nada).
+- **Compatibilidad Windows (pasada 4)**: el `IniciarVaultNotes.bat` ahora es 100% automático — instala Bun solo (ruta completa `%USERPROFILE%\.bun\bin`, sin depender del PATH de ventanas nuevas ni de re-ejecutar), dependencias con detección de instalaciones a medias, servidor en ventana que **no se cierra sola** (muestra el error si falla) y finales de línea **CRLF garantizados** vía `.gitattributes`. Scripts de `package.json` multi-SO (fuera `tee`/`cp`/`NODE_ENV=` bash-isms que mataban el arranque silenciosamente en cmd): el copy del standalone vive en `scripts/postbuild.mjs` (fs puro) y también endurece el rebuild del botón **Pull** en Windows.
 
 ---
 
