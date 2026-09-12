@@ -16,7 +16,7 @@
  * fallback, because proxy hostnames (preview panels) make hostname
  * detection unreliable.
  */
-const CACHE = 'vaultnotes-v4';
+const CACHE = 'vaultnotes-v5';
 const SHELL = ['/', '/manifest.webmanifest', '/logo.svg', '/icon.svg'];
 
 // Dev detection — Next.js dev server runs on localhost:3000. In dev the SW

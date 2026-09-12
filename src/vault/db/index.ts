@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc } from '../types';
 
 /**
  * BLOQUE 6 — Online-Optional integration tables. These live in the MAIN
@@ -230,6 +230,10 @@ class VaultDatabase extends Dexie {
   datasetMeta!: Table<DatasetMeta, string>;
   // DATA & INTEL — dataset de trabajo (IoCs · eventos · reglas). v16.
   intelItems!: Table<IntelItem, string>;
+  // PERFIL PROFESIONAL (v17) — documento único (id 'singleton') con todo el
+  // contenido del CV: skills, tools, experiencia, certs, idiomas, targetRoles.
+  // Exportable como Markdown AI-ready desde la sección "Perfil Profesional".
+  profile!: Table<ProfileDoc, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -532,6 +536,17 @@ class VaultDatabase extends Dexie {
     this.version(16).stores({
       intelItems: 'id, kind, iocType, createdAt, updatedAt',
     });
+
+    // v17: PERFIL PROFESIONAL — tabla `profile` con UNA fila (id 'singleton')
+    // que concentra el contenido del CV (skills/tools/experiencia/certs/
+    // idiomas/títulos objetivo). Alta aditiva y no destructiva: ningún dato
+    // existente se toca. El perfil viaja en los backups como profile.json
+    // (raíz del ZIP, mismo convenio que intelItems.json) y se inicializa
+    // con los datos base del usuario en initializeDatabase() (solo si la
+    // tabla está vacía — JAMÁS sobrescribe ediciones del usuario).
+    this.version(17).stores({
+      profile: 'id, updatedAt',
+    });
   }
 }
 
@@ -539,7 +554,7 @@ class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
 
 export const db = new VaultDatabase();
 
@@ -576,7 +591,10 @@ const MASTER_CATEGORIES_LIST: string[] = [
   'IAM - IGA',
   'IAM - Access Management',
   'IAM - PAM',
-  'IAM - Auth / MFA'
+  'IAM - Auth / MFA',
+  'IAM - Federation / SSO',
+  'GRC - Auditoría y Cumplimiento',
+  'GRC - Riesgo y Marco Normativo'
 ];
 
 // Previous default list kept only so the migration can safely remove old
@@ -744,6 +762,107 @@ async function doInitializeDatabase() {
     }
   });
   if (toInsert.length > 0) await db.categories.bulkAdd(toInsert);
+
+  // --- PERFIL PROFESIONAL (v17): seed inicial SOLO si la tabla está vacía.
+  // JAMÁS sobrescribe el perfil existente (el usuario edita este documento
+  // constantemente; el seed es una sola vez, como platforms/tools).
+  // Contenido base = las competencias/idiomas/certs que el usuario ya
+  // declaró tener o estar aprendiendo (IAM Analyst como rol objetivo).
+  const profileCount = await db.profile.count();
+  if (profileCount === 0) {
+    const now = new Date().toISOString();
+    const seedProfile: ProfileDoc = {
+      id: 'singleton',
+      fullName: '',
+      headline: 'IAM Analyst | Identity & Access Management',
+      email: '',
+      phone: '',
+      location: '',
+      linkedin: '',
+      portfolio: '',
+      targetRoles: [
+        'IAM Analyst',
+        'Access Management Analyst',
+        'Identity Analyst',
+        'IAM Operations Analyst',
+        'Identity & Access Governance Analyst',
+        'Access Review Analyst',
+        'Identity Lifecycle Analyst',
+        'IAM Engineer (Jr)',
+        'IT Security Analyst — IAM',
+        'IAM Administrator',
+      ],
+      summary:
+        'Analista de Identidades y Accesos (IAM) con dominio operativo del ciclo de vida de identidades ' +
+        '(Joiner-Mover-Leaver), gobierno de accesos (RBAC, access reviews, mínimo privilegio y separación ' +
+        'de funciones) y auditoría de los principales directorios e IdP del mercado: Active Directory, ' +
+        'Microsoft Entra ID (Access Reviews, Sign-in logs, Enterprise Apps, Roles, PIM) y Okta Workforce. ' +
+        'Gestión de tickets de acceso de extremo a extremo en ServiceNow con justificación, aprobación y ' +
+        'evidencia. Automatización y análisis con PowerShell. Certificación Microsoft SC-300 en proceso. ' +
+        'Español nativo e inglés B2+.',
+      skills: [
+        // CORE IAM — donde vive el analyst a diario
+        { id: 'skl-ad-audit', name: 'Active Directory (ADUC) — auditoría de usuarios, grupos y admins', group: 'Core IAM', status: 'Dominado', notes: 'Ver usuarios activos/inactivos, pertenencia a grupos, quién tiene admin. No instalarlo: auditarlo.' },
+        { id: 'skl-entra', name: 'Entra ID — Access Reviews, Sign-in logs, Enterprise Apps, Roles, PIM', group: 'Core IAM', status: 'Dominado', notes: 'Pantallas clave del día a día para revisar accesos privilegiados.' },
+        { id: 'skl-okta', name: 'Okta Workforce — reports, assignments, quién accede a qué app', group: 'Core IAM', status: 'Dominado' },
+        { id: 'skl-jml', name: 'JML (Joiner-Mover-Leaver) — altas, bajas y cambios de puesto', group: 'Procesos IAM', status: 'Dominado', notes: 'El 60% del trabajo del analyst.' },
+        { id: 'skl-rbac', name: 'RBAC — creación y mantenimiento de la matriz de roles', group: 'Procesos IAM', status: 'Dominado', notes: 'Qué puede ver Contabilidad vs TI vs Ventas.' },
+        { id: 'skl-reviews', name: 'Access Reviews / Certificaciones — reporte, aprobación/revocación y evidencia', group: 'Procesos IAM', status: 'Dominado' },
+        { id: 'skl-least-sod', name: 'Mínimo Privilegio + SoD — detección de conflictos (crear y aprobar pagos, etc.)', group: 'Procesos IAM', status: 'Dominado' },
+        { id: 'skl-saml', name: 'SAML 2.0 — SSO y federación IdP/SP', group: 'Core IAM', status: 'En proceso' },
+        { id: 'skl-oidc', name: 'OIDC / OAuth 2.0 — autorización moderna y tokens', group: 'Core IAM', status: 'En proceso' },
+        { id: 'skl-scim', name: 'SCIM / SCIM Provisioning — aprovisionamiento automatizado', group: 'Core IAM', status: 'En proceso' },
+        { id: 'skl-ca', name: 'Conditional Access — análisis de directivas (riesgo, dispositivo, MFA)', group: 'Core IAM', status: 'En proceso' },
+        { id: 'skl-sspr', name: 'SSPR — autoservicio de restablecimiento de contraseña', group: 'Core IAM', status: 'En proceso' },
+        { id: 'skl-iga-tools', name: 'IGA empresarial (SailPoint, Saviynt)', group: 'Core IAM', status: 'Por aprender' },
+        { id: 'skl-pam-tools', name: 'PAM empresarial (CyberArk, BeyondTrust)', group: 'Core IAM', status: 'Por aprender' },
+        { id: 'skl-cloud-iam', name: 'AWS IAM / GCP IAM', group: 'Core IAM', status: 'Por aprender' },
+        // Técnico
+        { id: 'skl-powershell', name: 'PowerShell — módulos AD y Microsoft Graph', group: 'Técnico', status: 'Dominado', notes: 'Reportes de usuarios/grupos y borrado masivo seguro.' },
+        { id: 'skl-kql', name: 'KQL — consultas de logs en Microsoft Sentinel/Entra', group: 'Técnico', status: 'Por aprender' },
+        { id: 'skl-sql', name: 'SQL — consultas para reportes de accesos', group: 'Técnico', status: 'Por aprender' },
+        // Blandas
+        { id: 'skl-doc', name: 'Documentación y evidencia de auditoría', group: 'Blandas', status: 'Dominado' },
+        { id: 'skl-comms', name: 'Comunicación con managers y aprobadores', group: 'Blandas', status: 'Dominado' },
+        { id: 'skl-detail', name: 'Atención al detalle y trazabilidad de tickets', group: 'Blandas', status: 'Dominado' },
+      ],
+      tools: [
+        { id: 'pt-servicenow', name: 'ServiceNow (ITSM — tickets de acceso)', level: 'Avanzado', notes: 'Herramienta #1 del analyst: abrir, documentar y cerrar con justificación, aprobador y evidencia.' },
+        { id: 'pt-powershell', name: 'PowerShell', level: 'Intermedio' },
+        { id: 'pt-entra', name: 'Microsoft Entra ID (admin center)', level: 'Avanzado' },
+        { id: 'pt-aduc', name: 'Active Directory — ADUC', level: 'Avanzado' },
+        { id: 'pt-okta', name: 'Okta Workforce (admin console)', level: 'Avanzado' },
+        { id: 'pt-excel', name: 'Excel (reportes de access reviews)', level: 'Intermedio' },
+      ],
+      experience: [],
+      education: [],
+      certifications: [
+        { id: 'cert-sc300', name: 'SC-300 — Identity and Access Administrator', issuer: 'Microsoft', status: 'En proceso', notes: 'Certificación alineada 1:1 con el rol: JML, access reviews, governance.' },
+      ],
+      languages: [
+        { id: 'lang-es', name: 'Español', level: 'Nativo' },
+        { id: 'lang-en', name: 'Inglés', level: 'B2+' },
+      ],
+      projects: [
+        { id: 'prj-vaultnotes', name: 'VaultNotes — segundo cerebro de ciberseguridad (PWA local-first)', description: 'Aplicación web offline-first con glosario IAM/SOC con flashcards de repetición espaciada, labs, análisis de IOCs, calculadora CVSS y backups automáticos a USB. Desarrollada para estudiar y aplicar IAM en la práctica.' },
+      ],
+      atsKeywords: [
+        'IAM', 'Identity and Access Management', 'IAM Analyst', 'Access Management', 'JML', 'Joiner Mover Leaver',
+        'Identity Lifecycle', 'RBAC', 'Access Reviews', 'Access Certifications', 'SoD', 'Segregation of Duties',
+        'Least Privilege', 'SAML', 'OIDC', 'OAuth 2.0', 'SCIM', 'MFA', 'Conditional Access', 'SSPR', 'PIM',
+        'Entra ID', 'Azure AD', 'Active Directory', 'ADUC', 'Okta', 'ServiceNow', 'PowerShell', 'IGA', 'PAM',
+        'Identity Governance', 'Access Governance', 'SC-300', 'Identity Analyst', 'Zero Trust',
+      ],
+      jobSearchNotes:
+        'Títulos objetivo: IAM Analyst / Access Management Analyst (ver lista). Buscar también: "Identity Analyst", ' +
+        '"IAM Operations", "Access Governance". Portales: LinkedIn, Computrabajo, Indeed, empresa-empresa. ' +
+        'Palabras clave probadas: "IAM", "identidades y accesos", "active directory", "entra id", "okta". ' +
+        'La certificación SC-300 (en proceso) es el diferenciador principal para pasar filtros ATS.',
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.profile.put(seedProfile);
+  }
 }
 
 /** Count how many active notes/labs/terms reference a category by name. */

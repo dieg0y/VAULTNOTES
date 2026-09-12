@@ -306,6 +306,94 @@ export const intelItemSchema = z.object({
 }).passthrough();
 
 // ---------------------------------------------------------------------------
+// PERFIL PROFESIONAL (v17) — sub-esquemas tolerantes (mismo contrato de
+// importación que el resto: solo id obligatorio, todo lo demás opcional).
+// ---------------------------------------------------------------------------
+
+const profileSkillSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().optional(),
+  group: z.string().optional(),
+  status: z.string().optional(),
+  notes: z.string().optional(),
+}).passthrough();
+
+const profileToolSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().optional(),
+  level: z.string().optional(),
+  notes: z.string().optional(),
+}).passthrough();
+
+const profileExperienceSchema = z.object({
+  id: z.string().min(1),
+  role: z.string().optional(),
+  company: z.string().optional(),
+  type: z.string().optional(),
+  location: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  isCurrent: z.boolean().optional(),
+  bullets: z.array(z.string()).optional(),
+}).passthrough();
+
+const profileEducationSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().optional(),
+  institution: z.string().optional(),
+  status: z.string().optional(),
+  years: z.string().optional(),
+  notes: z.string().optional(),
+}).passthrough();
+
+const profileCertificationSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().optional(),
+  issuer: z.string().optional(),
+  status: z.string().optional(),
+  date: z.string().optional(),
+  notes: z.string().optional(),
+}).passthrough();
+
+const profileLanguageSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().optional(),
+  level: z.string().optional(),
+}).passthrough();
+
+const profileProjectSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  link: z.string().optional(),
+}).passthrough();
+
+/** PERFIL PROFESIONAL (v17) — documento único (id 'singleton'). */
+export const profileSchema = z.object({
+  id: z.string().min(1),
+  fullName: z.string().optional(),
+  headline: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  location: z.string().optional(),
+  linkedin: z.string().optional(),
+  portfolio: z.string().optional(),
+  targetRoles: z.array(z.string()).optional(),
+  summary: z.string().optional(),
+  skills: z.array(profileSkillSchema).optional(),
+  tools: z.array(profileToolSchema).optional(),
+  experience: z.array(profileExperienceSchema).optional(),
+  education: z.array(profileEducationSchema).optional(),
+  certifications: z.array(profileCertificationSchema).optional(),
+  languages: z.array(profileLanguageSchema).optional(),
+  projects: z.array(profileProjectSchema).optional(),
+  atsKeywords: z.array(z.string()).optional(),
+  jobSearchNotes: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).passthrough();
+
+// ---------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------
 // (Manifest validation happens inline in zipBackup.ts — it reads the manifest

@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary } from '../types';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc } from '../types';
 import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
@@ -13,7 +13,7 @@ import {
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
   inboxItemSchema, reviewItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
-  savedCveSchema, datasetMetaSchema, intelItemSchema, validateArray,
+  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, validateArray,
 } from './backupSchemas';
 
 // ------------------------------------------------------------------
@@ -26,8 +26,11 @@ import {
  *  a JSON shape changes structurally).
  *  3.2.0 — adds `intelItems.json` (DATA & INTEL v16). Older builds would
  *  silently DROP the dataset on re-export after importing, so they now
- *  reject v3.2.0 backups up-front (IncompatibleBackupError) instead. */
-const BACKUP_FORMAT_VERSION = '3.2.0';
+ *  reject v3.2.0 backups up-front (IncompatibleBackupError) instead.
+ *  3.3.0 — adds `profile.json` (PERFIL PROFESIONAL v17). Same rationale as
+ *  3.2.0: an older build would silently drop the user's CV profile on
+ *  re-export after importing, so it rejects v3.3.0 backups up-front. */
+const BACKUP_FORMAT_VERSION = '3.3.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -358,6 +361,10 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // DATA & INTEL (v16) — dataset de trabajo (IoCs · eventos · reglas).
   // Texto plano escrito por el usuario o generado por tools; nada sensible.
   const intelItems = await db.intelItems.toArray();
+  // PERFIL PROFESIONAL (v17) — el documento del CV (skills/tools/experiencia
+  // /certs/idiomas/títulos objetivo). Texto escrito por el usuario: nada
+  // sensible y viaja en el ZIP para que el USB/copia nueva lo conserve.
+  const profileRows = await db.profile.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -391,6 +398,7 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       customSigmaRulesCount: customSigmaRules.length,
       savedCvesCount: savedCves.length,
       intelItemsCount: intelItems.length,
+      profileCount: profileRows.length,
     }
   };
 
@@ -418,6 +426,9 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // DATA & INTEL (v16) — IoCs · eventos · reglas (formato flat root-level,
   // mismo convenio que el resto de tablas auxiliares).
   zip.file('intelItems.json', JSON.stringify(intelItems, null, 2));
+  // PERFIL PROFESIONAL (v17) — documento único del CV (root-level, mismo
+  // convenio; es UNA fila — array de 1 para tolerar un futuro multi-perfil).
+  zip.file('profile.json', JSON.stringify(profileRows, null, 2));
 
   // 2. /glosario/terminos.json
   const glossaryFolder = zip.folder('glosario');
@@ -1655,6 +1666,98 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   } catch (e) {
     console.error('Error importing intelItems:', e);
+  }
+
+  // profile — PERFIL PROFESIONAL (v17) — documento único del CV. Upsert
+  // "latest wins" con el guard VN-B-012 (un backup MÁS VIEJO jamás pisa el
+  // perfil local más reciente — p. ej. el auto-respaldo rotativo de un USB
+  // viejo no revierte ediciones nuevas). Se reconstruye campo a campo para
+  // que un profile.json malformado nunca corrompa la fila local.
+  try {
+    const profFile = contents.file('profile.json');
+    if (profFile) {
+      const rawRows: unknown = JSON.parse(await profFile.async('text'));
+      const { valid: rows } = validateArray(profileSchema, rawRows);
+      const incoming = rows.find((r) => r.id === 'singleton') || rows[0];
+      if (incoming) {
+        const local = await db.profile.get('singleton');
+        const incomingNewer = !local || rowTs(incoming) > rowTs(local);
+        if (incomingNewer) {
+          const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+          const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
+          const rebuilt: ProfileDoc = {
+            id: 'singleton',
+            fullName: str(incoming.fullName),
+            headline: str(incoming.headline),
+            email: str(incoming.email),
+            phone: str(incoming.phone),
+            location: str(incoming.location),
+            linkedin: str(incoming.linkedin),
+            portfolio: str(incoming.portfolio),
+            targetRoles: strArr(incoming.targetRoles),
+            summary: str(incoming.summary),
+            skills: (incoming.skills || []).map((s) => ({
+              id: String(s.id),
+              name: str(s.name),
+              group: str(s.group) || 'Otras',
+              status: (s.status === 'Dominado' || s.status === 'Por aprender' ? s.status : 'En proceso'),
+              notes: s.notes ? str(s.notes) : undefined,
+            })),
+            tools: (incoming.tools || []).map((t) => ({
+              id: String(t.id),
+              name: str(t.name),
+              level: str(t.level) || 'Intermedio',
+              notes: t.notes ? str(t.notes) : undefined,
+            })),
+            experience: (incoming.experience || []).map((e) => ({
+              id: String(e.id),
+              role: str(e.role),
+              company: str(e.company),
+              type: e.type ? str(e.type) : undefined,
+              location: e.location ? str(e.location) : undefined,
+              startDate: e.startDate ? str(e.startDate) : undefined,
+              endDate: e.endDate ? str(e.endDate) : undefined,
+              isCurrent: e.isCurrent === true,
+              bullets: strArr(e.bullets),
+            })),
+            education: (incoming.education || []).map((ed) => ({
+              id: String(ed.id),
+              title: str(ed.title),
+              institution: str(ed.institution),
+              status: str(ed.status) || 'En curso',
+              years: ed.years ? str(ed.years) : undefined,
+              notes: ed.notes ? str(ed.notes) : undefined,
+            })),
+            certifications: (incoming.certifications || []).map((c) => ({
+              id: String(c.id),
+              name: str(c.name),
+              issuer: str(c.issuer),
+              status: str(c.status) || 'En proceso',
+              date: c.date ? str(c.date) : undefined,
+              notes: c.notes ? str(c.notes) : undefined,
+            })),
+            languages: (incoming.languages || []).map((l) => ({
+              id: String(l.id),
+              name: str(l.name),
+              level: str(l.level) || 'B2',
+            })),
+            projects: (incoming.projects || []).map((p) => ({
+              id: String(p.id),
+              name: str(p.name),
+              description: p.description ? str(p.description) : undefined,
+              link: p.link ? str(p.link) : undefined,
+            })),
+            atsKeywords: strArr(incoming.atsKeywords),
+            jobSearchNotes: str(incoming.jobSearchNotes),
+            createdAt: incoming.createdAt || new Date().toISOString(),
+            updatedAt: incoming.updatedAt || new Date().toISOString(),
+          };
+          await db.profile.put(rebuilt);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error importing profile:', e);
   }
 
   return summary;

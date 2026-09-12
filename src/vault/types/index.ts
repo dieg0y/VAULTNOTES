@@ -197,4 +197,113 @@ export interface ReferenceItem {
   updatedAt: string;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel';
+/* ------------------------------------------------------------------ */
+/* PERFIL PROFESIONAL (v17) — documento único para armar el CV.        */
+/*                                                                     */
+/* El usuario mantiene aquí TODO lo que un CV/reclutador necesita      */
+/* (skills, tools, experiencia, certs, idiomas, títulos objetivo...)  */
+/* y lo exporta como un único Markdown "AI-ready": se pega a una IA   */
+/* para que genere el CV perfecto. Vive en la tabla `profile` de la    */
+/* misma Dexie DB → viaja en los backups ZIP como profile.json.        */
+/* ------------------------------------------------------------------ */
+
+export type SkillStatus = 'Dominado' | 'En proceso' | 'Por aprender';
+
+export interface ProfileSkill {
+  id: string;
+  name: string;
+  /** Agrupador: 'Core IAM' | 'Procesos IAM' | 'Herramientas' | 'Técnico' | 'Blandas' | libre. */
+  group: string;
+  /** Estado de dominio — clave para que la IA sepa qué destacar y qué omitir. */
+  status: SkillStatus;
+  notes?: string;
+}
+
+export interface ProfileTool {
+  id: string;
+  name: string;
+  /** 'Avanzado' | 'Intermedio' | 'Básico' | 'En proceso' | libre. */
+  level: string;
+  notes?: string;
+}
+
+export interface ProfileExperience {
+  id: string;
+  role: string;
+  company: string;
+  /** 'Empleo' | 'Prácticas' | 'Proyecto' | 'Freelance' | libre. */
+  type?: string;
+  location?: string;
+  /** YYYY-MM (texto libre aceptado). */
+  startDate?: string;
+  endDate?: string;
+  /** true = "Actualidad". */
+  isCurrent: boolean;
+  /** Logros / responsabilidades — una línea por bullet. */
+  bullets: string[];
+}
+
+export interface ProfileEducation {
+  id: string;
+  title: string;
+  institution: string;
+  /** 'Completado' | 'En curso' | libre. */
+  status: string;
+  years?: string;
+  notes?: string;
+}
+
+export interface ProfileCertification {
+  id: string;
+  name: string;
+  issuer: string;
+  /** 'Obtenida' | 'En proceso' | 'Planificada'. */
+  status: string;
+  /** Fecha obtenida u objetivo (texto libre). */
+  date?: string;
+  notes?: string;
+}
+
+export interface ProfileLanguage {
+  id: string;
+  name: string;
+  /** 'Nativo' | 'C2' | 'C1' | 'B2+' | 'B2' | libre. */
+  level: string;
+}
+
+export interface ProfileProject {
+  id: string;
+  name: string;
+  description?: string;
+  link?: string;
+}
+
+export interface ProfileDoc {
+  /** Siempre 'singleton' — una sola fila en la tabla `profile`. */
+  id: string;
+  fullName: string;
+  headline: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedin: string;
+  portfolio: string;
+  /** Puestos objetivo de búsqueda (IAM Analyst, Access Management Analyst...). */
+  targetRoles: string[];
+  summary: string;
+  skills: ProfileSkill[];
+  tools: ProfileTool[];
+  experience: ProfileExperience[];
+  education: ProfileEducation[];
+  certifications: ProfileCertification[];
+  languages: ProfileLanguage[];
+  projects: ProfileProject[];
+  /** Palabras clave para ATS. */
+  atsKeywords: string[];
+  /** Notas de estrategia de búsqueda (portales, consejos, contactos). */
+  jobSearchNotes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel' | 'profile';

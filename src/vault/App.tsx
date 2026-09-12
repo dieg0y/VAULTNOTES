@@ -20,6 +20,9 @@ import {
   ToolItem,
   ReferenceItem,
 } from './types';
+// PACKS DE GLOSARIO — solo el tipo (el catálogo de 194 términos se carga
+// lazy DENTRO del modal "Packs" del GlossaryView, no en el shell).
+import type { PackTerm } from './data/iamGlossaryPacks';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { VaultErrorBoundary } from './components/VaultErrorBoundary';
@@ -61,6 +64,8 @@ const DashboardView = dynamic(() => import('./components/DashboardView').then((m
 const NotesView = dynamic(() => import('./components/NotesView').then((m) => m.NotesView), { ssr: false, loading: ViewLoader });
 const LabsView = dynamic(() => import('./components/LabsView').then((m) => m.LabsView), { ssr: false, loading: ViewLoader });
 const GlossaryView = dynamic(() => import('./components/GlossaryView').then((m) => m.GlossaryView), { ssr: false, loading: ViewLoader });
+// PERFIL PROFESIONAL (v17) — editor del CV + export Markdown AI-ready.
+const ProfileView = dynamic(() => import('./components/ProfileView').then((m) => m.ProfileView), { ssr: false, loading: ViewLoader });
 const BlogView = dynamic(() => import('./components/BlogView').then((m) => m.BlogView), { ssr: false, loading: ViewLoader });
 const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.ToolsView), { ssr: false, loading: ViewLoader });
 const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
@@ -803,6 +808,47 @@ export default function App() {
     });
   };
 
+  // PACKS DE GLOSARIO (IAM/GRC/SOC — data/iamGlossaryPacks.ts): importación
+  // bulk desde el modal "Packs" del GlossaryView. Dedupe NO destructivo por
+  // nombre normalizado (case-insensitive, trim) contra TODO el glosario
+  // (incluidos los soft-deleted, para no revivir borrados con otro id) y
+  // contra duplicados internos del propio pack. Devuelve el resumen para
+  // el mensaje del modal. Selecciona el último término agregado.
+  const handleImportGlossaryPack = useCallback(
+    async (incoming: PackTerm[]): Promise<{ added: number; skipped: number }> => {
+      const existing = await db.glossary.toArray();
+      const seen = new Set(existing.map((t) => t.term.trim().toLowerCase()));
+      const now = new Date().toISOString();
+      const toAdd: GlossaryTerm[] = [];
+      for (const p of incoming) {
+        const key = p.term.trim().toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        toAdd.push({
+          // AUDIT VN-A-001: entropy suffix (bulk mismo-ms safe — el random
+          // es por término, no por lote).
+          id: `term-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          term: p.term.trim(),
+          acronym: p.acronym?.trim() || undefined,
+          categories: p.categories.length > 0 ? p.categories : undefined,
+          shortDefinition: p.shortDefinition,
+          longDefinition: p.longDefinition,
+          example: p.example || '',
+          platform: 'General',
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      if (toAdd.length > 0) {
+        await db.glossary.bulkAdd(toAdd);
+        setSelectedTermId(toAdd[toAdd.length - 1].id);
+      }
+      return { added: toAdd.length, skipped: incoming.length - toAdd.length };
+    },
+    []
+  );
+
   const handleDeleteTerm = async (termId: string) => {
     await db.glossary.update(termId, {
       isDeleted: true,
@@ -1144,12 +1190,18 @@ export default function App() {
                 setNewItemTab('glossary');
                 setIsNewItemOpen(true);
               }}
+              onImportPackTerms={handleImportGlossaryPack}
               onOpenNote={(noteId) => {
                 setSelectedNoteId(noteId);
                 setActiveSection('notes');
               }}
             />
           )}
+
+          {/* PERFIL PROFESIONAL (v17) — documento vivo del CV (IAM Analyst).
+              Autónomo: lee/escribe la fila 'singleton' de db.profile y se
+              exporta como Markdown AI-ready desde la propia vista. */}
+          {activeSection === 'profile' && <ProfileView />}
 
           {activeSection === 'blog' && (
             <BlogView notes={notes} labs={labs} />

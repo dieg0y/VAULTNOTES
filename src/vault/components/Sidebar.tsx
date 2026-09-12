@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database } from 'lucide-react';
+import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database, IdCard } from 'lucide-react';
 import { ActiveSection } from '../types';
 import { db } from '../db';
 import { useIsOnline } from '../integrations/online';
@@ -162,6 +162,22 @@ const SidebarBase: React.FC<SidebarProps> = ({
               <span>Glosario</span>
             </div>
             <span className="text-[10px] font-mono text-[#555]">{glossaryCount}</span>
+          </button>
+
+          {/* PERFIL PROFESIONAL (v17) — CV vivo + export Markdown AI-ready. */}
+          <button
+            onClick={() => onSelectSection('profile')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'profile'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+            title="Tu CV vivo: skills, tools, experiencia, certs — expórtalo como Markdown para que una IA te arme el CV"
+          >
+            <div className="flex items-center gap-2">
+              <IdCard className="w-4 h-4" />
+              <span>Perfil Profesional</span>
+            </div>
           </button>
 
           <button
