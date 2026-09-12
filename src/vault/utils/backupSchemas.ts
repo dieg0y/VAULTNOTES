@@ -368,9 +368,10 @@ const profileProjectSchema = z.object({
   link: z.string().optional(),
 }).passthrough();
 
-/** PERFIL PROFESIONAL (v17) — documento único (id 'singleton'). */
+/** PERFIL PROFESIONAL (v17, multi-perfil desde v18) — una fila por perfil. */
 export const profileSchema = z.object({
   id: z.string().min(1),
+  name: z.string().optional(),
   fullName: z.string().optional(),
   headline: z.string().optional(),
   email: z.string().optional(),
@@ -390,6 +391,15 @@ export const profileSchema = z.object({
   atsKeywords: z.array(z.string()).optional(),
   jobSearchNotes: z.string().optional(),
   createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).passthrough();
+
+/** ROADMAP (v18) — estado del checklist del roadmap Junior IAM
+ * (id = id del ítem en data/roadmapData.ts; done/doneAt son el progreso). */
+export const roadmapItemSchema = z.object({
+  id: z.string().min(1),
+  done: z.boolean().optional(),
+  doneAt: z.string().optional().nullable(),
   updatedAt: z.string().optional(),
 }).passthrough();
 

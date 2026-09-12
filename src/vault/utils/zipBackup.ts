@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc } from '../types';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem } from '../types';
 import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
@@ -13,7 +13,7 @@ import {
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
   inboxItemSchema, reviewItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
-  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, validateArray,
+  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, validateArray,
 } from './backupSchemas';
 
 // ------------------------------------------------------------------
@@ -29,8 +29,11 @@ import {
  *  reject v3.2.0 backups up-front (IncompatibleBackupError) instead.
  *  3.3.0 — adds `profile.json` (PERFIL PROFESIONAL v17). Same rationale as
  *  3.2.0: an older build would silently drop the user's CV profile on
- *  re-export after importing, so it rejects v3.3.0 backups up-front. */
-const BACKUP_FORMAT_VERSION = '3.3.0';
+ *  re-export after importing, so it rejects v3.3.0 backups up-front.
+ *  3.4.0 — v18: `profile.json` (una fila) pasa a `profiles.json` (MULTI-
+ *  PERFIL) + `roadmap.json` (checklist del roadmap Junior IAM). El import
+ *  sigue aceptando el `profile.json` legacy (v3.3.0). */
+const BACKUP_FORMAT_VERSION = '3.4.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -264,10 +267,93 @@ function emptySummary(): ImportSummary {
     conflictDatasetMeta: 0,
     conflictTiCache: 0,
     conflictIntelItems: 0,
+    // v18 (VN-B-012): perfiles y roadmap del checklist (upsert por id con
+    // guard latest-wins — un backup viejo no pisa ediciones nuevas).
+    conflictProfiles: 0,
+    conflictRoadmapItems: 0,
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
     orphanedPdfs: 0,
+  };
+}
+
+/** Fila de perfil validada por profileSchema (tipo inferido, sin importar z). */
+type ProfileRow = ReturnType<typeof profileSchema.parse>;
+
+/** Reconstruye un ProfileDoc campo a campo desde una fila validada por
+ * profileSchema — así un profiles.json malformado jamás corrompe la fila
+ * local (misma filosofía que el resto de reconstrucciones del import). */
+function rebuildProfile(incoming: ProfileRow): ProfileDoc {
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+  const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
+  return {
+    id: incoming.id,
+    name: incoming.name || 'Perfil',
+    fullName: str(incoming.fullName),
+    headline: str(incoming.headline),
+    email: str(incoming.email),
+    phone: str(incoming.phone),
+    location: str(incoming.location),
+    linkedin: str(incoming.linkedin),
+    portfolio: str(incoming.portfolio),
+    targetRoles: strArr(incoming.targetRoles),
+    summary: str(incoming.summary),
+    skills: (incoming.skills || []).map((s) => ({
+      id: String(s.id),
+      name: str(s.name),
+      group: str(s.group) || 'Otras',
+      status: s.status === 'Dominado' || s.status === 'Por aprender' ? s.status : 'En proceso',
+      notes: s.notes ? str(s.notes) : undefined,
+    })),
+    tools: (incoming.tools || []).map((t) => ({
+      id: String(t.id),
+      name: str(t.name),
+      level: str(t.level) || 'Intermedio',
+      notes: t.notes ? str(t.notes) : undefined,
+    })),
+    experience: (incoming.experience || []).map((e) => ({
+      id: String(e.id),
+      role: str(e.role),
+      company: str(e.company),
+      type: e.type ? str(e.type) : undefined,
+      location: e.location ? str(e.location) : undefined,
+      startDate: e.startDate ? str(e.startDate) : undefined,
+      endDate: e.endDate ? str(e.endDate) : undefined,
+      isCurrent: e.isCurrent === true,
+      bullets: strArr(e.bullets),
+    })),
+    education: (incoming.education || []).map((ed) => ({
+      id: String(ed.id),
+      title: str(ed.title),
+      institution: str(ed.institution),
+      status: str(ed.status) || 'En curso',
+      years: ed.years ? str(ed.years) : undefined,
+      notes: ed.notes ? str(ed.notes) : undefined,
+    })),
+    certifications: (incoming.certifications || []).map((c) => ({
+      id: String(c.id),
+      name: str(c.name),
+      issuer: str(c.issuer),
+      status: str(c.status) || 'En proceso',
+      date: c.date ? str(c.date) : undefined,
+      notes: c.notes ? str(c.notes) : undefined,
+    })),
+    languages: (incoming.languages || []).map((l) => ({
+      id: String(l.id),
+      name: str(l.name),
+      level: str(l.level) || 'B2',
+    })),
+    projects: (incoming.projects || []).map((p) => ({
+      id: String(p.id),
+      name: str(p.name),
+      description: p.description ? str(p.description) : undefined,
+      link: p.link ? str(p.link) : undefined,
+    })),
+    atsKeywords: strArr(incoming.atsKeywords),
+    jobSearchNotes: str(incoming.jobSearchNotes),
+    createdAt: incoming.createdAt || new Date().toISOString(),
+    updatedAt: incoming.updatedAt || new Date().toISOString(),
   };
 }
 
@@ -361,10 +447,14 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // DATA & INTEL (v16) — dataset de trabajo (IoCs · eventos · reglas).
   // Texto plano escrito por el usuario o generado por tools; nada sensible.
   const intelItems = await db.intelItems.toArray();
-  // PERFIL PROFESIONAL (v17) — el documento del CV (skills/tools/experiencia
-  // /certs/idiomas/títulos objetivo). Texto escrito por el usuario: nada
-  // sensible y viaja en el ZIP para que el USB/copia nueva lo conserve.
+  // PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18) — documentos del CV
+  // (una fila por perfil: skills/tools/experiencia/certs/idiomas/títulos
+  // objetivo). Texto escrito por el usuario: nada sensible y viaja en el
+  // ZIP para que el USB/copia nueva lo conserve.
   const profileRows = await db.profile.toArray();
+  // ROADMAP (v18) — estado del checklist del roadmap Junior IAM (done/doneAt
+  // por ítem). Viaja en el ZIP para que el progreso sobreviva en el USB.
+  const roadmapRows = await db.roadmapItems.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -399,6 +489,7 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       savedCvesCount: savedCves.length,
       intelItemsCount: intelItems.length,
       profileCount: profileRows.length,
+      roadmapItemsCount: roadmapRows.length,
     }
   };
 
@@ -426,9 +517,12 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // DATA & INTEL (v16) — IoCs · eventos · reglas (formato flat root-level,
   // mismo convenio que el resto de tablas auxiliares).
   zip.file('intelItems.json', JSON.stringify(intelItems, null, 2));
-  // PERFIL PROFESIONAL (v17) — documento único del CV (root-level, mismo
-  // convenio; es UNA fila — array de 1 para tolerar un futuro multi-perfil).
-  zip.file('profile.json', JSON.stringify(profileRows, null, 2));
+  // PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18) — documentos del CV
+  // (root-level, mismo convenio). v3.4.0: `profiles.json` con TODAS las
+  // filas (el `profile.json` legacy de una fila ya no se escribe).
+  zip.file('profiles.json', JSON.stringify(profileRows, null, 2));
+  // ROADMAP (v18) — estado del checklist (root-level, mismo convenio).
+  zip.file('roadmap.json', JSON.stringify(roadmapRows, null, 2));
 
   // 2. /glosario/terminos.json
   const glossaryFolder = zip.folder('glosario');
@@ -1668,96 +1762,56 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     console.error('Error importing intelItems:', e);
   }
 
-  // profile — PERFIL PROFESIONAL (v17) — documento único del CV. Upsert
-  // "latest wins" con el guard VN-B-012 (un backup MÁS VIEJO jamás pisa el
-  // perfil local más reciente — p. ej. el auto-respaldo rotativo de un USB
-  // viejo no revierte ediciones nuevas). Se reconstruye campo a campo para
-  // que un profile.json malformado nunca corrompa la fila local.
+  // profiles — PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18). Upsert
+  // por id "latest wins" con el guard VN-B-012 (un backup MÁS VIEJO jamás
+  // pisa una fila local más reciente — p. ej. el auto-respaldo rotativo de
+  // un USB viejo no revierte ediciones nuevas). Lee `profiles.json` (v3.4.0)
+  // con TODAS las filas y, como fallback, el `profile.json` legacy (v3.3.0,
+  // una sola fila). Cada fila se reconstruye campo a campo para que un
+  // profiles.json malformado nunca corrompa la fila local.
   try {
-    const profFile = contents.file('profile.json');
+    const profFile = contents.file('profiles.json') || contents.file('profile.json');
     if (profFile) {
       const rawRows: unknown = JSON.parse(await profFile.async('text'));
       const { valid: rows } = validateArray(profileSchema, rawRows);
-      const incoming = rows.find((r) => r.id === 'singleton') || rows[0];
-      if (incoming) {
-        const local = await db.profile.get('singleton');
-        const incomingNewer = !local || rowTs(incoming) > rowTs(local);
-        if (incomingNewer) {
-          const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-          const strArr = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
-          const rebuilt: ProfileDoc = {
-            id: 'singleton',
-            fullName: str(incoming.fullName),
-            headline: str(incoming.headline),
-            email: str(incoming.email),
-            phone: str(incoming.phone),
-            location: str(incoming.location),
-            linkedin: str(incoming.linkedin),
-            portfolio: str(incoming.portfolio),
-            targetRoles: strArr(incoming.targetRoles),
-            summary: str(incoming.summary),
-            skills: (incoming.skills || []).map((s) => ({
-              id: String(s.id),
-              name: str(s.name),
-              group: str(s.group) || 'Otras',
-              status: (s.status === 'Dominado' || s.status === 'Por aprender' ? s.status : 'En proceso'),
-              notes: s.notes ? str(s.notes) : undefined,
-            })),
-            tools: (incoming.tools || []).map((t) => ({
-              id: String(t.id),
-              name: str(t.name),
-              level: str(t.level) || 'Intermedio',
-              notes: t.notes ? str(t.notes) : undefined,
-            })),
-            experience: (incoming.experience || []).map((e) => ({
-              id: String(e.id),
-              role: str(e.role),
-              company: str(e.company),
-              type: e.type ? str(e.type) : undefined,
-              location: e.location ? str(e.location) : undefined,
-              startDate: e.startDate ? str(e.startDate) : undefined,
-              endDate: e.endDate ? str(e.endDate) : undefined,
-              isCurrent: e.isCurrent === true,
-              bullets: strArr(e.bullets),
-            })),
-            education: (incoming.education || []).map((ed) => ({
-              id: String(ed.id),
-              title: str(ed.title),
-              institution: str(ed.institution),
-              status: str(ed.status) || 'En curso',
-              years: ed.years ? str(ed.years) : undefined,
-              notes: ed.notes ? str(ed.notes) : undefined,
-            })),
-            certifications: (incoming.certifications || []).map((c) => ({
-              id: String(c.id),
-              name: str(c.name),
-              issuer: str(c.issuer),
-              status: str(c.status) || 'En proceso',
-              date: c.date ? str(c.date) : undefined,
-              notes: c.notes ? str(c.notes) : undefined,
-            })),
-            languages: (incoming.languages || []).map((l) => ({
-              id: String(l.id),
-              name: str(l.name),
-              level: str(l.level) || 'B2',
-            })),
-            projects: (incoming.projects || []).map((p) => ({
-              id: String(p.id),
-              name: str(p.name),
-              description: p.description ? str(p.description) : undefined,
-              link: p.link ? str(p.link) : undefined,
-            })),
-            atsKeywords: strArr(incoming.atsKeywords),
-            jobSearchNotes: str(incoming.jobSearchNotes),
-            createdAt: incoming.createdAt || new Date().toISOString(),
-            updatedAt: incoming.updatedAt || new Date().toISOString(),
-          };
-          await db.profile.put(rebuilt);
+      for (const incoming of rows) {
+        const local = await db.profile.get(incoming.id);
+        if (local && rowTs(local) > rowTs(incoming)) {
+          summary.conflictProfiles++;
+          continue;
         }
+        await db.profile.put(rebuildProfile(incoming));
       }
     }
   } catch (e) {
-    console.error('Error importing profile:', e);
+    console.error('Error importing profiles:', e);
+  }
+
+  // roadmap — v18: estado del checklist (done/doneAt por ítem). Upsert por
+  // id con el MISMO guard latest-wins: un backup viejo no revierte el
+  // progreso local (updatedAt). Un roadmap.json malformado no corrompe nada.
+  try {
+    const rmFile = contents.file('roadmap.json');
+    if (rmFile) {
+      const rawRm: unknown = JSON.parse(await rmFile.async('text'));
+      const { valid: rmRows } = validateArray(roadmapItemSchema, rawRm);
+      for (const r of rmRows) {
+        const local = await db.roadmapItems.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictRoadmapItems++;
+          continue;
+        }
+        const row: RoadmapItem = {
+          id: r.id,
+          done: r.done === true,
+          doneAt: r.doneAt || undefined,
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.roadmapItems.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing roadmap:', e);
   }
 
   return summary;

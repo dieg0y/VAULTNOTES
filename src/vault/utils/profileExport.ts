@@ -111,7 +111,8 @@ export function buildProfileMarkdown(profile: ProfileDoc): string {
   /* ------------------------------------------------------------------ */
   /* Encabezado + instrucciones para la IA                               */
   /* ------------------------------------------------------------------ */
-  md.push(`# PERFIL PROFESIONAL — ${name}`);
+  const profileLabel = hasText(profile.name) ? ` (${profile.name!.trim()})` : '';
+  md.push(`# PERFIL PROFESIONAL — ${name}${profileLabel}`);
   md.push('');
   md.push(`> Documento fuente generado por VaultNotes el ${exportedAt}.`);
   md.push('');
@@ -313,8 +314,11 @@ export function buildProfileMarkdown(profile: ProfileDoc): string {
 
 /** Nombre de archivo sugerido para la descarga. */
 export function profileMarkdownFilename(profile: ProfileDoc): string {
+  const slugify = (s: string) => s.trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const base = hasText(profile.fullName)
-    ? profile.fullName.trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    : 'perfil-iam';
+    ? slugify(profile.fullName)
+    : hasText(profile.name)
+      ? slugify(profile.name!)
+      : 'perfil-iam';
   return `CV-Profile-${base}-${new Date().toISOString().slice(0, 10)}.md`;
 }

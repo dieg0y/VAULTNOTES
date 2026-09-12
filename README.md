@@ -23,8 +23,9 @@
 ### 📝 Conocimiento
 - **Apuntes** con editor rico (WYSIWYG): títulos, listas, checkboxes, tablas, código, imágenes, PDFs adjuntos y **videos** (ver política de videos abajo). Jerarquía de subpáginas, plataformas/categorías, favoritos y "revisar después".
 - **Hands-On / Labs** — plantillas para laboratorios SOC/IAM con el mismo editor.
-- **Glosario** — términos + **flashcards** con repaso espaciado + **Packs IAM/GRC/SOC**: 194 términos curados enfocados en IAM (138: conceptos, protocolos, acceso/MFA, plataformas) + GRC (29) + SOC (27), importables con un clic y dedupe automático (ver abajo).
-- **Perfil Profesional** — tu CV vivo: datos, puestos objetivo, skills con estado real, tools, experiencia, educación, certs, idiomas, proyectos, keywords ATS y notas de búsqueda. Exporta un **único Markdown AI-ready** para que tu IA te arme el CV perfecto (ver abajo).
+- **Glosario (sembrado)** — **389 términos IAM/GRC/SOC ya incluidos** (~75% IAM) + **flashcards** con repaso espaciado: abre la app y están todos ahí, sin importar nada (ver abajo).
+- **Perfil Profesional (multi-perfil)** — tus CVs vivos: crea tantos perfiles como quieras (CV IAM, CV SOC, CV en inglés…), cada uno con datos, puestos objetivo, skills con estado real, tools, experiencia, educación, certs, idiomas, proyectos, keywords ATS y notas de búsqueda. Cada perfil exporta su **Markdown AI-ready** para que tu IA te arme el CV perfecto (ver abajo).
+- **Roadmap IAM** — checklist interactivo del roadmap *Junior IAM / Identity Security Analyst* (3 tiers + proyecto final, 14 fases, 52 ítems): progreso global/por tier/por fase, persistente, exportable como Markdown (ver abajo).
 - **Inbox + Captura rápida** — anota ideas al vuelo desde cualquier vista.
 - **Referencias** — enlaces y recursos clasificados.
 - **Papelera** — borrado suave con restauración y borrado definitivo.
@@ -73,37 +74,44 @@ Todas las herramientas están integradas a la **búsqueda global** (`Ctrl+K`): e
 - Si se pierde el acceso o el archivo, la app muestra un placeholder con **Conceder acceso / Re-linkear carpeta / Buscar archivo**.
 - **Backups ZIP excluyen videos por completo** — ligeros y portables; los videos ya están a salvo en tu carpeta.
 
-### 📚 Packs de Glosario — 194 términos IAM/GRC/SOC (offline)
+### 📚 Glosario — 389 términos IAM/GRC/SOC YA incluidos (offline, sin importar nada)
 
-Catálogo curado en `src/vault/data/iamGlossaryPacks.ts`, enfocado ~71% en IAM (el rol objetivo). Se importa desde el Glosario (botón **Packs IAM/GRC/SOC**): selección por pack, dedupe automático por nombre normalizado (los términos que ya tengas se omiten — jamás duplica) y los términos importados son 100% editables/estudiables como cualquier otro (flashcards incluidas).
+El glosario viene **sembrado de fábrica** con 389 términos curados (~75% IAM — el foco del rol), en `src/vault/data/glossarySeedBase.ts` + `glossarySeedMore.ts`. Se cargan solos al abrir la app: **no hay nada que importar** — abre el Glosario y están todos ahí (lista A-Z + búsqueda + filtro por categoría + flashcards).
 
-| Pack | Términos | Cubre |
-|---|---|---|
-| **IAM — Conceptos y Procesos** | 45 | IAM, IGA, JML, identity lifecycle, provisioning, RBAC/ABAC, entitlements, mínimo privilegio, SoD, combinaciones tóxicas, access reviews/certificaciones, ARM, JIT, break-glass, Zero Trust, cuentas huérfanas/dormantes, service accounts, KPIs… |
-| **IAM — Protocolos y Estándares** | 32 | SAML 2.0, OIDC, OAuth 2.0, SCIM/SCIM Provisioning, LDAP/LDAPS, Kerberos, NTLM, RADIUS, TACACS+, JWT, claims, PKCE, X.509, mTLS, FIDO2/WebAuthn, passkeys, IdP/SP, SSO SP/IdP-initiated, metadata de federación… |
-| **IAM — Acceso, MFA y Seguridad** | 39 | MFA/2FA, TOTP/HOTP/OTP, push + MFA fatigue, phishing-resistant, SSPR, Conditional Access, device compliance, sign-in/user risk, Identity Protection, legacy auth, B2B/guests, entitlement management, password spraying, credential stuffing, pass-the-hash, kerberoasting, token theft… |
-| **IAM — Plataformas y Herramientas** | 22 | Entra ID (Access Reviews, PIM, Protection, Governance), Active Directory/ADUC, Okta Workforce + System Log, SailPoint, Saviynt, CyberArk, BeyondTrust, Delinea, Ping, ForgeRock, OneLogin, ServiceNow, Entra Connect, JumpCloud, PowerShell… |
-| **GRC — Gobernanza, Riesgo y Cumplimiento** | 29 | GRC, política/estándar/procedimiento, controles, riesgo inherente/residual, auditoría, evidencia, hallazgos, ISO 27001, SOC 2, NIST CSF/800-53/**800-63 (IAL/AAL/FAL)**, GDPR, PCI DSS, SOX/ITGC, COSO, tres líneas de defensa… |
-| **SOC — Operaciones de Seguridad** | 27 | SOC, Tier 1/2/3, triage, alertas, escalamiento, SIEM, EDR/XDR, SOAR, playbooks, MITRE ATT&CK, IOC/TTP, threat hunting, Sigma, KQL, log sources, phishing, IR (ciclo NIST), MTTD/MTTR… |
+- **Seeding aditivo y no destructivo** (v18): los términos se agregan una sola vez (dedupe por nombre normalizado, incluidos los soft-deleted). Si ya tenías los 194 de los antiguos packs, NO se duplican ni se sobrescriben.
+- Si borras un término **definitivamente** (Papelera → Eliminar), queda registrado y el seed **no lo revive** en el siguiente arranque.
+- Cobertura (bloques):
+  - **IAM (≈ 150)**: IAM/IGA/PAM/Access Management/Auth-MFA/Federation-SSO — JML, RBAC/ABAC, entitlements, mínimo privilegio, SoD, access reviews/certificaciones, provisioning/SCIM, SAML 2.0/OIDC/OAuth 2.0/JWT/PKCE, MFA/SSPR/Conditional Access/PIM, Entra ID (Access Packages, Entitlement Management, Identity Protection, B2B/B2C, sign-in logs), Active Directory profundo (OUs, FSMO, gMSA, SPN, Kerberos/NTLM, AGDLP, AdminSDHolder, LAPS, tiering, eventos 4720/4728/4732/…), Okta Workforce + System Log, SailPoint/Saviynt, CyberArk/BeyondTrust, AWS/GCP IAM, PowerShell, Microsoft Graph, ITDR (T1078/T1098, impossible travel, password spraying, pass-the-hash, kerberoasting, golden ticket)…
+  - **GRC (≈ 20)**: política/estándar/procedimiento, controles, riesgo inherente/residual, auditoría, evidencia, ISO 27001, SOC 2, NIST CSF/800-53/800-63, GDPR, PCI DSS, SOX/ITGC, COSO, tres líneas de defensa…
+  - **SOC (≈ 25)**: SIEM, EDR/XDR, SOAR, playbooks, MITRE ATT&CK, IOC/TTP, threat hunting, Sigma, KQL, MTTD/MTTR, event IDs clave de Windows, triage, escalamiento…
+- Cada término trae **definición corta** (flashcards), **definición larga práctica** (qué es + cómo aparece en el trabajo diario de un IAM Analyst) y **ejemplo** del día a día. El botón antiguo de "Packs" fue retirado — ya no hace falta.
 
-Cada término trae **definición corta** (flashcards), **definición larga práctica** (qué es + cómo aparece en el trabajo diario de un IAM Analyst: pantallas de Entra/Okta/ServiceNow, reportes, evidencias) y **ejemplo** del día a día. 3 categorías nuevas en la lista maestra: `IAM - Federation / SSO`, `GRC - Auditoría y Cumplimiento`, `GRC - Riesgo y Marco Normativo`.
+### 👤 Perfil Profesional (multi-perfil) — tus CVs vivos + export a IA
 
-### 👤 Perfil Profesional — tu CV vivo + export a IA
+Sección **Perfil Profesional** (sidebar): crea **tantos perfiles como quieras** (p. ej. *CV IAM 2026*, *CV SOC*, *CV English*) con un clic — **Nuevo perfil / Duplicar / Eliminar** en la barra de perfiles. El primero viene precargado con el perfil IAM del usuario (AD/ADUC, Entra ID, Okta, JML, RBAC, Access Reviews, SoD, ServiceNow, PowerShell, SC-300 en proceso, Español nativo, Inglés B2+, 10 títulos objetivo IAM, keywords ATS…):
 
-Sección **Perfil Profesional** (sidebar): un documento único que mantiene TODO lo que un CV necesita, precargado con el perfil IAM del usuario (AD/ADUC, Entra ID, Okta, JML, RBAC, Access Reviews, SoD, ServiceNow, PowerShell, SC-300 en proceso, Español nativo, Inglés B2+, 10 títulos objetivo IAM, keywords ATS…):
+- **12 secciones editables por perfil**: nombre del perfil + datos personales, puestos objetivo (chips), resumen, habilidades (**con estado real: Dominado / En proceso / Por aprender** — la IA solo presume lo dominado), herramientas (con nivel), experiencia (bullets por logro), educación, certificaciones, idiomas, proyectos, keywords ATS y notas de estrategia de búsqueda.
+- **Autosave** idéntico al de los apuntes (debounce 1500ms + flush al cambiar de perfil/salir/recargar) sobre la tabla `profile` (Dexie v18, una fila por perfil).
+- **Export .md / Copiar / Vista previa (por perfil)**: genera el **Markdown AI-ready** que EMPIEZA con instrucciones para la IA (rol, tarea, reglas anti-invención, cómo tratar lo "en proceso", uso de keywords ATS) y sigue con las 12 secciones estructuradas — se pega en ChatGPT/Claude/Gemini para obtener el CV perfecto. Nombre de archivo: `CV-Profile-<nombre>-<fecha>.md`.
+- **Viajan en el backup ZIP** (`profiles.json` con todas las filas, formato 3.4.0): restaurarlos en otra máquina/USB recupera TODOS los perfiles; merge "latest wins" por fila — un backup viejo jamás revierte ediciones nuevas (el `profile.json` legacy de una fila sigue siendo importable).
 
-- **12 secciones editables**: datos personales, puestos objetivo (chips + sugerencias), resumen, habilidades (**con estado real: Dominado / En proceso / Por aprender** — la IA solo presume lo dominado), herramientas (con nivel), experiencia (bullets por logro), educación, certificaciones, idiomas, proyectos, keywords ATS y notas de estrategia de búsqueda.
-- **Autosave** idéntico al de los apuntes (debounce 1500ms + flush al salir/recargar) sobre la tabla `profile` (Dexie v17).
-- **Export .md / Copiar / Vista previa**: genera un único **Markdown AI-ready** que EMPIEZA con instrucciones para la IA (rol, tarea, reglas anti-invención, cómo tratar lo "en proceso", uso de keywords ATS) y sigue con las 12 secciones estructuradas — se pega en ChatGPT/Claude/Gemini para obtener el CV perfecto. Nombre de archivo: `CV-Profile-<nombre>-<fecha>.md`.
-- **Viaja en el backup ZIP** (`profile.json`, formato 3.3.0): restaurarlo en otra máquina/USB recupera el perfil completo; merge "latest wins" — un backup viejo jamás revierte ediciones nuevas.
+### 🗺️ Roadmap IAM — checklist del Junior IAM / Identity Security Analyst
+
+Sección **Roadmap IAM** (sidebar, con % de progreso en vivo): el **ROADMAP DEFINITIVO Junior IAM / Identity Security Analyst** completo como checklist interactivo — *Especialización Principal: IAM & Identity Governance | Ventaja Competitiva: SOC / Blue Team Background*.
+
+- **Estructura**: 3 tiers + proyecto final → 14 fases → **52 ítems** (Tier 1 = el núcleo imprescindible con el 70% del esfuerzo; Tier 2 = valor empresarial (ITDR — el puente SOC↔IAM, Okta, IGA, PAM); Tier 3 = AWS IAM; + proyecto final *InnovateCorp* y certificación SC-300/estrategia laboral).
+- Cada fase trae sus ítems de **Conceptos / Entrevista / Evidencia (Exit Criteria)** — la evidencia resaltada (icono + color ámbar).
+- **Progreso persistente** (tabla `roadmapItems`, Dexie v18): global, por tier y por fase; sobrevive recargas y actualizaciones de la app (el seed jamás resetea tu progreso).
+- **Export MD / Copiar**: genera el checklist completo con tu progreso (`Roadmap-IAM-<fecha>.md`) — ideal para pegárselo a una IA y pedirle un plan de estudio o un follow-up.
+- **Viaja en el backup ZIP** (`roadmap.json`, formato 3.4.0) — el progreso sobrevive en el USB con merge "latest wins".
 
 ### 💾 Backups ZIP portables
-- Exporta TODO el vault (apuntes como `.md`, labs, glosario, referencias, imágenes, PDFs, plataformas, categorías, tools, datasets Data & Intel, **perfil profesional**) a un único ZIP con manifest versionado (formato **3.3.0**, schema v17).
+- Exporta TODO el vault (apuntes como `.md`, labs, glosario, referencias, imágenes, PDFs, plataformas, categorías, tools, datasets Data & Intel, **perfiles profesionales** y **progreso del roadmap**) a un único ZIP con manifest versionado (formato **3.4.0**, schema v18).
 - Guardado directo a tu carpeta elegida (File System Access) o descarga.
 - Import con **validación estricta** (schemas por tipo, protección anti zip-bomb, merge seguro con conflictos por `updatedAt`).
 - Los ZIPs legacy con videos los reporta como "ignorados" — nunca los importa.
-- Los datasets de Data & Intel viajan como `intelItems.json` y también tienen export/import propio (.json y .csv) desde la vista. El Perfil Profesional viaja como `profile.json` (una sola fila, se restaura con merge latest-wins).
-- **Respaldo automático (USB)**: además del manual, Configuración → *Respaldo automático* escribe ZIPs rotativos `VaultNotes-Auto-*.zip` en la carpeta de la app cada N minutos **con cambios sin respaldar** — mismo formato 3.3.0, fotos, PDFs y perfil incluidos — conservando solo los últimos N. Con *Restaurar último backup* aterrizas en cualquier máquina en 2 clics (merge no destructivo).
+- Los datasets de Data & Intel viajan como `intelItems.json` y también tienen export/import propio (.json y .csv) desde la vista. Los perfiles viajan como `profiles.json` (todas las filas, merge latest-wins por perfil; el `profile.json` legacy de una fila también se acepta) y el roadmap como `roadmap.json` (merge latest-wins por ítem).
+- **Respaldo automático (USB)**: además del manual, Configuración → *Respaldo automático* escribe ZIPs rotativos `VaultNotes-Auto-*.zip` en la carpeta de la app cada N minutos **con cambios sin respaldar** — mismo formato 3.4.0, fotos, PDFs, perfiles y roadmap incluidos — conservando solo los últimos N. Con *Restaurar último backup* aterrizas en cualquier máquina en 2 clics (merge no destructivo).
 
 ### 🔍 Búsqueda global inteligente
 Fuzzy + substring + acrónimos con ranking por tipo. Un solo atajo (`Ctrl+K`) para todo el vault. El índice está **cacheado y precomputado** (corpus estático indexado una vez; corpus de usuario re-indexado solo cuando cambian los datos) — instantáneo incluso con 1000+ notas.
@@ -173,22 +181,26 @@ src/
 │   ├── components/
 │   │   ├── Editor/       # RichEditor + editorMedia (REGLA DE ORO de videos)
 │   │   ├── tools/        # 21 componentes de herramientas (autocontenidos)
-│   │   └── …             # NotesView, LabsView, GlossaryView (+ modal Packs),
-│   │                     # ProfileView (CV vivo + export MD), ToolsView,
+│   │   └── …             # NotesView, LabsView, GlossaryView (sembrado 389
+│   │                     #  términos — sin modal de packs), RoadmapView
+│   │                     #  (checklist 14 fases + progreso), ProfileView
+│   │                     #  (multi-perfil + export MD), ToolsView,
 │   │                     # DataIntelView + DataIntelDatasets, BlogView,
 │   │                     # ReviewView, SettingsView, Backup, etc.
 │   ├── data/             # Datasets offline (MITRE, Sigma, WinEvents, puertos,
 │   │                     # HTTP, cron, vulnerabilidades, ataques
 │   │                     # (attacks/ — 89 técnicas sin duplicar), catálogo de tools,
-│   │                     # iamGlossaryPacks — 194 términos IAM/GRC/SOC…)
-│   ├── db/               # Dexie: schema v17 + migraciones v1→v17 + seeds
-│   │                     # (incluye seed del Perfil Profesional IAM)
+│   │                     # glossarySeedBase 194 + glossarySeedMore 195 = 389
+│   │                     # términos IAM/GRC/SOC, roadmapData — 14 fases…)
+│   ├── db/               # Dexie: schema v18 + migraciones v1→v18 + seeds
+│   │                     # (glosario 389 términos, Perfil Profesional IAM,
+│   │                     #  roadmap 52 ítems)
 │   ├── integrations/     # Threat Intel opcional (VT, AbuseIPDB, OTX, Shodan)
 │   ├── hooks/           # useDebouncedAutoSave, useToolPrefs,
 │   │                     # useResizablePanel, useAutoBackupStatus
 │   ├── store/            # Stores zustand (note, pendingTool, ioc, intel)
-│   ├── utils/            # videoStorage (REGLA DE ORO), zipBackup (formato 3.3.0
-│   │                     # + profile.json), autoBackup (motor rotativo USB),
+│   ├── utils/            # videoStorage (REGLA DE ORO), zipBackup (formato 3.4.0
+│   │                     # + profiles.json + roadmap.json), autoBackup (motor rotativo USB),
 │   │                     # profileExport (Markdown AI-ready del CV),
 │   │                     # sanitizeHtml, fuzzySearch, markdown, pdfStorage…
 │   └── types/            # Tipos compartidos (incl. ProfileDoc)
@@ -310,7 +322,7 @@ bun run start
 
 - `eslint` → 0 errores · `tsc --noEmit` → 0 errores · `bun run build` → compila
 - **Revisión funcional final E2E (navegador real)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), **29/29 herramientas visibles (incluida Ataques: contador 89/89, aviso anti-duplicados visible, filtros por categoría — IAM 12, Red 25, DoS 16, Web 19, Social 9, Malware 8 —, búsqueda por alias — "arp poisoning" → RED-002 —, verificación de dedup — "kerberoasting" → 0 resultados en Ataques y presente en Vulnerabilidades (3/203) —, drawer completo con detección KQL y checklist de mitigación, Esc cierra)**, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
-- **Packs de Glosario + Perfil Profesional (pasada 7 — navegador real)**: modal Packs carga los 6 packs (194 términos, todos pre-seleccionados) → importación bulk (194 agregados, 0 duplicados) → términos visibles/contados en el sidebar → flashcards funcionan con el contenido nuevo → re-import = 194 omitidos (dedupe verificado). Perfil Profesional: seed IAM cargado (skills 21 con estados, SC-300, idiomas, 10 puestos objetivo), edición de campos + autosave (estado "Guardado"), añadir/eliminar skills, export .md + copiar + vista previa con el Markdown AI-ready completo (instrucciones para la IA incluidas), navegación por sidebar (desktop + drawer móvil), 0 errores de consola.
+- **Glosario sembrado + Roadmap + multi-perfil (pasada 8 — navegador real)**: instalación nueva → 389 términos presentes SIN importar nada (modal Packs eliminado; A-Z + búsqueda + detalle + flashcards funcionan; el término nuevo "Expiración y vigencia de tokens" aparece en el mazo). Roadmap: 52 ítems/3 tiers + proyecto final renderizados con el texto exacto, toggle de ítems → progreso global/tier/fase/sidebar (0%→2%) → persiste tras reload (doneAt registrado) → export MD con progreso real (1/52, [x] Gobernanza) → restaurado a 0. Perfil: seed "Perfil IAM" (21 skills) + crear "Perfil 2" + duplicar + eliminar (confirm) + renombrar con autosave + cambio de perfil con flush (nombre persiste) + export .md real con el nombre del perfil en el encabezado. Backup: ZIP v3.4.0/schema v18 con profiles.json + roadmap.json verificado (contenido inspeccionado) e importado de vuelta sin duplicar nada (389/52/1 exactos tras el round-trip). Móvil 390px y desktop 1440px sin scroll horizontal, 0 errores de consola/página/dev.log.
 - E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
 - Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos de la auditoría interna están fixeados y verificados en navegador (el reporte interno de proceso se retiró del repo: la evidencia que importa es el código y esta lista)
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server

@@ -156,6 +156,12 @@ export interface ImportSummary {
    *  row is newer (updatedAt) — same non-destructive conflict guard as the
    *  other upsert-by-id tables. */
   conflictIntelItems: number;
+  /** v18: incoming profile rows (profiles.json) skipped because the local
+   * row is newer (updatedAt) — same non-destructive conflict guard. */
+  conflictProfiles: number;
+  /** v18: incoming roadmap items (roadmap.json) skipped because the local
+   * row is newer (updatedAt) — preserves local progress. */
+  conflictRoadmapItems: number;
   /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */
@@ -279,8 +285,10 @@ export interface ProfileProject {
 }
 
 export interface ProfileDoc {
-  /** Siempre 'singleton' — una sola fila en la tabla `profile`. */
+  /** Id de la fila (multi-perfil: 'profile-main', 'profile-2', ...). */
   id: string;
+  /** Nombre visible del perfil (p. ej. "CV IAM 2025", "CV SOC"). */
+  name?: string;
   fullName: string;
   headline: string;
   email: string;
@@ -306,4 +314,19 @@ export interface ProfileDoc {
   updatedAt: string;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel' | 'profile';
+/* ------------------------------------------------------------------ */
+/* ROADMAP (v18) — checklist del roadmap Junior IAM / Identity        */
+/* Security Analyst. El CONTENIDO (tiers/fases/textos) vive en        */
+/* data/roadmapData.ts; aquí solo persiste el ESTADO (done).         */
+/* ------------------------------------------------------------------ */
+
+export interface RoadmapItem {
+  /** Igual al id del ítem en data/roadmapData.ts ('rm-f1-1'...). */
+  id: string;
+  done: boolean;
+  /** ISO — cuándo se marcó como completado. */
+  doneAt?: string;
+  updatedAt: string;
+}
+
+export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel' | 'profile' | 'roadmap';

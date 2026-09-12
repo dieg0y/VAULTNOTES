@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database, IdCard } from 'lucide-react';
+import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database, IdCard, Map as RoadmapIcon } from 'lucide-react';
 import { ActiveSection } from '../types';
 import { db } from '../db';
 import { useIsOnline } from '../integrations/online';
@@ -48,6 +48,13 @@ const SidebarBase: React.FC<SidebarProps> = ({
     [],
     0
   ) || 0;
+
+  // ROADMAP (v18) — progreso del checklist para el badge de la sección.
+  const roadmapRows = useLiveQuery(() => db.roadmapItems.toArray(), [], []);
+  const roadmapPct =
+    roadmapRows.length > 0
+      ? Math.round((roadmapRows.filter((r) => r.done).length / roadmapRows.length) * 100)
+      : 0;
 
   // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
   // events. NO network probe, NO periodic fetch. Purely visual state.
@@ -178,6 +185,23 @@ const SidebarBase: React.FC<SidebarProps> = ({
               <IdCard className="w-4 h-4" />
               <span>Perfil Profesional</span>
             </div>
+          </button>
+
+          {/* ROADMAP (v18) — checklist Junior IAM con progreso persistente. */}
+          <button
+            onClick={() => onSelectSection('roadmap')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'roadmap'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+            title="Checklist del roadmap Junior IAM / Identity Security Analyst (Tier 1-3 + proyecto final)"
+          >
+            <div className="flex items-center gap-2">
+              <RoadmapIcon className="w-4 h-4" />
+              <span>Roadmap IAM</span>
+            </div>
+            <span className={`text-[10px] font-mono ${roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]'}`}>{roadmapPct}%</span>
           </button>
 
           <button
