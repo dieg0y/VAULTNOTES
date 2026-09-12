@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // TURBOPACK PANIC FIX + PORTABILIDAD (USB/mover carpeta): dev y producción
+  // NUNCA comparten distDir. `next dev` (NODE_ENV ya es "development" al
+  // cargar la config) escribe en `.next-dev`; `next build` en `.next`.
+  // Esto elimina de raíz los panics "Failed to write app endpoint /page"
+  // que aparecían cuando el dev server corría sobre artefactos de un build
+  // de producción (estado mixto en .next), y además permite que el build
+  // standalone (portable: arranca desde cualquier ruta, verificado) viva en
+  // `.next` mientras la caché de dev se limpia de forma independiente al
+  // mover/cambiar la carpeta de unidad (el .bat lo detecta con un marker).
+  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   // AUDIT VN-007: removed `typescript.ignoreBuildErrors: true`. The project
   // passes `tsc --noEmit` cleanly. TS errors act as a real quality gate at
   // build time.

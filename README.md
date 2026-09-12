@@ -9,8 +9,9 @@
 | Pregunta | Respuesta |
 |---|---|
 | **¿Qué es?** | Tu segundo cerebro de ciberseguridad, 100% en tu navegador — sin cuenta, sin nube, sin servidor de datos. |
-| **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` — instala **todo** solo (Bun incluido si falta), arranca y abre el navegador. Cualquier SO: `bun install` + `bun run dev`. |
-| **¿Dónde están mis datos?** | En IndexedDB de tu navegador (tu PC). Exporta/importa backups ZIP cuando quieras cambiar de máquina o navegador. |
+| **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` — resuelve todo solo (Bun incluido si falta) y abre el navegador. Cualquier SO: `bun install` + `bun run dev`. |
+| **¿Puedo llevarla en una USB?** | Sí — la carpeta es 100% portable (app + runtime + build) y el **Respaldo automático** hace que tus fotos y apuntes viajen en la misma USB. Ver sección 🎒 abajo. |
+| **¿Dónde están mis datos?** | En IndexedDB de tu navegador (tu PC). Backups ZIP para cambiar de máquina/navegador — o activa el Respaldo automático y llévalos en tu USB. |
 | **¿Qué hay dentro?** | 29 herramientas offline (SOC · IAM · Red · Datos · Linux), explorador de Vulnerabilidades (203) y Ataques (89, sin duplicados), apuntes con editor rico, labs, glosario con flashcards, datasets de intel (IoCs · eventos · reglas). |
 | **¿Y si actualizo el código?** | Botón **Pull** del header: descarga los cambios desde GitHub sin tocar tus datos. En producción regenera el build solo y te pide reiniciar. |
 | **Regla de oro** | Los **videos nunca entran a la base ni a los backups** — viven en tu carpeta de videos (disco). |
@@ -77,9 +78,43 @@ Todas las herramientas están integradas a la **búsqueda global** (`Ctrl+K`): e
 - Import con **validación estricta** (schemas por tipo, protección anti zip-bomb, merge seguro con conflictos por `updatedAt`).
 - Los ZIPs legacy con videos los reporta como "ignorados" — nunca los importa.
 - Los datasets de Data & Intel viajan como `intelItems.json` y también tienen export/import propio (.json y .csv) desde la vista.
+- **Respaldo automático (USB)**: además del manual, Configuración → *Respaldo automático* escribe ZIPs rotativos `VaultNotes-Auto-*.zip` en la carpeta de la app cada N minutos **con cambios sin respaldar** — mismo formato 3.2.0, fotos y PDFs incluidos — conservando solo los últimos N. Con *Restaurar último backup* aterrizas en cualquier máquina en 2 clics (merge no destructivo).
 
 ### 🔍 Búsqueda global inteligente
 Fuzzy + substring + acrónimos con ranking por tipo. Un solo atajo (`Ctrl+K`) para todo el vault. El índice está **cacheado y precomputado** (corpus estático indexado una vez; corpus de usuario re-indexado solo cuando cambian los datos) — instantáneo incluso con 1000+ notas.
+
+### 🎒 En una memoria USB (app + fotos + todo)
+
+Lleva VaultNotes **completa** en tu USB y úsala en cualquier Windows sin volver a descargar nada:
+
+**Qué copiar (una sola vez)** — la carpeta del proyecto COMPLETA:
+- `node_modules/` — dependencias ya instaladas: ninguna PC las descarga.
+- `.next/` — el build de producción ya hecho: arranca en segundos.
+- `tools/bun/` — runtime portable (si aún no lo tienes, el `.bat` lo instala **DENTRO de la USB** la primera vez que haya internet — solo esa vez; luego ninguna máquina lo descarga).
+
+**En cada PC nueva** — doble clic en `IniciarVaultNotes.bat` y listo:
+1. Si no hay Bun en la PC ni en la USB → lo instala dentro de la USB (única vez con internet).
+2. Arranca el build de producción que ya viaja en la USB — aunque la letra de unidad haya cambiado (ver abajo).
+3. La app se abre sola en el navegador.
+
+**Tus datos y fotos viajan en la misma USB** — actívalo una vez:
+1. Configuración → *Carpeta de la App* → elige la carpeta de la USB.
+2. Configuración → *Respaldo automático (USB)* → **Activar**. Cada 10 min (configurable) con cambios sin respaldar, la app escribe un `VaultNotes-Auto-<fecha>.zip` rotativo en la USB — **apuntes, fotos y PDFs incluidos** — conservando los últimos N. Silencioso: si el permiso de la carpeta caducó (p. ej. reiniciaste el navegador), espera quieto — un clic en *Respaldar ahora* lo reactiva.
+3. Al llegar a cualquier PC: Configuración → **Restaurar último backup** → todo vuelve con merge no destructivo (lo más nuevo por fecha de edición gana; nada se pierde).
+
+**Videos**: elige la *Carpeta de Videos* apuntando a una carpeta de la USB y viajan también (REGLA DE ORO: nunca entran a la base ni a los backups).
+
+**Actualizaciones en cualquier PC**: botón **Pull** del header (requiere Git instalado en esa PC: [git-scm.com](https://git-scm.com)).
+
+> ¿Por qué hace falta el backup para cambiar de PC? Tus datos viven en el IndexedDB **del navegador de cada PC** (privacidad local-first: nada sale de la máquina). El respaldo rotativo en la USB es el puente: la USB siempre actualizada, y cada PC la importa en 2 clics.
+
+### 📦 Mover / copiar / renombrar la carpeta — sin errores
+
+Puedes mover la carpeta, copiarla a otra unidad, cambiarle la letra a la USB o renombrarla, y todo sigue funcionando:
+- **El build de producción es portable** (verificado con server real): el server standalone resuelve sus rutas relativo a sí mismo y arranca desde cualquier ubicación.
+- **La caché de dev no lo es** (Turbopack guarda rutas absolutas): el `.bat` lo detecta solo (marker `.vaultnotes-folder.txt`) y regenera ÚNICAMENTE `.next-dev`. Tu build, dependencias, datos y backups no se tocan.
+- Coste del primer arranque tras mover: ~1–2 s extra limpiando la caché; el resto idéntico.
+- ¿Quieres partir de cero por cualquier motivo? `IniciarVaultNotes.bat limpiar` (desde cmd, dentro de la carpeta).
 
 ---
 
@@ -121,9 +156,12 @@ src/
 │   │                     # (attacks/ — 89 técnicas sin duplicar), catálogo de tools…)
 │   ├── db/               # Dexie: schema v16 + migraciones v1→v16 + seeds
 │   ├── integrations/     # Threat Intel opcional (VT, AbuseIPDB, OTX, Shodan)
+│   ├── hooks/           # useDebouncedAutoSave, useToolPrefs,
+│   │                     # useResizablePanel, useAutoBackupStatus
 │   ├── store/            # Stores zustand (note, pendingTool, ioc, intel)
 │   ├── utils/            # videoStorage (REGLA DE ORO), zipBackup,
-│   │                     # sanitizeHtml, fuzzySearch, markdown, pdfStorage…
+│   │                     # autoBackup (motor rotativo USB), sanitizeHtml,
+│   │                     # fuzzySearch, markdown, pdfStorage…
 │   └── types/            # Tipos compartidos
 └── public/
     ├── sw.js             # Service worker (offline shell; NO corre en dev)
@@ -152,32 +190,35 @@ src/
 
 > **`IniciarVaultNotes.bat`** (raíz del repo) — doble clic y la app se abre sola. **Sin pasos manuales y sin re-ejecutar nada**: el script resuelve todo en la misma ejecución.
 
-1. **Si Bun falta** → lo instala solo vía PowerShell (1–2 min, una única vez) y sigue con la ruta completa del binario — no depende de que el PATH se refresque ni de abrir ventanas nuevas.
-2. **Si faltan dependencias** → `bun install` automático (solo la primera vez o si quedó a medias).
-3. **Activa el Modo de desarrolladores de Windows** si hace falta (1 clic de permiso, una única vez) — el compilador Turbopack de Next 16 crea symlinks y en Windows los necesita (fix oficial de Vercel; sin él: panics *"Failed to write app endpoint"*). Si lo rechazas, arranca igual con el compilador **webpack** — funciona todo, solo compila más lento la primera vez.
-4. **Arranca el servidor** — producción si hay build; si no, desarrollo — en una ventana minimizada *"VaultNotes (servidor) - NO CERRAR"* que **nunca se cierra sola**: si algo falla, queda abierta mostrando el error exacto.
-5. **Espera a que la app responda** (hasta ~4 min: la primera compilación puede tardar) y **abre tu navegador** en `http://localhost:3000`.
-- Si ya estaba corriendo → solo abre el navegador.
-- Para **detener la app**: cierra la ventana minimizada *"VaultNotes (servidor)"*.
+1. **Puerto 3000** → si VaultNotes ya estaba corriendo, solo abre el navegador; si el puerto lo ocupa OTRA aplicación, te lo dice claro en vez de fallar raro.
+2. **Bun** → 1) el de la carpeta (`tools\bun`, portable), 2) el del sistema, 3) si no hay ninguno **lo instala DENTRO de la carpeta** (una única vez, con internet) — desde entonces tu carpeta/USB lleva su propio runtime y ninguna máquina lo vuelve a descargar.
+3. **Dependencias** → `bun install` automático solo la primera vez (o si quedó a medias).
+4. **Carpeta movida / copiada / renombrada / otra letra de USB** → detectada sola (marker `.vaultnotes-folder.txt`): regenera ÚNICAMENTE la caché de desarrollo; build, dependencias y datos no se tocan.
+5. **Producción primero** → si hay build arranca directo (listo en ~1 s); si no, **lo construye una única vez** (~1–3 min, con reintento webpack si Turbopack no puede) y a partir de ahí cada arranque es instantáneo — sin compilador de desarrollo ni Modo de desarrolladores en el día a día. Solo si el build fuera imposible arranca en modo desarrollo (con la lógica de siempre: Modo de desarrolladores + fallback webpack).
+6. **Espera a que la app responda** (hasta ~4 min) y **abre tu navegador** en `http://localhost:3000`.
+- Para **detener la app**: cierra la ventana minimizada *"VaultNotes (servidor) - NO CERRAR"* — nunca se cierra sola: si algo falla, queda abierta mostrando el error exacto.
+- Reparación: `IniciarVaultNotes.bat limpiar` (desde cmd, dentro de la carpeta) — borra la caché de desarrollo y parte de cero.
 - 💡 Si SmartScreen o tu antivirus bloquea el `.bat` la primera vez: clic derecho → Propiedades → **Desbloquear**, y vuelve a ejecutarlo.
-- ⚠️ **No borres ni excluyas ese archivo del repo** — es el punto de entrada de un clic para Windows; solo actualízalo si cambia el puerto o la forma de arranque (el propio archivo lo advierte en su cabecera).
+- ⚠️ **No borres ni excluyas ese archivo del repo** — es el punto de entrada de un clic para Windows.
 
 ### 🩹 Windows: errores de Turbopack en dev (solución de problemas)
 
-Si arrancas el dev server a mano (`bun run dev`) y ves en la consola:
+**Causa raíz resuelta por diseño:** los panics *"Failed to write app endpoint /page"* aparecían cuando el dev server corría **encima de los artefactos de un build de producción** (estado mixto en `.next`). Ahora dev y producción usan directorios separados (`next dev` → `.next-dev`, `next build` → `.next`), así que esa clase de corrupción es **imposible por construcción**. Además, el `.bat` arranca por defecto en **producción** (build ya compilado, sin Turbopack en runtime).
+
+Si aun así arrancas el dev server a mano (`bun run dev`) y ves en la consola:
 
 ```
-Failed to benchmark file I/O: ... (os error 3)
 FATAL: An unexpected Turbopack error occurred ...
 Turbopack Error: Failed to write app endpoint /page
 ```
 
-es el problema conocido de **Turbopack + symlinks en Windows**. En orden de eficacia:
+en orden de eficacia:
 
-1. **Activa el Modo de desarrolladores** (lo hace el `.bat` solo): Configuración → Privacidad y seguridad → Para desarrolladores → *Modo de desarrolladores: Activado*. Luego **borra la carpeta `.next`** y reinicia el server.
-2. Si persiste: **excluye la carpeta del proyecto en Windows Defender** (Protección contra ransomware y análisis en tiempo real bloquean escrituras de `.next` a mitad de compilación).
-3. Si el proyecto vive en una carpeta **sincronizada por OneDrive/Drive**, muévelo fuera (los archivos bloqueados/dehidratados rompen el compilador).
-4. Alternativa estable sin cambiar nada: `bun run dev --webpack` (el compilador webpack no usa symlinks; solo compila más lento la primera vez). El botón **Pull** también reintenta el build de producción con webpack si Turbopack falla.
+1. **`IniciarVaultNotes.bat limpiar`** (o borra a mano la carpeta `.next-dev` y reinicia el server) — parte de una caché limpia.
+2. **Activa el Modo de desarrolladores** (Turbopack crea symlinks y Windows los exige): Configuración → Privacidad y seguridad → Para desarrolladores → *Modo de desarrolladores: Activado*.
+3. **Excluye la carpeta del proyecto en Windows Defender** (la protección en tiempo real bloquea escrituras de `.next-dev` a mitad de compilación).
+4. Si el proyecto vive en una carpeta **sincronizada por OneDrive/Drive**, muévela fuera (los archivos bloqueados/dehidratados rompen el compilador).
+5. Alternativa estable sin cambiar nada: `bun run dev --webpack` (el compilador webpack no usa symlinks; solo compila más lento la primera vez). El botón **Pull** también reintenta el build de producción con webpack si Turbopack falla.
 
 ### Manual (cualquier SO)
 
@@ -247,6 +288,7 @@ bun run start
 - **Botón Pull — verificado E2E con navegador real (7 escenarios)**: al día ✓, pull con merge fast-forward + auto-recarga (commit aplicado en `git log`) ✓, repo sucio → abort con `git stash`/`git restore .` ✓, commits locales sin push → abort ✓, red caída (503 humano) ✓, auth GitHub 401 → estado ámbar con el comando `git remote set-url` exacto ✓, Git ausente (ENOENT) ✓. `GIT_TERMINAL_PROMPT=0` evita cualquier espera interactiva de credenciales.
 - **Ciclo de máquina de estados re-verificado en navegador** (última pasada): `idle → pulling → mensaje → idle` completo, con la API respondiendo en <1 s y detección de commits-locals-sin-push funcionando (mensaje exacto, sin tocar nada).
 - **Compatibilidad Windows (pasadas 4+5)**: el `IniciarVaultNotes.bat` es 100% automático — instala Bun solo (ruta completa `%USERPROFILE%\.bun\bin`, sin depender del PATH de ventanas nuevas ni de re-ejecutar), dependencias con detección de instalaciones a medias, **activa el Modo de desarrolladores de Windows solo (1 clic de UAC)** para que Turbopack pueda crear symlinks — con fallback automático a `next dev --webpack` si lo rechazas —, limpieza de `.next` cuando toca, servidor en ventana que **no se cierra sola** y finales de línea **CRLF garantizados** vía `.gitattributes`. Scripts de `package.json` multi-SO (fuera `tee`/`cp`/`NODE_ENV=` bash-isms): el copy del standalone vive en `scripts/postbuild.mjs` (fs puro) y el rebuild del botón **Pull** reintenta con webpack (`build:webpack`) si Turbopack falla — verificado que `--webpack` arranca y sirve la app completa en ambos modos.
+- **Portabilidad + Turbopack de raíz (pasada 6)**: build standalone copiado a otra ruta arranca y sirve la app completa (verificado con server real: 200 + HTML correcto desde la ruta nueva — base del flujo USB). Dev separado en `.next-dev` y prod en `.next` (distDir según NODE_ENV): la mezcla dev/prod que provocaba los panics *"Failed to write app endpoint /page"* es imposible por construcción (verificado: dev y prod corriendo simultáneos sin un solo panic). `.bat` reescrito: Bun portable dentro de la carpeta (`tools\bun`, instalación vía `BUN_INSTALL`), detección de carpeta movida por marker con comparación findstr, chequeo de identidad del puerto 3000 (no confunde otra app), build de producción en el primer arranque con doble fallback (Turbopack→webpack, luego dev), modo `limpiar`, redirects y escapes batch auditados (rutas con espacios/`&`/final en dígito). **Auto-respaldo rotativo + Restaurar último backup**: motor con detección de cambios por hooks core de Dexie, ZIPs `VaultNotes-Auto-*.zip` con retención, merge no destructivo al restaurar — verificados a nivel lógico y UI; los diálogos nativos de carpeta (File System Access) no son automatizables en navegador headless, por lo que el flujo de escritura quedó verificado por código + la exportación manual equivalente (mismo builder `buildVaultZipBlob`) E2E en pasadas previas.
 
 ---
 

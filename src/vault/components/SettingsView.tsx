@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Trash2, Plus, Tag, Wrench, AlertTriangle, FolderOpen, HardDrive, RefreshCw, FolderX, CheckCircle2, ShieldCheck, Globe, KeyRound, ExternalLink, RotateCcw, Video } from 'lucide-react';
+import { Settings, Trash2, Plus, Tag, Wrench, AlertTriangle, FolderOpen, HardDrive, RefreshCw, FolderX, CheckCircle2, ShieldCheck, Globe, KeyRound, ExternalLink, RotateCcw, Video, Usb } from 'lucide-react';
 import { CategoryItem, ToolItem } from '../types';
 import { db, countCategoryUsage, countToolUsage } from '../db';
 import {
@@ -15,6 +15,14 @@ import {
   pickAppFolder,
   forgetAppFolder,
 } from '../utils/videoStorage';
+import {
+  INTERVAL_OPTIONS,
+  RETENTION_OPTIONS,
+  backupNow,
+  restoreLatestBackup,
+  updateAutoBackupSettings,
+} from '../utils/autoBackup';
+import { useAutoBackupStatus } from '../hooks/useAutoBackupStatus';
 // Online & Integrations layer (BLOQUE6-2B) — 100% offline-first; these helpers
 // are ONLY invoked here in Settings. The enrich flow itself lives in registry.ts
 // and is wired into the IoC Extractor by a separate block.
@@ -217,6 +225,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
       await forgetAppFolder();
       await refreshVideoStorage();
     }
+  };
+
+  /* --- Respaldo automático a la carpeta (flujo USB) --- */
+  const autoStatus = useAutoBackupStatus();
+  const [autoBusy, setAutoBusy] = useState(false);
+  const [autoMsg, setAutoMsg] = useState<string | null>(null);
+
+  const flashAutoMsg = (msg: string, ms = 7000) => {
+    setAutoMsg(msg);
+    window.setTimeout(() => setAutoMsg((cur) => (cur === msg ? null : cur)), ms);
+  };
+
+  const handleToggleAutoBackup = () => {
+    updateAutoBackupSettings({ enabled: !autoStatus.enabled });
+  };
+
+  const handleBackupNow = async () => {
+    setAutoBusy(true);
+    try {
+      const name = await backupNow();
+      flashAutoMsg(`Respaldo escrito: ${name}`);
+    } catch (e) {
+      flashAutoMsg(e instanceof Error ? e.message : 'Error desconocido respaldando.');
+    } finally {
+      setAutoBusy(false);
+    }
+  };
+
+  const handleRestoreLatest = async () => {
+    if (
+      !window.confirm(
+        '¿Restaurar el último backup de la carpeta?\n\n' +
+          'El merge es NO destructivo: si algo local es más nuevo (por fecha de edición), gana lo local. Nada se pierde.\n\n' +
+          'Ideal al llegar a una máquina nueva con tu USB.',
+      )
+    )
+      return;
+    setAutoBusy(true);
+    try {
+      const { fileName, summary } = await restoreLatestBackup();
+      flashAutoMsg(
+        `Restaurado ${fileName} — +${summary.addedNotes} apuntes, +${summary.addedLabs} labs, +${summary.addedTerms} términos, +${summary.addedImages} imágenes.`,
+        10000,
+      );
+    } catch (e) {
+      flashAutoMsg(e instanceof Error ? e.message : 'Error desconocido restaurando.');
+    } finally {
+      setAutoBusy(false);
+    }
+  };
+
+  /** "hace 4 min" / "hace 2 h" — human short relative time. */
+  const fmtRel = (ts: number | null): string => {
+    if (!ts) return 'nunca';
+    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (s < 60) return 'hace instantes';
+    if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+    if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
+    return `hace ${Math.floor(s / 86400)} d`;
   };
 
   const handleDeleteCategory = async (cat: CategoryItem) => {
@@ -646,6 +713,127 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
               Elegir carpeta para los backups
             </button>
             <p className="text-[10px] text-[#666] text-center">Opcional: sin carpeta, cada backup pedirá dónde guardarse.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Respaldo automático — mantiene una carpeta (ideal: tu USB) al día */}
+      <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 space-y-3">
+        <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
+          <Usb className="w-4 h-4 text-emerald-400" /> Respaldo automático (USB)
+        </h2>
+        <p className="text-[11px] text-[#888] leading-relaxed">
+          Cada {autoStatus.enabled ? `${autoStatus.intervalMin} min` : 'tantos minutos como elijas'} con cambios sin respaldar, la app
+          escribe un ZIP rotativo en <strong className="text-[#DDD]">{appName ?? 'la carpeta de la app'}</strong> —
+          apuntes, <strong className="text-[#DDD]">fotos y PDFs incluidos</strong> — conservando los últimos {autoStatus.retention}.
+          Al llegar a otra máquina: <strong className="text-[#DDD]">Restaurar último backup</strong> y todo vuelve (merge no destructivo).
+        </p>
+
+        {!fsSupported ? (
+          <div className="flex items-start gap-2 text-[11px] text-[#999] bg-[#161616] border border-[#262626] rounded p-2.5">
+            <HardDrive className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <span>Requiere <strong>Microsoft Edge</strong> o Chrome (File System Access API).</span>
+          </div>
+        ) : !hasApp ? (
+          <div className="flex items-start gap-2 text-[11px] text-[#bbb] bg-amber-500/5 border border-amber-500/30 rounded p-2.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <span>Elige primero la <strong>Carpeta de la App</strong> (panel de arriba) — apúntala a la carpeta de tu USB para el flujo portátil.</span>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <button
+              onClick={handleToggleAutoBackup}
+              className={
+                autoStatus.enabled
+                  ? 'w-full flex items-center justify-center gap-2 py-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors cursor-pointer'
+                  : 'w-full flex items-center justify-center gap-2 py-2.5 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-xs font-semibold transition-colors cursor-pointer'
+              }
+            >
+              {autoStatus.enabled ? <CheckCircle2 className="w-4 h-4" /> : <Usb className="w-4 h-4" />}
+              {autoStatus.enabled ? 'Respaldo automático ACTIVO — clic para desactivar' : 'Activar respaldo automático'}
+            </button>
+
+            {autoStatus.enabled && (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] text-[#888] space-y-1">
+                  <span className="uppercase tracking-wide">Cada cuánto</span>
+                  <select
+                    value={autoStatus.intervalMin}
+                    onChange={(e) => updateAutoBackupSettings({ intervalMin: Number(e.target.value) })}
+                    className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {INTERVAL_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m} min</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-[10px] text-[#888] space-y-1">
+                  <span className="uppercase tracking-wide">Conservar</span>
+                  <select
+                    value={autoStatus.retention}
+                    onChange={(e) => updateAutoBackupSettings({ retention: Number(e.target.value) })}
+                    className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {RETENTION_OPTIONS.map((n) => (
+                      <option key={n} value={n}>últimos {n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 text-[11px] text-[#999] bg-[#161616] border border-[#262626] rounded p-2.5">
+              <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${autoStatus.dirty ? 'text-amber-400' : 'text-emerald-400'}`} />
+              <span>
+                Último respaldo: <strong className="text-[#DDD]">{fmtRel(autoStatus.lastOkAt)}</strong>
+                {autoStatus.enabled && (
+                  <> · {autoStatus.dirty ? 'cambios pendientes de respaldar' : 'al día — sin cambios'}</>
+                )}
+                {autoStatus.running && <> · <strong className="text-emerald-300">respaldando…</strong></>}
+              </span>
+            </div>
+
+            {autoStatus.permOk === false && autoStatus.enabled && (
+              <div className="flex items-start gap-2 text-[11px] text-[#bbb] bg-amber-500/5 border border-amber-500/30 rounded p-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <span>El permiso de la carpeta caducó (normal tras reiniciar el navegador). Pulsa <strong>Respaldar ahora</strong> — el clic reactiva el permiso.</span>
+              </div>
+            )}
+
+            {autoStatus.lastError && (
+              <div className="flex items-start gap-2 text-[11px] text-red-300 bg-red-500/5 border border-red-500/30 rounded p-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                <span>{autoStatus.lastError}</span>
+              </div>
+            )}
+
+            {autoMsg && (
+              <div className="flex items-start gap-2 text-[11px] text-emerald-300 bg-emerald-500/5 border border-emerald-500/30 rounded p-2.5">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{autoMsg}</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleBackupNow}
+                disabled={autoBusy || autoStatus.running}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Escribe un respaldo ZIP ahora mismo (también reactiva el permiso de la carpeta)"
+              >
+                <RefreshCw className={`w-3 h-3 ${autoStatus.running ? 'animate-spin' : ''}`} />
+                Respaldar ahora
+              </button>
+              <button
+                onClick={handleRestoreLatest}
+                disabled={autoBusy || autoStatus.running}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Importa el backup más nuevo de la carpeta (merge no destructivo por fecha)"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Restaurar último backup
+              </button>
+            </div>
           </div>
         )}
       </div>

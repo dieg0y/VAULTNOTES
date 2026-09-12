@@ -305,14 +305,14 @@ async function writeToHandle(handle: FSHandleLike, blob: Blob): Promise<void> {
 }
 
 /**
- * Exports the vault as a ZIP using real "Save" semantics:
- *  - The first time, the user picks WHERE to save (e.g. Documents).
- *  - Every subsequent export silently OVERWRITES that same file,
- *    so there is always exactly one up-to-date backup.
- * Falls back to a classic fixed-name download on browsers without
- * the File System Access API (Firefox/Safari).
+ * Builds the FULL vault ZIP in memory — every table, images, PDFs and
+ * notes as .md with frontmatter (backup format 3.2.0, exactly what
+ * importVaultBackup expects). Pure builder: NO save strategy, so the
+ * SAME serialization feeds both the interactive "Guardar Backup"
+ * (exportVaultZip) and the automatic rotating backups that keep a USB
+ * folder up to date (utils/autoBackup.ts).
  */
-export async function exportVaultZip(): Promise<ExportResult> {
+export async function buildVaultZipBlob(): Promise<Blob> {
   const zip = new JSZip();
 
   // BLOB LIFECYCLE / TRASH FIX (Task 2-c, spec #20): include trashed items
@@ -548,8 +548,20 @@ export async function exportVaultZip(): Promise<ExportResult> {
     apuntesFolder?.folder(platSlug)?.folder(catSlug)?.file(fileName, frontmatter);
   }
 
-  // Generate the zip blob once — saving strategy depends on browser support.
-  const blob = await zip.generateAsync({ type: 'blob' });
+  // Generate the zip blob once — the saving strategy is decided by the CALLER.
+  return zip.generateAsync({ type: 'blob' });
+}
+
+/**
+ * Exports the vault as a ZIP using real "Save" semantics:
+ *  - The first time, the user picks WHERE to save (e.g. Documents).
+ *  - Every subsequent export silently OVERWRITES that same file,
+ *    so there is always exactly one up-to-date backup.
+ * Falls back to a classic fixed-name download on browsers without
+ * the File System Access API (Firefox/Safari).
+ */
+export async function exportVaultZip(): Promise<ExportResult> {
+  const blob = await buildVaultZipBlob();
 
   // --- Preferred: THE APP FOLDER — <app>/VaultNotes-Backup.zip lives with
   //     the app itself, so copying one folder to Drive carries everything. ---

@@ -15,6 +15,7 @@ node_modules
 
 # next.js
 /.next/
+/.next-dev/
 /out/
 
 # bundlers output (never in the repo)
@@ -86,6 +87,13 @@ worklog.txt
 download/
 db/*.db
 db/*.db-journal
+
+# Portable-app runtime state (never part of the repo):
+# - .vaultnotes-folder.txt: marker del .bat con la última ruta (detección de
+#   carpeta movida/copiada/USB).
+# - tools/: runtime de Bun instalado DENTRO de la carpeta (portátil USB).
+.vaultnotes-folder.txt
+/tools/
 
 # Sandbox setup scripts and skill run artifacts (not part of the app)
 /tests/

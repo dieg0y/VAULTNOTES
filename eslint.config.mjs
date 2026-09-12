@@ -27,7 +27,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     ],
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  // `.next-dev/**` — distDir de `next dev` (separado de `.next` prod a
+  // propósito: ver next.config.ts). Next genera ahí los dev types que el
+  // tsconfig incluye; ESLint NO debe lintearlos.
+  // `tools/**` — runtime de Bun instalado dentro de la carpeta (USB).
+  ignores: ["node_modules/**", ".next/**", ".next-dev/**", "out/**", "build/**", "tools/**", "next-env.d.ts", "examples/**", "skills"]
 }];
 
 export default eslintConfig;

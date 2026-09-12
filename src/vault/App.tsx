@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, initializeDatabase } from './db';
+import { startAutoBackupEngine } from './utils/autoBackup';
 import {
   Note,
   Lab,
@@ -93,6 +94,9 @@ const EMPTY_REFERENCES: ReferenceItem[] = [];
 export default function App() {
   // Initialize / seed the local vault database once on mount (browser only)
   useEffect(() => {
+    // AUTO-BACKUP (USB workflow): silent engine — only acts when the user
+    // enabled it in Configuración → Respaldo automático. Idempotent.
+    startAutoBackupEngine();
     initializeDatabase()
       .then(() => {
         // AUDIT FIX (VN-AUD-002): the v15 migration (REGLA DE ORO) deletes the

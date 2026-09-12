@@ -457,7 +457,7 @@ export async function pickAppFolder(): Promise<boolean> {
 
     let looksLikeApp = false;
     try {
-      await parent.getFileHandle('iniciar.bat');
+      await parent.getFileHandle('IniciarVaultNotes.bat');
       looksLikeApp = true;
     } catch {
       try {
@@ -469,7 +469,7 @@ export async function pickAppFolder(): Promise<boolean> {
     }
     if (!looksLikeApp) {
       const proceed = window.confirm(
-        'La carpeta elegida no parece ser la carpeta de la app (no contiene iniciar.bat).\n\n' +
+        'La carpeta elegida no parece ser la carpeta de la app (no contiene IniciarVaultNotes.bat).\n\n' +
         'Los backups se guardarán DENTRO de esta carpeta.\n\n' +
         '¿Usar esta carpeta de todos modos?'
       );
@@ -502,6 +502,86 @@ export async function writeFileToAppFolder(filename: string, blob: Blob): Promis
     return true;
   } catch (err) {
     console.warn('writeFileToAppFolder failed:', err);
+    return false;
+  }
+}
+
+/* -------- App folder: listing / reading / pruning (auto-backup) --------
+ * Feeds the rotating auto-backups that keep a USB folder up to date and
+ * the "restaurar último backup" flow on a new machine. All of them are
+ * SILENT (queryPermission only — requestPermission needs a user gesture
+ * and would throw here).                                                    */
+
+/** A file entry of the app folder, with the metadata the backup logic needs. */
+export interface AppFolderFile {
+  name: string;
+  lastModified: number;
+  size: number;
+}
+
+/** True when the stored app folder is usable RIGHT NOW without a gesture. */
+export async function isAppFolderPermissionGranted(): Promise<boolean> {
+  const dir = await getAppDirHandle();
+  if (!dir) return false;
+  try {
+    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    return perm === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+/** Lists the FILES of the app folder (subfolders are skipped). Returns null
+ *  when there is no folder stored or the permission is not granted. */
+export async function listAppFolderFiles(): Promise<AppFolderFile[] | null> {
+  const dir = await getAppDirHandle();
+  if (!dir || !dir.values) return null;
+  try {
+    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    if (perm !== 'granted') return null;
+    const files: AppFolderFile[] = [];
+    for await (const entry of dir.values()) {
+      if (entry.kind !== 'file' || !entry.getFile) continue;
+      try {
+        const f = await entry.getFile();
+        files.push({ name: entry.name, lastModified: f.lastModified, size: f.size });
+      } catch {
+        /* unreadable file — skip it */
+      }
+    }
+    return files;
+  } catch (err) {
+    console.warn('listAppFolderFiles failed:', err);
+    return null;
+  }
+}
+
+/** Reads one file of the app folder as a File (null: missing/locked/no perm). */
+export async function readAppFolderFile(name: string): Promise<File | null> {
+  const dir = await getAppDirHandle();
+  if (!dir || !dir.getFileHandle) return null;
+  try {
+    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    if (perm !== 'granted') return null;
+    const fh = await dir.getFileHandle(name, { create: false });
+    if (!fh.getFile) return null;
+    return await fh.getFile();
+  } catch {
+    return null;
+  }
+}
+
+/** Deletes one entry of the app folder (used to prune old auto-backups).
+ *  Never throws — a failed prune must not fail the backup that produced it. */
+export async function removeAppFolderEntry(name: string): Promise<boolean> {
+  const dir = await getAppDirHandle();
+  if (!dir || !dir.removeEntry) return false;
+  try {
+    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    if (perm !== 'granted') return false;
+    await dir.removeEntry(name);
+    return true;
+  } catch {
     return false;
   }
 }
