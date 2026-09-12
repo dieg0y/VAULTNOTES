@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { db } from '../../db';
 
 /* ---------- shared Tailwind class strings ---------- */
 export const inputCls =
@@ -147,17 +148,9 @@ export function useAddToNoteToast(): { addedToast: boolean; showToast: () => voi
   return { addedToast, showToast };
 }
 
-/* ---------- Cross-tool navigation helper (BLOQUE 5) ------------------
- * Single source of truth for "jump to tool X with optional entryId".
- * Wraps the existing `usePendingToolStore` so all tools use the same
- * mechanism. 100% offline — no router, no fetch, no telemetry.
+/* ---------- Tool usage metadata (BLOQUE 5) ----------------------------
+ * 100% offline — no fetch, no APIs, no telemetry.
  */
-import { usePendingToolStore } from '../../store/pendingToolStore';
-import { db } from '../../db';
-
-export function goToTool(toolId: string, entryId?: string | number): void {
-  usePendingToolStore.getState().setPending({ toolId, entryId });
-}
 
 /**
  * Record that a tool was used — light metadata only (toolId + timestamp).

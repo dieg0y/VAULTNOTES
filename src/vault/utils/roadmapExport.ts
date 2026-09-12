@@ -6,11 +6,6 @@
 
 import { ROADMAP_TIERS, ROADMAP_MASTERY_NOTE, ROADMAP_HEADER, type RoadmapTierDef, type RoadmapPhaseDef } from '../data/roadmapData';
 
-export interface RoadmapProgress {
-  /** Mapa id → done (ausente = false). */
-  doneMap: Map<string, boolean>;
-}
-
 const tierProgress = (tier: RoadmapTierDef, doneMap: Map<string, boolean>): { done: number; total: number } => {
   let done = 0;
   let total = 0;

@@ -269,7 +269,7 @@ export function startAutoBackupEngine(): void {
 
 /* ----------------------------- restoring ----------------------------- */
 
-export interface RestoreLatestResult {
+interface RestoreLatestResult {
   fileName: string;
   lastModified: number;
   summary: ImportSummary;

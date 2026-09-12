@@ -513,7 +513,7 @@ export async function writeFileToAppFolder(filename: string, blob: Blob): Promis
  * and would throw here).                                                    */
 
 /** A file entry of the app folder, with the metadata the backup logic needs. */
-export interface AppFolderFile {
+interface AppFolderFile {
   name: string;
   lastModified: number;
   size: number;

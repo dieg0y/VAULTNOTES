@@ -123,7 +123,7 @@ function parseScalar(s: string): unknown {
 /** Validate a Sigma rule YAML text. Returns the parsed rule with errors[]
  *  empty if valid, or with one or more errors if not. NEVER throws — the
  *  caller decides what to do with the errors. */
-export function parseSigmaRule(yamlText: string): ParsedSigmaRule {
+function parseSigmaRule(yamlText: string): ParsedSigmaRule {
   const empty: ParsedSigmaRule = {
     title: '', id: undefined, status: '', description: '', author: '', date: '',
     level: '', logsource: '', detection: '', tags: [], mitre: [], yaml: yamlText, errors: [],

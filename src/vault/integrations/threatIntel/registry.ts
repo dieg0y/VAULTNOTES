@@ -58,7 +58,7 @@ export function providersForIocType(iocType: EnrichableIocType): ProviderId[] {
 /** Special outcome kind returned when consent is missing — the UI shows the
  *  privacy warning modal and re-issues the request after the user clicks
  *  [Continue]. */
-export interface ConsentMissingOutcome {
+interface ConsentMissingOutcome {
   ok: false;
   error: { kind: 'consent_missing' };
   /** Re-run this exact enrich call after consent is granted. */

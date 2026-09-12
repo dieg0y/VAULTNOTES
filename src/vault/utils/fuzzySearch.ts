@@ -8,7 +8,7 @@ import { MITRE_TECHNIQUES, MitreTechnique } from '../data/mitreData';
 import { SIGMA_RULES, SigmaRule } from '../data/sigmaData';
 import { DETECTION_PRESETS, DetectionPreset } from '../data/detectionPresets';
 import { KNOWN_RIDS, WELL_KNOWN_SIDS, KNOWN_SID_AUTHORITIES, KnownRid, WellKnownSid, KnownSidAuthority } from '../data/sidRidData';
-import { TOOLS_CATALOG, type ToolId } from '../data/toolsCatalog';
+import { TOOLS_CATALOG, type ToolId, type ToolCatalogEntry } from '../data/toolsCatalog';
 import { escapeHtml } from './escapeHtml';
 
 interface SearchMatchDetail {
@@ -52,15 +52,6 @@ export interface SearchResultItem {
   /** For 'command' results: the command key the modal dispatches. */
   commandId?: string;
   rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry;
-}
-
-/** Lightweight shape of a tool catalog entry (avoids circular imports). */
-export interface ToolCatalogEntry {
-  id: ToolId;
-  name: string;
-  cat: string;
-  desc: string;
-  tags?: string[];
 }
 
 /** A synthetic command palette entry (spec items #7). */

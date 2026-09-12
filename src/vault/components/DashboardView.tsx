@@ -31,6 +31,7 @@ import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
 import { findToolById } from '../data/toolsCatalog';
+import { Map as RoadmapIcon } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface DashboardViewProps {
@@ -104,6 +105,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Weak concepts — glossary terms with low flashcard stability (or no
   // study history yet). Falls back to "Coming soon" if there are zero stats.
   const flashcardStats = useLiveQuery(() => db.flashcardStats.toArray(), []);
+
+  // Roadmap IAM progress — live from the same table the RoadmapView uses
+  // (v18). Keep it lightweight: only count rows, no joins.
+  const roadmapRows = useLiveQuery(() => db.roadmapItems.toArray(), [], []);
+  const roadmapDone = roadmapRows.filter((r) => r.done).length;
+  const roadmapTotal = roadmapRows.length;
+  const roadmapPct = roadmapTotal > 0 ? Math.round((roadmapDone / roadmapTotal) * 100) : 0;
   const statsLoaded = flashcardStats !== undefined;
   const weakConcepts = useMemo(() => {
     const stats = flashcardStats || [];
@@ -488,7 +496,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <Brain className="w-4 h-4 text-green-400" />
           <h2 className="text-sm font-bold text-white">Learning</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Roadmap IAM progress */}
+          <div
+            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-emerald-500/40 transition-colors"
+            onClick={() => onSelectSection?.('roadmap')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSection?.('roadmap'); }}
+            title="Abrir el checklist del Roadmap Junior IAM / Identity Security Analyst"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Roadmap IAM</span>
+              <RoadmapIcon className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <span className="text-2xl font-bold text-white font-mono">
+                {roadmapPct}<span className="text-sm text-[#666]">%</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#666] shrink-0">
+                {roadmapDone}/{roadmapTotal}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden mt-2" role="progressbar" aria-valuenow={roadmapPct} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${roadmapPct === 100 ? 'bg-emerald-500' : 'bg-emerald-600'}`}
+                style={{ width: `${roadmapPct}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+              {roadmapPct === 100
+                ? '¡Roadmap completado! Exporta el checklist como evidencia.'
+                : roadmapDone > 0
+                  ? 'Vas avanzando — clic para seguir con la siguiente fase.'
+                  : 'Junior IAM / Identity Security Analyst — 14 fases por conquistar.'}
+            </p>
+          </div>
+
           {/* Items to Review */}
           <div
             className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-blue-500/40 transition-colors"

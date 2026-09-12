@@ -20,7 +20,7 @@ import Dexie, { type Table } from 'dexie';
 
 /** A single stored credential row. The `cipherBlob` holds the AES-GCM
  *  ciphertext (iv || ciphertext) as a Uint8Array serialized via JSON. */
-export interface StoredCredential {
+interface StoredCredential {
   /** The provider id ('virustotal' | 'abuseipdb' | 'otx' | 'shodan'). */
   id: string;
   /** AES-GCM ciphertext as a base64 string. */

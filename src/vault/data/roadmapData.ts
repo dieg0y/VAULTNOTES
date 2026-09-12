@@ -453,6 +453,3 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
 export const ROADMAP_ALL_ITEM_IDS: string[] = ROADMAP_TIERS.flatMap((t) =>
   t.phases.flatMap((p) => p.items.map((i) => i.id))
 );
-
-/** Total de ítems del roadmap (51). */
-export const ROADMAP_TOTAL_ITEMS = ROADMAP_ALL_ITEM_IDS.length;
