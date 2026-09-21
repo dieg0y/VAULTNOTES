@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, initializeDatabase, dismissSeedTerm } from './db';
+import { db, initializeDatabase, dismissSeedTerm, dismissSeedId } from './db';
 import { startAutoBackupEngine } from './utils/autoBackup';
 import {
   Note,
@@ -728,6 +728,10 @@ export default function App() {
   };
 
   const handlePermanentDeleteLab = async (labId: string) => {
+    // LAB TEMPLATES HELPDESK (v19): si es un lab sembrado (id 'labhd-*'),
+    // registrar el dismissal para que el seed NO lo reviva en el próximo
+    // arranque (mismo patrón que dismissSeedTerm del glosario).
+    if (labId.startsWith('labhd-')) dismissSeedId('helpdeskLab', labId);
     // Clean up embedded media owned by this lab.
     // BLOB LIFECYCLE FIX (Task 2-c — same fix as handlePermanentDeleteNote):
     // fetch metas BEFORE deleting IDB rows so disk files are also removed.
@@ -876,6 +880,11 @@ export default function App() {
       }
       await db.notes.bulkDelete(noteIds);
       await db.labs.bulkDelete(labIds);
+      // LAB TEMPLATES HELPDESK (v19): vaciar la papelera también descarta
+      // los labs sembrados HelpDesk (para que no vuelvan en el arranque).
+      for (const labId of labIds) {
+        if (labId.startsWith('labhd-')) dismissSeedId('helpdeskLab', labId);
+      }
       // GLOSARIO SEMBRADO (v18): vaciar la papelera también descarta los
       // términos del seed (para que no vuelvan en el siguiente arranque).
       for (const t of deletedTerms) {

@@ -23,7 +23,7 @@ import {
   Check,
   CopyPlus,
 } from 'lucide-react';
-import { db } from '../db';
+import { db, dismissSeedId } from '../db';
 import type { ProfileDoc, ProfileSkill, ProfileTool, ProfileExperience, ProfileEducation, ProfileCertification, ProfileLanguage, ProfileProject, SkillStatus } from '../types';
 import { buildProfileMarkdown, profileMarkdownFilename } from '../utils/profileExport';
 import { downloadBlob } from '../utils/downloadBlob';
@@ -383,6 +383,12 @@ export const ProfileView: React.FC = () => {
     if (!current || !sortedProfiles || sortedProfiles.length <= 1) return;
     const label = current.name?.trim() || current.id;
     if (!window.confirm(`¿Eliminar el perfil "${label}"? Esta acción no se puede deshacer.`)) return;
+    // PERFIL HELPDESK SEMBRADO (v19): si es el seed 'profile-helpdesk-l1',
+    // registrar el dismissal para que el seed NO lo reviva en el próximo
+    // arranque (mismo patrón que el glosario con dismissSeedTerm).
+    if (current.id === 'profile-helpdesk-l1') {
+      dismissSeedId('helpdeskProfile', current.id);
+    }
     await db.profile.delete(current.id);
     setDraft(null);
     const remaining = sortedProfiles.find((p) => p.id !== current.id)!;

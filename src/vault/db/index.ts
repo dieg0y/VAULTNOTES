@@ -1,7 +1,10 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem, HelpDeskTicket } from '../types';
 import { GLOSSARY_SEED_TERMS } from '../data/glossarySeed';
 import { ROADMAP_ALL_ITEM_IDS } from '../data/roadmapData';
+import { ROADMAP_HD_ALL_ITEM_IDS } from '../data/roadmapHelpDeskData';
+import { HELPDESK_TICKET_SEEDS } from '../data/helpDeskTickets';
+import { HELPDESK_LAB_SEEDS } from '../data/helpDeskLabsData';
 
 /**
  * BLOQUE 6 — Online-Optional integration tables. These live in the MAIN
@@ -239,6 +242,15 @@ class VaultDatabase extends Dexie {
   // ROADMAP (v18) — estado del checklist del roadmap Junior IAM
   // (contenido en data/roadmapData.ts; aquí solo done/doneAt por id).
   roadmapItems!: Table<RoadmapItem, string>;
+  // HELPDESK (v19) — especialización HelpDesk / IT Support:
+  //  · `roadmapHelpDeskItems` — estado del checklist del roadmap HelpDesk
+  //    → IAM (contenido en data/roadmapHelpDeskData.ts; aquí solo
+  //    done/doneAt por id, IGUAL que roadmapItems pero independiente).
+  //  · `helpdeskTickets` — tickets SIMULADOS de práctica (dataset
+  //    data/helpDeskTickets.ts, empresa ficticia Nexora S.A.) que el
+  //    usuario trabaja (triage → resolución) + tickets propios (CRUD).
+  roadmapHelpDeskItems!: Table<RoadmapItem, string>;
+  helpdeskTickets!: Table<HelpDeskTicket, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -557,6 +569,16 @@ class VaultDatabase extends Dexie {
     this.version(18).stores({
       roadmapItems: 'id, updatedAt',
     });
+    // v19: HELPDESK — migración 100% ADITIVA (las tablas existentes no se
+    // tocan; los datos previos sobreviven intactos):
+    //  · roadmapHelpDeskItems — progreso del roadmap HelpDesk (65 ítems
+    //    'rmhd-*' en data/roadmapHelpDeskData.ts).
+    //  · helpdeskTickets — CRUD de tickets simulados (seed idempotente por
+    //    id + dismissal; el índice status/isDeleted sostiene las vistas).
+    this.version(19).stores({
+      roadmapHelpDeskItems: 'id, updatedAt',
+      helpdeskTickets: 'id, status, isDeleted, updatedAt, createdAt',
+    });
   }
 }
 
@@ -564,7 +586,7 @@ class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 18;
+export const CURRENT_SCHEMA_VERSION = 19;
 
 export const db = new VaultDatabase();
 
@@ -587,6 +609,7 @@ const DEFAULT_PLATFORMS_LIST: string[] = [
 ];
 
 // Single master list for "Categoría / Tema / Especialidad" — used by Notes, Labs, Glossary.
+// v19: rama HelpDesk (especialización HelpDesk / IT Support) — aditiva.
 const MASTER_CATEGORIES_LIST: string[] = [
   'SOC Tier 1 - Triage',
   'SOC Tier 2 - Investigación',
@@ -604,7 +627,14 @@ const MASTER_CATEGORIES_LIST: string[] = [
   'IAM - Auth / MFA',
   'IAM - Federation / SSO',
   'GRC - Auditoría y Cumplimiento',
-  'GRC - Riesgo y Marco Normativo'
+  'GRC - Riesgo y Marco Normativo',
+  'HelpDesk - Fundamentos IT',
+  'HelpDesk - Service Desk / ITSM',
+  'HelpDesk - Windows / Endpoint',
+  'HelpDesk - Redes (Networking)',
+  'HelpDesk - Microsoft 365',
+  'HelpDesk - AD / Identidad',
+  'HelpDesk - Seguridad para Soporte'
 ];
 
 // Previous default list kept only so the migration can safely remove old
@@ -657,9 +687,45 @@ const DEMO_LAB_IDS = ['lab-phishing-case-42'];
 const DEMO_TERM_IDS = ['term-api-gateway', 'term-kerberos-tgt', 'term-zero-trust'];
 const DEMO_CLEANUP_FLAG = 'vault-demo-content-removed';
 
+/** localStorage: ids de seeds HelpDesk (tickets/labs/perfil) que el usuario
+ * borró DEFINITIVAMENTE (para que el seeding no los reviva). Mismo patrón
+ * que SEED_DISMISSED_KEY del glosario, pero por id (no por nombre). */
+const SEED_DISMISSED_IDS_KEY = 'vn-seed-dismissed-ids';
+export type HdSeedDomain = 'helpdeskTicket' | 'helpdeskLab' | 'helpdeskProfile';
+
 /** localStorage: nombres de términos del seed que el usuario borró
  * DEFINITIVAMENTE (para que el seeding no los traiga de vuelta). */
 const SEED_DISMISSED_KEY = 'vn-glossary-seed-dismissed';
+
+function loadDismissedSeedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SEED_DISMISSED_IDS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Registra un id de seed HelpDesk como "descartado" para que el seed no
+ * lo reviva. Se llama al borrar DEFINITIVAMENTE (hard delete) un ticket
+ * sembrado, un lab template HelpDesk o el perfil HelpDesk. */
+export function dismissSeedId(domain: HdSeedDomain, id: string): void {
+  try {
+    const set = loadDismissedSeedIds();
+    const key = `${domain}:${id}`;
+    if (set.has(key)) return;
+    set.add(key);
+    localStorage.setItem(SEED_DISMISSED_IDS_KEY, JSON.stringify([...set]));
+  } catch {
+    /* best-effort: si localStorage falla, el seed puede re-añadir */
+  }
+}
+
+function isSeedIdDismissed(domain: HdSeedDomain, id: string): boolean {
+  return loadDismissedSeedIds().has(`${domain}:${id}`);
+}
 
 const normName = (s: string): string =>
   s
@@ -868,6 +934,84 @@ async function doInitializeDatabase() {
     console.warn('Roadmap seed skipped:', err);
   }
 
+  // --- HELPDESK (v19) · ROADMAP: igual que el bloque anterior pero para
+  // data/roadmapHelpDeskData.ts (ids 'rmhd-*') en su PROPIA tabla — el
+  // progreso HelpDesk y el IAM son completamente independientes.
+  try {
+    const existingRmHd = await db.roadmapHelpDeskItems.toArray();
+    const existingRmHdIds = new Set(existingRmHd.map((r) => r.id));
+    const missingHd = ROADMAP_HD_ALL_ITEM_IDS.filter(
+      (id) => !existingRmHdIds.has(id)
+    );
+    if (missingHd.length > 0) {
+      const nowRmHd = new Date().toISOString();
+      await db.roadmapHelpDeskItems.bulkPut(
+        missingHd.map((id) => ({ id, done: false, updatedAt: nowRmHd }))
+      );
+    }
+  } catch (err) {
+    console.warn('HelpDesk roadmap seed skipped:', err);
+  }
+
+  // --- HELPDESK (v19) · TICKETS: siembra el dataset de práctica (48
+  // tickets simulados de Nexora S.A.). ADITIVO por id: las filas que ya
+  // existan (incluidas soft-deleted — la fila sigue viva) NO se tocan, así
+  // el trabajo del usuario (status/statusNote) sobrevive. Los ids en el
+  // dismissal set (borrado definitivo) no se reviven.
+  try {
+    const existingTk = await db.helpdeskTickets.toArray();
+    const existingTkIds = new Set(existingTk.map((t) => t.id));
+    const missingTk = HELPDESK_TICKET_SEEDS.filter(
+      (t) => !existingTkIds.has(t.id) && !isSeedIdDismissed('helpdeskTicket', t.id)
+    );
+    if (missingTk.length > 0) {
+      const nowTk = new Date().toISOString();
+      // bulkPut (no bulkAdd): tolera restores que ya trajeran ids hdt-*
+      // sin lanzar BulkError.
+      await db.helpdeskTickets.bulkPut(
+        missingTk.map((t) => ({
+          ...t,
+          status: 'nuevo' as const,
+          statusNote: undefined,
+          isDeleted: false,
+          deletedAt: undefined,
+          createdAt: nowTk,
+          updatedAt: nowTk,
+        }))
+      );
+    }
+  } catch (err) {
+    console.warn('HelpDesk tickets seed skipped:', err);
+  }
+
+  // --- HELPDESK (v19) · LAB TEMPLATES: 4 labs guiados en la tabla `labs`
+  // EXISTENTE (misma arquitectura de labs del usuario — no hay segunda
+  // app de labs). ADITIVO por id + dismissal. El usuario los trabaja
+  // igual que cualquier lab (partes, estado, evidencia).
+  try {
+    const existingLabs = await db.labs.toArray();
+    const existingLabIds = new Set(existingLabs.map((l) => l.id));
+    const missingLabs = HELPDESK_LAB_SEEDS.filter(
+      (l) => !existingLabIds.has(l.id) && !isSeedIdDismissed('helpdeskLab', l.id)
+    );
+    if (missingLabs.length > 0) {
+      const nowLabs = new Date().toISOString();
+      await db.labs.bulkPut(
+        missingLabs.map((l) => ({
+          ...l,
+          status: 'No iniciado' as const,
+          isFavorite: false,
+          isDeleted: false,
+          deletedAt: undefined,
+          createdAt: nowLabs,
+          updatedAt: nowLabs,
+        }))
+      );
+    }
+  } catch (err) {
+    console.warn('HelpDesk labs seed skipped:', err);
+  }
+
   // --- PERFIL PROFESIONAL (v17, multi-perfil desde v18): seed inicial SOLO
   // si la tabla está vacía (instalaciones nuevas). JAMÁS sobrescribe perfiles
   // existentes. Las filas heredadas sin `name` (p. ej. 'singleton') reciben
@@ -976,6 +1120,117 @@ async function doInitializeDatabase() {
     }
   } catch (err) {
     console.warn('Profile seed skipped:', err);
+  }
+
+  // --- HELPDESK (v19) · PERFIL "HelpDesk L1 - Service Desk": ADDITIVO y
+  // COEXISTENTE con el perfil IAM (multi-perfil). Se crea si no existe la
+  // fila 'profile-helpdesk-l1' (en instalaciones NUEVAS y en existentes);
+  // si el usuario la borró definitivamente, el dismissal evita revivirla.
+  // NUNCA sobrescribe: si la fila existe, se respeta tal cual.
+  try {
+    const hasHdProfile = await db.profile.get('profile-helpdesk-l1');
+    if (!hasHdProfile && !isSeedIdDismissed('helpdeskProfile', 'profile-helpdesk-l1')) {
+      const nowHd = new Date().toISOString();
+      const seedProfileHd: ProfileDoc = {
+        id: 'profile-helpdesk-l1',
+        name: 'Perfil HelpDesk L1 - Service Desk',
+        fullName: '',
+        headline: 'HelpDesk / IT Support Analyst — L1 Service Desk',
+        email: '',
+        phone: '',
+        location: '',
+        linkedin: '',
+        portfolio: '',
+        targetRoles: [
+          'Help Desk Technician',
+          'Help Desk Analyst',
+          'Service Desk Analyst',
+          'IT Support Analyst',
+          'IT Support Technician',
+          'Desktop Support Technician',
+          'Desktop Support Analyst',
+          'Technical Support Analyst',
+          'IT Service Desk Technician',
+          'Junior IT Support Analyst',
+        ],
+        summary:
+          'Analista de Soporte Técnico (L1 Service Desk) con base sólida de troubleshooting estructurado ' +
+          '(identificar → aislar → resolver → documentar), Windows 10/11, redes fundamentales (DNS, DHCP, VPN, ' +
+          'Wi-Fi), Microsoft 365 (Outlook, Teams, OneDrive, licencias) y operativa de Active Directory/Entra ID ' +
+          '(altas, bloqueos, grupos, MFA). Gestión de tickets con ITIL 4 (incidente vs solicitud, prioridad ' +
+          'impacto × urgencia, SLA, escalamiento) y cultura de evidencia: cada cierre documentado para L2 y ' +
+          'auditoría. En transición deliberada hacia IAM (ciclo de vida de identidades, accesos y gobierno). ' +
+          'Español nativo e inglés B2+.',
+        skills: [
+          // Windows / Endpoint — el corazón del L1
+          { id: 'sklhd-win', name: 'Windows 10/11 — instalación, updates, servicios, Event Viewer, perfiles', group: 'Windows / Endpoint', status: 'En proceso', notes: 'Diagnóstico del "equipo lento" y BSOD de primera respuesta.' },
+          { id: 'sklhd-troubleshoot', name: 'Troubleshooting metodológico — identificar, reproducir, aislar, verificar, documentar', group: 'Windows / Endpoint', status: 'En proceso', notes: 'El método importa más que la solución puntual.' },
+          { id: 'sklhd-hw', name: 'Hardware y periféricos — diagnóstico, docking, monitores, impresoras', group: 'Windows / Endpoint', status: 'En proceso' },
+          // Redes
+          { id: 'sklhd-net', name: 'Redes fundamentales — DNS, DHCP, VPN, Wi-Fi, puertos, diagnóstico con ping/nslookup/Test-NetConnection', group: 'Redes', status: 'En proceso' },
+          // Microsoft 365
+          { id: 'sklhd-m365', name: 'Microsoft 365 — Outlook, Teams, OneDrive, licencias, activación, Service Health', group: 'Microsoft 365', status: 'Por aprender' },
+          // Identidad
+          { id: 'sklhd-ad', name: 'Active Directory (operativa L1) — usuarios, grupos, bloqueos, resets delegados', group: 'Identidad', status: 'Por aprender', notes: 'Puente natural hacia IAM.' },
+          { id: 'sklhd-entra', name: 'Entra ID fundamentals — MFA, SSPR, sign-in logs, estados de dispositivo', group: 'Identidad', status: 'Por aprender' },
+          { id: 'sklhd-intune', name: 'Intune fundamentals — enrollment, compliance, Company Portal', group: 'Identidad', status: 'Por aprender' },
+          // ITSM
+          { id: 'sklhd-tickets', name: 'Gestión de tickets — triage, prioridad, categorización, escalamiento', group: 'ITSM', status: 'En proceso' },
+          { id: 'sklhd-itil', name: 'ITIL 4 — incidente vs solicitud vs problema vs cambio, SLA/OLA, métricas (MTTA/MTTR/FCR/CSAT)', group: 'ITSM', status: 'En proceso' },
+          { id: 'sklhd-powershell', name: 'PowerShell para soporte — Get-ADUser, Search-ADAccount, Get-WinEvent, Test-NetConnection', group: 'ITSM', status: 'Por aprender' },
+          // Blandas / seguridad
+          { id: 'sklhd-customer', name: 'Customer service técnico — empatía, lenguaje no técnico, gestión de expectativas', group: 'Blandas / Seguridad', status: 'En proceso' },
+          { id: 'sklhd-doc', name: 'Documentación — tickets como evidencia, KB, traspasos de turno', group: 'Blandas / Seguridad', status: 'En proceso' },
+          { id: 'sklhd-sec', name: 'Security awareness — phishing, vishing, verificación de identidad antes de resets', group: 'Blandas / Seguridad', status: 'En proceso', notes: 'El L1 es la primera barrera: saber cuándo NO resolver.' },
+        ],
+        tools: [
+          { id: 'pthd-servicenow', name: 'ServiceNow / Jira SM / Zendesk (ITSM)', level: 'Intermedio', notes: 'Cualquier plataforma de tickets: el flujo (intake → triage → resolve → close) es el mismo.' },
+          { id: 'pthd-aduc', name: 'Active Directory — ADUC', level: 'Intermedio' },
+          { id: 'pthd-m365ac', name: 'Microsoft 365 admin center', level: 'Intermedio' },
+          { id: 'pthd-entra', name: 'Microsoft Entra ID (admin center)', level: 'Básico' },
+          { id: 'pthd-intune', name: 'Microsoft Intune', level: 'Básico' },
+          { id: 'pthd-rdp', name: 'RDP / AnyDesk (soporte remoto)', level: 'Intermedio' },
+          { id: 'pthd-outlook', name: 'Outlook / Teams / OneDrive (soporte de usuario final)', level: 'Intermedio' },
+        ],
+        experience: [],
+        education: [],
+        certifications: [
+          { id: 'certhd-itil', name: 'ITIL 4 Foundation', issuer: 'AXELOS / PeopleCert', status: 'En proceso', notes: 'La certificación de entrada del service desk — vocabulario y marco.' },
+          { id: 'certhd-aplus', name: 'CompTIA A+', issuer: 'CompTIA', status: 'Por aprender', notes: 'Hardware/Windows/redes fundamentales con sello verificable.' },
+        ],
+        languages: [
+          { id: 'lang-es-hd', name: 'Español', level: 'Nativo' },
+          { id: 'lang-en-hd', name: 'Inglés', level: 'B2+' },
+        ],
+        projects: [
+          { id: 'prjhd-nexora', name: 'Proyecto Final VaultNotes — "primera semana" en el service desk de Nexora S.A. (simulado)', description: '30 tickets de punta a punta (triage, prioridad, troubleshooting, resolución/escalamiento y evidencia) + KB propia + informe de métricas. Práctica deliberada de L1 con foco en el puente hacia IAM.' },
+          { id: 'prjhd-vaultnotes', name: 'VaultNotes — segundo cerebro de estudio (PWA local-first)', description: 'Glosario, roadmap, labs y flashcards de repaso espaciado — ahora con especialización HelpDesk/IT Support y transición a IAM.' },
+        ],
+        atsKeywords: [
+          'Help Desk', 'Helpdesk', 'Service Desk', 'IT Support', 'Technical Support', 'Desktop Support',
+          'IT Support Analyst', 'Service Desk Analyst', 'L1 Support', 'L2 Support', 'Tier 1', 'Tier 2',
+          'ITIL 4', 'ITIL', 'ITSM', 'Incident Management', 'Service Request', 'SLA', 'OLA', 'Ticketing',
+          'Troubleshooting', 'Ticket Resolution', 'Escalation', 'Customer Service', 'Customer Support',
+          'Windows 10', 'Windows 11', 'Active Directory', 'AD', 'Entra ID', 'Azure AD', 'Microsoft 365',
+          'Office 365', 'Outlook', 'Teams', 'OneDrive', 'SharePoint', 'Exchange Online', 'Intune',
+          'Autopilot', 'PowerShell', 'DNS', 'DHCP', 'VPN', 'TCP/IP', 'Networking', 'RDP', 'Remote Support',
+          'Password Reset', 'Account Lockout', 'MFA', 'SSPR', 'Imaging', 'Reimaging', 'Asset Management',
+          'ServiceNow', 'Jira Service Management', 'Zendesk', 'Freshservice', 'CompTIA A+', 'ITIL Foundation',
+        ],
+        jobSearchNotes:
+          'Títulos objetivo: Help Desk Analyst / IT Support Analyst / Service Desk Analyst (ver lista). ' +
+          'Palabras clave probadas: "help desk", "soporte técnico", "service desk", "mesa de ayuda", "soporte TI". ' +
+          'Portales: LinkedIn, Computrabajo, Indeed, empresa-empresa. Diferenciadores: ITIL 4 Foundation (en ' +
+          'proceso), el proyecto final simulado de 30 tickets (prepáralo para contar en entrevistas) y la ' +
+          'narrativa de transición L1 → L2 → IAM. Este perfil COEXISTE con el Perfil IAM: activa uno u otro ' +
+          'según la vacante (el contenido de ambos se conserva).',
+        createdAt: nowHd,
+        updatedAt: nowHd,
+      };
+      await db.profile.put(seedProfileHd);
+    }
+  } catch (err) {
+    console.warn('HelpDesk profile seed skipped:', err);
   }
 }
 

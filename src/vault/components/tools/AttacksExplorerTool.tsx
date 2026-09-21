@@ -54,6 +54,7 @@ const CATEGORY_CHIP: Record<AttackCategory, string> = {
   Web: 'bg-purple-500/10 text-purple-300',
   Social: 'bg-pink-500/10 text-pink-300',
   Malware: 'bg-cyan-500/10 text-cyan-300',
+  PrivEsc: 'bg-amber-500/10 text-amber-300',
 };
 
 /** Fuzzy subsequence match (like the rest of the app's search: forgiving, ranked below exact/substring). */

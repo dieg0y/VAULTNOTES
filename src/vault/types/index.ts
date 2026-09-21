@@ -330,3 +330,89 @@ export interface RoadmapItem {
 }
 
 export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel' | 'profile' | 'roadmap';
+
+/* ------------------------------------------------------------------ */
+/* HELPDESK (v19) — tickets simulados (CRUD) + KB (dataset estático). */
+/* Los tickets se siembran desde data/helpDeskTickets.ts (dataset de */
+/* estudio: empresa ficticia "Nexora S.A.") y el usuario los trabaja */
+/* (triage → troubleshooting → resolución) como práctica de service  */
+/* desk. La KB es contenido de solo lectura (viene de fábrica).      */
+/* ------------------------------------------------------------------ */
+
+export type HdTicketType = 'incidente' | 'solicitud';
+export type HdTicketPriority = 'P1' | 'P2' | 'P3' | 'P4';
+export type HdTicketLevel = 'alta' | 'media' | 'baja';
+export type HdTicketStatus = 'nuevo' | 'en_progreso' | 'resuelto' | 'cerrado' | 'escalado';
+
+export interface HelpDeskTicket {
+  /** Id estable del seed ('hdt-001'...) o generado para tickets propios. */
+  id: string;
+  /** Número visible del ticket ('HD-1001'...). */
+  number: string;
+  title: string;
+  /** Categoría de la lista maestra (rama HelpDesk). */
+  category: string;
+  /** Subcategoría corta ('Outlook', 'Impresión', 'DNS'...). */
+  subcategory?: string;
+  type: HdTicketType;
+  priority: HdTicketPriority;
+  impact: HdTicketLevel;
+  urgency: HdTicketLevel;
+  /** Usuario solicitante — ficticio: 'Marta Suárez (Contabilidad)'. */
+  requester: string;
+  /** Lo que reporta el usuario, en sus palabras. */
+  description: string;
+  /** Síntomas observables/verificables. */
+  symptoms: string;
+  /** Datos ya recolectados (equipo, SO, IP, logs...). */
+  dataAvailable?: string;
+  /** Pasos esperados de diagnóstico L1 (guía de estudio). */
+  troubleshooting?: string;
+  /** Resolución esperada (guía de estudio). */
+  resolution?: string;
+  /** A quién/ cuándo escalar ('L2 - Redes', 'SOC (posible compromiso)'...). */
+  escalation?: string;
+  /** Id del artículo de KB relacionado ('kb-account-locked'). */
+  kbRef?: string;
+  /** Habilidad práctica que entrena el ticket. */
+  skill?: string;
+  /** Evidencia sugerida a registrar. */
+  evidence?: string;
+  /** Estado de trabajo del usuario. */
+  status: HdTicketStatus;
+  /** Nota de cierre/resolución escrita por el usuario. */
+  statusNote?: string;
+  /** True = forma parte del proyecto final (30 tickets "primera semana"). */
+  isFinalProject?: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Paso de un artículo de la KB HelpDesk. */
+export interface HelpDeskKbStep {
+  title: string;
+  detail?: string;
+  /** Comando educativo (PowerShell/CMD) — texto plano. */
+  command?: string;
+}
+
+/** Artículo de la base de conocimiento HelpDesk (dataset estático). */
+export interface HelpDeskKbArticle {
+  id: string;
+  title: string;
+  category: string;
+  /** Cuándo aplica el artículo (síntomas). */
+  symptoms: string;
+  /** Causa(s) típica(s). */
+  cause: string;
+  steps: HelpDeskKbStep[];
+  /** Cómo confirmar que quedó resuelto. */
+  verification?: string;
+  escalation?: string;
+  /** Nombres de términos del glosario relacionados. */
+  relatedTerms?: string[];
+  /** Ids de tickets del dataset que lo referencian (auto-calculado). */
+  relatedTickets?: string[];
+}

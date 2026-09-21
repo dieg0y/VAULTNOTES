@@ -25,7 +25,8 @@ export type AttackCategory =
   | 'DoS'
   | 'Web'
   | 'Social'
-  | 'Malware';
+  | 'Malware'
+  | 'PrivEsc';
 
 export type AttackSeverity = 'Critical' | 'High' | 'Medium' | 'Low';
 

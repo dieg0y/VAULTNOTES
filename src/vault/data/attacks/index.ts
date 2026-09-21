@@ -19,6 +19,7 @@ import { RED_ATTACKS } from './red';
 import { DOS_ATTACKS } from './dos';
 import { WEB_ATTACKS } from './web';
 import { SE_ATTACKS, MAL_ATTACKS } from './misc';
+import { PRIV_ATTACKS } from './priv';
 
 export type { AttackCategory, AttackSeverity, AttackInfo } from './types';
 
@@ -29,6 +30,7 @@ export const ATTACKS: AttackInfo[] = [
   ...WEB_ATTACKS,
   ...SE_ATTACKS,
   ...MAL_ATTACKS,
+  ...PRIV_ATTACKS,
 ];
 
 export const ATTACK_CATEGORY_LABELS: Record<AttackCategory, string> = {
@@ -38,6 +40,7 @@ export const ATTACK_CATEGORY_LABELS: Record<AttackCategory, string> = {
   Web: 'Web / Aplicación',
   Social: 'Ingeniería Social',
   Malware: 'Malware / C2 / Exfil',
+  PrivEsc: 'Escalada de Privilegios',
 };
 
 /** Orden de severidad para chips y ordenación. */
@@ -53,5 +56,5 @@ export const ATTACK_SEVERITIES: AttackSeverity[] = ['Critical', 'High', 'Medium'
 
 /** Lista de categorías (para filtros) — IAM primero (foco del usuario). */
 export const ATTACK_CATEGORIES: AttackCategory[] = [
-  'IAM', 'Red', 'DoS', 'Web', 'Social', 'Malware',
+  'IAM', 'Red', 'DoS', 'Web', 'Social', 'Malware', 'PrivEsc',
 ];
