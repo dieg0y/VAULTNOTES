@@ -5,7 +5,10 @@ import {
   CalendarClock, Hash, Binary, Regex, ShieldOff, MapPin,
   SquareTerminal, FileText, Crosshair, Braces, BookMarked,
   Fingerprint, Building2, UserCog, Bug, FileSearch,
-  Star, Search, History, Clock3, ShieldAlert, Swords
+  Star, Search, History, Clock3, ShieldAlert, Swords,
+  // HELPDESK (FASE 2) — iconos de las 15 tools HelpDesk.
+  ListFilter, Timer, UserX, KeyRound, HardDrive, Mail, Printer, MonitorX,
+  FileCog, Wifi, Laptop, Eraser, FolderLock, Headphones
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -61,6 +64,25 @@ import { LinuxPermissionsTool } from './tools/LinuxPermissionsTool';
 import { VulnerabilityExplorerTool } from './tools/VulnerabilityExplorerTool';
 // Ataques (técnicas ofensivas) — explorador del dataset offline de ataques.
 import { AttacksExplorerTool } from './tools/AttacksExplorerTool';
+// HELPDESK (FASE 2) — 15 tools de la especialización HelpDesk / IT Support.
+// Simuladores, parsers, checklists, calculadoras y runbooks 100% offline.
+// Estáticos (mismo motivo HMR-robustness que el resto del bloque) y dentro
+// del MISMO chunk lazy de ToolsView, así la ruta inicial no crece.
+import { HdTicketTriageTool } from './tools/hd/HdTicketTriageTool';
+import { HdSlaCalculatorTool } from './tools/hd/HdSlaCalculatorTool';
+import { HdAdAccountTool } from './tools/hd/HdAdAccountTool';
+import { HdPasswordMfaTool } from './tools/hd/HdPasswordMfaTool';
+import { HdKbGeneratorTool } from './tools/hd/HdKbGeneratorTool';
+import { HdBitLockerTool } from './tools/hd/HdBitLockerTool';
+import { HdOutlookTool } from './tools/hd/HdOutlookTool';
+import { HdPrinterTool } from './tools/hd/HdPrinterTool';
+import { HdBsodTool } from './tools/hd/HdBsodTool';
+import { HdGpoTool } from './tools/hd/HdGpoTool';
+import { HdNetworkTool } from './tools/hd/HdNetworkTool';
+import { HdIntuneTool } from './tools/hd/HdIntuneTool';
+import { HdSanitizerTool } from './tools/hd/HdSanitizerTool';
+import { HdSharePermsTool } from './tools/hd/HdSharePermsTool';
+import { HdRemoteAssistTool } from './tools/hd/HdRemoteAssistTool';
 // IoC Extractor — full SOC/IAM pipeline view (see section 7 below).
 // Static import for the same HMR-robustness reason as the tools above.
 import { IocExtractorView } from './IocExtractorView';
@@ -122,6 +144,22 @@ const TOOL_ICONS: Record<ToolId, React.ReactNode> = {
   'cve-search': <Bug className="w-4 h-4" />, // reuse Bug icon (already imported); CVSS Calculator uses Bug too — fine.
   vuln: <ShieldAlert className="w-4 h-4" />, // Vulnerabilidades IAM/SOC (dataset offline)
   ataques: <Swords className="w-4 h-4" />, // Ataques — técnicas ofensivas (dataset offline)
+  // HELPDESK (FASE 2) — 15 tools HelpDesk/IT Support.
+  'hd-triage': <ListFilter className="w-4 h-4" />,
+  'hd-sla': <Timer className="w-4 h-4" />,
+  'hd-ad-account': <UserX className="w-4 h-4" />,
+  'hd-pwreset': <KeyRound className="w-4 h-4" />,
+  'hd-kb-gen': <BookOpen className="w-4 h-4" />,
+  'hd-bitlocker': <HardDrive className="w-4 h-4" />,
+  'hd-outlook': <Mail className="w-4 h-4" />,
+  'hd-printer': <Printer className="w-4 h-4" />,
+  'hd-bsod': <MonitorX className="w-4 h-4" />,
+  'hd-gpo': <FileCog className="w-4 h-4" />,
+  'hd-network': <Wifi className="w-4 h-4" />,
+  'hd-intune': <Laptop className="w-4 h-4" />,
+  'hd-sanitizer': <Eraser className="w-4 h-4" />,
+  'hd-share': <FolderLock className="w-4 h-4" />,
+  'hd-remote': <Headphones className="w-4 h-4" />,
 };
 
 const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; desc: string; tags?: string[] }[] =
@@ -1747,6 +1785,24 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
       case 'vuln':               return <VulnerabilityExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
       // Ataques — soporta deep-link por id (p. ej. "IAM-004").
       case 'ataques':            return <AttacksExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
+
+      // HELPDESK (FASE 2) — 15 tools de soporte. Ninguna usa deep-link de
+      // entrada concreta (la búsqueda global navega a la tool completa).
+      case 'hd-triage':    return <HdTicketTriageTool />;
+      case 'hd-sla':       return <HdSlaCalculatorTool />;
+      case 'hd-ad-account': return <HdAdAccountTool />;
+      case 'hd-pwreset':   return <HdPasswordMfaTool />;
+      case 'hd-kb-gen':    return <HdKbGeneratorTool />;
+      case 'hd-bitlocker': return <HdBitLockerTool />;
+      case 'hd-outlook':   return <HdOutlookTool />;
+      case 'hd-printer':   return <HdPrinterTool />;
+      case 'hd-bsod':      return <HdBsodTool />;
+      case 'hd-gpo':       return <HdGpoTool />;
+      case 'hd-network':   return <HdNetworkTool />;
+      case 'hd-intune':    return <HdIntuneTool />;
+      case 'hd-sanitizer': return <HdSanitizerTool />;
+      case 'hd-share':     return <HdSharePermsTool />;
+      case 'hd-remote':    return <HdRemoteAssistTool />;
       // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
       case 'sid-rid':            return <SidRidAnalyzerTool />;
       case 'ldap-dn':            return <LdapDnParserTool />;
@@ -1768,7 +1824,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
           <div className="min-w-0">
             <h1 className="text-base font-bold text-white flex items-center gap-2">
               <Wrench className="w-4 h-4 text-blue-400" />
-              Herramientas de Ciberseguridad
+              Herramientas — Ciberseguridad y Soporte IT
             </h1>
             {/* AUDIT FIX: the old claim "100% offline — sin llamadas a internet"
                 was inaccurate — the catalog includes CVE Search, whose online
