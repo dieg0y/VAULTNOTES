@@ -11,10 +11,15 @@ import {
   noteSchema, labSchema, glossarySchema, referenceSchema,
   imageMetaSchema, videoMetaSchema, pdfMetaSchema,
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
-  inboxItemSchema, reviewItemSchema, rbacModelSchema, flashcardStatSchema,
+  inboxItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
   savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, validateArray,
 } from './backupSchemas';
+// V6 (3.6.0) — datasets de referencia estáticos: se exportan como snapshot
+// (portabilidad USB). La importación NO los aplica: el bundle de la app es
+// siempre la versión vigente (latest-wins sin pérdida).
+import { TROUBLESHOOTING_RUNBOOKS } from '../data/troubleshootingRunbooks';
+import { SERVICE_DESK_CHEATSHEET } from '../data/serviceDeskCheatSheet';
 
 // ------------------------------------------------------------------
 // Backup manifest versioning (spec #35)
@@ -37,8 +42,17 @@ import {
  *  práctica + trabajo del usuario: status y notas de cierre) y
  *  `roadmapHelpDesk.json` (checklist del roadmap HelpDesk). Un build
  *  3.4.0 que importe un backup 3.5.0 DESCARTARÍA silenciosamente la
- *  práctica de tickets al re-exportar → la rechaza up-front. */
-const BACKUP_FORMAT_VERSION = '3.5.0';
+ *  práctica de tickets al re-exportar → la rechaza up-front.
+ *  3.6.0 — V6: añade `troubleshootingRunbooks.json` y
+ *  `serviceDeskCheatSheet.json` (datasets de referencia estáticos — se
+ *  exportan como snapshot para portabilidad/archivo; el contenido siempre
+ *  viaja con la app, y en la importación gana el bundle de la app =
+ *  latest-wins sin pérdida) y RETIRA `reviewItems.json` (la feature Review
+ *  se eliminó: los backups ≤3.5.0 que lo traen se ignoran con gracia).
+ *  Un build 3.5.0 puede importar un backup 3.6.0 sin pérdida (los datasets
+ *  nuevos son estáticos y reviewItems ya no existe) → aceptado.
+ */
+const BACKUP_FORMAT_VERSION = '3.6.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -435,13 +449,14 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   const tools = await db.tools.toArray();
   const flashcardStats = await db.flashcardStats.toArray();
   const references = await db.references.toArray();
-  // BLOQUE 5 — preferencias y cola de revisión. Solo metadatos de navegación
-  // y texto escrito por el usuario en el Inbox. Nada sensible.
+  // BLOQUE 5 — preferencias de navegación. Solo metadatos y texto escrito
+  // por el usuario en el Inbox. Nada sensible.
+  // V6: la tabla `reviewItems` se retiró (feature Review eliminada) — ya
+  // no se exporta; los backups viejos que la traigan se ignoran al importar.
   const rbacModels = await db.rbacModels.toArray();
   const toolFavorites = await db.toolFavorites.toArray();
   const toolRecents = await db.toolRecents.toArray();
   const inboxItems = await db.inboxItems.toArray();
-  const reviewItems = await db.reviewItems.toArray();
   // BLOQUE 6 — Online-Optional. ALL of these are exportable: cached threat
   // intel (the user explicitly asked for those results), online activity
   // metadata (IOC TYPE only — never the value), custom Sigma rules
@@ -497,7 +512,6 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       toolFavoritesCount: toolFavorites.length,
       toolRecentsCount: toolRecents.length,
       inboxItemsCount: inboxItems.length,
-      reviewItemsCount: reviewItems.length,
       tiCacheCount: tiCache.length,
       onlineActivityCount: onlineActivity.length,
       customSigmaRulesCount: customSigmaRules.length,
@@ -507,6 +521,9 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       roadmapItemsCount: roadmapRows.length,
       helpdeskTicketsCount: helpdeskTicketRows.length,
       roadmapHdItemsCount: roadmapHdRows.length,
+      // V6 (3.6.0) — snapshots de referencia (informativo, no se restauran).
+      troubleshootingRunbooksCount: TROUBLESHOOTING_RUNBOOKS.length,
+      serviceDeskCheatSheetCount: SERVICE_DESK_CHEATSHEET.length,
     }
   };
 
@@ -524,7 +541,6 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   zip.file('toolFavorites.json', JSON.stringify(toolFavorites, null, 2));
   zip.file('toolRecents.json', JSON.stringify(toolRecents, null, 2));
   zip.file('inboxItems.json', JSON.stringify(inboxItems, null, 2));
-  zip.file('reviewItems.json', JSON.stringify(reviewItems, null, 2));
   // BLOQUE 6 — Online-Optional integrations (NO API KEYS, ever)
   zip.file('tiCache.json', JSON.stringify(tiCache, null, 2));
   zip.file('onlineActivity.json', JSON.stringify(onlineActivity, null, 2));
@@ -544,6 +560,12 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // mismo convenio que el resto de tablas auxiliares).
   zip.file('helpdeskTickets.json', JSON.stringify(helpdeskTicketRows, null, 2));
   zip.file('roadmapHelpDesk.json', JSON.stringify(roadmapHdRows, null, 2));
+  // V6 (3.6.0) — datasets de REFERENCIA estáticos: se exportan como
+  // snapshot para portabilidad/archivo del USB. En la importación NO se
+  // aplican sobre la app (el bundle de la app SIEMPRE es la versión
+  // vigente = latest-wins sin pérdida: el contenido viaja con la app).
+  zip.file('troubleshootingRunbooks.json', JSON.stringify(TROUBLESHOOTING_RUNBOOKS, null, 2));
+  zip.file('serviceDeskCheatSheet.json', JSON.stringify(SERVICE_DESK_CHEATSHEET, null, 2));
 
   // 2. /glosario/terminos.json
   const glossaryFolder = zip.folder('glosario');
@@ -1554,32 +1576,8 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     console.error('Error importing inboxItems:', e);
   }
 
-  // Review items — insert-only by id (non-destructive).
-  try {
-    const reviewFile = contents.file('reviewItems.json');
-    if (reviewFile) {
-      const rawItems: unknown = JSON.parse(await reviewFile.async('text'));
-      const { valid: items, invalid } = validateArray(reviewItemSchema, rawItems);
-      summary.invalidMisc += invalid;
-      for (const it of items) {
-        const existing = await db.reviewItems.get(it.id);
-        if (!existing) {
-          await db.reviewItems.add({
-            id: it.id,
-            // Zod schema accepts any string; cast back to the literal union
-            // (data was originally written by the app with one of these).
-            itemType: (it.itemType || 'note') as 'note' | 'lab' | 'glossary',
-            itemId: it.itemId ?? '',
-            addedAt: it.addedAt || new Date().toISOString(),
-            status: (it.status || 'pending') as 'pending' | 'reviewed',
-            nextReviewAt: it.nextReviewAt || new Date().toISOString(),
-          });
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Error importing reviewItems:', e);
-  }
+  // V6: reviewItems.json (backups ≤3.5.0) — la feature Review se eliminó:
+  // el archivo, si existe, se ignora con gracia (nada que importar).
 
   // BLOQUE 6 — Online-Optional integration tables. All best-effort,
   //  non-destructive. API KEYS are NEVER imported — they don't exist in the
@@ -1915,6 +1913,37 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   } catch (e) {
     console.error('Error importing roadmapHelpDesk:', e);
+  }
+
+  // V6 (3.6.0) — snapshots de datasets de referencia (runbooks + cheatsheet).
+  // POLÍTICA latest-wins SIN PÉRDIDA: el contenido es estático y viaja con la
+  // app (bundle), por lo que la importación NO lo aplica sobre la app — el
+  // bundle SIEMPRE es la versión vigente. Aquí solo se valida que, si el ZIP
+  // los trae, tengan la forma esperada (detección de corrupción informada al
+  // usuario vía summary; nunca es bloqueante: los datos del usuario ya están
+  // importados y el contenido de referencia se regenera con la propia app).
+  try {
+    const rbFile = contents.file('troubleshootingRunbooks.json');
+    if (rbFile) {
+      // Chequeo de forma barato: debe parsear como array de objetos con id.
+      const rawSnap: unknown = JSON.parse(await rbFile.async('text'));
+      if (Array.isArray(rawSnap) && rawSnap.every((r) => typeof r === 'object' && r !== null && 'id' in r)) {
+        console.info('[backup 3.6.0] Snapshot de runbooks presente (' + rawSnap.length + ') — el bundle de la app prevalece (latest-wins).');
+      } else {
+        console.warn('[backup 3.6.0] Snapshot de runbooks con forma inesperada — ignorado (no afecta a los datos del usuario).');
+      }
+    }
+    const csFile = contents.file('serviceDeskCheatSheet.json');
+    if (csFile) {
+      const rawSnap: unknown = JSON.parse(await csFile.async('text'));
+      if (Array.isArray(rawSnap) && rawSnap.every((r) => typeof r === 'object' && r !== null && 'id' in r)) {
+        console.info('[backup 3.6.0] Snapshot de cheatsheet presente (' + rawSnap.length + ') — el bundle de la app prevalece (latest-wins).');
+      } else {
+        console.warn('[backup 3.6.0] Snapshot de cheatsheet con forma inesperada — ignorado (no afecta a los datos del usuario).');
+      }
+    }
+  } catch (e) {
+    console.warn('[backup 3.6.0] Snapshots de referencia ilegibles — ignorados:', e);
   }
 
   return summary;

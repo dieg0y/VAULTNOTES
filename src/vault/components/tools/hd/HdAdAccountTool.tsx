@@ -1,5 +1,5 @@
 /**
- * HdAdAccountTool.tsx — "AD Account Troubleshooter" (FASE 2 grupo A).
+ * HdAdAccountTool.tsx — "AD Account Troubleshooter" (FASE 2 grupo A → V6 FASE 3).
  *
  * Árbol de decisión interactivo (síntomas clicables, NO wizard lineal) para
  * los 5 mensajes exactos que ve un usuario con problemas de cuenta de AD:
@@ -9,6 +9,13 @@
  * PowerShell de referencia con explicación (CodeBlock + CopyBtn), checklist
  * de verificación previa (identidad vía callback a RRHH — nunca por el canal
  * entrante), sub-decisiones dentro del camino y cuándo escalar a IAM.
+ *
+ * V6 FASE 3 (mejora ordenada por spec): se añaden 4 módulos comunes —
+ *  · Origen del lockout con replicación (PDC, lockoutTime, IP del 4625)
+ *  · Reset flow completo (historial, complejidad, Entra writeback, SSPR)
+ *  · Entra Smart Lockout vs AD lockout (diferencial)
+ *  · memberOf / OU / GPO (verificación de contexto de la cuenta)
+ * y una tabla de referencia de eventos (4625/4740/4723/4724/4726/4728/4732).
  *
  * SIMULADOR EDUCATIVO: esta tool NO se conecta a ningún AD real. 100%
  * offline, sin fetch/XHR/WebSocket/eval, sin persistencia.
@@ -67,11 +74,13 @@ const PATHS: AdPath[] = [
       'Bloqueada ≠ deshabilitada ≠ caducada: la cuenta sigue válida, solo está temporalmente cerrada por intentos fallidos.',
     ],
     commands: [
-      { cmd: "Get-ADUser -Identity mlopez -Properties Enabled,LockedOut,badPwdCount,AccountLockoutTime,AccountExpirationDate", why: 'Estado completo: si está bloqueada ahora, cuántos intentos fallidos acumula y a qué hora se bloqueó.' },
+      { cmd: 'Get-ADUser -Identity mlopez -Properties Enabled,LockedOut,badPwdCount,AccountLockoutTime,AccountExpirationDate', why: 'Estado completo: si está bloqueada ahora, cuántos intentos fallidos acumula y a qué hora se bloqueó.' },
       { cmd: 'Search-ADAccount -LockedOut', why: 'Listado de TODAS las cuentas bloqueadas del dominio: descarta un patrón masivo (ataque o cambio de contraseña global).' },
-      { cmd: 'Unlock-ADAccount -Identity mlopez', why: 'Desbloquea la cuenta. Antes: identidad verificada y el badPwdCount anotado como evidencia en el ticket.' },
-      { cmd: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740} -MaxEvents 10", why: 'El evento 4740 registra cada bloqueo CON el Caller Computer: dice desde qué equipo salieron los intentos fallidos.' },
-      { cmd: 'Get-ADUser -Identity mlopez -Properties badPwdCount', why: 'Tras desbloquear y que el usuario reintente: si badPwdCount vuelve a subir, algo sigue enviando la contraseña vieja.' },
+      { cmd: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4740} -MaxEvents 10", why: 'El 4740 se registra en el DC con rol PDC Emulator: cada bloqueo CON el Caller Computer — desde qué equipo salieron los intentos fallidos.' },
+      { cmd: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 20 | Select-Object TimeCreated, Message | Format-List", why: 'Los 4625 dan el IP/equipo ORIGEN (IpAddress / Workstation Name) de cada intento fallido: complemento del 4740 cuando el Caller llega vacío.' },
+      { cmd: "Get-ADUser mlopez -Server DC01 -Properties badPwdCount,AccountLockoutTime; Get-ADUser mlopez -Server DC02 -Properties badPwdCount,AccountLockoutTime", why: 'REPLICACIÓN: consulta la misma cuenta en DOS DCs. badPwdCount y lockoutTime pueden diferir (la réplica tarda): el PDC es el que manda.' },
+      { cmd: 'Unlock-ADAccount -Identity mlopez', why: 'Desbloquea la cuenta (se propaga por replicación). Antes: identidad verificada y el badPwdCount anotado como evidencia en el ticket.' },
+      { cmd: 'Get-ADUser -Identity mlopez -Properties badPwdCount,AccountLockoutTime', why: 'Tras desbloquear y que el usuario reintente: si badPwdCount vuelve a subir o lockoutTime se actualiza, algo sigue enviando la contraseña vieja.' },
       { cmd: 'Set-ADAccountPassword -Identity mlopez -Reset', why: 'Solo si además hay contraseña olvidada: reset + cambio forzado en el próximo inicio de sesión.' },
     ],
     preChecks: [
@@ -167,6 +176,8 @@ const PATHS: AdPath[] = [
       { cmd: "Set-ADAccountPassword -Identity mlopez -Reset -NewPassword (Read-Host 'Nueva contraseña temporal' -AsSecureString)", why: 'Resetea a una contraseña temporal que tú introduces de forma segura (nunca la pidas por chat ni la dictes por teléfono).' },
       { cmd: 'Set-ADUser -Identity mlopez -ChangePasswordAtLogon $true', why: 'Fuerza el cambio en el próximo inicio: la temporal nunca queda como contraseña definitiva.' },
       { cmd: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4724} -MaxEvents 5", why: 'El 4724 registra los resets de contraseña: quién lo hizo y cuándo (auditoría de tu propia acción).' },
+      { cmd: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4723} -MaxEvents 5", why: 'El 4723 es el CAMBIO hecho por el propio usuario (no reset admin): diferencia quién movió la contraseña.' },
+      { cmd: 'Get-ADDefaultDomainPasswordPolicy', why: 'Edad máxima, historial (PasswordHistorySize), longitud mínima y complejidad: explica por qué la nueva contraseña puede ser rechazada.' },
       { cmd: 'net user mlopez /domain', why: 'Vista rápida clásica (corre en PowerShell): muestra cuándo expira y se cambió por última vez.' },
     ],
     preChecks: [
@@ -290,6 +301,79 @@ const PATHS: AdPath[] = [
       'Patrón de varios equipos con credenciales cacheadas tras un cambio de contraseña global.',
     ],
   },
+];
+
+/* ---------- V6 FASE 3: módulos comunes añadidos por spec ---------- */
+
+/** Diferencial Entra Smart Lockout vs AD lockout (híbrido). */
+const SMART_LOCKOUT_ROWS: Array<[string, string, string]> = [
+  ['Dónde actúa', 'On-prem AD (todos los dominios)', 'Entra ID (identidades sincronizadas/híbridas)'],
+  ['Disparo', 'Umbral fijo de badPwdCount (ej. 5/15 min)', 'IA de señales: reconoce al atacante por ubicación/dispositivo'],
+  ['Cómo bloquea', 'Bloquea la CUENTA entera', 'Bloquea el ATAQUE (el usuario legítimo con señales conocidas sigue entrando)'],
+  ['Duración', 'Hasta Unlock-ADAccount manual (o auto-unlock)', 'Expira solo (típicamente ~60 s por intento malo)'],
+  ['Desbloqueo L1', 'Unlock-ADAccount (tuya)', 'Portal Entra → usuario → Sign-in blocked → Unblock (IAM/Identity admin)'],
+  ['Dónde se ve', '4740 + badPwdCount en AD', 'Entra sign-in logs: código 50053 (Smart Lockout) o 50057'],
+];
+
+/** Reset flow completo V6 — la secuencia ordenada de un reset SEGURO. */
+const RESET_FLOW_STEPS: Array<{ phase: string; detail: string[] }> = [
+  {
+    phase: '1 · Verificación de identidad (anti-vishing)',
+    detail: [
+      'Callback al número REGISTRADO en RRHH — nunca al número que da el caller, nunca por el canal entrante.',
+      'Datos cruzados: empleado, manager y si hay offboarding abierto (una baja + reset urgente = red flag).',
+    ],
+  },
+  {
+    phase: '2 · Historial y complejidad',
+    detail: [
+      'Get-ADDefaultDomainPasswordPolicy: PasswordHistorySize (ej. últimas 24) + MinPasswordAge — la contraseña nueva no puede ser una reciente.',
+      'Complejidad: longitud mínima, 3 de 4 grupos de caracteres; evita también la temporal trivial (Nombre123!).',
+    ],
+  },
+  {
+    phase: '3 · Reset en AD',
+    detail: [
+      'Set-ADAccountPassword -Reset con temporal fuerte (Read-Host -AsSecureString — nunca por chat/teléfono).',
+      'Set-ADUser -ChangePasswordAtLogon $true: la temporal muere en el primer inicio de sesión.',
+      'Evidencia: anota 4724 resultante, quién autorizó y cómo se verificó la identidad.',
+    ],
+  },
+  {
+    phase: '4 · Híbrido: Entra writeback',
+    detail: [
+      'Si SSPR/Entra hace el reset, la contraseña debe ESCRIBIRSE de vuelta a AD (password writeback habilitado en Entra Connect).',
+      'Verifica: PasswordLastSet actualizado en AD tras el SSPR; si no baja, el writeback está roto → L2/Identity.',
+      'Smart Lockout puede seguir bloqueando al atacante mientras el usuario legítimo ya entra — no confundas con lockout de AD.',
+    ],
+  },
+  {
+    phase: '5 · SSPR (después del incidente)',
+    detail: [
+      'Comprueba el registro SSPR del usuario (métodos: alternate email, teléfono, Authenticator).',
+      'Registra SSPR si falta: el próximo caducado/bloqueo lo resuelve el propio usuario — ticket menos.',
+    ],
+  },
+];
+
+/** memberOf / OU / GPO — contexto de la cuenta cuando "no le llega algo". */
+const MEMBEROU_GPO_CMDS: AdCommand[] = [
+  { cmd: 'Get-ADUser mlopez -Properties MemberOf | Select-Object -ExpandProperty MemberOf', why: 'Lista de grupos directos (DN completos): la base para saber QUÉ debería aplicar (recursos, unidades mapeadas, apps).' },
+  { cmd: 'Get-ADPrincipalGroupMembership mlopez | Select-Object Name,SamAccountName', why: 'Grupos directos + anidados (expand one level): el usuario hereda permisos por NESTING — el grupo que "no le llega" puede estar dentro de otro.' },
+  { cmd: 'Get-ADUser mlopez -Properties CanonicalName', why: 'La OU real de la cuenta (nexora.local/Users vs /Marketing): las GPO se aplican por OU/LSDOU — una cuenta en la OU equivocada no recibe la directiva.' },
+  { cmd: 'gpresult /r /user:nexora\\mlopez', why: 'GPOs de USUARIO aplicadas/denegadas con LSDOU y security filtering: el diferencial cuando "al compañero sí le funciona".' },
+  { cmd: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4728} -MaxEvents 5", why: '4728/4732: el usuario fue añadido a un grupo (global/local). El TOKEN de grupos se emite al INICIAR SESIÓN — sin re-logon, el grupo nuevo no aplica.' },
+];
+
+/** Tabla de referencia de eventos de cuenta (V6 spec). */
+const EVENT_ROWS: Array<[string, string, string]> = [
+  ['4625', 'Inicio de sesión fallido', 'Equipo/IP origen + subcódigo de causa (contraseña mala, bloqueada…). Tu brújula de origen.'],
+  ['4740', 'Cuenta bloqueada (lockout)', 'Se genera en el PDC Emulator. Trae el Caller Computer: quién causó el bloqueo.'],
+  ['4723', 'Contraseña cambiada por el usuario', 'Cambio voluntario correcto (vieja + nueva válidas). Distingue de un reset admin.'],
+  ['4724', 'Contraseña reseteada por admin', 'Un administrador movió la contraseña: tu propia traza de auditoría del reset.'],
+  ['4726', 'Cuenta deshabilitada', 'Quién y cuándo deshabilitó. Antes de Enable-ADAccount, míralo SIEMPRE.'],
+  ['4728', 'Añadido a grupo global', 'Alta en grupo de seguridad/distribución global (memberOf directo).'],
+  ['4732', 'Añadido a grupo local de dominio', 'Alta en grupo local — el patrón AGDLP clásico de acceso a recursos.'],
 ];
 
 /* ---------- subcomponentes ---------- */
@@ -471,6 +555,111 @@ export const HdAdAccountTool: React.FC = () => {
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* ── V6 FASE 3: módulos comunes ─────────────────────────── */}
+
+          {/* Reset flow completo (locked / expired / badcreds) */}
+          {(current.id === 'locked' || current.id === 'expired' || current.id === 'badcreds') && (
+            <div className="space-y-2 pt-2 border-t border-[#1A1A1A]">
+              <H3>
+                <KeyRound className="w-3 h-3" /> Reset flow completo (verificación → historial → AD → writeback → SSPR)
+              </H3>
+              <div className="space-y-1.5">
+                {RESET_FLOW_STEPS.map((s) => (
+                  <div key={s.phase} className="bg-[#161616] border border-[#262626] rounded p-2.5 space-y-1">
+                    <p className="text-[11px] font-semibold text-white">{s.phase}</p>
+                    <ul className="space-y-0.5">
+                      {s.detail.map((d, i) => (
+                        <li key={i} className="text-[10px] text-[#AAA] leading-relaxed flex gap-1.5">
+                          <span className="text-blue-400">▸</span>
+                          {d}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Smart Lockout vs AD lockout (locked / badcreds) */}
+          {(current.id === 'locked' || current.id === 'badcreds') && (
+            <div className="space-y-1.5 pt-2 border-t border-[#1A1A1A]">
+              <H3>
+                <ShieldAlert className="w-3 h-3" /> AD lockout vs Entra Smart Lockout (híbrido)
+              </H3>
+              <div className="overflow-x-auto border border-[#262626] rounded">
+                <table className="w-full text-[10px] font-mono">
+                  <thead>
+                    <tr className="bg-[#161616] text-[#888] uppercase">
+                      <th className="px-2 py-1.5 text-left">Dimensión</th>
+                      <th className="px-2 py-1.5 text-left">AD lockout (on-prem)</th>
+                      <th className="px-2 py-1.5 text-left">Entra Smart Lockout</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SMART_LOCKOUT_ROWS.map((r) => (
+                      <tr key={r[0]} className="border-t border-[#1A1A1A]">
+                        <td className="px-2 py-1.5 text-white">{r[0]}</td>
+                        <td className="px-2 py-1.5 text-[#AAA]">{r[1]}</td>
+                        <td className="px-2 py-1.5 text-[#AAA]">{r[2]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-[#777] leading-relaxed">
+                Regla práctica: si el usuario entra en la web (Entra) pero no on-prem → AD lockout; si
+                entra en el equipo pero la web le rechaza con 50053 → Smart Lockout (desbloquea
+                Identity admin desde el portal Entra, L1 no tiene cmdlet).
+              </p>
+            </div>
+          )}
+
+          {/* memberOf / OU / GPO (todos los caminos: contexto de la cuenta) */}
+          <div className="space-y-1.5 pt-2 border-t border-[#1A1A1A]">
+            <H3>
+              <MonitorSmartphone className="w-3 h-3" /> Contexto de la cuenta: memberOf · OU · GPO
+            </H3>
+            <p className="text-[10px] text-[#777] leading-relaxed">
+              Cuando el síntoma es «no me llega X» (permiso, unidad, directiva): el problema casi nunca
+              es la contraseña — es el CONTEXTO de la cuenta (grupos, OU, GPO). Y recuerda: el token de
+              grupos se emite al iniciar sesión, un grupo recién añadido exige re-logon.
+            </p>
+            {MEMBEROU_GPO_CMDS.map((c, i) => (
+              <div key={i} className="space-y-1">
+                <CodeBlock code={c.cmd} lang="powershell" label={`Contexto ${i + 1}`} />
+                <p className="text-[10px] text-[#888] leading-relaxed pl-1">{c.why}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabla de eventos de cuenta */}
+          <div className="space-y-1.5 pt-2 border-t border-[#1A1A1A]">
+            <H3>
+              <Terminal className="w-3 h-3" /> Eventos de cuenta — referencia rápida
+            </H3>
+            <div className="overflow-x-auto border border-[#262626] rounded">
+              <table className="w-full text-[10px] font-mono">
+                <thead>
+                  <tr className="bg-[#161616] text-[#888] uppercase">
+                    <th className="px-2 py-1.5 text-left">ID</th>
+                    <th className="px-2 py-1.5 text-left">Evento</th>
+                    <th className="px-2 py-1.5 text-left">Qué te dice</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {EVENT_ROWS.map((r) => (
+                    <tr key={r[0]} className="border-t border-[#1A1A1A]">
+                      <td className="px-2 py-1.5 text-blue-400">{r[0]}</td>
+                      <td className="px-2 py-1.5 text-white">{r[1]}</td>
+                      <td className="px-2 py-1.5 text-[#AAA]">{r[2]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

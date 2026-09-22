@@ -26,8 +26,7 @@ import {
   Terminal,
   ShieldAlert,
   ShieldCheck,
-  Copy,
-  ListChecks
+  Copy
 } from 'lucide-react';
 import { Lab, LabDifficulty, LabStatus, LabPart, CategoryItem } from '../types';
 import { db } from '../db';
@@ -39,7 +38,6 @@ import {
   useVaultVideoEmbeds, useImageInsert, runSanitizedPaste, runFileDrop,
   VideoAccessBanner, VideoHiddenInputs, stripBlobUrls,
 } from './Editor/editorMedia';
-import { addToReviewQueue } from './tools/_shared';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 
 interface LabsViewProps {
@@ -611,15 +609,6 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
   const [timeSpent, setTimeSpent] = useState(lab.timeSpent || '');
   const [sourceLink, setSourceLink] = useState(lab.sourceLink || '');
   const [isFavorite, setIsFavorite] = useState(lab.isFavorite);
-  // BLOQUE 5 — Review Queue "Revisar después" inline toast
-  const [reviewToast, setReviewToast] = useState<string | null>(null);
-
-  const handleAddToReview = async () => {
-    const ok = await addToReviewQueue('lab', lab.id);
-    const msg = ok ? 'Añadido a la cola de revisión' : 'Ya estaba en la cola de revisión';
-    setReviewToast(msg);
-    window.setTimeout(() => setReviewToast(null), 2000);
-  };
 
   // Parts list
   const [parts, setParts] = useState<LabPart[]>(lab.parts || []);
@@ -855,23 +844,6 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               title={isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
             >
               <Star className="w-4 h-4" fill={isFavorite ? 'currentColor' : 'none'} />
-            </button>
-
-            {/* BLOQUE 5 — "Revisar después" toggle (adds to the Review Queue) */}
-            <button
-              onClick={() => void handleAddToReview()}
-              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/40 text-blue-400 transition-colors cursor-pointer"
-              title="Marcar este lab para revisar después (aparece en la cola de Revisión)"
-            >
-              <ListChecks className="w-3.5 h-3.5" />
-              {reviewToast ? (
-                <span className="flex items-center gap-1">
-                  <Check className="w-3 h-3 text-green-400" />
-                  {reviewToast}
-                </span>
-              ) : (
-                <span className="hidden sm:inline">Revisar después</span>
-              )}
             </button>
 
             {/* Delete button */}

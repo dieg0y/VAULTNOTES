@@ -28,16 +28,18 @@ export type ToolId =
   // data/vulnerabilities.ts, 203 entradas).
   | 'vuln'
   // Explorador offline de técnicas de ataque (dataset data/attacks/,
-  // 89 entradas: IAM/Red/DoS/Web/Social/Malware — sin duplicar
+  // 102 entradas: IAM/Red/DoS/Web/Social/Malware/PrivEsc — sin duplicar
   // Vulnerabilidades).
   | 'ataques'
-  // HELPDESK (FASE 2 — expansión HelpDesk/IT Support) — 15 tools L1/L2
-  // Service Desk. Simuladores, parsers, checklists, calculadoras y runbooks
-  // 100% offline: NADA de AD real, Intune real, Graph ni APIs externas.
-  // Componentes en src/vault/components/tools/hd/.
-  | 'hd-triage' | 'hd-sla' | 'hd-ad-account' | 'hd-pwreset' | 'hd-kb-gen'
-  | 'hd-bitlocker' | 'hd-outlook' | 'hd-printer' | 'hd-bsod' | 'hd-gpo'
-  | 'hd-network' | 'hd-intune' | 'hd-sanitizer' | 'hd-share' | 'hd-remote';
+  // HELPDESK (FASE 2 → V6 FASE 3) — tools L1/L2 de Service Desk 100%
+  // offline que siguen siendo útiles REALES: parsers, simuladores y
+  // generadores interactivos. Las 9 que eran checklists/guías estáticas
+  // (Password/MFA, BitLocker, Outlook, Printer, BSOD, Share, Remote Assist,
+  // GPO) migraron al dataset universal de runbooks
+  // (data/troubleshootingRunbooks.ts); la SLA/Priority Calculator se
+  // eliminó por orden de la spec V6.
+  | 'hd-triage' | 'hd-ad-account' | 'hd-kb-gen'
+  | 'hd-network' | 'hd-intune' | 'hd-sanitizer';
 
 export interface ToolCatalogEntry {
   id: ToolId;
@@ -94,12 +96,12 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
   // tickets, delegaciones, ESC, escalada, lateral, persistencia, relay,
   // MFA fatigue, AiTM, SIM swap, Golden SAML); aquí SOLO lo que no se
   // repite. Tags ES/EN para máxima recall.
-  { id: 'ataques', name: 'Ataques (técnicas ofensivas)', cat: 'SECURITY', desc: 'Explorador de 89 técnicas de ataque de todo tipo SIN duplicar Vulnerabilidades: IAM/Identidad en lo que aquella no cubre (MS14-068, Bronze Bit, extracción SAM/NTDS.dit, recon AD con BloodHound, keylogging, phishing de código de dispositivo, robo de PRT, registro fraudulento de dispositivos, abuso de SCCM/Intune, AD Recycle Bin, inyección CSV), Red (MITM, ARP/DNS spoofing, DHCP starvation y rogue, MAC flooding, sniffing, port scanning, VLAN hopping, SSL stripping, evil twin, deauth, BGP hijack, KRACK, Bluetooth, mitm6, bypass de 802.1X, enumeración DNS, envenenamiento de routing interior), DoS/DDoS (SYN flood, amplificación DNS/NTP/Memcached, slow HTTP, Rapid Reset, ReDoS), Web (SQLi, XSS, SSRF, XXE, deserialización, request smuggling, CRLF, HPP, GraphQL), ingeniería social (phishing, vishing, smishing, BEC, watering hole, deepfakes) y malware/C2/exfil (ransomware, supply chain, infostealers, gusanos, beaconing, exfiltración) — con cómo funciona, detección KQL/SPL/Sigma y mitigación paso a paso. Sinónimos como alias, nunca filas duplicadas. 100% offline.', tags: ['ataques', 'attacks', 'ataque', 'attack', 'técnicas', 'techniques', 'red team', 'offensive', 'iam', 'sccm', 'intune', 'prt', 'bloodhound', 'device code', 'csv injection', 'mitm', 'arp spoofing', 'dns spoofing', 'sniffing', 'port scanning', 'mac flooding', 'dhcp', 'mitm6', '802.1x', 'bgp', 'krack', 'dos', 'ddos', 'syn flood', 'amplificación', 'redos', 'sqli', 'xss', 'ssrf', 'smuggling', 'crlf', 'graphql', 'phishing', 'bec', 'deepfake', 'ransomware', 'supply chain', 'worms', 'c2', 'kql', 'sigma', 'mitre'] },
-  // ---------------- HELPDESK (FASE 2) ----------------
-  // 15 tools de la especialización HelpDesk / IT Support / Service Desk.
-  // Todas funcionan como simuladores/parsers/checklists/calculadoras/runbooks
-  // 100% offline (regla 2.1 del plan maestro): ninguna ejecuta cambios en
-  // AD/Intune/Entra/Windows, ninguna llama a APIs, ninguna almacena secretos.
+  { id: 'ataques', name: 'Ataques (técnicas ofensivas)', cat: 'SECURITY', desc: 'Explorador de 102 técnicas de ataque de todo tipo SIN duplicar Vulnerabilidades: IAM/Identidad en lo que aquella no cubre (MS14-068, Bronze Bit, extracción SAM/NTDS.dit, recon AD con BloodHound, keylogging, phishing de código de dispositivo, robo de PRT, registro fraudulento de dispositivos, abuso de SCCM/Intune, AD Recycle Bin, inyección CSV), Red (MITM, ARP/DNS spoofing, DHCP starvation y rogue, MAC flooding, sniffing, port scanning, VLAN hopping, SSL stripping, evil twin, deauth, BGP hijack, KRACK, Bluetooth, mitm6, bypass de 802.1X, enumeración DNS, envenenamiento de routing interior), DoS/DDoS (SYN flood, amplificación DNS/NTP/Memcached, slow HTTP, Rapid Reset, ReDoS), Web (SQLi, XSS, SSRF, XXE, deserialización, request smuggling, CRLF, HPP, GraphQL), ingeniería social (phishing, vishing, smishing, BEC, watering hole, deepfakes), malware/C2/exfil (ransomware, supply chain, infostealers, gusanos, beaconing, exfiltración) y escalada de privilegios (PrivEsc Windows/Linux), con cómo funciona, detección KQL/SPL/Sigma y mitigación paso a paso. Sinónimos como alias, nunca filas duplicadas. 100% offline.', tags: ['ataques', 'attacks', 'ataque', 'attack', 'técnicas', 'techniques', 'red team', 'offensive', 'iam', 'sccm', 'intune', 'prt', 'bloodhound', 'device code', 'csv injection', 'mitm', 'arp spoofing', 'dns spoofing', 'sniffing', 'port scanning', 'mac flooding', 'dhcp', 'mitm6', '802.1x', 'bgp', 'krack', 'dos', 'ddos', 'syn flood', 'amplificación', 'redos', 'sqli', 'xss', 'ssrf', 'smuggling', 'crlf', 'graphql', 'phishing', 'bec', 'deepfake', 'ransomware', 'supply chain', 'worms', 'c2', 'privesc', 'kql', 'sigma', 'mitre'] },
+  // ---------------- HELPDESK (V6 FASE 3) ----------------
+  // Tools L1/L2 de Service Desk que siguen en el catálogo: todas son
+  // INTERACTIVAS reales (parser, simulador o generador). 100% offline.
+  // V6: SLA Calculator eliminada; las 9 guías/checklists migraron al
+  // dataset universal de runbooks (data/troubleshootingRunbooks.ts).
   {
     id: 'hd-triage',
     name: 'Ticket Triage Parser',
@@ -107,13 +109,7 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
     desc: 'Pega el texto crudo de un ticket y obtén categoría, subcategoría, impacto, urgencia, prioridad, SLA sugerido (tabla editable de ejemplo educativo), troubleshooting inicial, info requerida, causas raíz, criterios de escalación, alertas de seguridad y KB sugerida del dataset local.',
     tags: ['ticket', 'triage', 'prioridad', 'impact', 'urgencia', 'p1', 'p2', 'p3', 'sla', 'itsm', 'service desk', 'helpdesk', 'categorización', 'escalation', 'categoría'],
   },
-  {
-    id: 'hd-sla',
-    name: 'SLA / Priority Calculator',
-    cat: 'HELPDESK',
-    desc: 'Matriz interactiva impacto×urgencia → P1-P4 con SLA configurable (ejemplo educativo, no tiempos universales) y calculadora de horas límite de respuesta/resolución.',
-    tags: ['sla', 'prioridad', 'priority', 'impact', 'urgencia', 'p1', 'p2', 'p3', 'p4', 'matriz', 'itsm', 'tiempo respuesta', 'deadline', 'service desk', 'helpdesk', 'sla calculator'],
-  },
+  // (V6) hd-sla → migrada a runbooks / eliminada.
   {
     id: 'hd-ad-account',
     name: 'AD Account Troubleshooter',
@@ -121,13 +117,7 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
     desc: 'Árbol de decisión para problemas de cuenta AD: bloqueada vs deshabilitada vs caducada, PowerShell de referencia (Get-ADUser, Unlock, Event 4740/4726), verificación de identidad y cuándo escalar a IAM. Simulador educativo.',
     tags: ['active directory', 'ad', 'cuenta', 'bloqueada', 'bloqueado', 'deshabilitada', 'lockout', 'disabled', 'contraseña', '4740', '4726', 'unlock-adaccount', 'get-aduser', 'badpwdcount', 'iam', 'identidad', 'helpdesk', 'service desk'],
   },
-  {
-    id: 'hd-pwreset',
-    name: 'Password & MFA Reset Runbook',
-    cat: 'HELPDESK',
-    desc: 'Runbook interactivo de reset de contraseña y MFA: verificación de identidad (callback a RRHH), pasos ADUC/PowerShell, re-bloqueos por credenciales guardadas, re-registro de Authenticator y evidencia para el ticket.',
-    tags: ['password', 'contraseña', 'reset', 'mfa', 'authenticator', 'sspr', 'self service', 'runbook', 'verificación', 'social engineering', 'bec', 'phishing', 'cambio contraseña', 'helpdesk', 'iam', 'service desk'],
-  },
+  // (V6) hd-pwreset → migrada a runbooks / eliminada.
   {
     id: 'hd-kb-gen',
     name: 'KB Article Generator',
@@ -135,41 +125,11 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
     desc: 'Generador de artículos de base de conocimiento: formulario con pasos dinámicos y comandos → vista previa en vivo + salida Markdown exportable a Notas y Data & Intel.',
     tags: ['kb', 'knowledge base', 'base de conocimiento', 'artículo', 'documentación', 'generator', 'markdown', 'runbook', 'itsm', 'helpdesk', 'service desk', 'documentar'],
   },
-  {
-    id: 'hd-bitlocker',
-    name: 'BitLocker Recovery Helper',
-    cat: 'HELPDESK',
-    desc: 'Guía de recuperación BitLocker por escenario: ID de clave (8 hex) vs clave de 48 dígitos, dónde buscarla (Intune, AD, impresa, .bek, cuenta MSA), verificación anti-phishing y comandos manage-bde de referencia.',
-    tags: ['bitlocker', 'recovery', 'clave recuperación', 'tpm', '48 dígitos', 'aka.ms/aadrecoverykey', 'cifrado', 'encryption', '0xc0000225', 'manage-bde', 'windows', 'endpoint', 'helpdesk'],
-  },
-  {
-    id: 'hd-outlook',
-    name: 'Outlook Connectivity Analyzer',
-    cat: 'HELPDESK',
-    desc: 'Diagnóstico multi-síntoma de Outlook (no abre, bucle de contraseña, sin correo…) con pasos L1 soportados + escalera clásica OWA → otros usuarios → móvil para separar cliente vs servicio.',
-    tags: ['outlook', 'correo', 'email', 'exchange', 'm365', 'microsoft 365', 'ost', 'perfil', 'credentials', 'owa', 'bucle contraseña', 'no abre', 'office', 'helpdesk', 'service desk'],
-  },
-  {
-    id: 'hd-printer',
-    name: 'Printer & Spooler Fix',
-    cat: 'HELPDESK',
-    desc: 'Impresoras L1 por pestañas: cola atascada (net stop spooler), spooler se cae (Event 7031 + alerta PrintNightmare), impresora en red (\\servidor, puerto 9100) y síntomas físicos.',
-    tags: ['impresora', 'printer', 'spooler', 'cola', 'queue', 'printnightmare', 'cve-2021-34527', 'net stop spooler', '7031', 'cola de impresión', 'hardware', 'helpdesk', 'service desk'],
-  },
-  {
-    id: 'hd-bsod',
-    name: 'BSOD & Stop Code Explorer',
-    cat: 'HELPDESK',
-    desc: 'Catálogo de 24 STOP codes frecuentes (0x7B, 0xD1, 0x124…) con significado, causas, primeros pasos L1 (Safe Mode, SFC, DISM) y qué recopilar para el ticket.',
-    tags: ['bsod', 'pantalla azul', 'blue screen', 'stop code', '0x7b', '0xd1', '0x124', 'crash', 'driver', 'sfc', 'dism', 'minidump', 'whea', 'windows', 'endpoint', 'helpdesk'],
-  },
-  {
-    id: 'hd-gpo',
-    name: 'GPO Result Helper',
-    cat: 'HELPDESK',
-    desc: 'Cómo ejecutar y leer gpresult (/r, /h, /scope), interpretar Applied/Denied y precedencia LSDOU, síntomas comunes de GPO que no llega y qué capturar para escalar a administración de sistemas.',
-    tags: ['gpo', 'gpresult', 'directiva', 'group policy', 'lsdou', 'security filtering', 'wmi filter', 'mapeo', 'unidad de red', '7016', '1125', 'windows', 'endpoint', 'helpdesk', 'escalation'],
-  },
+  // (V6) hd-bitlocker → migrada a runbooks / eliminada.
+  // (V6) hd-outlook → migrada a runbooks / eliminada.
+  // (V6) hd-printer → migrada a runbooks / eliminada.
+  // (V6) hd-bsod → migrada a runbooks / eliminada.
+  // (V6) hd-gpo → migrada a runbooks / eliminada.
   {
     id: 'hd-network',
     name: 'Network L1 Toolkit',
@@ -191,20 +151,8 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
     desc: 'Sanitiza información técnica antes de compartirla: detecta IPs públicas, MACs, hostnames, usuarios, SIDs, emails, seriales y claves — salida con placeholders consistentes. No garantiza anonimización perfecta.',
     tags: ['sanitizer', 'sanitizar', 'anonimizar', 'anonimización', 'compartir', 'ip', 'mac', 'hostname', 'serial', 'licencia', 'privacy', 'privacidad', 'helpdesk', 'evidencia'],
   },
-  {
-    id: 'hd-share',
-    name: 'File Share & Permissions L1',
-    cat: 'HELPDESK',
-    desc: 'Permisos efectivos SHARE × NTFS (la capa más restrictiva gana), constructor de comandos icacls y checklist «no veo la carpeta». Simulador educativo.',
-    tags: ['share', 'ntfs', 'permisos', 'permissions', 'icacls', 'carpeta compartida', 'unidad mapeada', 'whoami', 'denegar', 'deny', 'inheritance', 'windows', 'endpoint', 'helpdesk', 'service desk'],
-  },
-  {
-    id: 'hd-remote',
-    name: 'Remote Assist Checklist',
-    cat: 'HELPDESK',
-    desc: 'Runbook de sesión de soporte remoto: consentimiento, qué hacer (y qué nunca) durante la sesión, cierre correcto y red flags de social engineering.',
-    tags: ['remote', 'remoto', 'quick assist', 'asistencia remota', 'anydesk', 'teams', 'consentimiento', 'sesión', 'social engineering', 'helpdesk', 'service desk', 'l1'],
-  },
+  // (V6) hd-share → migrada a runbooks / eliminada.
+  // (V6) hd-remote → migrada a runbooks / eliminada.
 ];
 
 /** Find a catalog entry by id. */

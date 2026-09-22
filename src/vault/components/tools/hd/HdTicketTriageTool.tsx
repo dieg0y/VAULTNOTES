@@ -1,5 +1,5 @@
 /**
- * HdTicketTriageTool.tsx — "Ticket Triage Parser" (FASE 2 grupo A).
+ * HdTicketTriageTool.tsx — "Ticket Triage Parser" (FASE 2 grupo A → V6 FASE 3).
  *
  * El usuario pega el texto crudo de un ticket → un motor de keywords offline
  * (regex español, 12+ patrones por cada una de las 7 categorías HelpDesk)
@@ -12,21 +12,29 @@
  *
  * Transparencia del parser: cada sección muestra qué keywords la dispararon.
  *
+ * V6 FASE 3 — [Enrich Online] (OPCIONAL y EXPLÍCITO): tras el análisis
+ * offline aparece un botón que, solo con clic del usuario (nunca auto), y
+ * solo si el navegador está online, envía el texto del ticket al backend
+ * local de la app (/api/enrich-ticket) y muestra las sugerencias de IA en
+ * un panel separado y claramente marcado, SIN sobrescribir el análisis
+ * offline. Sin clic, la tool es 100% offline como siempre. Consentimiento
+ * de primer uso persistido en localStorage.
+ *
  * Exportación: [Copiar análisis] (texto plano), [Guardar en Data & Intel]
  * (kind event, markdown) y [Añadir a Notas] (buildNoteHtmlTable + escapeHtml).
  *
- * 100% offline: sin fetch/XHR/WebSocket/eval, sin IndexedDB directo. Los
- * tiempos SLA son de ejemplo educativo, configurables en la propia tool.
+ * Los tiempos SLA son de ejemplo educativo, configurables en la propia tool.
  */
 'use client';
 
 import React, { useState } from 'react';
 import {
-  Search, Trash2, FileText, Copy, Check, BookOpen, Database, ShieldAlert, ArrowRight,
+  Search, Trash2, FileText, Copy, Check, BookOpen, Database, ShieldAlert, ArrowRight, CloudOff, Sparkles,
 } from 'lucide-react';
 import { HELPDESK_KB_ARTICLES } from '../../../data/helpDeskKB';
 import { useNoteStore } from '../../../store/noteStore';
 import { useIntelStore } from '../../../store/intelStore';
+import { useIsOnline } from '../../../integrations/online';
 import {
   taCls, btnPrimary, btnGhost, Row, InfoBanner, ErrorBanner, Field,
   buildNoteHtmlTable, useAddToNoteToast,
@@ -591,6 +599,22 @@ const slaInputCls =
 
 /* ---------- componente principal ---------- */
 
+/* ---------- V6 FASE 3: enriquecimiento online opcional ---------- */
+
+interface EnrichmentData {
+  category: string;
+  subcategory: string;
+  priority: 'P1' | 'P2' | 'P3' | 'P4';
+  priorityReason: string;
+  confidence: 'alta' | 'media' | 'baja';
+  keywords: string[];
+  missingInfo: string[];
+  securityFlags: string[];
+  notes: string;
+}
+
+const ENRICH_CONSENT_KEY = 'vaultnotes-enrich-consent-v1';
+
 export const HdTicketTriageTool: React.FC = () => {
   const [raw, setRaw] = useState('');
   const [analysis, setAnalysis] = useState<TriageAnalysis | null>(null);
@@ -599,9 +623,71 @@ export const HdTicketTriageTool: React.FC = () => {
   const [feedback, setFeedback] = useState<string | null>(null);
   const { addedToast, showToast } = useAddToNoteToast();
 
-  const analyze = (): void => setAnalysis(analyzeTicket(raw));
+  // V6 FASE 3 — [Enrich Online]: estado exclusivo del enriquecimiento
+  // opcional. NUNCA se dispara solo: requiere clic + consentimiento.
+  const online = useIsOnline();
+  const [enriching, setEnriching] = useState(false);
+  const [enrichment, setEnrichment] = useState<EnrichmentData | null>(null);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
 
-  const clear = (): void => { setRaw(''); setAnalysis(null); };
+  const analyze = (): void => {
+    setAnalysis(analyzeTicket(raw));
+    // Nuevo análisis → el enriquecimiento previo ya no corresponde.
+    setEnrichment(null);
+    setEnrichError(null);
+  };
+
+  const clear = (): void => {
+    setRaw(''); setAnalysis(null);
+    setEnrichment(null); setEnrichError(null);
+  };
+
+  const runEnrich = async (): Promise<void> => {
+    if (!analysis || enriching || !online) return;
+    // Consentimiento explícito la PRIMERA vez (persistido): qué se envía y
+    // dónde. Sin consentimiento, nada sale del navegador.
+    let consented = false;
+    try {
+      consented = window.localStorage.getItem(ENRICH_CONSENT_KEY) === '1';
+    } catch { /* localStorage inaccesible — pedir consentimiento igualmente */ }
+    if (!consented) {
+      const ok = window.confirm(
+        'Enriquecimiento online (opcional)\n\n' +
+        'Se enviará el TEXTO del ticket que pegaste al backend local de VaultNotes ' +
+        '(tu propio servidor, /api/enrich-ticket) para pedir sugerencias de triage a una IA.\n\n' +
+        '· La tool funciona 100% offline sin esto — es opcional.\n' +
+        '· Nunca se envía nada sin que pulses el botón.\n' +
+        '· El resultado se muestra aparte y NO sobrescribe el análisis offline.\n\n' +
+        '¿Quieres activarlo (se recordará tu elección)?'
+      );
+      if (!ok) return;
+      try { window.localStorage.setItem(ENRICH_CONSENT_KEY, '1'); } catch { /* sin persistencia, se vuelve a preguntar */ }
+    }
+    setEnriching(true);
+    setEnrichError(null);
+    setEnrichment(null);
+    try {
+      const res = await fetch('/api/enrich-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketText: raw,
+          offlineCategory: analysis.category,
+          offlinePriority: analysis.priority,
+        }),
+      });
+      const data: { ok?: boolean; enrichment?: EnrichmentData; error?: string } = await res.json();
+      if (!res.ok || !data.ok || !data.enrichment) {
+        setEnrichError(data.error ?? 'El enriquecimiento online falló (HTTP ' + res.status + ').');
+      } else {
+        setEnrichment(data.enrichment);
+      }
+    } catch {
+      setEnrichError('Sin respuesta del backend local (¿se cayó el servidor de la app?). El análisis offline sigue intacto.');
+    } finally {
+      setEnriching(false);
+    }
+  };
 
   const copyAnalysis = (): void => {
     if (!analysis) return;
@@ -690,6 +776,36 @@ export const HdTicketTriageTool: React.FC = () => {
         <button type="button" onClick={addToNote} disabled={!analysis} className={`${btnGhost} inline-flex items-center gap-1.5`} title="Añadir el análisis a Notas">
           <BookOpen className="w-3.5 h-3.5" /> Añadir a Notas
         </button>
+        {/* V6 FASE 3 — enriquecimiento ONLINE opcional: clic explícito, nunca
+            auto, deshabilitado sin conexión. No afecta al flujo offline. */}
+        <button
+          type="button"
+          onClick={() => void runEnrich()}
+          disabled={!analysis || enriching || !online}
+          className={`${btnGhost} inline-flex items-center gap-1.5 ${!online ? 'opacity-40' : ''}`}
+          title={
+            !analysis
+              ? 'Primero ejecuta el análisis offline'
+              : !online
+                ? 'Offline — el enriquecimiento online no está disponible (la tool sigue 100% funcional)'
+                : 'Opcional: pedir sugerencias de triage a la IA vía el backend local (clic explícito, nunca automático)'
+          }
+        >
+          {enriching ? (
+            <>
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-violet-500/30 border-t-violet-400 animate-spin" />
+              Enriqueciendo…
+            </>
+          ) : !online ? (
+            <>
+              <CloudOff className="w-3.5 h-3.5" /> Enrich Online (offline)
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" /> Enrich Online
+            </>
+          )}
+        </button>
         <button type="button" onClick={clear} className={`${btnGhost} inline-flex items-center gap-1.5`} title="Limpiar entrada y resultado">
           <Trash2 className="w-3.5 h-3.5" /> Limpiar
         </button>
@@ -697,6 +813,67 @@ export const HdTicketTriageTool: React.FC = () => {
 
       {feedback && <InfoBanner>{feedback}</InfoBanner>}
       {addedToast && <InfoBanner>Añadido a Notas — crea o elige una nota para verlo.</InfoBanner>}
+
+      {/* V6 FASE 3 — panel de enriquecimiento online (aparte, marcado, NUNCA
+          sobrescribe el análisis offline). */}
+      {enrichError && (
+        <ErrorBanner message={`Enrich Online: ${enrichError}`} />
+      )}
+      {enrichment && analysis && (
+        <div className="bg-violet-500/5 border border-violet-500/25 rounded p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-violet-400">
+              <Sparkles className="w-3 h-3" /> Enriquecimiento IA (online · opcional)
+            </div>
+            <button
+              type="button"
+              onClick={() => setEnrichment(null)}
+              className="text-[10px] text-[#777] hover:text-white cursor-pointer"
+            >
+              ocultar
+            </button>
+          </div>
+          <p className="text-[10px] text-[#777] leading-relaxed">
+            Sugerencias generadas al pedirlo explícitamente — compáralas con el análisis OFFLINE de arriba
+            (que es el que queda como fuente de verdad). Confianza: <span className="text-violet-300 font-semibold">{enrichment.confidence}</span>.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <Row label="Categoría IA" value={enrichment.category} />
+            <Row label="Subcategoría IA" value={enrichment.subcategory} />
+            <Row label="Prioridad IA" value={`${enrichment.priority} — ${enrichment.priorityReason}`} />
+            <Row
+              label="Divergencia"
+              value={
+                enrichment.priority === analysis.priority && enrichment.category === analysis.category
+                  ? 'ninguna: IA y offline coinciden ✓'
+                  : `IA: ${enrichment.priority}/${enrichment.category} vs offline: ${analysis.priority}/${analysis.category}`
+              }
+            />
+          </div>
+          {enrichment.keywords.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-[#666] uppercase tracking-wider">Keywords IA:</span>
+              {enrichment.keywords.map((k, i) => (
+                <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] border border-[#262626] text-[#AAA]">{k}</span>
+              ))}
+            </div>
+          )}
+          {enrichment.missingInfo.length > 0 && (
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-[#666] uppercase tracking-wider">Info a pedir (IA):</span>
+              {enrichment.missingInfo.map((m, i) => (
+                <p key={i} className="text-[10px] text-[#AAA] leading-relaxed">▸ {m}</p>
+              ))}
+            </div>
+          )}
+          {enrichment.securityFlags.length > 0 && (
+            <ErrorBanner message={`Posible riesgo (IA): ${enrichment.securityFlags.join(' · ')}`} />
+          )}
+          {enrichment.notes && (
+            <p className="text-[10px] text-[#888] leading-relaxed border-t border-violet-500/15 pt-1.5">{enrichment.notes}</p>
+          )}
+        </div>
+      )}
 
       {analysis && (
         <div className="space-y-3">

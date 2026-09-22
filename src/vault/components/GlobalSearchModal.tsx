@@ -18,6 +18,7 @@ import {
   Bug,
   Wrench,
   Zap,
+  LifeBuoy,
 } from 'lucide-react';
 import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
 import { searchAllVault, SearchResultItem, resultToToolDeepLink } from '../utils/fuzzySearch';
@@ -38,6 +39,9 @@ interface GlobalSearchModalProps {
   onSelectTool?: (deepLink: ToolDeepLink) => void;
   /** BLOQUE 5 — command palette dispatch (new note / open section / open tool / backup). */
   onSelectCommand?: (commandId: string) => void;
+  /** V6 FASE 4 — runbook/cheatsheet deep-links desde Ctrl+K. */
+  onSelectRunbook?: (runbookId: string) => void;
+  onSelectCheatSheet?: (cheatsheetId: string) => void;
 }
 
 /** Outer wrapper: mounts fresh content each time the modal opens. */
@@ -58,6 +62,8 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
   onSelectReference,
   onSelectTool,
   onSelectCommand,
+  onSelectRunbook,
+  onSelectCheatSheet,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -91,7 +97,11 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
       return;
     }
     const toolLink = resultToToolDeepLink(item);
-    if (toolLink && onSelectTool) {
+    if (item.type === 'runbook' && onSelectRunbook) {
+      onSelectRunbook(item.id);
+    } else if (item.type === 'cheatsheet' && onSelectCheatSheet) {
+      onSelectCheatSheet(item.id);
+    } else if (toolLink && onSelectTool) {
       onSelectTool(toolLink);
     } else if (item.type === 'reference' && onSelectReference) {
       onSelectReference(item.id);
@@ -151,6 +161,11 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
         return { label: 'CVSS', icon: <Bug className="w-3.5 h-3.5" />, color: 'bg-pink-500/10 text-pink-400 border-pink-500/20', dot: 'bg-pink-500/10 text-pink-400' };
       case 'tool':
         return { label: 'Herramienta', icon: <Wrench className="w-3.5 h-3.5" />, color: 'bg-sky-500/10 text-sky-400 border-sky-500/20', dot: 'bg-sky-500/10 text-sky-400' };
+      // V6 FASE 4 — runbooks + cheatsheet en la búsqueda global:
+      case 'runbook':
+        return { label: 'Runbook', icon: <LifeBuoy className="w-3.5 h-3.5" />, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: 'bg-blue-500/10 text-blue-400' };
+      case 'cheatsheet':
+        return { label: 'CheatSheet', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-amber-500/10 text-amber-400 border-amber-500/20', dot: 'bg-amber-500/10 text-amber-400' };
       case 'command':
         return { label: 'Comando', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-violet-500/10 text-violet-400 border-violet-500/20', dot: 'bg-violet-500/10 text-violet-400' };
       default:

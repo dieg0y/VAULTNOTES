@@ -32,6 +32,9 @@ import type { ToolDeepLink } from './components/ToolsView';
 // (mismo módulo cacheado ⇒ instanceof de las clases de error sigue válido).
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
+// V6 FASE 4 — conteos estáticos para los badges del sidebar.
+import { RUNBOOK_COUNT } from './data/troubleshootingRunbooks';
+import { CHEATSHEET_COUNT } from './data/serviceDeskCheatSheet';
 // DATA & INTEL (v16) — navigation bridge: tools can ask App to switch to the
 // data-intel section via useIntelStore.getState().requestNavigate().
 import { useIntelStore } from './store/intelStore';
@@ -44,7 +47,7 @@ import { useHelpdeskStore } from './store/helpdeskStore';
 /* The initial route now ships ONLY the shell (Sidebar + Header +      */
 /* error boundary). Every view is a separate chunk loaded on demand   */
 /* via next/dynamic, and the modals only mount (and load their        */
-/* chunk) when opened. The 29 tools travel together inside the lazy   */
+/* chunk) when opened. The 35 tools travel together inside the lazy   */
 /* ToolsView chunk — the tool module graph itself stays STATIC inside  */
 /* that chunk on purpose: Turbopack's dev runtime loses track of ~20  */
 /* separate per-tool dynamic factories after a dev-server restart     */
@@ -75,10 +78,12 @@ const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.T
 const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
 const TrashView = dynamic(() => import('./components/TrashView').then((m) => m.TrashView), { ssr: false, loading: ViewLoader });
 const SettingsView = dynamic(() => import('./components/SettingsView').then((m) => m.SettingsView), { ssr: false, loading: ViewLoader });
-const ReviewView = dynamic(() => import('./components/ReviewView').then((m) => m.ReviewView), { ssr: false, loading: ViewLoader });
 const InboxView = dynamic(() => import('./components/InboxView').then((m) => m.InboxView), { ssr: false, loading: ViewLoader });
 // BLOQUE 6 — Online-Optional. Data & Intelligence sync center view.
 const DataIntelView = dynamic(() => import('./components/DataIntelView').then((m) => m.DataIntelView), { ssr: false, loading: ViewLoader });
+// V6 FASE 4 — runbooks universales + cheatsheet (datasets estáticos, sin Dexie).
+const RunbooksView = dynamic(() => import('./components/RunbooksView').then((m) => m.RunbooksView), { ssr: false, loading: ViewLoader });
+const CheatSheetView = dynamic(() => import('./components/CheatSheetView').then((m) => m.CheatSheetView), { ssr: false, loading: ViewLoader });
 
 /* Modals — mounted (and chunk-loaded) only while open. */
 const ModalLoader = () => null;
@@ -322,6 +327,10 @@ export default function App() {
   // Deep-link into the Tools view — when set, ToolsView switches the active
   // tool and auto-opens the entry matching `entryId`. Cleared after consumption.
   const [pendingTool, setPendingTool] = useState<ToolDeepLink | null>(null);
+  // V6 FASE 4 — deep-links de runbook/cheatsheet desde Ctrl+K (mismo patrón
+  // que pendingTool): la vista consume el id al montar y limpia el estado.
+  const [pendingRunbookId, setPendingRunbookId] = useState<string | null>(null);
+  const [pendingCheatSheetId, setPendingCheatSheetId] = useState<string | null>(null);
 
   // DATA & INTEL (v16) — one-shot navigation request from any tool
   // ("Enviar a Data & Intel" flows). Consumed immediately to avoid loops.
@@ -1077,6 +1086,8 @@ export default function App() {
         labsCount={activeLabs.length}
         glossaryCount={activeTerms.length}
         trashCount={deletedNotes.length + deletedLabs.length + deletedTerms.length}
+        runbooksCount={RUNBOOK_COUNT}
+        cheatsheetCount={CHEATSHEET_COUNT}
         open={mobileSidebarOpen}
         onClose={handleCloseMobileSidebar}
       />
@@ -1234,23 +1245,6 @@ export default function App() {
             />
           )}
 
-          {activeSection === 'review' && (
-            <ReviewView
-              onSelectNote={(noteId) => {
-                setSelectedNoteId(noteId);
-                setActiveSection('notes');
-              }}
-              onSelectLab={(labId) => {
-                setSelectedLabId(labId);
-                setActiveSection('labs');
-              }}
-              onSelectGlossaryTerm={(termId) => {
-                setSelectedTermId(termId);
-                setActiveSection('glossary');
-              }}
-            />
-          )}
-
           {activeSection === 'inbox' && (
             <InboxView
               onConvertToNote={(content, inboxItemId) =>
@@ -1287,6 +1281,24 @@ export default function App() {
           {activeSection === 'data-intel' && (
             <DataIntelView />
           )}
+
+          {/* V6 FASE 4 — Runbooks universales de troubleshooting L1/L2
+              (dataset estático: 42 guías paso a paso, sin Dexie, sin input). */}
+          {activeSection === 'troubleshooting' && (
+            <RunbooksView
+              autoSelectId={pendingRunbookId}
+              onConsumeAutoSelect={() => setPendingRunbookId(null)}
+            />
+          )}
+
+          {/* V6 FASE 4 — CheatSheet Service Desk: los fixes top L1/L2 al
+              instante (sin input, buscador fuzzy, 100% offline). */}
+          {activeSection === 'cheatsheet' && (
+            <CheatSheetView
+              autoSelectId={pendingCheatSheetId}
+              onConsumeAutoSelect={() => setPendingCheatSheetId(null)}
+            />
+          )}
         </main>
       </div>
 
@@ -1320,6 +1332,15 @@ export default function App() {
           onSelectTool={(deepLink) => {
             setPendingTool(deepLink);
             setActiveSection('tools');
+          }}
+          // V6 FASE 4 — deep-links a runbooks/cheatsheet:
+          onSelectRunbook={(runbookId) => {
+            setPendingRunbookId(runbookId);
+            setActiveSection('troubleshooting');
+          }}
+          onSelectCheatSheet={(cheatsheetId) => {
+            setPendingCheatSheetId(cheatsheetId);
+            setActiveSection('cheatsheet');
           }}
           // BLOQUE 5 — command palette dispatch (new note / open X / backup / etc.)
           onSelectCommand={(commandId) => {

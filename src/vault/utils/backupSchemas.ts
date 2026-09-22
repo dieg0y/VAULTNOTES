@@ -3,7 +3,7 @@
  *
  * The backup ZIP contains JSON files for many tables (notes, labs, glossary,
  * references, images/videos/PDFs metadata, platforms/categories/tools,
- * toolFavorites, toolRecents, inboxItems, reviewItems, rbacModels,
+ * toolFavorites, toolRecents, inboxItems, rbacModels,
  * flashcardStats, tiCache, onlineActivity, customSigmaRules, savedCves,
  * datasetMeta, manifest). Before this audit, the importer did a raw
  * `JSON.parse(...)` and inserted the result (typed as `any[]`) directly into
@@ -180,15 +180,6 @@ export const inboxItemSchema = z.object({
   convertedTo: z.union([z.string(), z.null()]).optional(),
   convertedAt: z.union([z.string(), z.null()]).optional(),
   isTask: z.boolean().optional(),
-}).passthrough();
-
-export const reviewItemSchema = z.object({
-  id: z.string().min(1),
-  itemType: z.string().optional(),
-  itemId: z.union([z.string(), z.null()]).optional(),
-  addedAt: z.string().optional(),
-  status: z.string().optional(),
-  nextReviewAt: z.string().optional(),
 }).passthrough();
 
 export const rbacModelSchema = z.object({

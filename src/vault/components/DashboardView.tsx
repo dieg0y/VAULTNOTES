@@ -17,7 +17,6 @@ import {
   // BLOQUE 5 — extra icons for the 5 dashboard sections
   FlaskConical,
   Bookmark,
-  ListChecks,
   AlertTriangle,
   History,
   Plus,
@@ -94,13 +93,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   /* --------------------------------------------------------------- *
    * Section 2 — Learning
    * --------------------------------------------------------------- */
-  // Items pending in the review queue.
-  const reviewPendingCount =
-    useLiveQuery(
-      async () => db.reviewItems.where('status').equals('pending').count(),
-      [],
-      0
-    ) ?? 0;
+  // V6: la card «Items to Review» y su live query se retiraron junto con
+  // la feature Review (eliminada por completo en FASE 1).
 
   // Weak concepts — glossary terms with low flashcard stability (or no
   // study history yet). Falls back to "Coming soon" if there are zero stats.
@@ -393,9 +387,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       onSelectSection('tools');
     }
   };
-  const handleOpenReview = () => {
-    if (onSelectSection) onSelectSection('review');
-  };
   const handleOpenTools = () => {
     if (onSelectSection) onSelectSection('tools');
   };
@@ -580,26 +571,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : hdWorked > 0
                   ? 'Vas avanzando en la cola de Nexora — clic para seguir trabajando tickets.'
                   : 'Simulador L1 con 48 tickets, proyecto final de 30 y KB — empieza por el día 1.'}
-            </p>
-          </div>
-
-          {/* Items to Review */}
-          <div
-            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-blue-500/40 transition-colors"
-            onClick={handleOpenReview}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Items to Review</span>
-              <ListChecks className="w-3.5 h-3.5 text-blue-400" />
-            </div>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold text-white font-mono">{reviewPendingCount}</span>
-              <span className="text-[10px] text-[#666]">{reviewPendingCount === 1 ? 'cola' : 'cola'}</span>
-            </div>
-            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
-              {reviewPendingCount > 0
-                ? 'Tienes contenido marcado para repasar. Abre Revisión para continuar.'
-                : 'Sin items pendientes — marca “Revisar después” en cualquier apunte/lab/término.'}
             </p>
           </div>
 

@@ -188,28 +188,6 @@ export interface InboxItem {
   isTask?: boolean;
 }
 
-/**
- * Review Queue Item — un note/lab/glossary marcado para revisar después.
- * Sistema simple (sin spaced repetition complejo por ahora):
- * - status 'pending' = en cola
- * - status 'reviewed' = completado (oculto de la cola activa)
- * - nextReviewAt = fecha sugerida (por defecto +2 días)
- */
-export type ReviewItemType = 'note' | 'glossary' | 'lab';
-type ReviewStatus = 'pending' | 'reviewed';
-
-export interface ReviewItem {
-  /** UUID string. */
-  id: string;
-  /** Tipo de contenido enlazado. */
-  itemType: ReviewItemType;
-  /** ID del note/lab/glossaryterm original (en sus tablas respectivas). */
-  itemId: string;
-  addedAt: string;
-  status: ReviewStatus;
-  nextReviewAt: string;
-}
-
 class VaultDatabase extends Dexie {
   notes!: Table<Note, string>;
   glossary!: Table<GlossaryTerm, string>;
@@ -226,7 +204,9 @@ class VaultDatabase extends Dexie {
   toolFavorites!: Table<ToolFavorite, string>;
   toolRecents!: Table<ToolRecent, string>;
   inboxItems!: Table<InboxItem, string>;
-  reviewItems!: Table<ReviewItem, string>;
+  // V6 (limpieza): la tabla `reviewItems` (cola de Revisión) se retiró del
+  // schema en v20 — Dexie elimina el object store al dejar de declararlo.
+  // El resto de datos del usuario NO se toca (migración no destructiva).
   // BLOQUE 6 — Online-Optional integration tables. See interface defs above.
   tiCache!: Table<TiCacheEntry, string>;
   onlineActivity!: Table<OnlineActivityRow, string>;
@@ -579,6 +559,16 @@ class VaultDatabase extends Dexie {
       roadmapHelpDeskItems: 'id, updatedAt',
       helpdeskTickets: 'id, status, isDeleted, updatedAt, createdAt',
     });
+    // v20 (V6 — limpieza): la feature Review (cola de Revisión) se eliminó
+    // por completo. Dexie borra el object store declarándolo como `null` en
+    // la nueva versión (migración ordenada por la spec V6). El resto de
+    // tablas NO se toca (delta-only, igual que v14-v19): todos los datos del
+    // usuario (notas, labs, glosario, roadmaps, tickets, perfil…) quedan
+    // intactos. NOTA: los backups ≤3.5.0 que traigan reviewItems.json se
+    // ignoran con gracia en la importación (zipBackup 3.6.0).
+    this.version(20).stores({
+      reviewItems: null,
+    });
   }
 }
 
@@ -586,7 +576,7 @@ class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 19;
+export const CURRENT_SCHEMA_VERSION = 20;
 
 export const db = new VaultDatabase();
 
@@ -877,8 +867,9 @@ async function doInitializeDatabase() {
   });
   if (toInsert.length > 0) await db.categories.bulkAdd(toInsert);
 
-  // --- GLOSARIO SEMBRADO (v18): los ~389 términos curados (IAM ~75% + GRC
-  // + SOC) de data/glossarySeed.ts ya vienen DE FÁBRICA — sin importar nada.
+  // --- GLOSARIO SEMBRADO (v18+): los 639 términos curados (base 194 +
+  // ampliación IAM 195 + HelpDesk 250) de data/glossarySeed*.ts ya vienen
+  // DE FÁBRICA — sin importar nada.
   // Seeding ADITIVO y NO destructivo: dedupe por nombre normalizado contra
   // TODO el glosario (incluidos soft-deleted, para no revivir borrados con
   // otro id) + nombres descartados definitivamente (SEED_DISMISSED_KEY).

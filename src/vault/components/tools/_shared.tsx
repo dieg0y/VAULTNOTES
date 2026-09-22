@@ -189,39 +189,3 @@ export async function toggleToolFavorite(toolId: string): Promise<boolean> {
     return false;
   }
 }
-
-/**
- * Add a note/lab/glossary item to the Review Later queue (BLOQUE 5 spec #15).
- * Creates a new ReviewItem with status='pending' and nextReviewAt = now + 2 days.
- * Returns true on success, false on failure (non-fatal — caller can ignore).
- * 100% offline: writes only to the local Dexie `reviewItems` table.
- */
-export async function addToReviewQueue(
-  itemType: 'note' | 'glossary' | 'lab',
-  itemId: string
-): Promise<boolean> {
-  try {
-    // Avoid duplicates: if there's already a pending review for this item, skip.
-    const existing = await db.reviewItems
-      .where('itemId')
-      .equals(itemId)
-      .and((r) => r.status === 'pending')
-      .first();
-    if (existing) return true;
-
-    const now = new Date();
-    const next = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000); // +2 days
-    await db.reviewItems.add({
-      id: crypto.randomUUID(),
-      itemType,
-      itemId,
-      addedAt: now.toISOString(),
-      status: 'pending',
-      nextReviewAt: next.toISOString(),
-    });
-    return true;
-  } catch (e) {
-    console.warn('addToReviewQueue failed (non-fatal):', e);
-    return false;
-  }
-}

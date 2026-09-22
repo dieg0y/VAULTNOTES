@@ -336,7 +336,7 @@ export interface RoadmapItem {
   updatedAt: string;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel' | 'profile' | 'roadmap' | 'helpdesk' | 'roadmap-hd';
+export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'inbox' | 'data-intel' | 'profile' | 'roadmap' | 'helpdesk' | 'roadmap-hd' | 'troubleshooting' | 'cheatsheet';
 
 /* ------------------------------------------------------------------ */
 /* HELPDESK (v19) — tickets simulados (CRUD) + KB (dataset estático). */

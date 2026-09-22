@@ -1,6 +1,9 @@
 import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database, IdCard, Map as RoadmapIcon, Headset, GraduationCap } from 'lucide-react';
+import {
+  LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench,
+  Bookmark, Inbox, Database, IdCard, Map as RoadmapIcon, Headset, GraduationCap, LifeBuoy, Zap,
+} from 'lucide-react';
 import { ActiveSection } from '../types';
 import { db } from '../db';
 import { useIsOnline } from '../integrations/online';
@@ -12,11 +15,85 @@ interface SidebarProps {
   labsCount: number;
   glossaryCount: number;
   trashCount: number;
+  /** Conteo de runbooks universales (badge de Troubleshooting & Runbooks). */
+  runbooksCount: number;
+  /** Conteo de entradas del CheatSheet (badge de Service Desk CheatSheet). */
+  cheatsheetCount: number;
   /** Visibilidad del drawer en móvil (< md). El sidebar de escritorio (≥ md) siempre está visible. */
   open?: boolean;
   /** Cierra el drawer móvil (clic en el backdrop). */
   onClose?: () => void;
 }
+
+/* ------------------------------------------------------------------ */
+/* FASE 2 (V6) — REORG ANTI-CAOS                                       */
+/* El sidebar se agrupa con títulos para dejar de ser una lista plana  */
+/* de 15 botones. Orden exacto por spec:                               */
+/*   CONOCIMIENTO : Apuntes · Glosario (+ Inbox, captura → apuntes)    */
+/*   LABORATORIO  : Labs · Generar Blog · Herramientas ·               */
+/*                  Troubleshooting & Runbooks                         */
+/*   SERVICE DESK : Service Desk (simulador) · CheatSheet ·            */
+/*                  Data & Intel                                       */
+/*   CARRERA      : Referencias · Roadmap IAM · Roadmap HelpDesk ·     */
+/*                  Perfil Profesional · Dashboard                     */
+/*   Pie          : Papelera · Configuración · estado online           */
+/* El orden de cada botón se declara UNA sola vez aquí (sin números    */
+/* mágicos repartidos por el archivo). La feature Review se eliminó    */
+/* por completo en FASE 1 (V6).                                        */
+/* ------------------------------------------------------------------ */
+
+interface NavItemDef {
+  section: ActiveSection;
+  label: string;
+  icon: React.ReactNode;
+  title?: string;
+  /** Badge: número fijo (conteo) o null. */
+  badge?: number | null;
+  /** Clase extra del badge (color). */
+  badgeClass?: string;
+}
+
+interface NavGroupDef {
+  label: string;
+  items: NavItemDef[];
+}
+
+const SIDEBAR_ICON = 'w-4 h-4';
+
+/** Un botón de navegación — markup idéntico al histórico (visual no cambia). */
+const NavButton: React.FC<{
+  def: NavItemDef;
+  activeSection: ActiveSection;
+  onSelectSection: (s: ActiveSection) => void;
+}> = ({ def, activeSection, onSelectSection }) => (
+  <button
+    onClick={() => onSelectSection(def.section)}
+    className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+      activeSection === def.section
+        ? 'bg-blue-500/10 text-blue-400 font-medium'
+        : 'text-[#888] hover:bg-[#161616] hover:text-white'
+    }`}
+    title={def.title}
+  >
+    <span className="flex items-center gap-2 min-w-0">
+      {def.icon}
+      <span className="truncate">{def.label}</span>
+    </span>
+    {def.badge != null && def.badge > 0 && (
+      <span className={`text-[10px] font-mono shrink-0 ml-2 ${def.badgeClass ?? 'text-[#555]'}`}>
+        {def.badge}
+      </span>
+    )}
+  </button>
+);
+
+/** Título de grupo con separadores (FASE 2: grupos con títulos). */
+const GroupLabel: React.FC<{ label: string }> = ({ label }) => (
+  <div className="flex items-center gap-2 pt-3 pb-1 px-3 select-none" aria-hidden="true">
+    <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#4a4a4a]">{label}</span>
+    <span className="flex-1 h-px bg-[#1d1d1d]" />
+  </div>
+);
 
 // PERFORMANCE (cleanup pass): App subscribes to 7 live queries — every DB
 // write (e.g. each autosave flush) re-renders the whole tree. memo + stable
@@ -29,16 +106,11 @@ const SidebarBase: React.FC<SidebarProps> = ({
   labsCount,
   glossaryCount,
   trashCount,
+  runbooksCount,
+  cheatsheetCount,
   open = false,
   onClose,
 }) => {
-  // Pending review items count (for the Revisión badge)
-  const reviewCount = useLiveQuery(
-    () => db.reviewItems.where('status').equals('pending').count(),
-    [],
-    0
-  ) || 0;
-
   // Unconverted inbox items count (for the Inbox badge)
   const inboxCount = useLiveQuery(
     () =>
@@ -74,6 +146,95 @@ const SidebarBase: React.FC<SidebarProps> = ({
   // events. NO network probe, NO periodic fetch. Purely visual state.
   const online = useIsOnline();
 
+  // ORDEN EXACTO (FASE 2) — declarado una sola vez, por grupos.
+  const groups: NavGroupDef[] = [
+    {
+      label: 'Conocimiento',
+      items: [
+        { section: 'notes', label: 'Apuntes', icon: <FileText className={SIDEBAR_ICON} />, badge: notesCount },
+        { section: 'glossary', label: 'Glosario', icon: <BookOpen className={SIDEBAR_ICON} />, badge: glossaryCount },
+        {
+          section: 'inbox',
+          label: 'Inbox',
+          icon: <Inbox className={SIDEBAR_ICON} />,
+          title: 'Captura rápida y items sin organizar (Ctrl+Shift+Q)',
+          badge: inboxCount,
+          badgeClass: 'text-amber-400/90',
+        },
+      ],
+    },
+    {
+      label: 'Laboratorio',
+      items: [
+        { section: 'labs', label: 'Hands-On / Labs', icon: <FlaskConical className={SIDEBAR_ICON} />, badge: labsCount },
+        { section: 'blog', label: 'Generar Blog', icon: <FileCode className={SIDEBAR_ICON} /> },
+        { section: 'tools', label: 'Herramientas', icon: <Wrench className={SIDEBAR_ICON} /> },
+        {
+          section: 'troubleshooting',
+          label: 'Troubleshooting & Runbooks',
+          icon: <LifeBuoy className={SIDEBAR_ICON} />,
+          title: 'Runbooks universales L1/L2: cuenta bloqueada, VPN, Outlook, impresora, BSOD… paso a paso, 100% offline',
+          badge: runbooksCount,
+        },
+      ],
+    },
+    {
+      label: 'Service Desk',
+      items: [
+        {
+          section: 'helpdesk',
+          label: 'Service Desk',
+          icon: <Headset className={SIDEBAR_ICON} />,
+          title: 'Simulador L1: trabaja la cola de tickets de Nexora, el proyecto final y la KB',
+          badge: hdOpenCount,
+          badgeClass: 'text-amber-400/90',
+        },
+        {
+          section: 'cheatsheet',
+          label: 'Service Desk CheatSheet',
+          icon: <Zap className={SIDEBAR_ICON} />,
+          title: 'Los fixes top de L1/L2 al instante: sin input, buscador fuzzy, 100% offline',
+          badge: cheatsheetCount,
+        },
+        {
+          section: 'data-intel',
+          label: 'Data & Intel',
+          icon: <Database className={SIDEBAR_ICON} />,
+          title: 'Sincronización de datasets + estado de integraciones + actividad online',
+        },
+      ],
+    },
+    {
+      label: 'Carrera',
+      items: [
+        { section: 'references', label: 'Referencias', icon: <Bookmark className={SIDEBAR_ICON} /> },
+        {
+          section: 'roadmap',
+          label: 'Roadmap IAM',
+          icon: <RoadmapIcon className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap Junior IAM / Identity Security Analyst (Tier 1-3 + proyecto final)',
+          badge: roadmapPct,
+          badgeClass: roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+        },
+        {
+          section: 'roadmap-hd',
+          label: 'Roadmap HelpDesk',
+          icon: <GraduationCap className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)',
+          badge: roadmapHdPct,
+          badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+        },
+        {
+          section: 'profile',
+          label: 'Perfil Profesional',
+          icon: <IdCard className={SIDEBAR_ICON} />,
+          title: 'Tu CV vivo: skills, tools, experiencia, certs — expórtalo como Markdown para que una IA te arme el CV',
+        },
+        { section: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className={SIDEBAR_ICON} /> },
+      ],
+    },
+  ];
+
   // Contenido compartido entre el sidebar de escritorio y el drawer móvil.
   const sidebarContent = (
     <>
@@ -94,253 +255,21 @@ const SidebarBase: React.FC<SidebarProps> = ({
           <span className="font-semibold text-sm tracking-tight text-white">VAULT</span>
         </div>
 
-        {/* Primary Navigation */}
-        <nav className="p-3 flex flex-col gap-1">
-          <button
-            onClick={() => onSelectSection('dashboard')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'dashboard'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Dashboard</span>
+        {/* Grouped navigation (FASE 2 — orden exacto, grupos con separadores) */}
+        <nav className="p-3 pt-1 flex flex-col gap-0.5" aria-label="Navegación principal">
+          {groups.map((g) => (
+            <div key={g.label} className="flex flex-col gap-0.5">
+              <GroupLabel label={g.label} />
+              {g.items.map((item) => (
+                <NavButton key={item.section} def={item} activeSection={activeSection} onSelectSection={onSelectSection} />
+              ))}
             </div>
-          </button>
-
-          <button
-  onClick={() => onSelectSection('settings')}
-  className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-    activeSection === 'settings' ? 'bg-blue-500/10 text-blue-400 font-medium' : 'text-[#888] hover:bg-[#161616] hover:text-white'
-  }`}
->
-  <div className="flex items-center gap-2">
-    <Settings className="w-4 h-4" />
-    <span>Configuración</span>
-  </div>
-</button>
-
-          <button
-            onClick={() => onSelectSection('inbox')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'inbox'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-            title="Captura rápida y items sin organizar (Ctrl+Shift+Q)"
-          >
-            <div className="flex items-center gap-2">
-              <Inbox className="w-4 h-4" />
-              <span>Inbox</span>
-            </div>
-            {inboxCount > 0 && (
-              <span className="text-[10px] font-mono text-amber-400/90">{inboxCount}</span>
-            )}
-          </button>
-
-          <button
-            onClick={() => onSelectSection('notes')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'notes'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              <span>Apuntes</span>
-            </div>
-            <span className="text-[10px] font-mono text-[#555]">{notesCount}</span>
-          </button>
-
-          <button
-            onClick={() => onSelectSection('labs')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'labs'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <FlaskConical className="w-4 h-4" />
-              <span>Hands-On / Labs</span>
-            </div>
-            <span className="text-[10px] font-mono text-[#555]">{labsCount}</span>
-          </button>
-
-          <button
-            onClick={() => onSelectSection('glossary')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'glossary'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              <span>Glosario</span>
-            </div>
-            <span className="text-[10px] font-mono text-[#555]">{glossaryCount}</span>
-          </button>
-
-          {/* PERFIL PROFESIONAL (v17) — CV vivo + export Markdown AI-ready. */}
-          <button
-            onClick={() => onSelectSection('profile')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'profile'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-            title="Tu CV vivo: skills, tools, experiencia, certs — expórtalo como Markdown para que una IA te arme el CV"
-          >
-            <div className="flex items-center gap-2">
-              <IdCard className="w-4 h-4" />
-              <span>Perfil Profesional</span>
-            </div>
-          </button>
-
-          {/* ROADMAP (v18) — checklist Junior IAM con progreso persistente. */}
-          <button
-            onClick={() => onSelectSection('roadmap')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'roadmap'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-            title="Checklist del roadmap Junior IAM / Identity Security Analyst (Tier 1-3 + proyecto final)"
-          >
-            <div className="flex items-center gap-2">
-              <RoadmapIcon className="w-4 h-4" />
-              <span>Roadmap IAM</span>
-            </div>
-            <span className={`text-[10px] font-mono ${roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]'}`}>{roadmapPct}%</span>
-          </button>
-
-          {/* HELPDESK (v19) — Simulador de tickets L1 + roadmap de la
-              especialización de entrada HelpDesk/IT Support. */}
-          <button
-            onClick={() => onSelectSection('helpdesk')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'helpdesk'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-            title="Simulador L1: trabaja la cola de tickets de Nexora, el proyecto final y la KB"
-          >
-            <div className="flex items-center gap-2">
-              <Headset className="w-4 h-4" />
-              <span>Service Desk</span>
-            </div>
-            {hdOpenCount > 0 && (
-              <span className="text-[10px] font-mono text-amber-400/90">{hdOpenCount}</span>
-            )}
-          </button>
-
-          <button
-            onClick={() => onSelectSection('roadmap-hd')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'roadmap-hd'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-            title="Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)"
-          >
-            <div className="flex items-center gap-2">
-              <GraduationCap className="w-4 h-4" />
-              <span>Roadmap HelpDesk</span>
-            </div>
-            <span className={`text-[10px] font-mono ${roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]'}`}>{roadmapHdPct}%</span>
-          </button>
-
-          <button
-            onClick={() => onSelectSection('blog')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'blog'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <FileCode className="w-4 h-4" />
-              <span>Generar Blog</span>
-            </div>
-          </button>
-
-          <button
-            onClick={() => onSelectSection('tools')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'tools'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Wrench className="w-4 h-4" />
-              <span>Herramientas</span>
-            </div>
-          </button>
-
-          <button
-            onClick={() => onSelectSection('references')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'references'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Bookmark className="w-4 h-4" />
-              <span>Referencias</span>
-            </div>
-          </button>
-
-          <button
-            onClick={() => onSelectSection('review')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'review'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-            title="Items marcados como 'Revisar después'"
-          >
-            <div className="flex items-center gap-2">
-              <ListChecks className="w-4 h-4" />
-              <span>Revisión</span>
-            </div>
-            {reviewCount > 0 && (
-              <span className="text-[10px] font-mono text-blue-400/90">{reviewCount}</span>
-            )}
-          </button>
-
-          {/* BLOQUE 6 — Online-Optional. Data & Intelligence sync center.
-              MITRE/Sigma sync architecture, TI provider status, saved CVEs,
-              online activity log. All local; sync buttons gated by online. */}
-          <button
-            onClick={() => onSelectSection('data-intel')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
-              activeSection === 'data-intel'
-                ? 'bg-blue-500/10 text-blue-400 font-medium'
-                : 'text-[#888] hover:bg-[#161616] hover:text-white'
-            }`}
-            title="Sincronización de datasets + estado de integraciones + actividad online"
-          >
-            <div className="flex items-center gap-2">
-              <Database className="w-4 h-4" />
-              <span>Data & Intel</span>
-            </div>
-            {online ? (
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400" title="Online — sync available" />
-            ) : (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Offline — local only" />
-            )}
-          </button>
+          ))}
         </nav>
       </div>
 
-      {/* Bottom navigation */}
-      <div className="p-3 border-t border-[#262626] flex flex-col gap-2">
+      {/* Bottom navigation: Papelera · Configuración · estado online */}
+      <div className="p-3 border-t border-[#262626] flex flex-col gap-1.5">
         <button
           onClick={() => onSelectSection('trash')}
           className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
@@ -349,13 +278,27 @@ const SidebarBase: React.FC<SidebarProps> = ({
               : 'text-[#888] hover:bg-[#161616] hover:text-red-300'
           }`}
         >
-          <div className="flex items-center gap-2">
+          <span className="flex items-center gap-2">
             <Trash2 className="w-4 h-4" />
             <span>Papelera</span>
-          </div>
+          </span>
           {trashCount > 0 && (
             <span className="text-[10px] font-mono text-red-400/80">{trashCount}</span>
           )}
+        </button>
+
+        <button
+          onClick={() => onSelectSection('settings')}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+            activeSection === 'settings'
+              ? 'bg-blue-500/10 text-blue-400 font-medium'
+              : 'text-[#888] hover:bg-[#161616] hover:text-white'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            <span>Configuración</span>
+          </span>
         </button>
 
         {/* Connectivity state badge (Block 6 — Online-Optional).
@@ -390,7 +333,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Escritorio (≥ md): columna persistente — idéntica al layout original. */}
-      <aside className="hidden md:flex w-[200px] border-r border-[#262626] bg-[#0D0D0D] flex-col justify-between shrink-0 h-screen select-none z-30">
+      <aside className="hidden md:flex w-[200px] border-r border-[#262626] bg-[#0D0D0D] flex-col justify-between shrink-0 h-screen select-none z-30 overflow-y-auto">
         {sidebarContent}
       </aside>
 
