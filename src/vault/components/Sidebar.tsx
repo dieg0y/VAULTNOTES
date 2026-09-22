@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench,
   Bookmark, Inbox, Database, IdCard, Map as RoadmapIcon, Headset, GraduationCap, LifeBuoy, Zap,
+  Server, Milestone,
 } from 'lucide-react';
 import { ActiveSection } from '../types';
 import { db } from '../db';
@@ -26,20 +27,20 @@ interface SidebarProps {
 }
 
 /* ------------------------------------------------------------------ */
-/* FASE 2 (V6) — REORG ANTI-CAOS                                       */
-/* El sidebar se agrupa con títulos para dejar de ser una lista plana  */
-/* de 15 botones. Orden exacto por spec:                               */
-/*   CONOCIMIENTO : Apuntes · Glosario (+ Inbox, captura → apuntes)    */
-/*   LABORATORIO  : Labs · Generar Blog · Herramientas ·               */
+/* FASE 2 (V6) — REORG ANTI-CAOS + v21 (SYSADMIN)                      */
+/* El sidebar se agrupa con títulos para dejar de ser una lista plana.  */
+/* v21 añade el grupo "SysAdmin / Infra" (simulador de guardia) tras    */
+/* Service Desk y "Roadmap SysAdmin" en Carrera junto a los demás       */
+/* roadmaps. Orden por grupos:                                          */
+/*   CONOCIMIENTO : Apuntes · Glosario (+ Inbox)                        */
+/*   LABORATORIO  : Labs · Generar Blog · Herramientas ·                */
 /*                  Troubleshooting & Runbooks                         */
-/*   SERVICE DESK : Service Desk (simulador) · CheatSheet ·            */
-/*                  Data & Intel                                       */
-/*   CARRERA      : Referencias · Roadmap IAM · Roadmap HelpDesk ·     */
-/*                  Perfil Profesional · Dashboard                     */
-/*   Pie          : Papelera · Configuración · estado online           */
-/* El orden de cada botón se declara UNA sola vez aquí (sin números    */
-/* mágicos repartidos por el archivo). La feature Review se eliminó    */
-/* por completo en FASE 1 (V6).                                        */
+/*   SERVICE DESK : Service Desk (simulador) · CheatSheet ·             */
+/*                  Data & Intel                                        */
+/*   SYSADMIN     : SysAdmin Ops (simulador de Infra)                   */
+/*   CARRERA      : Referencias · Roadmap IAM · Roadmap HelpDesk ·      */
+/*                  Roadmap SysAdmin · Perfil · Dashboard               */
+/*   Pie          : Papelera · Configuración · estado online            */
 /* ------------------------------------------------------------------ */
 
 interface NavItemDef {
@@ -142,6 +143,20 @@ const SidebarBase: React.FC<SidebarProps> = ({
       ? Math.round((roadmapHdRows.filter((r) => r.done).length / roadmapHdRows.length) * 100)
       : 0;
 
+  // SYSADMIN (v21) — tickets de guardia abiertos (badge de SysAdmin Ops)
+  // + progreso del roadmap SysAdmin (badge de su propia sección).
+  const saOpenCount =
+    useLiveQuery(
+      () => db.sysadminTickets.filter((t) => !t.isDeleted && (t.status === 'nuevo' || t.status === 'en_progreso')).count(),
+      [],
+      0
+    ) || 0;
+  const roadmapSaRows = useLiveQuery(() => db.roadmapSysAdminItems.toArray(), [], []);
+  const roadmapSaPct =
+    roadmapSaRows.length > 0
+      ? Math.round((roadmapSaRows.filter((r) => r.done).length / roadmapSaRows.length) * 100)
+      : 0;
+
   // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
   // events. NO network probe, NO periodic fetch. Purely visual state.
   const online = useIsOnline();
@@ -205,6 +220,19 @@ const SidebarBase: React.FC<SidebarProps> = ({
       ],
     },
     {
+      label: 'SysAdmin',
+      items: [
+        {
+          section: 'sysadmin',
+          label: 'SysAdmin Ops',
+          icon: <Server className={SIDEBAR_ICON} />,
+          title: 'Simulador de guardia: trabaja la cola de tickets de Infraestructura de Nexora (Linux, Windows Server, red, storage, VM), la semana de guardia y la KB',
+          badge: saOpenCount,
+          badgeClass: 'text-amber-400/90',
+        },
+      ],
+    },
+    {
       label: 'Carrera',
       items: [
         { section: 'references', label: 'Referencias', icon: <Bookmark className={SIDEBAR_ICON} /> },
@@ -223,6 +251,14 @@ const SidebarBase: React.FC<SidebarProps> = ({
           title: 'Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)',
           badge: roadmapHdPct,
           badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+        },
+        {
+          section: 'roadmap-sa',
+          label: 'Roadmap SysAdmin',
+          icon: <Milestone className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap SysAdmin / Infra & Ops → SRE (Tier 1-3 + semana de guardia de 30 tickets)',
+          badge: roadmapSaPct,
+          badgeClass: roadmapSaPct > 0 ? 'text-emerald-400' : 'text-[#555]',
         },
         {
           section: 'profile',

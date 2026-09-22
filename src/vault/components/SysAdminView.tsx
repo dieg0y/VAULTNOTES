@@ -1,26 +1,36 @@
 'use client';
 
 /**
- * HelpDeskView — SERVICE DESK (v19): simulador L1 de práctica.
+ * SysAdminView — SYSADMIN OPS (v21): simulador de Infraestructura &
+ * Operaciones (Nexora S.A. — Infra & Ops, empresa ficticia).
  *
- * Tres pestañas:
- *  1. COLA DE TICKETS — master-detail: filtros (estado/prioridad/categoría/
- *     ámbito/búsqueda) + ficha del ticket. La ficha separa lo que el usuario
- *     VE al abrir el ticket (descripción/síntomas/datos) de la GUÍA DE
- *     ESTUDIO (pasos de diagnóstico, resolución y escalación), que está
- *     OCULTA detrás de botones de revelado: primero intenta resolver, luego
- *     contrasta. El trabajo persiste en db.helpdeskTickets (status +
- *     statusNote) → viaja en los backups ZIP.
- *  2. PROYECTO FINAL — los 30 tickets de la "primera semana en el service
- *     desk de Nexora S.A." (hdt-019..048) agrupados por día (1-5) con
- *     progreso por día. Clic → salta a la cola con el ticket seleccionado.
- *  3. BASE DE CONOCIMIENTO — los 28 artículos del dataset (solo lectura)
- *     con buscador, pasos con comandos, términos de glosario enlazados y
- *     tickets relacionados.
+ * Adaptación de HelpDeskView al dominio SysAdmin. Tres pestañas:
+ *  1. COLA DE GUARDIA — master-detail: filtros (estado/prioridad/tipo/
+ *     entorno/categoría/ámbito/búsqueda/orden) + ficha del ticket. La
+ *     ficha separa lo que el usuario VE al abrir el ticket (descripción/
+ *     síntomas/datos) de la GUÍA DE ESTUDIO (pasos de diagnóstico,
+ *     resolución y escalación), que está OCULTA detrás de botones de
+ *     revelado: primero intenta resolver, luego contrasta. El trabajo
+ *     persiste en db.sysadminTickets (status + statusNote) → viaja en
+ *     los backups ZIP.
+ *  2. SEMANA DE GUARDIA — los 30 tickets del proyecto final (sa-027..
+ *     sa-056, 6 por día × 5 días) agrupados por día con progreso por
+ *     día. Clic → salta a la cola con el ticket seleccionado.
+ *  3. BASE DE CONOCIMIENTO — los artículos del dataset (solo lectura)
+ *     con buscador, pasos con comandos, términos de glosario enlazados
+ *     y tickets relacionados.
  *
- * Cross-links: un ticket con kbRef abre el artículo KB; la KB abre tickets;
- * los relatedTerms de la KB navegan al Glosario (prop onOpenGlossaryTerm).
- * El helpdeskStore coordina los deep-links desde fuera (Dashboard, roadmap).
+ * Extensiones de dominio vs HelpDesk:
+ *  · type 'cambio' (ventana de mantenimiento / plan / rollback) con chip
+ *    naranja — SOLO existe en SysAdmin (filtro y cabecera).
+ *  · environment (torre tecnológica: Linux / Windows Server / Red /
+ *    Storage-Backup / Virtualización / Cloud / Multi) con chips de color
+ *    y FILTRO multi-selección por entorno en la cola.
+ *
+ * Cross-links: un ticket con kbRef abre el artículo KB; la KB abre
+ * tickets; los relatedTerms de la KB navegan al Glosario (prop
+ * onOpenGlossaryTerm). El sysadminStore coordina los deep-links desde
+ * fuera (Dashboard, roadmap SysAdmin).
  *
  * 100% offline. Todo el texto se renderiza como TEXTO (sin HTML salvo la
  * tabla del export a Notas, que se escapa con escapeHtml).
@@ -29,7 +39,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  Headset,
+  Server,
   Ticket as TicketIcon,
   CalendarCheck,
   BookOpen,
@@ -53,9 +63,9 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { db } from '../db';
-import type { GlossaryTerm, HelpDeskTicket, HdTicketPriority, HdTicketStatus, HdTicketType } from '../types';
-import { HELPDESK_KB_ARTICLES, HELPDESK_KB_BY_ID } from '../data/helpDeskKB';
-import { useHelpdeskStore } from '../store/helpdeskStore';
+import type { GlossaryTerm, SysAdminTicket, SaTicketPriority, SaTicketStatus, SaTicketType, SaEnvironment } from '../types';
+import { SYSADMIN_KB_ARTICLES, SYSADMIN_KB_BY_ID } from '../data/sysadminKB';
+import { useSysadminStore } from '../store/sysadminStore';
 import { useNoteStore } from '../store/noteStore';
 import { escapeHtml } from '../utils/escapeHtml';
 import { buildNoteHtmlTable, CodeBlock, useAddToNoteToast } from './tools/_shared';
@@ -64,17 +74,19 @@ import { buildNoteHtmlTable, CodeBlock, useAddToNoteToast } from './tools/_share
 /* Constantes + metadatos visuales                                     */
 /* ------------------------------------------------------------------ */
 
-const HD_CATEGORIES = [
-  'HelpDesk - AD / Identidad',
-  'HelpDesk - Microsoft 365',
-  'HelpDesk - Windows / Endpoint',
-  'HelpDesk - Redes (Networking)',
-  'HelpDesk - Service Desk / ITSM',
-  'HelpDesk - Fundamentos IT',
-  'HelpDesk - Seguridad para Soporte',
+const SA_CATEGORIES = [
+  'SysAdmin - Linux / Unix',
+  'SysAdmin - Windows Server',
+  'SysAdmin - Redes & Firewalls',
+  'SysAdmin - Storage & Backup',
+  'SysAdmin - Virtualización',
+  'SysAdmin - Cloud / Contenedores',
+  'SysAdmin - Monitoreo & Observabilidad',
+  'SysAdmin - Automatización',
+  'SysAdmin - Seguridad & Hardening',
 ] as const;
 
-const STATUS_META: Record<HdTicketStatus, { label: string; chip: string; icon: React.ReactNode }> = {
+const STATUS_META: Record<SaTicketStatus, { label: string; chip: string; icon: React.ReactNode }> = {
   nuevo: { label: 'Nuevo', chip: 'bg-sky-500/10 text-sky-400 border-sky-500/30', icon: <span className="w-1.5 h-1.5 rounded-full bg-sky-400" /> },
   en_progreso: { label: 'En progreso', chip: 'bg-amber-500/10 text-amber-400 border-amber-500/30', icon: <Clock className="w-3 h-3" /> },
   resuelto: { label: 'Resuelto', chip: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', icon: <Check className="w-3 h-3" /> },
@@ -82,42 +94,71 @@ const STATUS_META: Record<HdTicketStatus, { label: string; chip: string; icon: R
   cerrado: { label: 'Cerrado', chip: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30', icon: <Lock className="w-3 h-3" /> },
 };
 
-const PRIORITY_CHIP: Record<HdTicketPriority, string> = {
+const PRIORITY_CHIP: Record<SaTicketPriority, string> = {
   P1: 'bg-red-500/10 text-red-400 border-red-500/30',
   P2: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
   P3: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
   P4: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30',
 };
 
-/** Estados que cuentan como "trabajado" (práctica completada). */
-const WORKED_STATUSES: HdTicketStatus[] = ['resuelto', 'escalado', 'cerrado'];
-/** Estados abiertos (trabajo pendiente). */
-const OPEN_STATUSES: HdTicketStatus[] = ['nuevo', 'en_progreso'];
+/** Metadatos del TIPO de ticket — 'cambio' es exclusivo de SysAdmin. */
+const TYPE_META: Record<SaTicketType, { label: string; chip: string }> = {
+  incidente: { label: 'Incidente', chip: 'bg-[#161616] text-[#999] border-[#262626]' },
+  solicitud: { label: 'Solicitud', chip: 'bg-[#161616] text-[#999] border-[#262626]' },
+  cambio: { label: 'Cambio', chip: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+};
 
-const DAY_LABELS: Array<{ day: number; title: string; theme: string }> = [
-  { day: 1, title: 'Día 1', theme: 'Lo básico del puesto: contraseñas, bloqueos, impresoras y hardware' },
-  { day: 2, title: 'Día 2', theme: 'Microsoft 365: Outlook, Teams, OneDrive y activación' },
-  { day: 3, title: 'Día 3', theme: 'Redes: DNS, DHCP, Wi-Fi, VPN y el incidente de la planta 2' },
-  { day: 4, title: 'Día 4', theme: 'Windows: rendimiento, actualizaciones, disco, BitLocker y BSOD' },
-  { day: 5, title: 'Día 5', theme: 'Seguridad y JML: phishing, MFA, vishing, offboarding y el spooler' },
+/** Metadatos del ENTORNO (torre tecnológica) — chip corto para la fila. */
+const ENV_META: Record<SaEnvironment, { label: string; short: string; chip: string }> = {
+  Linux: { label: 'Linux', short: 'Linux', chip: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+  'Windows Server': { label: 'Windows Server', short: 'Win Srv', chip: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
+  Red: { label: 'Red', short: 'Red', chip: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' },
+  'Storage / Backup': { label: 'Storage / Backup', short: 'Storage', chip: 'bg-violet-500/10 text-violet-400 border-violet-500/30' },
+  'Virtualización': { label: 'Virtualización', short: 'VM', chip: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+  'Cloud / Contenedores': { label: 'Cloud / Contenedores', short: 'Cloud', chip: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30' },
+  Multi: { label: 'Multi', short: 'Multi', chip: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30' },
+};
+
+/** Orden fijo de los chips de entorno (filtro de la cola). */
+const ENVIRONMENTS: SaEnvironment[] = [
+  'Linux',
+  'Windows Server',
+  'Red',
+  'Storage / Backup',
+  'Virtualización',
+  'Cloud / Contenedores',
+  'Multi',
 ];
 
-/** Día del ticket del proyecto final (hdt-019..048 → 6 por día). */
-function dayOfFinalTicket(t: HelpDeskTicket): number {
-  const n = parseInt(t.id.replace(/^hdt-/, ''), 10);
+/** Estados que cuentan como "trabajado" (práctica completada). */
+const WORKED_STATUSES: SaTicketStatus[] = ['resuelto', 'escalado', 'cerrado'];
+/** Estados abiertos (trabajo pendiente). */
+const OPEN_STATUSES: SaTicketStatus[] = ['nuevo', 'en_progreso'];
+
+const DAY_LABELS: Array<{ day: number; title: string; theme: string }> = [
+  { day: 1, title: 'Día 1', theme: 'Linux esencial: servicios, discos, permisos y las 3 AM de la guardia' },
+  { day: 2, title: 'Día 2', theme: 'Windows Server: DNS interno, GPO, DHCP y la ventana de parches' },
+  { day: 3, title: 'Día 3', theme: 'Redes: VLANs, VPN site-to-site, certificados y firewall' },
+  { day: 4, title: 'Día 4', theme: 'Storage, backup y virtualización: RAID, restores, VMs' },
+  { day: 5, title: 'Día 5', theme: 'Cambios, monitoreo y cierre: ventanas, alertas y postmortem' },
+];
+
+/** Día del ticket del proyecto final (sa-027..056 → 6 por día). */
+function dayOfFinalTicket(t: SysAdminTicket): number {
+  const n = parseInt(t.id.replace(/^sa-/, ''), 10);
   if (Number.isNaN(n)) return 1;
-  return Math.min(5, Math.max(1, Math.floor((n - 19) / 6) + 1));
+  return Math.min(5, Math.max(1, Math.floor((n - 27) / 6) + 1));
 }
 
 /* ------------------------------------------------------------------ */
 /* Subcomponentes visuales                                             */
 /* ------------------------------------------------------------------ */
 
-const PrioChip: React.FC<{ p: HdTicketPriority }> = ({ p }) => (
+const PrioChip: React.FC<{ p: SaTicketPriority }> = ({ p }) => (
   <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${PRIORITY_CHIP[p]}`}>{p}</span>
 );
 
-const StatusChip: React.FC<{ s: HdTicketStatus }> = ({ s }) => {
+const StatusChip: React.FC<{ s: SaTicketStatus }> = ({ s }) => {
   const meta = STATUS_META[s];
   return (
     <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${meta.chip}`}>
@@ -127,7 +168,17 @@ const StatusChip: React.FC<{ s: HdTicketStatus }> = ({ s }) => {
   );
 };
 
-const ProgressBar: React.FC<{ done: number; total: number; barCls?: string; className?: string }> = ({ done, total, barCls = 'bg-blue-600', className = '' }) => {
+/** Chip de entorno (torre tecnológica) — mismo estilo que el de prioridad. */
+const EnvChip: React.FC<{ env: SaEnvironment; full?: boolean }> = ({ env, full = false }) => {
+  const meta = ENV_META[env];
+  return (
+    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${meta.chip}`} title={meta.label}>
+      {full ? meta.label : meta.short}
+    </span>
+  );
+};
+
+const ProgressBar: React.FC<{ done: number; total: number; barCls?: string; className?: string }> = ({ done, total, barCls = 'bg-cyan-600', className = '' }) => {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
     <div className={`h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden ${className}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
@@ -185,7 +236,7 @@ const RevealCard: React.FC<{
 /* Fila de ticket (lista)                                              */
 /* ------------------------------------------------------------------ */
 
-const TicketRow: React.FC<{ ticket: HelpDeskTicket; active: boolean; onSelect: () => void }> = ({ ticket, active, onSelect }) => (
+const TicketRow: React.FC<{ ticket: SysAdminTicket; active: boolean; onSelect: () => void }> = ({ ticket, active, onSelect }) => (
   <li>
     <button
       type="button"
@@ -193,7 +244,7 @@ const TicketRow: React.FC<{ ticket: HelpDeskTicket; active: boolean; onSelect: (
       aria-pressed={active}
       className={`w-full text-left px-2.5 py-2 rounded-md border transition-colors cursor-pointer flex flex-col gap-1 ${
         active
-          ? 'border-blue-500/40 bg-blue-500/10'
+          ? 'border-cyan-500/40 bg-cyan-500/10'
           : ticket.isFinalProject
             ? 'border-[#262626] bg-[#0F0F0F] hover:border-[#333] hover:bg-[#161616]'
             : 'border-[#222] bg-[#0D0D0D] hover:border-[#333] hover:bg-[#161616]'
@@ -202,8 +253,12 @@ const TicketRow: React.FC<{ ticket: HelpDeskTicket; active: boolean; onSelect: (
       <span className="flex items-center gap-1.5 min-w-0">
         <span className="text-[10px] font-mono font-bold text-[#888] shrink-0">{ticket.number}</span>
         <PrioChip p={ticket.priority} />
+        <EnvChip env={ticket.environment} />
+        {ticket.type === 'cambio' && (
+          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border shrink-0 ${TYPE_META.cambio.chip}`}>{TYPE_META.cambio.label}</span>
+        )}
         {ticket.isFinalProject && (
-          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30 shrink-0">PF</span>
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30 shrink-0">SG</span>
         )}
         <span className={`ml-auto shrink-0 ${STATUS_META[ticket.status].chip} inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border`}>
           {STATUS_META[ticket.status].icon}
@@ -211,7 +266,7 @@ const TicketRow: React.FC<{ ticket: HelpDeskTicket; active: boolean; onSelect: (
       </span>
       <span className={`text-xs leading-snug line-clamp-2 ${active ? 'text-white' : 'text-[#CCC]'}`}>{ticket.title}</span>
       <span className="text-[10px] text-[#555] truncate">
-        {ticket.requester} · {ticket.category.replace('HelpDesk - ', '')}
+        {ticket.requester} · {ticket.category.replace('SysAdmin - ', '')}
       </span>
     </button>
   </li>
@@ -222,7 +277,7 @@ const TicketRow: React.FC<{ ticket: HelpDeskTicket; active: boolean; onSelect: (
 /* ------------------------------------------------------------------ */
 
 interface TicketDetailProps {
-  ticket: HelpDeskTicket;
+  ticket: SysAdminTicket;
   revealed: Set<string>;
   onToggleReveal: (key: string) => void;
   onBack: () => void;
@@ -256,12 +311,12 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
     setNoteError(null);
   }
 
-  const kb = ticket.kbRef ? HELPDESK_KB_BY_ID.get(ticket.kbRef) : undefined;
+  const kb = ticket.kbRef ? SYSADMIN_KB_BY_ID.get(ticket.kbRef) : undefined;
   const isWorked = WORKED_STATUSES.includes(ticket.status);
   const noteOk = noteDraft.trim().length >= 10;
 
-  const patch = (changes: Partial<HelpDeskTicket>) => {
-    void db.helpdeskTickets.update(ticket.id, { ...changes, updatedAt: new Date().toISOString() });
+  const patch = (changes: Partial<SysAdminTicket>) => {
+    void db.sysadminTickets.update(ticket.id, { ...changes, updatedAt: new Date().toISOString() });
   };
 
   const handleResolve = () => {
@@ -300,7 +355,8 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
       ['Número', esc(ticket.number)],
       ['Título', esc(ticket.title)],
       ['Categoría', esc(ticket.category + (ticket.subcategory ? ' · ' + ticket.subcategory : ''))],
-      ['Tipo', ticket.type === 'incidente' ? 'Incidente' : 'Solicitud'],
+      ['Tipo', TYPE_META[ticket.type].label],
+      ['Entorno', esc(ticket.environment)],
       ['Prioridad', `${ticket.priority} (impacto ${ticket.impact} · urgencia ${ticket.urgency})`],
       ['Solicitante', esc(ticket.requester)],
       ['Estado', STATUS_META[ticket.status].label],
@@ -317,7 +373,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
     if (kb) rows.push(['KB relacionada', esc(kb.title + ' (' + kb.id + ')')]);
     rows.push(['Exportado', new Date().toLocaleString('es-CO')]);
 
-    enqueueNote(`Service Desk ${ticket.number} — ${ticket.title}`, buildNoteHtmlTable(rows));
+    enqueueNote(`SysAdmin Ops ${ticket.number} — ${ticket.title}`, buildNoteHtmlTable(rows));
     showToast();
   };
 
@@ -341,12 +397,11 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
           <span className="text-[11px] font-mono font-bold text-[#888]">{ticket.number}</span>
           <PrioChip p={ticket.priority} />
           <StatusChip s={ticket.status} />
-          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-[#161616] text-[#999] border-[#262626]">
-            {ticket.type === 'incidente' ? 'Incidente' : 'Solicitud'}
-          </span>
+          <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${TYPE_META[ticket.type].chip}`}>{TYPE_META[ticket.type].label}</span>
+          <EnvChip env={ticket.environment} full />
           {ticket.isFinalProject && (
             <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30">
-              Proyecto Final · Día {dayOfFinalTicket(ticket)}
+              SG · Día {dayOfFinalTicket(ticket)}
             </span>
           )}
         </div>
@@ -356,7 +411,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
             Solicitante: <span className="text-[#999]">{ticket.requester}</span>
           </span>
           <span>
-            Categoría: <span className="text-[#999]">{ticket.category.replace('HelpDesk - ', '')}{ticket.subcategory ? ` · ${ticket.subcategory}` : ''}</span>
+            Categoría: <span className="text-[#999]">{ticket.category.replace('SysAdmin - ', '')}{ticket.subcategory ? ` · ${ticket.subcategory}` : ''}</span>
           </span>
           <span>
             Impacto <span className="text-[#999]">{ticket.impact}</span> · Urgencia <span className="text-[#999]">{ticket.urgency}</span>
@@ -395,7 +450,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
           <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/80">Modo estudio</p>
         </div>
         <p className="text-[10px] text-[#777] leading-relaxed px-1 -mt-1.5">
-          Intenta resolver el ticket con lo que ves arriba (y tu criterio L1) ANTES de abrir la guía. Cuando creas tener el diagnóstico,
+          Intenta resolver el ticket con lo que ves arriba (y tu criterio de guardia) ANTES de abrir la guía. Cuando creas tener el diagnóstico,
           ábrela y contrasta paso a paso.
         </p>
         {ticket.troubleshooting && (
@@ -483,7 +538,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
                   key={name}
                   type="button"
                   onClick={() => onOpenGlossaryTerm(termId)}
-                  className="text-[10px] px-1.5 py-0.5 rounded border border-[#262626] bg-[#161616] text-[#BBB] hover:text-white hover:border-blue-500/40 transition-colors cursor-pointer"
+                  className="text-[10px] px-1.5 py-0.5 rounded border border-[#262626] bg-[#161616] text-[#BBB] hover:text-white hover:border-cyan-500/40 transition-colors cursor-pointer"
                   title={`Abrir "${name}" en el Glosario`}
                 >
                   {name}
@@ -501,8 +556,8 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
       {/* TRABAJO — flujo de estados + nota de cierre */}
       <section className="flex flex-col gap-2.5" aria-label="Tu trabajo en el ticket">
         <div className="flex items-center gap-2 px-1">
-          <NotebookPen className="w-3.5 h-3.5 text-blue-400" />
-          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80">Tu trabajo</p>
+          <NotebookPen className="w-3.5 h-3.5 text-cyan-400" />
+          <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-400/80">Tu trabajo</p>
         </div>
         <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3.5 flex flex-col gap-3">
           {/* Flujo */}
@@ -565,20 +620,20 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
 
           {/* Nota de cierre */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor={`hd-note-${ticket.id}`} className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <label htmlFor={`sa-note-${ticket.id}`} className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
               {isWorked || ticket.statusNote ? 'Nota de cierre (tu evidencia)' : 'Nota de cierre — requerida para resolver o escalar'}
             </label>
             <textarea
-              id={`hd-note-${ticket.id}`}
+              id={`sa-note-${ticket.id}`}
               value={noteDraft}
               onChange={(e) => {
                 setNoteDraft(e.target.value);
                 if (noteError) setNoteError(null);
               }}
-              placeholder="Causa raíz encontrada, pasos que seguiste, comando clave, verificación final, hora… como si un L2 o un auditor fuera a leerlo sin preguntarte nada."
+              placeholder="Causa raíz encontrada, pasos que seguiste, comando clave, verificación final, hora… como si el líder de guardia o un auditor fuera a leerlo sin preguntarte nada."
               rows={3}
               maxLength={4000}
-              className="w-full bg-[#161616] border border-[#262626] rounded-md px-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-blue-500/50 resize-y font-mono"
+              className="w-full bg-[#161616] border border-[#262626] rounded-md px-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-cyan-500/50 resize-y font-mono"
             />
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10px] text-[#555]">{noteDraft.trim().length}/4000 · mínimo 10 para cerrar</span>
@@ -586,7 +641,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
                 type="button"
                 onClick={handleSaveNote}
                 disabled={noteDraft.trim().length === 0}
-                className="px-2.5 py-1 rounded border border-[#262626] bg-[#161616] hover:border-blue-500/40 text-[10px] font-semibold text-[#BBB] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-2.5 py-1 rounded border border-[#262626] bg-[#161616] hover:border-cyan-500/40 text-[10px] font-semibold text-[#BBB] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Guardar nota
               </button>
@@ -603,10 +658,10 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
             <button
               type="button"
               onClick={handleAddToNotes}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#262626] bg-[#161616] hover:border-blue-500/40 text-xs font-semibold text-[#E5E5E5] hover:text-white transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-[#262626] bg-[#161616] hover:border-cyan-500/40 text-xs font-semibold text-[#E5E5E5] hover:text-white transition-colors cursor-pointer"
               title="Exportar el ticket completo con tu nota como tabla en una Nota nueva"
             >
-              <NotebookPen className="w-3.5 h-3.5 text-blue-400" /> Añadir a Notas
+              <NotebookPen className="w-3.5 h-3.5 text-cyan-400" /> Añadir a Notas
             </button>
           </div>
         </div>
@@ -633,7 +688,7 @@ interface KbTabProps {
   onOpenTicket: (ticketId: string) => void;
   onOpenGlossaryTerm: (termId: string) => void;
   glossaryByName: Map<string, string>;
-  ticketsById: Map<string, HelpDeskTicket>;
+  ticketsById: Map<string, SysAdminTicket>;
 }
 
 const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, onOpenGlossaryTerm, glossaryByName, ticketsById }) => {
@@ -641,17 +696,18 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
   const query = q.trim().toLowerCase();
 
   const filtered = useMemo(() => {
-    if (!query) return HELPDESK_KB_ARTICLES;
-    return HELPDESK_KB_ARTICLES.filter(
+    if (!query) return SYSADMIN_KB_ARTICLES;
+    return SYSADMIN_KB_ARTICLES.filter(
       (a) =>
         a.title.toLowerCase().includes(query) ||
         a.category.toLowerCase().includes(query) ||
+        a.environment.toLowerCase().includes(query) ||
         a.symptoms.toLowerCase().includes(query) ||
         a.cause.toLowerCase().includes(query)
     );
   }, [query]);
 
-  const selected = selectedKbId ? HELPDESK_KB_BY_ID.get(selectedKbId) : undefined;
+  const selected = selectedKbId ? SYSADMIN_KB_BY_ID.get(selectedKbId) : undefined;
 
   return (
     <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(300px,380px)_1fr]">
@@ -666,11 +722,11 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar artículo (síntomas, causa…)"
               aria-label="Buscar en la Base de Conocimiento"
-              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-blue-500/50"
+              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-cyan-500/50"
             />
           </div>
           <p className="text-[10px] text-[#555] mt-2">
-            {filtered.length} de {HELPDESK_KB_ARTICLES.length} artículos
+            {filtered.length} de {SYSADMIN_KB_ARTICLES.length} artículos
           </p>
         </div>
         <ul className="flex-1 overflow-y-auto p-2 flex flex-col gap-1 max-h-[70vh] lg:max-h-none">
@@ -685,7 +741,10 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
                 }`}
               >
                 <span className="block text-xs text-[#CCC] leading-snug">{a.title}</span>
-                <span className="block text-[10px] text-[#555] mt-0.5">{a.category.replace('HelpDesk - ', '')}</span>
+                <span className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-[#555]">{a.category.replace('SysAdmin - ', '')}</span>
+                  <EnvChip env={a.environment} />
+                </span>
               </button>
             </li>
           ))}
@@ -705,9 +764,12 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
               <ArrowLeft className="w-3.5 h-3.5" /> Volver a la KB
             </button>
             <header className="flex flex-col gap-2">
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/30 self-start">
-                {selected.category}
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                  {selected.category.replace('SysAdmin - ', '')}
+                </span>
+                <EnvChip env={selected.environment} full />
+              </div>
               <h2 className="text-sm sm:text-base font-bold text-white leading-snug">{selected.title}</h2>
             </header>
 
@@ -769,7 +831,7 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
                       key={name}
                       type="button"
                       onClick={() => onOpenGlossaryTerm(termId)}
-                      className="text-[10px] px-1.5 py-0.5 rounded border border-[#262626] bg-[#161616] text-[#BBB] hover:text-white hover:border-blue-500/40 transition-colors cursor-pointer"
+                      className="text-[10px] px-1.5 py-0.5 rounded border border-[#262626] bg-[#161616] text-[#BBB] hover:text-white hover:border-cyan-500/40 transition-colors cursor-pointer"
                       title={`Abrir "${name}" en el Glosario`}
                     >
                       {name}
@@ -822,52 +884,53 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
 /* Vista principal                                                     */
 /* ------------------------------------------------------------------ */
 
-export interface HelpDeskViewProps {
+export interface SysAdminViewProps {
   /** Términos del glosario (para enlazar relatedTerms de la KB por nombre). */
   glossaryTerms: GlossaryTerm[];
   /** Abre un término del glosario (navega a la sección Glosario). */
   onOpenGlossaryTerm: (termId: string) => void;
 }
 
-type TabId = 'queue' | 'project' | 'kb';
-type StatusFilter = 'all' | HdTicketStatus;
-type ScopeFilter = 'all' | 'project' | 'general';
-type TypeFilter = 'all' | HdTicketType;
+type TabId = 'queue' | 'guardia' | 'kb';
+type StatusFilter = 'all' | SaTicketStatus;
+type ScopeFilter = 'all' | 'guardia' | 'general';
+type TypeFilter = 'all' | SaTicketType;
 type SortMode = 'number' | 'priority';
 
 /** Orden de prioridad para el sort (P1 primero). */
-const PRIO_ORDER: Record<HdTicketPriority, number> = { P1: 0, P2: 1, P3: 2, P4: 3 };
+const PRIO_ORDER: Record<SaTicketPriority, number> = { P1: 0, P2: 1, P3: 2, P4: 3 };
 
 const TAB_DEFS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
-  { id: 'queue', label: 'Cola de Tickets', icon: <TicketIcon className="w-3.5 h-3.5" /> },
-  { id: 'project', label: 'Proyecto Final', icon: <CalendarCheck className="w-3.5 h-3.5" /> },
+  { id: 'queue', label: 'Cola de Guardia', icon: <TicketIcon className="w-3.5 h-3.5" /> },
+  { id: 'guardia', label: 'Semana de Guardia', icon: <CalendarCheck className="w-3.5 h-3.5" /> },
   { id: 'kb', label: 'Base de Conocimiento', icon: <BookOpen className="w-3.5 h-3.5" /> },
 ];
 
-export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpenGlossaryTerm }) => {
+export const SysAdminView: React.FC<SysAdminViewProps> = ({ glossaryTerms, onOpenGlossaryTerm }) => {
   const [tab, setTab] = useState<TabId>('queue');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | HdTicketPriority>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | SaTicketPriority>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [envFilter, setEnvFilter] = useState<Set<SaEnvironment>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>('number');
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [selectedKbId, setSelectedKbId] = useState<string | null>(null);
 
   // Deep-links del store (Dashboard / KB desde un ticket).
-  const selectedTicketId = useHelpdeskStore((s) => s.selectedTicketId);
-  const selectTicket = useHelpdeskStore((s) => s.selectTicket);
-  const clearSelectedTicket = useHelpdeskStore((s) => s.clearSelectedTicket);
+  const selectedTicketId = useSysadminStore((s) => s.selectedTicketId);
+  const selectTicket = useSysadminStore((s) => s.selectTicket);
+  const clearSelectedTicket = useSysadminStore((s) => s.clearSelectedTicket);
 
-  const tickets = useLiveQuery(() => db.helpdeskTickets.filter((t) => !t.isDeleted).toArray(), [], []);
+  const tickets = useLiveQuery(() => db.sysadminTickets.filter((t) => !t.isDeleted).toArray(), [], []);
 
   const activeTickets = useMemo(() => tickets.filter((t) => !t.isDeleted), [tickets]);
 
-  // v21.1 (mejora HelpDesk) — dos modos de orden: por número (histórico) o
-  // por prioridad (P1 → P4, y dentro de cada prioridad por número — útil
-  // para trabajar la cola como se haría en un service desk real).
+  // Dos modos de orden: por número (histórico) o por prioridad (P1 → P4, y
+  // dentro de cada prioridad por número — útil para trabajar la cola como
+  // se haría en una guardia real).
   const sorted = useMemo(
     () =>
       [...activeTickets].sort((a, b) =>
@@ -879,8 +942,17 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
   );
 
   const stats = useMemo(() => {
-    const byStatus: Record<HdTicketStatus, number> = { nuevo: 0, en_progreso: 0, resuelto: 0, cerrado: 0, escalado: 0 };
-    const byType: Record<HdTicketType, number> = { incidente: 0, solicitud: 0 };
+    const byStatus: Record<SaTicketStatus, number> = { nuevo: 0, en_progreso: 0, resuelto: 0, cerrado: 0, escalado: 0 };
+    const byType: Record<SaTicketType, number> = { incidente: 0, solicitud: 0, cambio: 0 };
+    const byEnvironment: Record<SaEnvironment, number> = {
+      Linux: 0,
+      'Windows Server': 0,
+      Red: 0,
+      'Storage / Backup': 0,
+      'Virtualización': 0,
+      'Cloud / Contenedores': 0,
+      Multi: 0,
+    };
     let worked = 0;
     let open = 0;
     let finalDone = 0;
@@ -888,6 +960,7 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
     for (const t of activeTickets) {
       byStatus[t.status]++;
       byType[t.type]++;
+      byEnvironment[t.environment]++;
       if (WORKED_STATUSES.includes(t.status)) worked++;
       if (OPEN_STATUSES.includes(t.status)) open++;
       if (t.isFinalProject) {
@@ -895,7 +968,7 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
         if (WORKED_STATUSES.includes(t.status)) finalDone++;
       }
     }
-    return { byStatus, byType, worked, open, finalDone, finalTotal, total: activeTickets.length };
+    return { byStatus, byType, byEnvironment, worked, open, finalDone, finalTotal, total: activeTickets.length };
   }, [activeTickets]);
 
   const glossaryByName = useMemo(() => {
@@ -916,7 +989,8 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
       if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
       if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
       if (typeFilter !== 'all' && t.type !== typeFilter) return false;
-      if (scopeFilter === 'project' && !t.isFinalProject) return false;
+      if (envFilter.size > 0 && !envFilter.has(t.environment)) return false;
+      if (scopeFilter === 'guardia' && !t.isFinalProject) return false;
       if (scopeFilter === 'general' && t.isFinalProject) return false;
       if (queryLower) {
         const hay = `${t.number} ${t.title} ${t.requester} ${t.description} ${t.subcategory ?? ''}`.toLowerCase();
@@ -924,10 +998,10 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
       }
       return true;
     });
-  }, [sorted, statusFilter, priorityFilter, categoryFilter, typeFilter, scopeFilter, queryLower]);
+  }, [sorted, statusFilter, priorityFilter, categoryFilter, typeFilter, envFilter, scopeFilter, queryLower]);
 
   const finalByDay = useMemo(() => {
-    const days: HelpDeskTicket[][] = [[], [], [], [], []];
+    const days: SysAdminTicket[][] = [[], [], [], [], []];
     for (const t of sorted) if (t.isFinalProject) days[dayOfFinalTicket(t) - 1].push(t);
     return days;
   }, [sorted]);
@@ -937,6 +1011,16 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Filtro de entorno — MULTI-selección (Set vacío = todos los entornos).
+  const toggleEnvFilter = useCallback((env: SaEnvironment) => {
+    setEnvFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(env)) next.delete(env);
+      else next.add(env);
       return next;
     });
   }, []);
@@ -957,7 +1041,7 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
     [selectTicket]
   );
 
-  const filterChip = (label: string, activeState: boolean, onClick: () => void, count?: number, accent = 'blue') => (
+  const filterChip = (label: string, activeState: boolean, onClick: () => void, count?: number, accent = 'cyan') => (
     <button
       key={label}
       type="button"
@@ -969,7 +1053,9 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
             ? 'bg-violet-500/15 text-violet-300 border-violet-500/40'
             : accent === 'emerald'
               ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-              : 'bg-blue-500/15 text-blue-300 border-blue-500/40'
+              : accent === 'orange'
+                ? 'bg-orange-500/15 text-orange-300 border-orange-500/40'
+                : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40'
           : 'bg-[#161616] text-[#888] border-[#262626] hover:text-[#BBB] hover:border-[#333]'
       }`}
     >
@@ -984,11 +1070,11 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
       <div className="px-4 sm:px-6 py-3 border-b border-[#262626] bg-[#0D0D0D] flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="min-w-0">
           <h1 className="text-base font-bold text-white flex items-center gap-2">
-            <Headset className="w-4 h-4 text-blue-400" />
-            Service Desk — Simulador L1
+            <Server className="w-4 h-4 text-cyan-400" />
+            SysAdmin Ops — Simulador de Infraestructura
           </h1>
           <p className="text-xs text-[#888]">
-            Nexora S.A. (empresa ficticia) · {stats.total} tickets · trabajados {stats.worked} ({stats.total > 0 ? Math.round((stats.worked / stats.total) * 100) : 0}%) · abiertos {stats.open} · proyecto final {stats.finalDone}/{stats.finalTotal}
+            Nexora S.A. — Infra &amp; Ops (empresa ficticia) · {stats.total} tickets · trabajados {stats.worked} ({stats.total > 0 ? Math.round((stats.worked / stats.total) * 100) : 0}%) · abiertos {stats.open} · semana de guardia {stats.finalDone}/{stats.finalTotal}
           </p>
         </div>
         <div className="flex items-center gap-2 text-[10px] font-mono text-[#555]">
@@ -999,7 +1085,7 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
       </div>
 
       {/* Tabs */}
-      <div role="tablist" aria-label="Secciones del Service Desk" className="px-4 sm:px-6 py-2 border-b border-[#1a1a1a] bg-[#0D0D0D] flex items-center gap-1.5 flex-wrap shrink-0">
+      <div role="tablist" aria-label="Secciones de SysAdmin Ops" className="px-4 sm:px-6 py-2 border-b border-[#1a1a1a] bg-[#0D0D0D] flex items-center gap-1.5 flex-wrap shrink-0">
         {TAB_DEFS.map((t) => (
           <button
             key={t.id}
@@ -1009,13 +1095,13 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer border ${
               tab === t.id
-                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                 : 'bg-[#161616] text-[#888] border-[#262626] hover:text-[#BBB] hover:border-[#333]'
             }`}
           >
             {t.icon}
             {t.label}
-            {t.id === 'kb' && <span className="text-[9px] font-mono text-[#555]">{HELPDESK_KB_ARTICLES.length}</span>}
+            {t.id === 'kb' && <span className="text-[9px] font-mono text-[#555]">{SYSADMIN_KB_ARTICLES.length}</span>}
           </button>
         ))}
       </div>
@@ -1033,8 +1119,8 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar ticket (número, título, solicitante…)"
-                  aria-label="Buscar en la cola de tickets"
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-blue-500/50"
+                  aria-label="Buscar en la cola de guardia"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-cyan-500/50"
                 />
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -1053,9 +1139,34 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
                 <span className="w-px h-4 bg-[#262626] mx-0.5" aria-hidden="true" />
                 {filterChip('Incidentes', typeFilter === 'incidente', () => setTypeFilter(typeFilter === 'incidente' ? 'all' : 'incidente'), stats.byType.incidente)}
                 {filterChip('Solicitudes', typeFilter === 'solicitud', () => setTypeFilter(typeFilter === 'solicitud' ? 'all' : 'solicitud'), stats.byType.solicitud)}
+                {filterChip('Cambios', typeFilter === 'cambio', () => setTypeFilter(typeFilter === 'cambio' ? 'all' : 'cambio'), stats.byType.cambio, 'orange')}
                 <span className="w-px h-4 bg-[#262626] mx-0.5" aria-hidden="true" />
                 {filterChip('Cola general', scopeFilter === 'general', () => setScopeFilter(scopeFilter === 'general' ? 'all' : 'general'), stats.total - stats.finalTotal, 'emerald')}
-                {filterChip('Proyecto final', scopeFilter === 'project', () => setScopeFilter(scopeFilter === 'project' ? 'all' : 'project'), stats.finalTotal, 'violet')}
+                {filterChip('Semana de guardia', scopeFilter === 'guardia', () => setScopeFilter(scopeFilter === 'guardia' ? 'all' : 'guardia'), stats.finalTotal, 'violet')}
+              </div>
+              {/* Filtro de ENTORNO (torre tecnológica) — multi-selección; el
+                  chip activo toma el color de su entorno (ENV_META). */}
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-[10px] text-[#555] shrink-0">Entorno:</span>
+                {filterChip('Todos los entornos', envFilter.size === 0, () => setEnvFilter(new Set()))}
+                {ENVIRONMENTS.map((env) => {
+                  const meta = ENV_META[env];
+                  const isEnvActive = envFilter.has(env);
+                  return (
+                    <button
+                      key={env}
+                      type="button"
+                      onClick={() => toggleEnvFilter(env)}
+                      aria-pressed={isEnvActive}
+                      className={`text-[10px] font-semibold px-2 py-1 rounded border transition-colors cursor-pointer shrink-0 ${
+                        isEnvActive ? meta.chip : 'bg-[#161616] text-[#888] border-[#262626] hover:text-[#BBB] hover:border-[#333]'
+                      }`}
+                    >
+                      {meta.label}
+                      <span className="ml-1 font-mono text-[#666]">{stats.byEnvironment[env]}</span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-[#555] shrink-0">Orden:</span>
@@ -1063,19 +1174,19 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
                 {filterChip('Prioridad', sortMode === 'priority', () => setSortMode('priority'))}
               </div>
               <div className="flex items-center gap-2">
-                <label htmlFor="hd-cat" className="sr-only">
+                <label htmlFor="sa-cat" className="sr-only">
                   Filtrar por categoría
                 </label>
                 <select
-                  id="hd-cat"
+                  id="sa-cat"
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="flex-1 min-w-0 bg-[#161616] border border-[#262626] rounded-md px-2.5 py-1.5 text-[11px] text-[#CCC] focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                  className="flex-1 min-w-0 bg-[#161616] border border-[#262626] rounded-md px-2.5 py-1.5 text-[11px] text-[#CCC] focus:outline-none focus:border-cyan-500/50 cursor-pointer"
                 >
                   <option value="all">Todas las categorías</option>
-                  {HD_CATEGORIES.map((c) => (
+                  {SA_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
-                      {c.replace('HelpDesk - ', '')}
+                      {c.replace('SysAdmin - ', '')}
                     </option>
                   ))}
                 </select>
@@ -1084,7 +1195,7 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
                 {filteredTickets.length} ticket{filteredTickets.length !== 1 ? 's' : ''} en la vista
               </p>
             </div>
-            <ul className="flex-1 overflow-y-auto p-2 flex flex-col gap-1 max-h-[calc(100vh-320px)] lg:max-h-none">
+            <ul className="flex-1 overflow-y-auto p-2 flex flex-col gap-1 max-h-[calc(100vh-380px)] lg:max-h-none">
               {filteredTickets.map((t) => (
                 <TicketRow key={t.id} ticket={t} active={t.id === selectedTicketId} onSelect={() => selectTicket(t.id)} />
               ))}
@@ -1101,8 +1212,9 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
                       setCategoryFilter('all');
                       setScopeFilter('all');
                       setTypeFilter('all');
+                      setEnvFilter(new Set());
                     }}
-                    className="mt-1.5 text-blue-400 hover:underline cursor-pointer"
+                    className="mt-1.5 text-cyan-400 hover:underline cursor-pointer"
                   >
                     Limpiar filtros
                   </button>
@@ -1129,7 +1241,7 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
                 <TicketIcon className="w-8 h-8 text-[#333]" />
                 <p className="text-xs text-[#777]">Selecciona un ticket de la cola para trabajarlo</p>
                 <p className="text-[10px] text-[#555] max-w-xs leading-relaxed">
-                  El flujo es el del service desk real: leer el reporte → diagnosticar → resolver o escalar → documentar la nota de cierre.
+                  El flujo es el de una guardia real: leer el reporte → diagnosticar → resolver o escalar → documentar la nota de cierre.
                 </p>
               </div>
             )}
@@ -1137,17 +1249,19 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
         </div>
       )}
 
-      {tab === 'project' && (
+      {tab === 'guardia' && (
         <div role="tabpanel" className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-4 sm:p-6 flex flex-col gap-4 max-w-4xl w-full">
             {/* Intro */}
             <section className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-4 sm:p-5 flex flex-col gap-3">
               <div className="flex items-end justify-between gap-4 flex-wrap">
                 <div>
-                  <h2 className="text-sm font-bold text-white">Proyecto Final — Primera semana en el Service Desk de Nexora</h2>
+                  <h2 className="text-sm font-bold text-white">Semana de Guardia — tu primera semana de on-call</h2>
                   <p className="text-[11px] text-[#777] mt-0.5 leading-relaxed max-w-xl">
-                    30 tickets (HD-1019..HD-1048) que simulan tu primera semana real: de lo básico del día 1 a la seguridad y el JML del día 5.
-                    Trabájalos en orden — cada día sube la dificultad.
+                    30 tickets (sa-027..sa-056, 6 por día × 5 días) que simulan tu primera semana real de guardia en el equipo de Infraestructura
+                    de Nexora: de Linux y las 3 AM del día 1 a los cambios, las alertas y el postmortem del día 5. Trabájalos en orden — cada día
+                    sube la dificultad y la nota de cierre de cada ticket entrena el hábito de documentar que después se cierra con el postmortem
+                    del día 5.
                   </p>
                 </div>
                 <span className="text-2xl font-mono font-bold text-fuchsia-400">
@@ -1208,4 +1322,4 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
   );
 };
 
-export default HelpDeskView;
+export default SysAdminView;

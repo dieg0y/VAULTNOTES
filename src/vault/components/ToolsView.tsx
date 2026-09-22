@@ -7,7 +7,9 @@ import {
   Fingerprint, Building2, UserCog, Bug, FileSearch,
   Star, Search, History, Clock3, ShieldAlert, Swords,
   // HELPDESK (V6 FASE 3) — iconos de las 6 tools que siguen.
-  ListFilter, UserX, Wifi, Laptop, Eraser
+  ListFilter, UserX, Wifi, Laptop, Eraser,
+  // SYSADMIN (v21) — iconos de las 6 tools de Infra & Ops.
+  Cog, HardDrive, Layers, Timer, Flame, TrendingUp
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -70,6 +72,15 @@ import { AttacksExplorerTool } from './tools/AttacksExplorerTool';
 import { HdTicketTriageTool } from './tools/hd/HdTicketTriageTool';
 import { HdAdAccountTool } from './tools/hd/HdAdAccountTool';
 import { HdKbGeneratorTool } from './tools/hd/HdKbGeneratorTool';
+// SYSADMIN (v21) — 6 tools de Infra & Ops: generadores, calculadoras y
+// planificadores 100% offline. Estáticos (mismo motivo HMR-robustness) y
+// dentro del MISMO chunk lazy de ToolsView.
+import { SaSystemdTool } from './tools/sa/SaSystemdTool';
+import { SaRaidTool } from './tools/sa/SaRaidTool';
+import { SaLvmTool } from './tools/sa/SaLvmTool';
+import { SaCronBuilderTool } from './tools/sa/SaCronBuilderTool';
+import { SaFirewallTool } from './tools/sa/SaFirewallTool';
+import { SaCapacityTool } from './tools/sa/SaCapacityTool';
 import { HdNetworkTool } from './tools/hd/HdNetworkTool';
 import { HdIntuneTool } from './tools/hd/HdIntuneTool';
 import { HdSanitizerTool } from './tools/hd/HdSanitizerTool';
@@ -141,6 +152,13 @@ const TOOL_ICONS: Record<ToolId, React.ReactNode> = {
   'hd-network': <Wifi className="w-4 h-4" />,
   'hd-intune': <Laptop className="w-4 h-4" />,
   'hd-sanitizer': <Eraser className="w-4 h-4" />,
+  // SYSADMIN (v21) — iconos de las 6 tools de Infra & Ops.
+  'sa-systemd': <Cog className="w-4 h-4" />,
+  'sa-raid': <HardDrive className="w-4 h-4" />,
+  'sa-lvm': <Layers className="w-4 h-4" />,
+  'sa-cron-builder': <Timer className="w-4 h-4" />,
+  'sa-firewall': <Flame className="w-4 h-4" />,
+  'sa-capacity': <TrendingUp className="w-4 h-4" />,
 };
 
 const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; desc: string; tags?: string[] }[] =
@@ -1777,6 +1795,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
       case 'hd-network':   return <HdNetworkTool />;
       case 'hd-intune':    return <HdIntuneTool />;
       case 'hd-sanitizer': return <HdSanitizerTool />;
+
+      // SYSADMIN (v21) — 6 tools de Infra & Ops (generadores, calculadoras
+      // y planificadores 100% offline).
+      case 'sa-systemd':      return <SaSystemdTool />;
+      case 'sa-raid':         return <SaRaidTool />;
+      case 'sa-lvm':          return <SaLvmTool />;
+      case 'sa-cron-builder': return <SaCronBuilderTool />;
+      case 'sa-firewall':     return <SaFirewallTool />;
+      case 'sa-capacity':     return <SaCapacityTool />;
       // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
       case 'sid-rid':            return <SidRidAnalyzerTool />;
       case 'ldap-dn':            return <LdapDnParserTool />;

@@ -30,7 +30,7 @@ import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
 import { findToolById } from '../data/toolsCatalog';
-import { Map as RoadmapIcon, Headset } from 'lucide-react';
+import { Map as RoadmapIcon, Headset, Server } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface DashboardViewProps {
@@ -118,6 +118,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const hdTotal = hdTicketRows.length;
   const hdFinalDone = hdTicketRows.filter((t) => t.isFinalProject && hdWorkedStatuses.has(t.status)).length;
   const hdPct = hdTotal > 0 ? Math.round((hdWorked / hdTotal) * 100) : 0;
+
+  // SYSADMIN (v21) — progreso del simulador SysAdmin Ops: tickets de
+  // guardia trabajados (resueltos/escalados/cerrados) + semana de guardia
+  // (30). Misma filosofía: solo contar filas, sin joins.
+  const saTicketRows = useLiveQuery(() => db.sysadminTickets.filter((t) => !t.isDeleted).toArray(), [], []);
+  const saWorked = saTicketRows.filter((t) => hdWorkedStatuses.has(t.status)).length;
+  const saOpen = saTicketRows.filter((t) => hdOpenStatuses.has(t.status)).length;
+  const saTotal = saTicketRows.length;
+  const saFinalDone = saTicketRows.filter((t) => t.isFinalProject && hdWorkedStatuses.has(t.status)).length;
+  const saPct = saTotal > 0 ? Math.round((saWorked / saTotal) * 100) : 0;
   const statsLoaded = flashcardStats !== undefined;
   const weakConcepts = useMemo(() => {
     const stats = flashcardStats || [];
@@ -570,7 +580,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 ? '¡Simulador completado! Exporta tus tickets como evidencia de práctica.'
                 : hdWorked > 0
                   ? 'Vas avanzando en la cola de Nexora — clic para seguir trabajando tickets.'
-                  : 'Simulador L1 con 48 tickets, proyecto final de 30 y KB — empieza por el día 1.'}
+                  : 'Simulador L1 con 60 tickets, proyecto final de 30 y KB — empieza por el día 1.'}
+            </p>
+          </div>
+
+          {/* SYSADMIN (v21) — simulador de guardia de Infraestructura (cola
+              de tickets OPS + semana de guardia + KB). Misma forma de
+              tarjeta para mantener la retícula del Learning. */}
+          <div
+            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-cyan-500/40 transition-colors"
+            onClick={() => onSelectSection?.('sysadmin')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSection?.('sysadmin'); }}
+            title="Abrir el simulador de guardia: cola de tickets de Infraestructura, semana de guardia y Base de Conocimiento"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">SysAdmin Ops</span>
+              <Server className="w-3.5 h-3.5 text-cyan-400" />
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <span className="text-2xl font-bold text-white font-mono">
+                {saWorked}<span className="text-sm text-[#666]">/{saTotal}</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#666] shrink-0">
+                {saOpen} abiert{saOpen === 1 ? 'o' : 'os'} · guardia {saFinalDone}/30
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden mt-2" role="progressbar" aria-valuenow={saPct} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${saPct === 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`}
+                style={{ width: `${saPct}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+              {saPct === 100
+                ? '¡Semana de guardia completada! Exporta tus tickets como evidencia.'
+                : saWorked > 0
+                  ? 'Vas avanzando en la guardia de Infra — clic para seguir.'
+                  : 'Simulador SysAdmin: 56 tickets de guardia (Linux, Windows Server, red, storage, VM) — empieza por el día 1.'}
             </p>
           </div>
 

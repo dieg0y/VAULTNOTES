@@ -41,6 +41,9 @@ import { useIntelStore } from './store/intelStore';
 // HELPDESK (v19) — navigation bridge: el Dashboard/la KB pueden pedir abrir
 // la sección Service Desk (con ticket seleccionado vía helpdeskStore).
 import { useHelpdeskStore } from './store/helpdeskStore';
+// SYSADMIN (v21) — navigation bridge: espejo del helpdeskStore para el
+// simulador SysAdmin Ops (sección sysadmin).
+import { useSysadminStore } from './store/sysadminStore';
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -73,6 +76,9 @@ const ProfileView = dynamic(() => import('./components/ProfileView').then((m) =>
 const RoadmapView = dynamic(() => import('./components/RoadmapView').then((m) => m.RoadmapView), { ssr: false, loading: ViewLoader });
 // HELPDESK (v19) — simulador Service Desk (cola de tickets + proyecto final + KB).
 const HelpDeskView = dynamic(() => import('./components/HelpDeskView').then((m) => m.HelpDeskView), { ssr: false, loading: ViewLoader });
+// SYSADMIN (v21) — simulador de Infraestructura & Operaciones (espejo del
+// Service Desk: cola de tickets de guardia + semana de guardia + KB).
+const SysAdminView = dynamic(() => import('./components/SysAdminView').then((m) => m.SysAdminView), { ssr: false, loading: ViewLoader });
 const BlogView = dynamic(() => import('./components/BlogView').then((m) => m.BlogView), { ssr: false, loading: ViewLoader });
 const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.ToolsView), { ssr: false, loading: ViewLoader });
 const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
@@ -353,6 +359,17 @@ export default function App() {
       consumeHdNavigate();
     }
   }, [hdNavigateRequest, consumeHdNavigate]);
+
+  // SYSADMIN (v21) — one-shot navigation request a SysAdmin Ops (deep-link
+  // de ticket desde el sysadminStore). Espejo del patrón HelpDesk.
+  const saNavigateRequest = useSysadminStore((s) => s.navigateRequest);
+  const consumeSaNavigate = useSysadminStore((s) => s.consumeNavigate);
+  useEffect(() => {
+    if (saNavigateRequest > 0) {
+      setActiveSection('sysadmin');
+      consumeSaNavigate();
+    }
+  }, [saNavigateRequest, consumeSaNavigate]);
 
   // Set initial selected note if none selected (prefer a top-level note)
   useEffect(() => {
@@ -1226,6 +1243,24 @@ export default function App() {
           {/* ROADMAP HELPDESK (v19) — checklist de la especialización de
               entrada HelpDesk / IT Support → IAM (misma vista, variante hd). */}
           {activeSection === 'roadmap-hd' && <RoadmapView variant="hd" />}
+
+          {/* SYSADMIN (v21) — Simulador de Infraestructura & Operaciones:
+              cola de tickets de guardia con modo estudio, proyecto final
+              "semana de guardia" y KB enlazada. El flujo de estados y las
+              notas de cierre persisten en db.sysadminTickets. */}
+          {activeSection === 'sysadmin' && (
+            <SysAdminView
+              glossaryTerms={activeTerms}
+              onOpenGlossaryTerm={(termId) => {
+                setSelectedTermId(termId);
+                setActiveSection('glossary');
+              }}
+            />
+          )}
+
+          {/* ROADMAP SYSADMIN (v21) — checklist de la especialización
+              Infra & Ops → SRE (misma vista, variante sa). */}
+          {activeSection === 'roadmap-sa' && <RoadmapView variant="sa" />}
 
           {activeSection === 'blog' && (
             <BlogView notes={notes} labs={labs} />

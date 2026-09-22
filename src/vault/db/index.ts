@@ -618,7 +618,15 @@ const DEFAULT_PLATFORMS_LIST: string[] = [
   'CyberArk / BeyondTrust (PAM)',
   'SailPoint / Saviynt (IGA)',
   'LetsDefend',
-  'TryHackMe / HackTheBox'
+  'TryHackMe / HackTheBox',
+  // v21 (SYSADMIN) — plataformas de Infraestructura & Operaciones (la
+  // rama SysAdmin del multi-perfil). Aditivo: solo se añaden si faltan.
+  'Linux (RHEL / Debian / SUSE)',
+  'Windows Server / Hyper-V',
+  'VMware vSphere / Proxmox',
+  'Docker / Kubernetes',
+  'Zabbix / Grafana / Prometheus',
+  'Ansible / Terraform',
 ];
 
 // Single master list for "Categoría / Tema / Especialidad" — used by Notes, Labs, Glossary.
@@ -647,7 +655,17 @@ const MASTER_CATEGORIES_LIST: string[] = [
   'HelpDesk - Redes (Networking)',
   'HelpDesk - Microsoft 365',
   'HelpDesk - AD / Identidad',
-  'HelpDesk - Seguridad para Soporte'
+  'HelpDesk - Seguridad para Soporte',
+  // v21 (SYSADMIN) — rama de Infraestructura & Operaciones (aditiva).
+  'SysAdmin - Linux / Unix',
+  'SysAdmin - Windows Server',
+  'SysAdmin - Redes & Firewalls',
+  'SysAdmin - Storage & Backup',
+  'SysAdmin - Virtualización',
+  'SysAdmin - Cloud / Contenedores',
+  'SysAdmin - Monitoreo & Observabilidad',
+  'SysAdmin - Automatización',
+  'SysAdmin - Seguridad & Hardening'
 ];
 
 // Previous default list kept only so the migration can safely remove old
@@ -700,11 +718,18 @@ const DEMO_LAB_IDS = ['lab-phishing-case-42'];
 const DEMO_TERM_IDS = ['term-api-gateway', 'term-kerberos-tgt', 'term-zero-trust'];
 const DEMO_CLEANUP_FLAG = 'vault-demo-content-removed';
 
-/** localStorage: ids de seeds HelpDesk (tickets/labs/perfil) que el usuario
- * borró DEFINITIVAMENTE (para que el seeding no los reviva). Mismo patrón
- * que SEED_DISMISSED_KEY del glosario, pero por id (no por nombre). */
+/** localStorage: ids de seeds HelpDesk/SysAdmin (tickets/labs/perfil) que
+ * el usuario borró DEFINITIVAMENTE (para que el seeding no los reviva).
+ * Mismo patrón que SEED_DISMISSED_KEY del glosario, pero por id (no por
+ * nombre). */
 const SEED_DISMISSED_IDS_KEY = 'vn-seed-dismissed-ids';
-export type HdSeedDomain = 'helpdeskTicket' | 'helpdeskLab' | 'helpdeskProfile';
+export type HdSeedDomain =
+  | 'helpdeskTicket'
+  | 'helpdeskLab'
+  | 'helpdeskProfile'
+  | 'sysadminTicket'
+  | 'sysadminLab'
+  | 'sysadminProfile';
 
 /** localStorage: nombres de términos del seed que el usuario borró
  * DEFINITIVAMENTE (para que el seeding no los traiga de vuelta). */
@@ -1026,6 +1051,83 @@ async function doInitializeDatabase() {
     console.warn('HelpDesk labs seed skipped:', err);
   }
 
+  // --- SYSADMIN (v21) · ROADMAP: igual que los bloques anteriores pero para
+  // data/roadmapSysAdminData.ts (ids 'rmsa-*') en su PROPIA tabla — el
+  // progreso SysAdmin, HelpDesk e IAM son completamente independientes.
+  try {
+    const existingRmSa = await db.roadmapSysAdminItems.toArray();
+    const existingRmSaIds = new Set(existingRmSa.map((r) => r.id));
+    const missingSa = ROADMAP_SA_ALL_ITEM_IDS.filter(
+      (id) => !existingRmSaIds.has(id)
+    );
+    if (missingSa.length > 0) {
+      const nowRmSa = new Date().toISOString();
+      await db.roadmapSysAdminItems.bulkPut(
+        missingSa.map((id) => ({ id, done: false, updatedAt: nowRmSa }))
+      );
+    }
+  } catch (err) {
+    console.warn('SysAdmin roadmap seed skipped:', err);
+  }
+
+  // --- SYSADMIN (v21) · TICKETS: siembra el dataset de práctica (56
+  // tickets simulados de Nexora S.A. — Infraestructura & Operaciones).
+  // ADITIVO por id: las filas que ya existan (incluidas soft-deleted) NO se
+  // tocan, así el trabajo del usuario (status/statusNote) sobrevive. Los
+  // ids en el dismissal set (borrado definitivo) no se reviven.
+  try {
+    const existingSaTk = await db.sysadminTickets.toArray();
+    const existingSaTkIds = new Set(existingSaTk.map((t) => t.id));
+    const missingSaTk = SYSADMIN_TICKET_SEEDS.filter(
+      (t) => !existingSaTkIds.has(t.id) && !isSeedIdDismissed('sysadminTicket', t.id)
+    );
+    if (missingSaTk.length > 0) {
+      const nowSaTk = new Date().toISOString();
+      // bulkPut (no bulkAdd): tolera restores que ya trajeran ids sa-*
+      // sin lanzar BulkError.
+      await db.sysadminTickets.bulkPut(
+        missingSaTk.map((t) => ({
+          ...t,
+          status: 'nuevo' as const,
+          statusNote: undefined,
+          isDeleted: false,
+          deletedAt: undefined,
+          createdAt: nowSaTk,
+          updatedAt: nowSaTk,
+        }))
+      );
+    }
+  } catch (err) {
+    console.warn('SysAdmin tickets seed skipped:', err);
+  }
+
+  // --- SYSADMIN (v21) · LAB TEMPLATES: labs guiados en la tabla `labs`
+  // EXISTENTE (misma arquitectura que los labs HelpDesk). ADITIVO por id +
+  // dismissal. El usuario los trabaja igual que cualquier lab.
+  try {
+    const existingSaLabs = await db.labs.toArray();
+    const existingSaLabIds = new Set(existingSaLabs.map((l) => l.id));
+    const missingSaLabs = SYSADMIN_LAB_SEEDS.filter(
+      (l) => !existingSaLabIds.has(l.id) && !isSeedIdDismissed('sysadminLab', l.id)
+    );
+    if (missingSaLabs.length > 0) {
+      const nowSaLabs = new Date().toISOString();
+      await db.labs.bulkPut(
+        missingSaLabs.map((l) => ({
+          ...l,
+          status: 'No iniciado' as const,
+          isFavorite: false,
+          isDeleted: false,
+          deletedAt: undefined,
+          createdAt: nowSaLabs,
+          updatedAt: nowSaLabs,
+        }))
+      );
+    }
+  } catch (err) {
+    console.warn('SysAdmin labs seed skipped:', err);
+  }
+
   // --- PERFIL PROFESIONAL (v17, multi-perfil desde v18): seed inicial SOLO
   // si la tabla está vacía (instalaciones nuevas). JAMÁS sobrescribe perfiles
   // existentes. Las filas heredadas sin `name` (p. ej. 'singleton') reciben
@@ -1245,6 +1347,122 @@ async function doInitializeDatabase() {
     }
   } catch (err) {
     console.warn('HelpDesk profile seed skipped:', err);
+  }
+
+  // --- SYSADMIN (v21) · PERFIL "SysAdmin Jr - Infra & Ops": ADDITIVO y
+  // COEXISTENTE con los perfiles IAM y HelpDesk (multi-perfil). Se crea si
+  // no existe la fila 'profile-sysadmin-jr'; si el usuario la borró
+  // definitivamente, el dismissal evita revivirla. NUNCA sobrescribe.
+  try {
+    const hasSaProfile = await db.profile.get('profile-sysadmin-jr');
+    if (!hasSaProfile && !isSeedIdDismissed('sysadminProfile', 'profile-sysadmin-jr')) {
+      const nowSa = new Date().toISOString();
+      const seedProfileSa: ProfileDoc = {
+        id: 'profile-sysadmin-jr',
+        name: 'Perfil SysAdmin Jr - Infra & Ops',
+        fullName: '',
+        headline: 'Junior SysAdmin | Infrastructure & Operations',
+        email: '',
+        phone: '',
+        location: '',
+        linkedin: '',
+        portfolio: '',
+        targetRoles: [
+          'Junior SysAdmin',
+          'Systems Administrator (Jr)',
+          'IT Infrastructure Analyst',
+          'Infrastructure Operations Analyst',
+          'Windows/Linux Administrator (Jr)',
+          'NOC Analyst',
+          'Site Reliability Engineer (Jr)',
+          'Cloud Infrastructure Analyst (Jr)',
+          'IT Operations Analyst',
+          'Datacenter Operations Technician',
+        ],
+        summary:
+          'Administrador de sistemas junior (Linux + Windows Server) con criterio operativo de guardia: ' +
+          'diagnóstico estructurado de incidentes (identificar → aislar → mitigar → verificar → documentar), ' +
+          'gestión de servicios (systemd/Windows Services), almacenamiento y backups con regla 3-2-1, ' +
+          'virtualización (vSphere/Proxmox/Hyper-V), redes de datacenter (VLANs, firewall, DNS/DHCP interno) ' +
+          'y monitoreo con umbralismo sensato. Cambios con ventana, plan y rollback — nunca tocar producción ' +
+          'sin los tres. Automatización con Bash/PowerShell y rumbo a Infra as Code (Ansible, Terraform) y ' +
+          'contenedores. Español nativo e inglés B2+.',
+        skills: [
+          // Linux — el corazón operativo
+          { id: 'sklsa-linux', name: 'Linux operativo — systemd, journalctl, permisos, LVM, gestores de paquetes, SSH', group: 'Linux', status: 'En proceso', notes: 'Diagnóstico del "servicio caído" y del "disco lleno" de primera línea.' },
+          { id: 'sklsa-bash', name: 'Bash scripting — backups, rotación de logs, reportes, one-liners con awk/sed/grep', group: 'Linux', status: 'En proceso' },
+          { id: 'sklsa-hardening-linux', name: 'Hardening Linux — SSH (claves, no root), firewalld/ufw, actualizaciones, auditd', group: 'Linux', status: 'Por aprender' },
+          // Windows Server
+          { id: 'sklsa-winsrv', name: 'Windows Server — AD/DNS interno, GPO, servicios, Event Viewer, PowerShell', group: 'Windows Server', status: 'En proceso' },
+          { id: 'sklsa-ps', name: 'PowerShell para ops — Get-Service/Get-WinEvent, remoting, reportes de servidores', group: 'Windows Server', status: 'Por aprender' },
+          // Redes
+          { id: 'sklsa-net', name: 'Redes de datacenter — VLANs, switching, routing básico, firewall, DNS/DHCP interno', group: 'Redes', status: 'En proceso' },
+          { id: 'sklsa-certs', name: 'PKI operativa — certificados TLS, expiración, renovación, troubleshooting de handshake', group: 'Redes', status: 'Por aprender' },
+          // Storage & Backup
+          { id: 'sklsa-storage', name: 'Storage — RAID niveles, LVM, NFS/SMB, capacidad y crecimiento', group: 'Storage & Backup', status: 'En proceso' },
+          { id: 'sklsa-backup', name: 'Backups — regla 3-2-1, RPO/RTO, verificación de restore, retención', group: 'Storage & Backup', status: 'En proceso', notes: 'Un backup no verificado no es un backup.' },
+          // Virtualización & Cloud
+          { id: 'sklsa-vm', name: 'Virtualización — vSphere/Proxmox/Hyper-V, snapshots, recursos, datastores', group: 'Virtualización & Cloud', status: 'En proceso' },
+          { id: 'sklsa-containers', name: 'Contenedores — Docker run/compose, volúmenes, redes, logs', group: 'Virtualización & Cloud', status: 'Por aprender' },
+          { id: 'sklsa-cloud', name: 'Cloud básico — IaaS (VMs, discos, redes virtuales), IAM de cloud, costos', group: 'Virtualización & Cloud', status: 'Por aprender' },
+          // Monitoreo & ITSM
+          { id: 'sklsa-monitor', name: 'Monitoreo — Zabbix/Grafana/Prometheus, umbrales, alertas accionables', group: 'Monitoreo & ITSM', status: 'En proceso' },
+          { id: 'sklsa-itsm', name: 'Gestión de cambios e incidentes — ventana, plan, rollback, postmortems sin culpa', group: 'Monitoreo & ITSM', status: 'En proceso' },
+          { id: 'sklsa-autom', name: 'Automatización — Ansible básico, tareas programadas (cron/tareas programadas)', group: 'Monitoreo & ITSM', status: 'Por aprender' },
+          // Blandas
+          { id: 'sklsa-doc', name: 'Documentación operativa — runbooks, diagramas, inventario CMDB', group: 'Blandas', status: 'En proceso' },
+          { id: 'sklsa-guardia', name: 'Guardia (on-call) — priorización bajo presión, comunicación de estado, escalado', group: 'Blandas', status: 'En proceso' },
+        ],
+        tools: [
+          { id: 'ptsa-linux', name: 'Linux (RHEL/Debian) — línea de comando', level: 'Intermedio', notes: 'systemd, journalctl, LVM, rpm/deb, ssh.' },
+          { id: 'ptsa-winsrv', name: 'Windows Server / Hyper-V', level: 'Intermedio' },
+          { id: 'ptsa-powershell', name: 'PowerShell', level: 'Básico' },
+          { id: 'ptsa-bash', name: 'Bash / scripting Linux', level: 'Intermedio' },
+          { id: 'ptsa-vmware', name: 'VMware vSphere / Proxmox', level: 'Intermedio' },
+          { id: 'ptsa-zabbix', name: 'Zabbix / Grafana / Prometheus', level: 'Básico' },
+          { id: 'ptsa-ansible', name: 'Ansible / Terraform', level: 'Básico' },
+          { id: 'ptsa-itsmops', name: 'ServiceNow / Jira (tickets de ops)', level: 'Intermedio' },
+        ],
+        experience: [],
+        education: [],
+        certifications: [
+          { id: 'certsa-lpi', name: 'Linux Essentials / LPIC-1', issuer: 'LPI', status: 'En proceso', notes: 'La certificación de entrada Linux con sello verificable.' },
+          { id: 'certsa-rhcsa', name: 'RHCSA', issuer: 'Red Hat', status: 'Por aprender', notes: 'El estándar de oro del SysAdmin Linux — objetivo del primer año.' },
+          { id: 'certsa-azure900', name: 'Azure Fundamentals (AZ-900)', issuer: 'Microsoft', status: 'Por aprender', notes: 'Puerta de entrada a la nube para perfil on-prem.' },
+        ],
+        languages: [
+          { id: 'lang-es-sa', name: 'Español', level: 'Nativo' },
+          { id: 'lang-en-sa', name: 'Inglés', level: 'B2+' },
+        ],
+        projects: [
+          { id: 'prjsa-guardia', name: 'Proyecto Final VaultNotes — "semana de guardia" en Infraestructura de Nexora S.A. (simulado)', description: '30 tickets de guardia de punta a punta (Linux, Windows Server, redes, storage/VM, cambios y monitoreo) con modo estudio, evidencia de cada cierre y postmortem final. Práctica deliberada del rol con foco en el puente hacia SRE.' },
+          { id: 'prjsa-vaultnotes', name: 'VaultNotes — segundo cerebro de estudio (PWA local-first)', description: 'Glosario, roadmap, labs y herramientas offline — ahora con especialización SysAdmin/Infra y transición a SRE.' },
+        ],
+        atsKeywords: [
+          'SysAdmin', 'Systems Administrator', 'System Administrator', 'Junior SysAdmin', 'Infrastructure',
+          'IT Operations', 'IT Ops', 'NOC', 'Site Reliability', 'SRE', 'Linux', 'RHEL', 'Debian', 'Ubuntu',
+          'Windows Server', 'Hyper-V', 'Active Directory', 'DNS', 'DHCP', 'Firewall', 'VLAN', 'TCP/IP',
+          'systemd', 'journalctl', 'LVM', 'RAID', 'Bash', 'Shell Scripting', 'PowerShell', 'VMware',
+          'vSphere', 'Proxmox', 'Virtualization', 'Docker', 'Kubernetes', 'Cloud', 'Ansible', 'Terraform',
+          'Zabbix', 'Grafana', 'Prometheus', 'Monitoring', 'Observability', 'Backup', 'Disaster Recovery',
+          '3-2-1', 'RPO', 'RTO', 'Incident Management', 'Change Management', 'On-call', 'Troubleshooting',
+          'Capacity Planning', 'Patch Management', 'Hardening', 'Cron', 'NFS', 'SMB', 'LPIC-1', 'RHCSA',
+        ],
+        jobSearchNotes:
+          'Títulos objetivo: Junior SysAdmin / IT Infrastructure Analyst / NOC Analyst (ver lista). ' +
+          'Palabras clave probadas: "sysadmin junior", "administrador de sistemas", "infraestructura", ' +
+          '"operaciones TI", "soporte de servidores". Portales: LinkedIn, Computrabajo, Indeed, ' +
+          'empresa-empresa. Diferenciadores: la semana de guardia simulada (prepárala para contar en ' +
+          'entrevistas), el dominio dual Linux+Windows y la narrativa de transición SysAdmin → SRE. Este ' +
+          'perfil COEXISTE con el Perfil IAM y el Perfil HelpDesk: activa uno u otro según la vacante ' +
+          '(el contenido de todos se conserva).',
+        createdAt: nowSa,
+        updatedAt: nowSa,
+      };
+      await db.profile.put(seedProfileSa);
+    }
+  } catch (err) {
+    console.warn('SysAdmin profile seed skipped:', err);
   }
 }
 

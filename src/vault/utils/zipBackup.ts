@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket } from '../types';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket } from '../types';
 import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
@@ -13,7 +13,7 @@ import {
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
   inboxItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
-  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, validateArray,
+  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, sysadminTicketSchema, validateArray,
 } from './backupSchemas';
 // V6 (3.6.0) — datasets de referencia estáticos: se exportan como snapshot
 // (portabilidad USB). La importación NO los aplica: el bundle de la app es
@@ -51,8 +51,13 @@ import { SERVICE_DESK_CHEATSHEET } from '../data/serviceDeskCheatSheet';
  *  se eliminó: los backups ≤3.5.0 que lo traen se ignoran con gracia).
  *  Un build 3.5.0 puede importar un backup 3.6.0 sin pérdida (los datasets
  *  nuevos son estáticos y reviewItems ya no existe) → aceptado.
+ *  3.7.0 — v21 (SYSADMIN): añade `sysadminTickets.json` (dataset de
+ *  práctica de guardia + trabajo del usuario: status y notas de cierre) y
+ *  `roadmapSysAdmin.json` (checklist del roadmap SysAdmin). Un build 3.6.0
+ *  que importe un backup 3.7.0 DESCARTARÍA silenciosamente la práctica de
+ *  guardia al re-exportar → la rechaza up-front.
  */
-const BACKUP_FORMAT_VERSION = '3.6.0';
+const BACKUP_FORMAT_VERSION = '3.7.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -294,6 +299,10 @@ function emptySummary(): ImportSummary {
     // de cierre) y checklist del roadmap HelpDesk — mismo guard.
     conflictHelpdeskTickets: 0,
     conflictRoadmapHdItems: 0,
+    // v21 (SYSADMIN): práctica de guardia (tickets con status/notas de
+    // cierre) y checklist del roadmap SysAdmin — mismo guard latest-wins.
+    conflictSysadminTickets: 0,
+    conflictRoadmapSaItems: 0,
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
@@ -485,6 +494,12 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // progreso y las notas de cierre sobrevivan en el USB.
   const helpdeskTicketRows = await db.helpdeskTickets.toArray();
   const roadmapHdRows = await db.roadmapHelpDeskItems.toArray();
+  // SYSADMIN (v21) — práctica de Infra & Ops: tickets COMPLETOS (dataset +
+  // status/statusNote del usuario — su evidencia de guardia) + estado del
+  // checklist del roadmap SysAdmin. Viajan en el ZIP con el mismo convenio
+  // root-level que HelpDesk.
+  const sysadminTicketRows = await db.sysadminTickets.toArray();
+  const roadmapSaRows = await db.roadmapSysAdminItems.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -521,6 +536,8 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       roadmapItemsCount: roadmapRows.length,
       helpdeskTicketsCount: helpdeskTicketRows.length,
       roadmapHdItemsCount: roadmapHdRows.length,
+      sysadminTicketsCount: sysadminTicketRows.length,
+      roadmapSaItemsCount: roadmapSaRows.length,
       // V6 (3.6.0) — snapshots de referencia (informativo, no se restauran).
       troubleshootingRunbooksCount: TROUBLESHOOTING_RUNBOOKS.length,
       serviceDeskCheatSheetCount: SERVICE_DESK_CHEATSHEET.length,
@@ -560,6 +577,10 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // mismo convenio que el resto de tablas auxiliares).
   zip.file('helpdeskTickets.json', JSON.stringify(helpdeskTicketRows, null, 2));
   zip.file('roadmapHelpDesk.json', JSON.stringify(roadmapHdRows, null, 2));
+  // SYSADMIN (v21) — tickets de guardia + roadmap SysAdmin (root-level,
+  // mismo convenio que el resto de tablas auxiliares).
+  zip.file('sysadminTickets.json', JSON.stringify(sysadminTicketRows, null, 2));
+  zip.file('roadmapSysAdmin.json', JSON.stringify(roadmapSaRows, null, 2));
   // V6 (3.6.0) — datasets de REFERENCIA estáticos: se exportan como
   // snapshot para portabilidad/archivo del USB. En la importación NO se
   // aplican sobre la app (el bundle de la app SIEMPRE es la versión
@@ -1913,6 +1934,90 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   } catch (e) {
     console.error('Error importing roadmapHelpDesk:', e);
+  }
+
+  // sysadminTickets — v21 (SYSADMIN): tickets de práctica de guardia.
+  // Upsert por id con guard latest-wins: un backup viejo jamás revierte el
+  // trabajo local (status, notas de cierre, soft-delete). La fila se
+  // reconstruye campo a campo (enums validados, incluido type 'cambio' y
+  // environment) para que un sysadminTickets.json malformado nunca
+  // corrompa la tabla local.
+  try {
+    const satFile = contents.file('sysadminTickets.json');
+    if (satFile) {
+      const rawSat: unknown = JSON.parse(await satFile.async('text'));
+      const { valid: satRows, invalid } = validateArray(sysadminTicketSchema, rawSat);
+      summary.invalidMisc += invalid;
+      for (const r of satRows) {
+        const local = await db.sysadminTickets.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictSysadminTickets++;
+          continue;
+        }
+        const status: SysAdminTicket['status'] =
+          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
+            ? r.status
+            : 'nuevo';
+        const row: SysAdminTicket = {
+          id: r.id,
+          number: r.number,
+          title: r.title,
+          category: r.category,
+          subcategory: r.subcategory ?? undefined,
+          type: r.type,
+          priority: r.priority,
+          impact: r.impact,
+          urgency: r.urgency,
+          environment: r.environment,
+          requester: r.requester,
+          description: r.description,
+          symptoms: r.symptoms,
+          dataAvailable: r.dataAvailable ?? undefined,
+          troubleshooting: r.troubleshooting ?? undefined,
+          resolution: r.resolution ?? undefined,
+          escalation: r.escalation ?? undefined,
+          kbRef: r.kbRef ?? undefined,
+          skill: r.skill ?? undefined,
+          evidence: r.evidence ?? undefined,
+          status,
+          statusNote: r.statusNote ?? undefined,
+          isFinalProject: r.isFinalProject === true ? true : undefined,
+          isDeleted: r.isDeleted === true,
+          deletedAt: r.isDeleted === true ? (r.deletedAt ?? undefined) : undefined,
+          createdAt: r.createdAt || new Date().toISOString(),
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.sysadminTickets.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing sysadminTickets:', e);
+  }
+
+  // roadmapSysAdmin — v21: checklist del roadmap SysAdmin (rmsa-*). Upsert
+  // por id con el mismo guard latest-wins de los otros roadmaps.
+  try {
+    const rmsaFile = contents.file('roadmapSysAdmin.json');
+    if (rmsaFile) {
+      const rawRmsa: unknown = JSON.parse(await rmsaFile.async('text'));
+      const { valid: rmsaRows } = validateArray(roadmapItemSchema, rawRmsa);
+      for (const r of rmsaRows) {
+        const local = await db.roadmapSysAdminItems.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictRoadmapSaItems++;
+          continue;
+        }
+        const row: RoadmapItem = {
+          id: r.id,
+          done: r.done === true,
+          doneAt: r.doneAt || undefined,
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.roadmapSysAdminItems.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing roadmapSysAdmin:', e);
   }
 
   // V6 (3.6.0) — snapshots de datasets de referencia (runbooks + cheatsheet).

@@ -427,6 +427,40 @@ export const helpdeskTicketSchema = z.object({
   updatedAt: z.string().optional(),
 }).passthrough();
 
+/** SYSADMIN (v21) — tickets de práctica de guardia (Infra & Ops). La fila
+ * completa (contenido del dataset + trabajo del usuario: status/statusNote)
+ * viaja en sysadminTickets.json. Mismo contrato que helpdeskTicketSchema
+ * con las extensiones de dominio: type 'cambio' + environment. */
+export const sysadminTicketSchema = z.object({
+  id: z.string().min(1),
+  number: z.string().min(1),
+  title: z.string().min(1),
+  category: z.string().min(1),
+  subcategory: z.string().optional().nullable(),
+  type: z.enum(['incidente', 'solicitud', 'cambio']),
+  priority: z.enum(['P1', 'P2', 'P3', 'P4']),
+  impact: z.enum(['alta', 'media', 'baja']),
+  urgency: z.enum(['alta', 'media', 'baja']),
+  environment: z.enum(['Linux', 'Windows Server', 'Red', 'Storage / Backup', 'Virtualización', 'Cloud / Contenedores', 'Multi']),
+  requester: z.string(),
+  description: z.string(),
+  symptoms: z.string(),
+  dataAvailable: z.string().optional().nullable(),
+  troubleshooting: z.string().optional().nullable(),
+  resolution: z.string().optional().nullable(),
+  escalation: z.string().optional().nullable(),
+  kbRef: z.string().optional().nullable(),
+  skill: z.string().optional().nullable(),
+  evidence: z.string().optional().nullable(),
+  status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
+  statusNote: z.string().optional().nullable(),
+  isFinalProject: z.boolean().optional().nullable(),
+  isDeleted: z.boolean().optional(),
+  deletedAt: z.string().optional().nullable(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).passthrough();
+
 // ---------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------

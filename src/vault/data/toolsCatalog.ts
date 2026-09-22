@@ -39,7 +39,13 @@ export type ToolId =
   // (data/troubleshootingRunbooks.ts); la SLA/Priority Calculator se
   // eliminó por orden de la spec V6.
   | 'hd-triage' | 'hd-ad-account' | 'hd-kb-gen'
-  | 'hd-network' | 'hd-intune' | 'hd-sanitizer';
+  | 'hd-network' | 'hd-intune' | 'hd-sanitizer'
+  // SYSADMIN (v21) — tools de Infra & Ops 100% offline: generadores y
+  // calculadoras interactivas (systemd, RAID, LVM, cron, firewall,
+  // capacidad). Complementan (no duplican) las tools existentes: el Cron
+  // Parser explica una expresión dada; el Cron Builder la construye.
+  | 'sa-systemd' | 'sa-raid' | 'sa-lvm'
+  | 'sa-cron-builder' | 'sa-firewall' | 'sa-capacity';
 
 export interface ToolCatalogEntry {
   id: ToolId;
@@ -153,6 +159,51 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
   },
   // (V6) hd-share → migrada a runbooks / eliminada.
   // (V6) hd-remote → migrada a runbooks / eliminada.
+  // ---------------- SYSADMIN (v21) ----------------
+  // Tools de Infra & Ops: todas INTERACTIVAS reales (generador,
+  // calculadora o planificador). 100% offline, sin fetch.
+  {
+    id: 'sa-systemd',
+    name: 'systemd Unit Builder',
+    cat: 'SYSADMIN',
+    desc: 'Generador de unit files systemd (.service y .timer) desde un formulario: ExecStart, restart policies, hardening (ProtectSystem, NoNewPrivileges...), variables de entorno, timer OnCalendar — con validación, explicación de cada directiva y comandos de despliegue (daemon-reload, enable --now, status).',
+    tags: ['systemd', 'unit', 'service', 'timer', 'oncalendar', 'execstart', 'restart', 'linux', 'daemon-reload', 'journalctl', 'hardening', 'protectsystem', 'sysadmin', 'infra', 'devops'],
+  },
+  {
+    id: 'sa-raid',
+    name: 'RAID Calculator',
+    cat: 'SYSADMIN',
+    desc: 'Calculadora de RAID 0/1/5/6/10: capacidad usable, tolerancia a fallos, mínimo de discos, overhead de paridad y riesgos por nivel — con tabla comparativa de todos los niveles para el mismo set de discos y notas operativas (rebuild, hot spare, controladora vs software).',
+    tags: ['raid', 'raid0', 'raid1', 'raid5', 'raid6', 'raid10', 'paridad', 'espejo', 'stripe', 'rebuild', 'hot spare', 'mdadm', 'storage', 'disco', 'sysadmin', 'infra'],
+  },
+  {
+    id: 'sa-lvm',
+    name: 'LVM Planner',
+    cat: 'SYSADMIN',
+    desc: 'Planificador LVM: define PVs (discos), VG (extent size) y LVs (tamaño, snapshots) — valida capacidad por extents, calcula sobrante y genera la secuencia completa de comandos (pvcreate/vgcreate/lvcreate/mkfs/mount/fstab) con explicación paso a paso.',
+    tags: ['lvm', 'pv', 'vg', 'lv', 'physical volume', 'volume group', 'logical volume', 'extent', 'pe', 'le', 'snapshot', 'pvcreate', 'vgcreate', 'lvcreate', 'mkfs', 'fstab', 'linux', 'storage', 'sysadmin', 'infra'],
+  },
+  {
+    id: 'sa-cron-builder',
+    name: 'Cron Builder',
+    cat: 'SYSADMIN',
+    desc: 'Constructor visual de expresiones cron: 5 campos con presets (diario, semanal, cada N, último del mes...), descripción legible en español, validación y las próximas ejecuciones calculadas localmente. Complemento del Cron Parser (que explica una expresión dada).',
+    tags: ['cron', 'crontab', 'builder', 'constructor', 'schedule', 'programar', 'tarea programada', 'planificador', 'linux', 'sysadmin', 'infra', 'automatizacion'],
+  },
+  {
+    id: 'sa-firewall',
+    name: 'Firewall Rule Builder',
+    cat: 'SYSADMIN',
+    desc: 'Traduce UNA regla de firewall a los cuatro dialectos: ufw, iptables, nftables y firewalld (+ equivalencia Windows netsh). Acción, protocolo, puerto, origen/destino, dirección e interfaz — con explicación de cada pieza y guía de cuándo usar cada herramienta.',
+    tags: ['firewall', 'ufw', 'iptables', 'nftables', 'firewalld', 'netsh', 'advfirewall', 'regla', 'rule', 'puerto', 'allow', 'deny', 'drop', 'reject', 'linux', 'windows', 'hardening', 'sysadmin', 'infra', 'red'],
+  },
+  {
+    id: 'sa-capacity',
+    name: 'Disk Growth Planner',
+    cat: 'SYSADMIN',
+    desc: 'Proyección de capacidad de disco: uso actual, capacidad y crecimiento (GB/mes o %) → fecha estimada de llenado, umbrales 70/80/90% con fechas concretas, tendencia y recomendaciones operativas (rotación de logs, LVM extend, archivado, alertas).',
+    tags: ['capacidad', 'capacity', 'growth', 'crecimiento', 'disk', 'disco', 'proyeccion', 'prediccion', 'umbral', 'threshold', '70 80 90', 'df', 'lvm', 'extend', 'logs', 'rotacion', 'sysadmin', 'infra', 'storage'],
+  },
 ];
 
 /** Find a catalog entry by id. */
