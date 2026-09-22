@@ -1,10 +1,13 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem, HelpDeskTicket } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket } from '../types';
 import { GLOSSARY_SEED_TERMS } from '../data/glossarySeed';
 import { ROADMAP_ALL_ITEM_IDS } from '../data/roadmapData';
 import { ROADMAP_HD_ALL_ITEM_IDS } from '../data/roadmapHelpDeskData';
 import { HELPDESK_TICKET_SEEDS } from '../data/helpDeskTickets';
 import { HELPDESK_LAB_SEEDS } from '../data/helpDeskLabsData';
+import { SYSADMIN_TICKET_SEEDS } from '../data/sysadminTickets';
+import { SYSADMIN_LAB_SEEDS } from '../data/sysadminLabsData';
+import { ROADMAP_SA_ALL_ITEM_IDS } from '../data/roadmapSysAdminData';
 
 /**
  * BLOQUE 6 — Online-Optional integration tables. These live in the MAIN
@@ -231,6 +234,15 @@ class VaultDatabase extends Dexie {
   //    usuario trabaja (triage → resolución) + tickets propios (CRUD).
   roadmapHelpDeskItems!: Table<RoadmapItem, string>;
   helpdeskTickets!: Table<HelpDeskTicket, string>;
+  // SYSADMIN (v21) — especialización Infraestructura & Operaciones
+  // (espejo del patrón HelpDesk v19):
+  //  · `roadmapSysAdminItems` — estado del checklist del roadmap SysAdmin
+  //    → SRE (contenido en data/roadmapSysAdminData.ts, ids 'rmsa-*').
+  //  · `sysadminTickets` — tickets SIMULADOS de práctica (dataset
+  //    data/sysadminTickets.ts, Nexora S.A. — Infraestructura) que el
+  //    usuario trabaja como práctica de guardia (OPS-2001...).
+  roadmapSysAdminItems!: Table<RoadmapItem, string>;
+  sysadminTickets!: Table<SysAdminTicket, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -569,6 +581,17 @@ class VaultDatabase extends Dexie {
     this.version(20).stores({
       reviewItems: null,
     });
+    // v21: SYSADMIN — migración 100% ADITIVA (delta-only, igual que v19):
+    //  · roadmapSysAdminItems — progreso del roadmap SysAdmin (ids 'rmsa-*'
+    //    en data/roadmapSysAdminData.ts).
+    //  · sysadminTickets — CRUD de tickets simulados de guardia (seed
+    //    idempotente por id + dismissal; el índice status/isDeleted
+    //    sostiene las vistas). Mismo contrato que helpdeskTickets con las
+    //    extensiones de dominio: environment + type 'cambio'.
+    this.version(21).stores({
+      roadmapSysAdminItems: 'id, updatedAt',
+      sysadminTickets: 'id, status, isDeleted, updatedAt, createdAt',
+    });
   }
 }
 
@@ -576,7 +599,7 @@ class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 20;
+export const CURRENT_SCHEMA_VERSION = 21;
 
 export const db = new VaultDatabase();
 

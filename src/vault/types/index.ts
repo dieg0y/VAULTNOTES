@@ -169,6 +169,13 @@ export interface ImportSummary {
   /** v19: incoming roadmapHelpDeskItems rows (roadmapHelpDesk.json) skipped
    * because the local row is newer (updatedAt). */
   conflictRoadmapHdItems: number;
+  /** v21 (SYSADMIN): incoming sysadminTickets rows (sysadminTickets.json)
+   * skipped because the local row is newer (updatedAt) — preserves the
+   * user's ticket practice work (status + notas de cierre). */
+  conflictSysadminTickets: number;
+  /** v21 (SYSADMIN): incoming roadmapSysAdminItems rows
+   * (roadmapSysAdmin.json) skipped because the local row is newer. */
+  conflictRoadmapSaItems: number;
   /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */
@@ -336,7 +343,7 @@ export interface RoadmapItem {
   updatedAt: string;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'inbox' | 'data-intel' | 'profile' | 'roadmap' | 'helpdesk' | 'roadmap-hd' | 'troubleshooting' | 'cheatsheet';
+export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'inbox' | 'data-intel' | 'profile' | 'roadmap' | 'helpdesk' | 'roadmap-hd' | 'troubleshooting' | 'cheatsheet' | 'sysadmin' | 'roadmap-sa';
 
 /* ------------------------------------------------------------------ */
 /* HELPDESK (v19) — tickets simulados (CRUD) + KB (dataset estático). */
@@ -421,5 +428,108 @@ export interface HelpDeskKbArticle {
   /** Nombres de términos del glosario relacionados. */
   relatedTerms?: string[];
   /** Ids de tickets del dataset que lo referencian (auto-calculado). */
+  relatedTickets?: string[];
+}
+
+/* ------------------------------------------------------------------ */
+/* SYSADMIN (v21) — simulador de Infraestructura & Operaciones.        */
+/* Mismo contrato que HelpDesk (v19) con DOS extensiones de dominio:  */
+/*  · type incluye 'cambio' (change request con ventana de            */
+/*    mantenimiento — el pan de cada día de un SysAdmin).              */
+/*  · environment clasifica la torre: Linux / Windows Server / Red /  */
+/*    Storage-Backup / Virtualización / Cloud / Multi (soporta el     */
+/*    filtro por entorno de la cola).                                 */
+/* Los tickets se siembran desde data/sysadminTickets.ts (Nexora S.A. */
+/* — equipo de Infraestructura, empresa ficticia) y el usuario los   */
+/* trabaja como práctica de guardia. La KB es solo lectura (fábrica). */
+/* ------------------------------------------------------------------ */
+
+export type SaTicketType = 'incidente' | 'solicitud' | 'cambio';
+export type SaTicketPriority = 'P1' | 'P2' | 'P3' | 'P4';
+export type SaTicketLevel = 'alta' | 'media' | 'baja';
+export type SaTicketStatus = 'nuevo' | 'en_progreso' | 'resuelto' | 'cerrado' | 'escalado';
+export type SaEnvironment =
+  | 'Linux'
+  | 'Windows Server'
+  | 'Red'
+  | 'Storage / Backup'
+  | 'Virtualización'
+  | 'Cloud / Contenedores'
+  | 'Multi';
+
+export interface SysAdminTicket {
+  /** Id estable del seed ('sa-001'...) o generado para tickets propios. */
+  id: string;
+  /** Número visible del ticket ('OPS-2001'...). */
+  number: string;
+  title: string;
+  /** Categoría de la lista maestra (rama SysAdmin). */
+  category: string;
+  /** Subcategoría corta ('systemd', 'DNS interno', 'RAID'...). */
+  subcategory?: string;
+  type: SaTicketType;
+  priority: SaTicketPriority;
+  impact: SaTicketLevel;
+  urgency: SaTicketLevel;
+  /** Torre tecnológica del ticket (filtro por entorno). */
+  environment: SaEnvironment;
+  /** Usuario solicitante — ficticio: 'Laura Restrepo (Data Center)'. */
+  requester: string;
+  /** Lo que reporta el usuario, en sus palabras. */
+  description: string;
+  /** Síntomas observables/verificables. */
+  symptoms: string;
+  /** Datos ya recolectados (servidor, logs, comandos de diagnóstico...). */
+  dataAvailable?: string;
+  /** Pasos esperados de diagnóstico (guía de estudio). */
+  troubleshooting?: string;
+  /** Resolución esperada (guía de estudio). */
+  resolution?: string;
+  /** A quién/cuándo escalar ('Redes L3', 'Vendor support'...). */
+  escalation?: string;
+  /** Id del artículo de KB relacionado ('sakb-disk-full'). */
+  kbRef?: string;
+  /** Habilidad práctica que entrena el ticket. */
+  skill?: string;
+  /** Evidencia sugerida a registrar. */
+  evidence?: string;
+  /** Estado de trabajo del usuario. */
+  status: SaTicketStatus;
+  /** Nota de cierre/resolución escrita por el usuario. */
+  statusNote?: string;
+  /** True = forma parte del proyecto final (30 tickets "semana de guardia"). */
+  isFinalProject?: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Paso de un artículo de la KB SysAdmin. */
+export interface SysAdminKbStep {
+  title: string;
+  detail?: string;
+  /** Comando educativo (bash/PowerShell) — texto plano. */
+  command?: string;
+}
+
+/** Artículo de la base de conocimiento SysAdmin (dataset estático). */
+export interface SysAdminKbArticle {
+  id: string;
+  title: string;
+  category: string;
+  /** Entorno dominante del artículo. */
+  environment: SaEnvironment;
+  /** Cuándo aplica el artículo (síntomas). */
+  symptoms: string;
+  /** Causa(s) típica(s). */
+  cause: string;
+  steps: SysAdminKbStep[];
+  /** Cómo confirmar que quedó resuelto. */
+  verification?: string;
+  escalation?: string;
+  /** Nombres de términos del glosario relacionados. */
+  relatedTerms?: string[];
+  /** Ids de tickets del dataset que lo referencian. */
   relatedTickets?: string[];
 }
