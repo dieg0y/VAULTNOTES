@@ -31,7 +31,7 @@ import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
 import { findToolById } from '../data/toolsCatalog';
-import { Map as RoadmapIcon } from 'lucide-react';
+import { Map as RoadmapIcon, Headset } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface DashboardViewProps {
@@ -112,6 +112,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const roadmapDone = roadmapRows.filter((r) => r.done).length;
   const roadmapTotal = roadmapRows.length;
   const roadmapPct = roadmapTotal > 0 ? Math.round((roadmapDone / roadmapTotal) * 100) : 0;
+
+  // HELPDESK (v19) — progreso del simulador Service Desk: tickets
+  // trabajados (resueltos/escalados/cerrados) + proyecto final (30).
+  // Misma filosofía del roadmap: solo contar filas, sin joins.
+  const hdTicketRows = useLiveQuery(() => db.helpdeskTickets.filter((t) => !t.isDeleted).toArray(), [], []);
+  const hdWorkedStatuses = new Set(['resuelto', 'escalado', 'cerrado']);
+  const hdOpenStatuses = new Set(['nuevo', 'en_progreso']);
+  const hdWorked = hdTicketRows.filter((t) => hdWorkedStatuses.has(t.status)).length;
+  const hdOpen = hdTicketRows.filter((t) => hdOpenStatuses.has(t.status)).length;
+  const hdTotal = hdTicketRows.length;
+  const hdFinalDone = hdTicketRows.filter((t) => t.isFinalProject && hdWorkedStatuses.has(t.status)).length;
+  const hdPct = hdTotal > 0 ? Math.round((hdWorked / hdTotal) * 100) : 0;
   const statsLoaded = flashcardStats !== undefined;
   const weakConcepts = useMemo(() => {
     const stats = flashcardStats || [];
@@ -530,6 +542,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : roadmapDone > 0
                   ? 'Vas avanzando — clic para seguir con la siguiente fase.'
                   : 'Junior IAM / Identity Security Analyst — 14 fases por conquistar.'}
+            </p>
+          </div>
+
+          {/* HELPDESK (v19) — simulador Service Desk (cola de tickets de
+              Nexora + proyecto final + KB). Misma forma de tarjeta que el
+              roadmap para mantener la retícula del Learning. */}
+          <div
+            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-fuchsia-500/40 transition-colors"
+            onClick={() => onSelectSection?.('helpdesk')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSection?.('helpdesk'); }}
+            title="Abrir el simulador L1: cola de tickets, proyecto final y Base de Conocimiento"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Service Desk</span>
+              <Headset className="w-3.5 h-3.5 text-fuchsia-400" />
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <span className="text-2xl font-bold text-white font-mono">
+                {hdWorked}<span className="text-sm text-[#666]">/{hdTotal}</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#666] shrink-0">
+                {hdOpen} abiert{hdOpen === 1 ? 'o' : 'os'} · PF {hdFinalDone}/30
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden mt-2" role="progressbar" aria-valuenow={hdPct} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${hdPct === 100 ? 'bg-emerald-500' : 'bg-fuchsia-500'}`}
+                style={{ width: `${hdPct}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+              {hdPct === 100
+                ? '¡Simulador completado! Exporta tus tickets como evidencia de práctica.'
+                : hdWorked > 0
+                  ? 'Vas avanzando en la cola de Nexora — clic para seguir trabajando tickets.'
+                  : 'Simulador L1 con 48 tickets, proyecto final de 30 y KB — empieza por el día 1.'}
             </p>
           </div>
 

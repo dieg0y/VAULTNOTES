@@ -2,9 +2,15 @@
  * roadmapExport — genera el Markdown del progreso del roadmap
  * (checklist con estado) para guardarlo, pegarlo en una IA o
  * compartirlo. Mismo patrón que profileExport.
+ *
+ * v19: se generalizó el builder para soportar los DOS roadmaps:
+ *  - IAM (roadmapData.ts — Junior IAM / Identity Security Analyst)
+ *  - HelpDesk (roadmapHelpDeskData.ts — HelpDesk / IT Support → IAM)
+ * Las firmas públicas originales se mantienen intactas.
  */
 
-import { ROADMAP_TIERS, ROADMAP_MASTERY_NOTE, ROADMAP_HEADER, type RoadmapTierDef, type RoadmapPhaseDef } from '../data/roadmapData';
+import { ROADMAP_TIERS, ROADMAP_MASTERY_NOTE, ROADMAP_HEADER, type RoadmapTierDef, type RoadmapPhaseDef, type RoadmapHeaderDef } from '../data/roadmapData';
+import { ROADMAP_HD_TIERS, ROADMAP_HD_MASTERY_NOTE, ROADMAP_HD_HEADER } from '../data/roadmapHelpDeskData';
 
 const tierProgress = (tier: RoadmapTierDef, doneMap: Map<string, boolean>): { done: number; total: number } => {
   let done = 0;
@@ -24,29 +30,34 @@ const phaseProgress = (phase: RoadmapPhaseDef, doneMap: Map<string, boolean>): {
   return { done, total: phase.items.length };
 };
 
-/** Markdown del roadmap completo con el estado de cada ítem. */
-export function buildRoadmapMarkdown(doneMap: Map<string, boolean>): string {
+/** Builder genérico — compartido por los dos roadmaps. */
+function buildChecklistMarkdown(
+  tiers: RoadmapTierDef[],
+  header: RoadmapHeaderDef,
+  masteryNote: string,
+  doneMap: Map<string, boolean>
+): string {
   const lines: string[] = [];
 
   let doneAll = 0;
   let totalAll = 0;
-  for (const tier of ROADMAP_TIERS) {
+  for (const tier of tiers) {
     const { done, total } = tierProgress(tier, doneMap);
     doneAll += done;
     totalAll += total;
   }
   const pct = totalAll > 0 ? Math.round((doneAll / totalAll) * 100) : 0;
 
-  lines.push(`# ${ROADMAP_HEADER.title}`);
+  lines.push(`# ${header.title}`);
   lines.push('');
-  lines.push(`**${ROADMAP_HEADER.specialization}** | **${ROADMAP_HEADER.edge}**`);
+  lines.push(`**${header.specialization}** | **${header.edge}**`);
   lines.push('');
   lines.push(`**Progreso global: ${doneAll}/${totalAll} ítems (${pct}%)**`);
   lines.push('');
-  lines.push(`> ${ROADMAP_MASTERY_NOTE}`);
+  lines.push(`> ${masteryNote}`);
   lines.push('');
 
-  for (const tier of ROADMAP_TIERS) {
+  for (const tier of tiers) {
     const { done, total } = tierProgress(tier, doneMap);
     lines.push(`## ${tier.title} — ${done}/${total}`);
     lines.push(`*${tier.subtitle}*`);
@@ -78,9 +89,27 @@ export function buildRoadmapMarkdown(doneMap: Map<string, boolean>): string {
   return lines.join('\n');
 }
 
-/** Nombre de archivo seguro para el export. */
-export function roadmapMarkdownFilename(): string {
+const dateStamp = (): string => {
   const d = new Date();
-  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  return `Roadmap-IAM-${stamp}.md`;
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** Markdown del roadmap IAM completo con el estado de cada ítem. */
+export function buildRoadmapMarkdown(doneMap: Map<string, boolean>): string {
+  return buildChecklistMarkdown(ROADMAP_TIERS, ROADMAP_HEADER, ROADMAP_MASTERY_NOTE, doneMap);
+}
+
+/** Nombre de archivo seguro para el export del roadmap IAM. */
+export function roadmapMarkdownFilename(): string {
+  return `Roadmap-IAM-${dateStamp()}.md`;
+}
+
+/** Markdown del roadmap HelpDesk completo con el estado de cada ítem. */
+export function buildRoadmapHdMarkdown(doneMap: Map<string, boolean>): string {
+  return buildChecklistMarkdown(ROADMAP_HD_TIERS, ROADMAP_HD_HEADER, ROADMAP_HD_MASTERY_NOTE, doneMap);
+}
+
+/** Nombre de archivo seguro para el export del roadmap HelpDesk. */
+export function roadmapHdMarkdownFilename(): string {
+  return `Roadmap-HelpDesk-${dateStamp()}.md`;
 }

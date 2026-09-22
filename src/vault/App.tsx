@@ -35,6 +35,9 @@ import { useNoteStore } from './store/noteStore';
 // DATA & INTEL (v16) — navigation bridge: tools can ask App to switch to the
 // data-intel section via useIntelStore.getState().requestNavigate().
 import { useIntelStore } from './store/intelStore';
+// HELPDESK (v19) — navigation bridge: el Dashboard/la KB pueden pedir abrir
+// la sección Service Desk (con ticket seleccionado vía helpdeskStore).
+import { useHelpdeskStore } from './store/helpdeskStore';
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -65,6 +68,8 @@ const GlossaryView = dynamic(() => import('./components/GlossaryView').then((m) 
 const ProfileView = dynamic(() => import('./components/ProfileView').then((m) => m.ProfileView), { ssr: false, loading: ViewLoader });
 // ROADMAP (v18) — checklist del roadmap Junior IAM con progreso persistente.
 const RoadmapView = dynamic(() => import('./components/RoadmapView').then((m) => m.RoadmapView), { ssr: false, loading: ViewLoader });
+// HELPDESK (v19) — simulador Service Desk (cola de tickets + proyecto final + KB).
+const HelpDeskView = dynamic(() => import('./components/HelpDeskView').then((m) => m.HelpDeskView), { ssr: false, loading: ViewLoader });
 const BlogView = dynamic(() => import('./components/BlogView').then((m) => m.BlogView), { ssr: false, loading: ViewLoader });
 const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.ToolsView), { ssr: false, loading: ViewLoader });
 const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
@@ -328,6 +333,17 @@ export default function App() {
       consumeIntelNavigate();
     }
   }, [intelNavigateRequest, consumeIntelNavigate]);
+
+  // HELPDESK (v19) — one-shot navigation request al Service Desk (deep-link
+  // de ticket desde el helpdeskStore). Mismo patrón que el de Data & Intel.
+  const hdNavigateRequest = useHelpdeskStore((s) => s.navigateRequest);
+  const consumeHdNavigate = useHelpdeskStore((s) => s.consumeNavigate);
+  useEffect(() => {
+    if (hdNavigateRequest > 0) {
+      setActiveSection('helpdesk');
+      consumeHdNavigate();
+    }
+  }, [hdNavigateRequest, consumeHdNavigate]);
 
   // Set initial selected note if none selected (prefer a top-level note)
   useEffect(() => {
@@ -1181,6 +1197,24 @@ export default function App() {
           {/* ROADMAP (v18) — checklist interactivo del roadmap Junior IAM
               (tiers/fases/ítems) con progreso persistente en DB. */}
           {activeSection === 'roadmap' && <RoadmapView />}
+
+          {/* HELPDESK (v19) — Simulador Service Desk: cola de tickets con
+              modo estudio (revelado progresivo), proyecto final (30 tickets
+              por días) y KB enlazada. El flujo de estados y las notas de
+              cierre persisten en db.helpdeskTickets. */}
+          {activeSection === 'helpdesk' && (
+            <HelpDeskView
+              glossaryTerms={activeTerms}
+              onOpenGlossaryTerm={(termId) => {
+                setSelectedTermId(termId);
+                setActiveSection('glossary');
+              }}
+            />
+          )}
+
+          {/* ROADMAP HELPDESK (v19) — checklist de la especialización de
+              entrada HelpDesk / IT Support → IAM (misma vista, variante hd). */}
+          {activeSection === 'roadmap-hd' && <RoadmapView variant="hd" />}
 
           {activeSection === 'blog' && (
             <BlogView notes={notes} labs={labs} />

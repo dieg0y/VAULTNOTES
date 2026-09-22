@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database, IdCard, Map as RoadmapIcon } from 'lucide-react';
+import { LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench, Bookmark, ListChecks, Inbox, Database, IdCard, Map as RoadmapIcon, Headset, GraduationCap } from 'lucide-react';
 import { ActiveSection } from '../types';
 import { db } from '../db';
 import { useIsOnline } from '../integrations/online';
@@ -54,6 +54,20 @@ const SidebarBase: React.FC<SidebarProps> = ({
   const roadmapPct =
     roadmapRows.length > 0
       ? Math.round((roadmapRows.filter((r) => r.done).length / roadmapRows.length) * 100)
+      : 0;
+
+  // HELPDESK (v19) — tickets abiertos (badge del Service Desk) + progreso
+  // del roadmap HelpDesk (badge de su propia sección).
+  const hdOpenCount =
+    useLiveQuery(
+      () => db.helpdeskTickets.filter((t) => !t.isDeleted && (t.status === 'nuevo' || t.status === 'en_progreso')).count(),
+      [],
+      0
+    ) || 0;
+  const roadmapHdRows = useLiveQuery(() => db.roadmapHelpDeskItems.toArray(), [], []);
+  const roadmapHdPct =
+    roadmapHdRows.length > 0
+      ? Math.round((roadmapHdRows.filter((r) => r.done).length / roadmapHdRows.length) * 100)
       : 0;
 
   // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
@@ -202,6 +216,42 @@ const SidebarBase: React.FC<SidebarProps> = ({
               <span>Roadmap IAM</span>
             </div>
             <span className={`text-[10px] font-mono ${roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]'}`}>{roadmapPct}%</span>
+          </button>
+
+          {/* HELPDESK (v19) — Simulador de tickets L1 + roadmap de la
+              especialización de entrada HelpDesk/IT Support. */}
+          <button
+            onClick={() => onSelectSection('helpdesk')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'helpdesk'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+            title="Simulador L1: trabaja la cola de tickets de Nexora, el proyecto final y la KB"
+          >
+            <div className="flex items-center gap-2">
+              <Headset className="w-4 h-4" />
+              <span>Service Desk</span>
+            </div>
+            {hdOpenCount > 0 && (
+              <span className="text-[10px] font-mono text-amber-400/90">{hdOpenCount}</span>
+            )}
+          </button>
+
+          <button
+            onClick={() => onSelectSection('roadmap-hd')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors cursor-pointer text-xs ${
+              activeSection === 'roadmap-hd'
+                ? 'bg-blue-500/10 text-blue-400 font-medium'
+                : 'text-[#888] hover:bg-[#161616] hover:text-white'
+            }`}
+            title="Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)"
+          >
+            <div className="flex items-center gap-2">
+              <GraduationCap className="w-4 h-4" />
+              <span>Roadmap HelpDesk</span>
+            </div>
+            <span className={`text-[10px] font-mono ${roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]'}`}>{roadmapHdPct}%</span>
           </button>
 
           <button

@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem } from '../types';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket } from '../types';
 import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
@@ -13,7 +13,7 @@ import {
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
   inboxItemSchema, reviewItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
-  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, validateArray,
+  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, validateArray,
 } from './backupSchemas';
 
 // ------------------------------------------------------------------
@@ -32,8 +32,13 @@ import {
  *  re-export after importing, so it rejects v3.3.0 backups up-front.
  *  3.4.0 — v18: `profile.json` (una fila) pasa a `profiles.json` (MULTI-
  *  PERFIL) + `roadmap.json` (checklist del roadmap Junior IAM). El import
- *  sigue aceptando el `profile.json` legacy (v3.3.0). */
-const BACKUP_FORMAT_VERSION = '3.4.0';
+ *  sigue aceptando el `profile.json` legacy (v3.3.0).
+ *  3.5.0 — v19 (HELPDESK): añade `helpdeskTickets.json` (dataset de
+ *  práctica + trabajo del usuario: status y notas de cierre) y
+ *  `roadmapHelpDesk.json` (checklist del roadmap HelpDesk). Un build
+ *  3.4.0 que importe un backup 3.5.0 DESCARTARÍA silenciosamente la
+ *  práctica de tickets al re-exportar → la rechaza up-front. */
+const BACKUP_FORMAT_VERSION = '3.5.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -271,6 +276,10 @@ function emptySummary(): ImportSummary {
     // guard latest-wins — un backup viejo no pisa ediciones nuevas).
     conflictProfiles: 0,
     conflictRoadmapItems: 0,
+    // v19 (VN-B-012): práctica del Service Desk (tickets con status/notas
+    // de cierre) y checklist del roadmap HelpDesk — mismo guard.
+    conflictHelpdeskTickets: 0,
+    conflictRoadmapHdItems: 0,
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
@@ -455,6 +464,12 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // ROADMAP (v18) — estado del checklist del roadmap Junior IAM (done/doneAt
   // por ítem). Viaja en el ZIP para que el progreso sobreviva en el USB.
   const roadmapRows = await db.roadmapItems.toArray();
+  // HELPDESK (v19) — práctica del Service Desk: tickets COMPLETOS (dataset +
+  // status/statusNote del usuario — es su evidencia de práctica) + estado
+  // del checklist del roadmap HelpDesk. Viajan en el ZIP para que el
+  // progreso y las notas de cierre sobrevivan en el USB.
+  const helpdeskTicketRows = await db.helpdeskTickets.toArray();
+  const roadmapHdRows = await db.roadmapHelpDeskItems.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -490,6 +505,8 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       intelItemsCount: intelItems.length,
       profileCount: profileRows.length,
       roadmapItemsCount: roadmapRows.length,
+      helpdeskTicketsCount: helpdeskTicketRows.length,
+      roadmapHdItemsCount: roadmapHdRows.length,
     }
   };
 
@@ -523,6 +540,10 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   zip.file('profiles.json', JSON.stringify(profileRows, null, 2));
   // ROADMAP (v18) — estado del checklist (root-level, mismo convenio).
   zip.file('roadmap.json', JSON.stringify(roadmapRows, null, 2));
+  // HELPDESK (v19) — tickets de práctica + roadmap HelpDesk (root-level,
+  // mismo convenio que el resto de tablas auxiliares).
+  zip.file('helpdeskTickets.json', JSON.stringify(helpdeskTicketRows, null, 2));
+  zip.file('roadmapHelpDesk.json', JSON.stringify(roadmapHdRows, null, 2));
 
   // 2. /glosario/terminos.json
   const glossaryFolder = zip.folder('glosario');
@@ -1812,6 +1833,88 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   } catch (e) {
     console.error('Error importing roadmap:', e);
+  }
+
+  // helpdeskTickets — v19 (HELPDESK): tickets de práctica del Service Desk.
+  // Upsert por id con guard latest-wins: un backup viejo jamás revierte el
+  // trabajo local (status, notas de cierre, soft-delete). La fila se
+  // reconstruye campo a campo (enums validados) para que un
+  // helpdeskTickets.json malformado nunca corrompa la tabla local.
+  try {
+    const hdtFile = contents.file('helpdeskTickets.json');
+    if (hdtFile) {
+      const rawHdt: unknown = JSON.parse(await hdtFile.async('text'));
+      const { valid: hdtRows, invalid } = validateArray(helpdeskTicketSchema, rawHdt);
+      summary.invalidMisc += invalid;
+      for (const r of hdtRows) {
+        const local = await db.helpdeskTickets.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictHelpdeskTickets++;
+          continue;
+        }
+        const status: HelpDeskTicket['status'] =
+          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
+            ? r.status
+            : 'nuevo';
+        const row: HelpDeskTicket = {
+          id: r.id,
+          number: r.number,
+          title: r.title,
+          category: r.category,
+          subcategory: r.subcategory ?? undefined,
+          type: r.type,
+          priority: r.priority,
+          impact: r.impact,
+          urgency: r.urgency,
+          requester: r.requester,
+          description: r.description,
+          symptoms: r.symptoms,
+          dataAvailable: r.dataAvailable ?? undefined,
+          troubleshooting: r.troubleshooting ?? undefined,
+          resolution: r.resolution ?? undefined,
+          escalation: r.escalation ?? undefined,
+          kbRef: r.kbRef ?? undefined,
+          skill: r.skill ?? undefined,
+          evidence: r.evidence ?? undefined,
+          status,
+          statusNote: r.statusNote ?? undefined,
+          isFinalProject: r.isFinalProject === true ? true : undefined,
+          isDeleted: r.isDeleted === true,
+          deletedAt: r.isDeleted === true ? (r.deletedAt ?? undefined) : undefined,
+          createdAt: r.createdAt || new Date().toISOString(),
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.helpdeskTickets.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing helpdeskTickets:', e);
+  }
+
+  // roadmapHelpDesk — v19: checklist del roadmap HelpDesk (rmhd-*). Upsert
+  // por id con el mismo guard latest-wins del roadmap principal.
+  try {
+    const rmhdFile = contents.file('roadmapHelpDesk.json');
+    if (rmhdFile) {
+      const rawRmhd: unknown = JSON.parse(await rmhdFile.async('text'));
+      const { valid: rmhdRows } = validateArray(roadmapItemSchema, rawRmhd);
+      for (const r of rmhdRows) {
+        const local = await db.roadmapHelpDeskItems.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictRoadmapHdItems++;
+          continue;
+        }
+        const row: RoadmapItem = {
+          id: r.id,
+          done: r.done === true,
+          doneAt: r.doneAt || undefined,
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.roadmapHelpDeskItems.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing roadmapHelpDesk:', e);
   }
 
   return summary;

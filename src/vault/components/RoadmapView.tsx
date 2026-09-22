@@ -5,7 +5,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Map as RoadmapIcon, Check, Download, Copy, ChevronDown, FileCheck2 } from 'lucide-react';
 import { db } from '../db';
 import { ROADMAP_TIERS, ROADMAP_MASTERY_NOTE, ROADMAP_HEADER, type RoadmapTierDef, type RoadmapPhaseDef, type RoadmapItemDef } from '../data/roadmapData';
-import { buildRoadmapMarkdown, roadmapMarkdownFilename } from '../utils/roadmapExport';
+import { ROADMAP_HD_TIERS, ROADMAP_HD_MASTERY_NOTE, ROADMAP_HD_HEADER } from '../data/roadmapHelpDeskData';
+import {
+  buildRoadmapMarkdown,
+  roadmapMarkdownFilename,
+  buildRoadmapHdMarkdown,
+  roadmapHdMarkdownFilename,
+} from '../utils/roadmapExport';
 import { downloadBlob } from '../utils/downloadBlob';
 
 /**
@@ -15,21 +21,26 @@ import { downloadBlob } from '../utils/downloadBlob';
  * persiste en la tabla Dexie `roadmapItems` → viaja en los backups ZIP
  * → sobrevive en el USB.
  *
+ * v19 — GENERALIZADO: la misma vista renderiza los DOS roadmaps vía la
+ * prop `variant`:
+ *   - 'iam' (default) → data/roadmapData.ts + db.roadmapItems
+ *   - 'hd'            → data/roadmapHelpDeskData.ts + db.roadmapHelpDeskItems
+ * Misma UI, mismos acentos por posición de tier, export Markdown propio.
+ *
  * Progreso global + por tier + por fase. Export del checklist completo
  * como Markdown (para archivo o para pegárselo a una IA).
  */
 
 const tierAccent = (tierId: string): { text: string; border: string; bg: string; bar: string } => {
-  switch (tierId) {
-    case 'rm-t1':
-      return { text: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10', bar: 'bg-emerald-500' };
-    case 'rm-t2':
-      return { text: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-500/10', bar: 'bg-amber-500' };
-    case 'rm-t3':
-      return { text: 'text-sky-400', border: 'border-sky-500/30', bg: 'bg-sky-500/10', bar: 'bg-sky-500' };
-    default:
-      return { text: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/10', bar: 'bg-blue-600' };
-  }
+  // Acento por POSICIÓN del tier (id termina en -t1/-t2/-t3; el proyecto
+  // final cae en el default azul). Sirve para los dos roadmaps.
+  if (/t1$/.test(tierId))
+    return { text: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10', bar: 'bg-emerald-500' };
+  if (/t2$/.test(tierId))
+    return { text: 'text-amber-400', border: 'border-amber-500/30', bg: 'bg-amber-500/10', bar: 'bg-amber-500' };
+  if (/t3$/.test(tierId))
+    return { text: 'text-sky-400', border: 'border-sky-500/30', bg: 'bg-sky-500/10', bar: 'bg-sky-500' };
+  return { text: 'text-blue-400', border: 'border-blue-500/30', bg: 'bg-blue-500/10', bar: 'bg-blue-600' };
 };
 
 const ProgressBar: React.FC<{ done: number; total: number; barCls?: string; className?: string }> = ({
@@ -183,8 +194,22 @@ const TierSection: React.FC<{ tier: RoadmapTierDef; doneMap: Map<string, boolean
   );
 };
 
-export const RoadmapView: React.FC = () => {
-  const rows = useLiveQuery(() => db.roadmapItems.toArray(), [], []);
+export interface RoadmapViewProps {
+  /** Qué roadmap renderiza: 'iam' (default) o 'hd' (HelpDesk/IT Support). */
+  variant?: 'iam' | 'hd';
+}
+
+export const RoadmapView: React.FC<RoadmapViewProps> = ({ variant = 'iam' }) => {
+  const isHd = variant === 'hd';
+  const tiers = isHd ? ROADMAP_HD_TIERS : ROADMAP_TIERS;
+  const header = isHd ? ROADMAP_HD_HEADER : ROADMAP_HEADER;
+  const masteryNote = isHd ? ROADMAP_HD_MASTERY_NOTE : ROADMAP_MASTERY_NOTE;
+
+  const rows = useLiveQuery(
+    () => (isHd ? db.roadmapHelpDeskItems.toArray() : db.roadmapItems.toArray()),
+    [variant],
+    []
+  );
   const [toast, setToast] = useState<string | null>(null);
 
   const doneMap = useMemo(() => {
@@ -193,17 +218,18 @@ export const RoadmapView: React.FC = () => {
     return m;
   }, [rows]);
 
-  const total = useMemo(() => ROADMAP_TIERS.reduce((acc, t) => acc + t.phases.reduce((a, p) => a + p.items.length, 0), 0), []);
+  const total = useMemo(() => tiers.reduce((acc, t) => acc + t.phases.reduce((a, p) => a + p.items.length, 0), 0), [tiers]);
   const done = useMemo(() => {
     let d = 0;
-    for (const tier of ROADMAP_TIERS)
+    for (const tier of tiers)
       for (const phase of tier.phases) for (const item of phase.items) if (doneMap.get(item.id)) d++;
     return d;
-  }, [doneMap]);
+  }, [tiers, doneMap]);
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const handleToggle = (id: string, next: boolean) => {
-    void db.roadmapItems.update(id, {
+    const table = isHd ? db.roadmapHelpDeskItems : db.roadmapItems;
+    void table.update(id, {
       done: next,
       doneAt: next ? new Date().toISOString() : undefined,
       updatedAt: new Date().toISOString(),
@@ -216,13 +242,14 @@ export const RoadmapView: React.FC = () => {
   };
 
   const handleExport = () => {
-    const md = buildRoadmapMarkdown(doneMap);
-    downloadBlob(new Blob([md], { type: 'text/markdown;charset=utf-8' }), roadmapMarkdownFilename());
+    const md = isHd ? buildRoadmapHdMarkdown(doneMap) : buildRoadmapMarkdown(doneMap);
+    const name = isHd ? roadmapHdMarkdownFilename() : roadmapMarkdownFilename();
+    downloadBlob(new Blob([md], { type: 'text/markdown;charset=utf-8' }), name);
     showToast('Roadmap exportado como Markdown');
   };
 
   const handleCopy = async () => {
-    const md = buildRoadmapMarkdown(doneMap);
+    const md = isHd ? buildRoadmapHdMarkdown(doneMap) : buildRoadmapMarkdown(doneMap);
     try {
       await navigator.clipboard.writeText(md);
       showToast('Roadmap copiado al portapapeles');
@@ -237,11 +264,11 @@ export const RoadmapView: React.FC = () => {
       <div className="px-6 py-3 border-b border-[#262626] bg-[#0D0D0D] flex flex-wrap items-center justify-between gap-3 sticky top-0 z-10">
         <div className="min-w-0">
           <h1 className="text-base font-bold text-white flex items-center gap-2">
-            <RoadmapIcon className="w-4 h-4 text-blue-400" />
-            Roadmap: Junior IAM / Identity Security Analyst
+            <RoadmapIcon className={`w-4 h-4 ${isHd ? 'text-sky-400' : 'text-blue-400'}`} />
+            {header.title}
           </h1>
           <p className="text-xs text-[#888]">
-            {ROADMAP_HEADER.specialization} · {ROADMAP_HEADER.edge}
+            {header.specialization} · {header.edge}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -277,11 +304,11 @@ export const RoadmapView: React.FC = () => {
             <span className="text-2xl font-mono font-bold text-blue-400">{pct}%</span>
           </div>
           <ProgressBar done={done} total={total} className="h-2" barCls={pct === 100 ? 'bg-emerald-500' : 'bg-blue-600'} />
-          <p className="text-[11px] text-[#888] leading-relaxed italic border-l-2 border-[#262626] pl-3">{ROADMAP_MASTERY_NOTE}</p>
+          <p className="text-[11px] text-[#888] leading-relaxed italic border-l-2 border-[#262626] pl-3">{masteryNote}</p>
         </section>
 
         {/* Tiers */}
-        {ROADMAP_TIERS.map((tier) => (
+        {tiers.map((tier) => (
           <TierSection key={tier.id} tier={tier} doneMap={doneMap} onToggle={handleToggle} />
         ))}
 

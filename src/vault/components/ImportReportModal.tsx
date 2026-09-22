@@ -56,7 +56,8 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
     (summary.conflictSavedCves || 0) + (summary.conflictCustomSigmaRules || 0) +
     (summary.conflictDatasetMeta || 0) + (summary.conflictTiCache || 0) +
     (summary.conflictIntelItems || 0) +
-    (summary.conflictProfiles || 0) + (summary.conflictRoadmapItems || 0);
+    (summary.conflictProfiles || 0) + (summary.conflictRoadmapItems || 0) +
+    (summary.conflictHelpdeskTickets || 0) + (summary.conflictRoadmapHdItems || 0);
   const totalInvalid =
     (summary.invalidNotes || 0) + (summary.invalidLabs || 0) +
     (summary.invalidTerms || 0) + (summary.invalidReferences || 0) +
@@ -144,7 +145,7 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
 
           {/* AUDIT VN-B-012: conflicts on the auxiliary upsert-by-id tables —
               same amber/ShieldAlert pattern as the rows above. */}
-          {(summary.conflictSavedCves || 0) + (summary.conflictCustomSigmaRules || 0) + (summary.conflictDatasetMeta || 0) + (summary.conflictTiCache || 0) + (summary.conflictProfiles || 0) + (summary.conflictRoadmapItems || 0) > 0 ? (
+          {(summary.conflictSavedCves || 0) + (summary.conflictCustomSigmaRules || 0) + (summary.conflictDatasetMeta || 0) + (summary.conflictTiCache || 0) + (summary.conflictProfiles || 0) + (summary.conflictRoadmapItems || 0) + (summary.conflictHelpdeskTickets || 0) + (summary.conflictRoadmapHdItems || 0) > 0 ? (
             <>
               <div className="h-px bg-[#262626]" />
               {(summary.conflictSavedCves || 0) > 0 && (
@@ -164,6 +165,12 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
               )}
               {(summary.conflictRoadmapItems || 0) > 0 && (
                 <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Ítems del roadmap en conflicto (progreso local más nuevo)" value={summary.conflictRoadmapItems || 0} valueClass="font-semibold text-amber-400" />
+              )}
+              {(summary.conflictHelpdeskTickets || 0) > 0 && (
+                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Tickets del Service Desk en conflicto (trabajo local más nuevo)" value={summary.conflictHelpdeskTickets || 0} valueClass="font-semibold text-amber-400" />
+              )}
+              {(summary.conflictRoadmapHdItems || 0) > 0 && (
+                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Ítems del roadmap HelpDesk en conflicto (progreso local más nuevo)" value={summary.conflictRoadmapHdItems || 0} valueClass="font-semibold text-amber-400" />
               )}
             </>
           ) : null}

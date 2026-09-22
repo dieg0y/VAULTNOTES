@@ -162,6 +162,13 @@ export interface ImportSummary {
   /** v18: incoming roadmap items (roadmap.json) skipped because the local
    * row is newer (updatedAt) — preserves local progress. */
   conflictRoadmapItems: number;
+  /** v19: incoming helpdeskTickets rows (helpdeskTickets.json) skipped
+   * because the local row is newer (updatedAt) — preserves the user's
+   * ticket practice work (status + notas de cierre). */
+  conflictHelpdeskTickets: number;
+  /** v19: incoming roadmapHelpDeskItems rows (roadmapHelpDesk.json) skipped
+   * because the local row is newer (updatedAt). */
+  conflictRoadmapHdItems: number;
   /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */
@@ -329,7 +336,7 @@ export interface RoadmapItem {
   updatedAt: string;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel' | 'profile' | 'roadmap';
+export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'review' | 'inbox' | 'data-intel' | 'profile' | 'roadmap' | 'helpdesk' | 'roadmap-hd';
 
 /* ------------------------------------------------------------------ */
 /* HELPDESK (v19) — tickets simulados (CRUD) + KB (dataset estático). */

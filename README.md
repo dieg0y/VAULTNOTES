@@ -1,6 +1,6 @@
 # VAULTNOTES
 
-**Tu segundo cerebro de ciberseguridad.** Una PWA **local-first y 100% offline** para estudiar, trabajar y investigar en ciberseguridad: apuntes con editor rico, labs SOC/IAM, glosario con flashcards, 29 herramientas de análisis, datasets de inteligencia (IoCs · eventos · reglas) y backups ZIP portables — todo dentro de tu navegador, sin servidor, sin cuenta, sin nube.
+**Tu segundo cerebro de ciberseguridad.** Una PWA **local-first y 100% offline** para estudiar, trabajar y investigar en ciberseguridad: apuntes con editor rico, labs SOC/IAM, glosario con flashcards, 44 herramientas de análisis, simulador de Service Desk L1, datasets de inteligencia (IoCs · eventos · reglas) y backups ZIP portables — todo dentro de tu navegador, sin servidor, sin cuenta, sin nube.
 
 > 🔒 **Privacidad por diseño**: tus datos nunca salen de tu máquina. La base de datos vive en IndexedDB (tu navegador). La única funcionalidad online es **opcional y explícita** (enriquecer IOCs o buscar CVEs cuando TÚ lo pides).
 
@@ -12,7 +12,7 @@
 | **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` — resuelve todo solo (Bun incluido si falta) y abre el navegador. Cualquier SO: `bun install` + `bun run dev`. |
 | **¿Puedo llevarla en una USB?** | Sí — la carpeta es 100% portable (app + runtime + build) y el **Respaldo automático** hace que tus fotos y apuntes viajen en la misma USB. Ver sección 🎒 abajo. |
 | **¿Dónde están mis datos?** | En IndexedDB de tu navegador (tu PC). Backups ZIP para cambiar de máquina/navegador — o activa el Respaldo automático y llévalos en tu USB. |
-| **¿Qué hay dentro?** | 29 herramientas offline (SOC · IAM · Red · Datos · Linux), explorador de Vulnerabilidades (203) y Ataques (89, sin duplicados), apuntes con editor rico, labs, glosario con flashcards, datasets de intel (IoCs · eventos · reglas). |
+| **¿Qué hay dentro?** | 44 herramientas offline (SOC · IAM · Red · Datos · Linux · HelpDesk), explorador de Vulnerabilidades (203) y Ataques (102, sin duplicados), simulador de Service Desk (48 tickets + proyecto final + KB de 28), roadmap IAM (52) y roadmap HelpDesk (65), apuntes con editor rico, labs, glosario con flashcards (639 términos), datasets de intel (IoCs · eventos · reglas). |
 | **¿Y si actualizo el código?** | Botón **Pull** del header: descarga los cambios desde GitHub sin tocar tus datos. En producción regenera el build solo y te pide reiniciar. |
 | **Regla de oro** | Los **videos nunca entran a la base ni a los backups** — viven en tu carpeta de videos (disco). |
 
@@ -23,16 +23,18 @@
 ### 📝 Conocimiento
 - **Apuntes** con editor rico (WYSIWYG): títulos, listas, checkboxes, tablas, código, imágenes, PDFs adjuntos y **videos** (ver política de videos abajo). Jerarquía de subpáginas, plataformas/categorías, favoritos y "revisar después".
 - **Hands-On / Labs** — plantillas para laboratorios SOC/IAM con el mismo editor.
-- **Glosario (sembrado)** — **389 términos IAM/GRC/SOC ya incluidos** (~75% IAM) + **flashcards** con repaso espaciado: abre la app y están todos ahí, sin importar nada (ver abajo).
+- **Glosario (sembrado)** — **639 términos incluidos** (**389 IAM/GRC/SOC** ~75% IAM + **250 HelpDesk/IT Support**: fundamentos, Windows, redes, M365, AD, ITSM y seguridad de soporte) + **flashcards** con repaso espaciado: abre la app y están todos ahí, sin importar nada (ver abajo).
 - **Perfil Profesional (multi-perfil)** — tus CVs vivos: crea tantos perfiles como quieras (CV IAM, CV SOC, CV en inglés…), cada uno con datos, puestos objetivo, skills con estado real, tools, experiencia, educación, certs, idiomas, proyectos, keywords ATS y notas de búsqueda. Cada perfil exporta su **Markdown AI-ready** para que tu IA te arme el CV perfecto (ver abajo).
 - **Roadmap IAM** — checklist interactivo del roadmap *Junior IAM / Identity Security Analyst* (3 tiers + proyecto final, 14 fases, 52 ítems): progreso global/por tier/por fase, persistente, exportable como Markdown (ver abajo). El **Dashboard muestra el progreso en vivo** (tarjeta Roadmap IAM con % y barra — clic y saltas al checklist).
+- **Service Desk (v19)** — simulador L1 de práctica: **48 tickets de la empresa ficticia Nexora S.A.** con cola filtrable (estado/prioridad/categoría/ámbito/búsqueda), **modo estudio** (la guía de diagnóstico/resolución/escalación va OCULTA — primero intentas, luego contrastas), flujo de estados real (nuevo → en progreso → resuelto/escalado → cerrado) con **nota de cierre obligatoria** como evidencia, **Proyecto Final "primera semana"** (30 tickets en 5 días con dificultad creciente) y **Base de Conocimiento de 28 artículos** cruzada con tickets y términos del glosario. El trabajo (estados + notas) persiste y viaja en el backup ZIP.
+- **Roadmap HelpDesk (v19)** — checklist de la especialización de entrada *HelpDesk / IT Support → IAM* (3 tiers + proyecto final de 30 tickets, 23 fases, **65 ítems**), mismo motor que el Roadmap IAM con export Markdown propio. Badge de progreso en el sidebar y en el Dashboard (tarjeta Service Desk).
 - **Inbox + Captura rápida** — anota ideas al vuelo desde cualquier vista.
 - **Referencias** — enlaces y recursos clasificados.
 - **Papelera** — borrado suave con restauración y borrado definitivo.
 - **Generar Blog** — convierte apuntes/labs en un blog estático exportable.
 - **Data & Intel** — datasets de trabajo (IoCs · eventos · reglas) con CRUD completo, buscador, filtros y contadores. Integrado con las tools: envía IoCs desde el **IoC Extractor**, reglas desde el **Sigma Explorer** y queries desde el **Detection Query Helper** con un clic — todo se actualiza al instante, sin refresh. Import .json y export .json/.csv propios, además de viajar en el backup ZIP.
 
-### 🧰 29 Herramientas offline (SOC / IAM / Red / Datos / Linux)
+### 🧰 44 Herramientas offline (SOC / IAM / Red / Datos / Linux / HelpDesk)
 
 | Categoría | Herramientas |
 |---|---|
@@ -41,10 +43,11 @@
 | **Red** | Subnetting (IPv4/CIDR) · IP Analyzer (v4/v6) · Puertos y Servicios |
 | **Web** | HTTP Status (códigos con explicación) |
 | **Datos** | Base Converter · Timestamp Converter (Unix/ISO/UTC) · Encoding (Base64/Hex/URL/ASCII/Unicode/HTML) · Regex Tester (14 presets) · Cron Parser |
-| **Security** | Hash Toolkit · File Hash Analyzer · CVSS 3.1 Calculator · CVE Search *(única online, opcional — NVD)* · Vulnerabilidades IAM/SOC (203 entradas offline) · **Ataques — 89 técnicas ofensivas offline (sin duplicar Vulnerabilidades)** |
+| **Security** | Hash Toolkit · File Hash Analyzer · CVSS 3.1 Calculator · CVE Search *(única online, opcional — NVD)* · Vulnerabilidades IAM/SOC (203 entradas offline) · **Ataques — 102 técnicas ofensivas offline (sin duplicar Vulnerabilidades)** |
 | **Linux** | Linux Permissions (chmod simbólico ↔ numérico) |
+| **HelpDesk (v19)** | **Triage de Tickets** (parser de 91 reglas → categoría/prioridad/SLA/pasos con transparencia de keywords) · **Calculadora SLA** (matriz 3×3 + cronómetro) · **Cuenta AD** (árbol de decisión bloqueo/deshabilitado/caducado con 30 comandos) · **Reset Password/MFA** (runbook de 4 fases con banner anti-social-engineering) · **Generador KB** (vista previa en vivo + Markdown) · **BitLocker** · **Outlook** · **Impresoras** · **BSOD** (24 STOP codes) · **GPO** · **Red/Ipconfig** (intérprete en vivo + escalera de conectividad) · **Intune** (30 estados/códigos) · **Sanitizador de Pegadas** (10 categorías regex, placeholders consistentes) · **Permisos Share/NTFS** (intersección + constructor icacls) · **Asistencia Remota** (runbook antes/durante/después + red flags) |
 
-#### ⚔️ Ataques — 89 técnicas ofensivas (offline)
+#### ⚔️ Ataques — 102 técnicas ofensivas (offline)
 
 Explorador de técnicas de ataque de **todo tipo** — **complementario a Vulnerabilidades y sin una sola entrada repetida**. El reparto:
 
@@ -106,12 +109,12 @@ Sección **Roadmap IAM** (sidebar, con % de progreso en vivo): el **ROADMAP DEFI
 - **Viaja en el backup ZIP** (`roadmap.json`, formato 3.4.0) — el progreso sobrevive en el USB con merge "latest wins".
 
 ### 💾 Backups ZIP portables
-- Exporta TODO el vault (apuntes como `.md`, labs, glosario, referencias, imágenes, PDFs, plataformas, categorías, tools, datasets Data & Intel, **perfiles profesionales** y **progreso del roadmap**) a un único ZIP con manifest versionado (formato **3.4.0**, schema v18).
+- Exporta TODO el vault (apuntes como `.md`, labs, glosario, referencias, imágenes, PDFs, plataformas, categorías, tools, datasets Data & Intel, **perfiles profesionales**, **progreso del roadmap IAM** y **práctica del Service Desk** — tickets con estados y notas de cierre + roadmap HelpDesk) a un único ZIP con manifest versionado (formato **3.5.0**, schema v19).
 - Guardado directo a tu carpeta elegida (File System Access) o descarga.
 - Import con **validación estricta** (schemas por tipo, protección anti zip-bomb, merge seguro con conflictos por `updatedAt`).
 - Los ZIPs legacy con videos los reporta como "ignorados" — nunca los importa.
 - Los datasets de Data & Intel viajan como `intelItems.json` y también tienen export/import propio (.json y .csv) desde la vista. Los perfiles viajan como `profiles.json` (todas las filas, merge latest-wins por perfil; el `profile.json` legacy de una fila también se acepta) y el roadmap como `roadmap.json` (merge latest-wins por ítem).
-- **Respaldo automático (USB)**: además del manual, Configuración → *Respaldo automático* escribe ZIPs rotativos `VaultNotes-Auto-*.zip` en la carpeta de la app cada N minutos **con cambios sin respaldar** — mismo formato 3.4.0, fotos, PDFs, perfiles y roadmap incluidos — conservando solo los últimos N. Con *Restaurar último backup* aterrizas en cualquier máquina en 2 clics (merge no destructivo).
+- **Respaldo automático (USB)**: además del manual, Configuración → *Respaldo automático* escribe ZIPs rotativos `VaultNotes-Auto-*.zip` en la carpeta de la app cada N minutos **con cambios sin respaldar** — mismo formato 3.5.0, fotos, PDFs, perfiles, roadmaps y tickets del Service Desk incluidos — conservando solo los últimos N. Con *Restaurar último backup* aterrizas en cualquier máquina en 2 clics (merge no destructivo).
 
 ### 🔍 Búsqueda global inteligente
 Fuzzy + substring + acrónimos con ranking por tipo. Un solo atajo (`Ctrl+K`) para todo el vault. El índice está **cacheado y precomputado** (corpus estático indexado una vez; corpus de usuario re-indexado solo cuando cambian los datos) — instantáneo incluso con 1000+ notas.
@@ -199,7 +202,7 @@ src/
 │   ├── hooks/           # useDebouncedAutoSave, useToolPrefs,
 │   │                     # useResizablePanel, useAutoBackupStatus
 │   ├── store/            # Stores zustand (note, pendingTool, ioc, intel)
-│   ├── utils/            # videoStorage (REGLA DE ORO), zipBackup (formato 3.4.0
+│   ├── utils/            # videoStorage (REGLA DE ORO), zipBackup (formato 3.5.0
 │   │                     # + profiles.json + roadmap.json), autoBackup (motor rotativo USB),
 │   │                     # profileExport (Markdown AI-ready del CV),
 │   │                     # sanitizeHtml, fuzzySearch, markdown, pdfStorage…
@@ -213,9 +216,9 @@ src/
 
 ## ⚡ Performance
 
-- **Code-splitting**: la ruta `/` carga solo el shell (Sidebar + Header). Las 12 vistas y los 5 modales son chunks separados (`next/dynamic`) que se montan al usarse; el chunk de búsqueda se pre-calienta en idle tras el primer paint.
+- **Code-splitting**: la ruta `/` carga solo el shell (Sidebar + Header). Las 16 vistas y los 5 modales son chunks separados (`next/dynamic`) que se montan al usarse; el chunk de búsqueda se pre-calienta en idle tras el primer paint.
 - **Shell mínimo**: el módulo de backup (JSZip + DOMPurify + zod + file-saver, ~100 KB) se carga con `import()` dinámico solo al exportar/importar un ZIP — nunca pesa en el arranque.
-- **Grafo de herramientas estático dentro de su chunk**: las 29 herramientas viajan juntas en el chunk lazy de ToolsView — estático a propósito para robustez HMR en dev (VN-F-003: ~20 dynamic imports por tool rompían el runtime de Turbopack tras reinicios del dev server).
+- **Grafo de herramientas estático dentro de su chunk**: las 44 herramientas viajan juntas en el chunk lazy de ToolsView — estático a propósito para robustez HMR en dev (VN-F-003: ~20 dynamic imports por tool rompían el runtime de Turbopack tras reinicios del dev server).
 - **Búsqueda Ctrl+K**: corpus estático (~600 docs) indexado una vez a nivel de módulo; corpus de usuario re-indexado solo cuando cambian los datos (stamp FNV-1a sobre id+updatedAt); queries de 1 carácter sin fuzzy; contenido indexado acotado por nota.
 - **Blobs aislados**: imágenes y PDFs viven en tablas dedicadas — los listados nunca los leen; los videos jamás entran a IndexedDB (REGLA DE ORO).
 - **Re-renders acotados**: Sidebar y Header memoizados con callbacks estables; los modales solo se montan cuando abren; autoguardado con debounce de 1500 ms.
@@ -324,6 +327,7 @@ bun run start
 - **Revisión funcional final E2E (navegador real)**: notas (crear → autoguardado → reload → persistido), papelera (borrado suave → restauración), búsqueda `Ctrl+K` por contenido instantánea, Data & Intel end-to-end (alta manual → IoC Extractor "Guardar en Data & Intel (4)" → los 4 IoCs visibles al instante → dedup → export .json/.csv habilitado), **29/29 herramientas visibles (incluida Ataques: contador 89/89, aviso anti-duplicados visible, filtros por categoría — IAM 12, Red 25, DoS 16, Web 19, Social 9, Malware 8 —, búsqueda por alias — "arp poisoning" → RED-002 —, verificación de dedup — "kerberoasting" → 0 resultados en Ataques y presente en Vulnerabilidades (3/203) —, drawer completo con detección KQL y checklist de mitigación, Esc cierra)**, captura rápida → Inbox, Blog → descarga .md, backup ZIP → toast de confirmación, responsive 390/1440 px sin scroll horizontal, 0 errores de consola
 - **Glosario sembrado + Roadmap + multi-perfil (pasada 8 — navegador real)**: instalación nueva → 389 términos presentes SIN importar nada (modal Packs eliminado; A-Z + búsqueda + detalle + flashcards funcionan; el término nuevo "Expiración y vigencia de tokens" aparece en el mazo). Roadmap: 52 ítems/3 tiers + proyecto final renderizados con el texto exacto, toggle de ítems → progreso global/tier/fase/sidebar (0%→2%) → persiste tras reload (doneAt registrado) → export MD con progreso real (1/52, [x] Gobernanza) → restaurado a 0. Perfil: seed "Perfil IAM" (21 skills) + crear "Perfil 2" + duplicar + eliminar (confirm) + renombrar con autosave + cambio de perfil con flush (nombre persiste) + export .md real con el nombre del perfil en el encabezado. Backup: ZIP v3.4.0/schema v18 con profiles.json + roadmap.json verificado (contenido inspeccionado) e importado de vuelta sin duplicar nada (389/52/1 exactos tras el round-trip). Móvil 390px y desktop 1440px sin scroll horizontal, 0 errores de consola/página/dev.log.
 - **QA integral + auditoría de código muerto (pasada 9 — navegador real)**: grafo de imports de los 125 módulos de `src/` auditado → **0 archivos muertos** (todos alcanzables desde App.tsx) y **13 exports muertos eliminados** (`RoadmapProgress`, `ROADMAP_TOTAL_ITEMS`, re-exports del barrel del glosario, `goToTool` duplicado en `_shared` — ToolsView usa su versión local con limpieza de selección —, 5 interfaces de-exportadas a interno y el tipo `ToolCatalogEntry` duplicado en `fuzzySearch` unificado con el de `data/toolsCatalog`). **Nueva tarjeta "Roadmap IAM" en el Dashboard** (sección Learning, ahora grid de 4): % en vivo + done/total + barra de progreso + clic navega al checklist — accesible por teclado (Enter/Espacio) y con `role=progressbar`. Re-verificación E2E de todo: glosario (389 términos, búsqueda "SCIM" → 2 resultados, flashcards con rating Difícil/Bueno/Fácil), roadmap (toggle → 0%→2% en sidebar/tier/fase, persiste tras reload), multi-perfil (crear/duplicar/eliminar + vista previa MD de 120 líneas), JWT Decoder (decodifica token real), búsqueda global ("conditional" → término de glosario), backup manual sin errores, las 14 vistas renderizan. `eslint` 0 · `tsc --noEmit` 0 · 0 errores de consola/página/dev.log · responsive 390/1440 sin overflow.
+- **Expansión HelpDesk/IT Support completa (pasada 10 — navegador real)**: FASE 1 (datos) → Dexie **v19** con glosario **639** (389+250), **48 tickets** Nexora, **28 KB**, roadmap HelpDesk **65 ítems** y 4 labs L1 siembran en instalación nueva e idempotentes tras reload. FASE 2 (tools) → **44 utilidades** (29+15 HelpDesk) con grupo HELPDESK en el catálogo, favoritos/recientes y Ctrl+K indexando las nuevas ("SLA" → SLA Calculator + Triage Parser; "BitLocker" → tool + glosario). FASE 3 (UI) → sección **Service Desk** (3 pestañas): cola master-detail con filtros live, modo estudio con revelado progresivo, flujo nuevo→en progreso→resuelto/escalado→cerrado con **nota de cierre obligatoria** (validación mín. 10 chars con alert), Proyecto Final 5 días × 6 tickets con deep-links, KB 28 artículos con comandos y cross-links a tickets y glosario; sección **Roadmap HelpDesk** (variante hd del RoadmapView) con 4 tiers y toggle persistente (1/65 → badge 2% tras reload); tarjetas Service Desk en Dashboard y 2 botones en Sidebar con badges en vivo. "Añadir a Notas" del ticket → nota con tabla escapada (anti-XSS). FASE 4 (backup) → **formato 3.5.0**: `helpdeskTickets.json` + `roadmapHelpDesk.json` en el export (verificado en los bytes del ZIP) y round-trip de import verificado: ticket nuevo importado, **conflicto latest-wins** respeta el trabajo local (ticket local más nuevo no pisado; ídem roadmap HD), fila malformada rechazada por Zod, reporte con los 2 contadores nuevos de conflicto. `eslint` 0 · `tsc --noEmit` 0 (src/vault) · 0 errores de consola/página · responsive 390 sin overflow.
 - E2E verificado (pasadas previas): backups ZIP round-trip (export → import, formato 3.2.0), flujo completo de videos (insertar → persistencia → restart → re-link → export sin videos), Data & Intel (edición → borrado → import .json), integración Sigma Explorer y Detection Query Helper
 - Auditoría de seguridad: 0 CRÍTICOS · 0 ALTOS · 0 MEDIOS · 0 BAJOS abiertos — los 6 hallazgos de la auditoría interna están fixeados y verificados en navegador (el reporte interno de proceso se retiró del repo: la evidencia que importa es el código y esta lista)
 - Robustez HMR en dev: imports estáticos del grafo de herramientas + auto-recarga sanitizada ante errores de factory tras reinicios del dev server

@@ -51,7 +51,14 @@ export const ROADMAP_MASTERY_NOTE =
   'explicar el porqué, identificar sus riesgos, interpretar la evidencia y ' +
   'resolver problemas sin tutoriales.';
 
-export const ROADMAP_HEADER = {
+/** Cabecera compartida por los roadmaps (IAM y HelpDesk). */
+export interface RoadmapHeaderDef {
+  title: string;
+  specialization: string;
+  edge: string;
+}
+
+export const ROADMAP_HEADER: RoadmapHeaderDef = {
   title: 'Roadmap: Junior IAM / Identity Security Analyst',
   specialization: 'Especialización Principal: IAM & Identity Governance',
   edge: 'Ventaja Competitiva: SOC / Blue Team Background',
