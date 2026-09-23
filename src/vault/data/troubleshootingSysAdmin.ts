@@ -1,7 +1,8 @@
 /**
  * troubleshootingSysAdmin.ts — ESCALERAS DE DECISIÓN del PILAR 2 (SysAdmin L2).
  *
- * V9 FASE 9: 16 guías TS-SA-001..TS-SA-016. NO es una copia de los runbooks:
+ * V9 FASE 9: 16 guías TS-SA-001..TS-SA-016 + FASE 19f: 6 guías TS-SA-017..TS-SA-022
+ * (total 22). NO es una copia de los runbooks:
  * el runbook describe el procedimiento completo de remediación; aquí lo que
  * importa es DIAGNOSTICAR (¿dónde está el problema?) con la escalera
  *
@@ -863,6 +864,321 @@ export const TROUBLESHOOTING_SA: PillarTroubleshooting[] = [
     remediation: '35% firewall o puerto 10050 bloqueado, 25% agente caído o con Server= incorrecto, 15% reloj del host desviado, 15% proxy de segmento caído, 10% servidor de monitoreo o base.',
     verification: 'El host vuelve a verde con last check de menos de un minuto y la cola del servidor de monitoreo en cero.',
     tags: ['monitoreo', 'zabbix', 'zabbix-agent', 'zabbix_get', '10050', 'no data', 'poller', 'ntp'],
+  },
+  {
+    id: 'TS-SA-017',
+    pillar: 'SYSADMIN',
+    title: 'LUN iSCSI no se monta',
+    problem: 'El Windows Server no monta la LUN iSCSI tras un reinicio o nunca la ve: separar iniciador, red, sesión y presentación del array.',
+    symptoms: [
+      'El disco de la aplicación no aparece tras reiniciar el servidor.',
+      'El servicio MSiSCSI detenido o la sesión iSCSI desconectada.',
+      'El storage muestra la LUN presentada pero el sistema operativo no la ve.',
+    ],
+    level: 'Iniciador (MSiSCSI) vs Red/Target vs Sesión vs Disco en el SO',
+    checks: [
+      {
+        check: 'El servicio del iniciador',
+        command: 'Get-Service MSiSCSI',
+        result: 'Status Running con StartupType Automatic.',
+        next: 'Si Stopped o Manual: Start-Service MSiSCSI y Set-Service MSiSCSI -StartupType Automatic (el clásico: la LUN solo aparece mientras el servicio corre). Si ya corre: probar la red al target.',
+      },
+      {
+        check: 'Alcance al portal iSCSI',
+        command: 'Test-NetConnection storage01 -Port 3260',
+        result: 'TcpTestSucceeded True al 3260 del array.',
+        next: 'Si falla: VLAN de storage, firewall o el array: validar con Redes antes de tocar el iniciador. Si pasa: revisar la sesión.',
+      },
+      {
+        check: 'El target descubierto y su estado',
+        command: 'Get-IscsiTarget | ft NodeAddress, ConnectionState',
+        result: 'El target iqn.2000-01.com.nexora:storage01.lun-erp en Connected.',
+        next: 'Si Disconnected o no aparece: New-IscsiTargetPortal -TargetPortalAddress storage01 y luego Connect-IscsiTarget -NodeAddress "iqn.2000-01.com.nexora:storage01.lun-erp" (si nunca se descubre: el LUN masking del array apunta a otro IQN de iniciador).',
+      },
+      {
+        check: 'La sesión es persistente',
+        command: 'Get-IscsiSession | ft IsConnected, IsPersistent, TargetNodeAddress',
+        result: 'La sesión IsPersistent True (reconecta sola tras reiniciar).',
+        next: 'Si IsPersistent False: Get-IscsiSession | Register-IscsiSession (sin esto el servidor amanece sin LUN tras cada reinicio). Si ya es persistente: revisar las rutas.',
+      },
+      {
+        check: 'Rutas (una o varias, MPIO)',
+        command: 'Get-IscsiConnection | ft InitiatorAddress, TargetAddress, TargetPortNumber, State',
+        result: 'Una ruta activa o dos (MPIO) hacia el target.',
+        next: 'Si hay dos NICs de storage y solo una ruta: montar la segunda sesión (MPIO): con una sola ruta, cualquier fallo de ese camino tira el disco. Si las rutas están: refrescar el almacenamiento.',
+      },
+      {
+        check: 'El disco visible para el SO',
+        command: 'Update-HostStorageCache; Get-Disk | ft Number, FriendlyName, OperationalStatus, IsOffline',
+        result: 'El disco de la LUN aparece Online con su letra o punto de montaje.',
+        next: 'Si aparece Offline: Get-Disk | Where IsOffline | Set-Disk -Number X -IsOffline $false (política SAN). Si no aparece tras el rescan: presentación en el array (LUN masking al IQN del servidor): validar con Storage.',
+      },
+    ],
+    remediation: '30% sesión no persistente (Register-IscsiSession), 25% servicio MSiSCSI en Manual o caído, 20% presentación o LUN masking en el array, 15% red de storage (VLAN o firewall 3260), 10% disco Offline por política SAN.',
+    verification: 'Tras un reinicio completo del servidor la LUN queda Online, la sesión persistente reconecta sola y la aplicación monta su volumen.',
+    tags: ['iscsi', 'lun', 'msiscsi', '3260', 'connect-iscsitarget', 'register-iscsisession', 'mpio', 'update-hoststoragecache'],
+  },
+  {
+    id: 'TS-SA-018',
+    pillar: 'SYSADMIN',
+    title: 'Nodo fuera del clúster WSFC',
+    problem: 'Un nodo del clúster aparece Down o Paused y la escalera separa servicio, heartbeats, eventos y cuórum antes de forzar el reingreso.',
+    symptoms: [
+      'Get-ClusterNode muestra el nodo en Down o Paused.',
+      'Los roles concentrados en el otro nodo o el clúster sin cuórum si era de dos nodos.',
+      'Eventos 1135 o 1177 en el System de los nodos activos.',
+    ],
+    level: 'Servicio ClusSvc vs Red de heartbeat vs Cuórum vs Mantenimiento',
+    checks: [
+      {
+        check: 'Estado y detalle del nodo',
+        command: 'Get-ClusterNode | ft Name, State, DynamicWeight, NodeWeight',
+        result: 'Todos los nodos en Up con su NodeWeight asignado.',
+        next: 'Si Down: el nodo salió de la membresía (checks 2 a 4). Si Paused: alguien lo dejó en pausa (check 6). Si Joining: arranque en curso: esperar y volver a consultar.',
+      },
+      {
+        check: 'El servicio de clúster en el nodo caído',
+        command: 'Get-Service ClusSvc -ComputerName nodo02',
+        result: 'Status Running en el nodo problemático.',
+        next: 'Si Stopped: Start-Service y revisar por qué se detuvo (eventos del nodo). Si corre pero el nodo sigue Down: heartbeats o red.',
+      },
+      {
+        check: 'Redes y heartbeat del clúster',
+        command: 'Get-ClusterNetworkInterface | ft Name, Node, Network, State',
+        result: 'Todas las interfaces de clúster en Up (las redes de heartbeat incluidas).',
+        next: 'Si una interfaz aparece Failed o Down: NIC, cable, VLAN o driver en ese nodo: repararla antes de reintegrarlo. Si las redes están Up: eventos.',
+      },
+      {
+        check: 'Eventos de FailoverClustering',
+        command: 'Get-WinEvent -FilterHashtable @{LogName="System"; ProviderName="Microsoft-Windows-FailoverClustering"; Id=1135,1069,1177} -MaxEvents 10 | fl TimeCreated, Id, Message',
+        result: 'Sin 1135 recientes (nodo sacado de la membresía por pérdida de comunicación).',
+        next: 'Si hay 1135 repetidos sobre la misma red: el nodo pierde heartbeat intermitente: revisar carga o teaming de esas NICs. Si hay 1177: problemas de testigo o cuórum (check 5).',
+      },
+      {
+        check: 'Testigo y cuórum',
+        command: 'Get-ClusterQuorum | fl *',
+        result: 'El testigo (file share o disco) con voto y el clúster mantiene cuórum.',
+        next: 'Si el testigo está caído: restaurarlo primero (share o disco de testigo) o el clúster queda a un solo fallo del quórum. Si el cuórum está bien: revisar pausa o mantenimiento.',
+      },
+      {
+        check: '¿Lo dejaron en pausa?',
+        command: 'Resume-ClusterNode -Name nodo02',
+        result: 'El nodo vuelve a Up y los roles pueden balancearse de vuelta.',
+        next: 'Si estaba Paused por mantenimiento olvidado: al resumirlo validar que los roles devueltos levantan limpio. Si vuelve a caer tras el resume: los eventos del check 4 tienen la causa raíz.',
+      },
+    ],
+    remediation: '30% red o heartbeat (NIC, VLAN o teaming), 25% servicio ClusSvc caído o en loop en el nodo, 20% pausa de mantenimiento olvidada, 15% testigo de cuórum caído, 10% parche o reinicio pendiente del nodo.',
+    verification: 'Get-ClusterNode con todos los nodos Up, un failover de prueba mueve un rol al nodo reintegrado y no hay 1135 nuevos en 24 horas.',
+    tags: ['wsfc', 'clustering', 'get-clusternode', 'clussvc', '1135', 'cuorum', 'testigo', 'resume-clusternode'],
+  },
+  {
+    id: 'TS-SA-019',
+    pillar: 'SYSADMIN',
+    title: 'Usuario no entra a la granja RDS',
+    problem: 'El usuario no entra a la granja RDS y la escalera separa alcance, DNS de la granja, permisos, broker y licencias.',
+    symptoms: [
+      'El RDP a granja-rds falla solo para ese usuario o para todos.',
+      'Mensaje de que no tiene acceso remoto o de licencias no disponibles.',
+      'Entra directo a un host por IP pero no por el nombre de la granja.',
+    ],
+    level: 'Alcance vs DNS granja vs Permisos vs Broker vs Licencias',
+    checks: [
+      {
+        check: 'Alcance del problema',
+        result: 'Solo un usuario falla; el resto entra normal a la granja.',
+        next: 'Si es un usuario: sus permisos o su cuenta (check 3). Si son todos: DNS, broker o licencias (checks 2, 5 y 6). Si son solo algunos: grupo de la colección o límite de sesiones (checks 3 y 6).',
+      },
+      {
+        check: 'Resolución del nombre de la granja',
+        command: 'nslookup granja-rds.{{DOMAIN}}',
+        result: 'El nombre de la granja resuelve a las IPs de los hosts (round robin DNS).',
+        next: 'Si no resuelve o devuelve IPs viejas: registro de la granja en DNS: corregir o crear los A records de los hosts. Si resuelve: probar el puerto.',
+      },
+      {
+        check: 'Permiso del usuario (Remote Desktop Users)',
+        command: 'net localgroup "Remote Desktop Users"',
+        result: 'El usuario o su grupo de acceso aparece en la lista del host.',
+        next: 'Si falta: agregarlo al grupo o al grupo de la colección en RDS: si falta para todos los usuarios nuevos, la membresía del grupo de la colección quedó a medias.',
+      },
+      {
+        check: 'Puerto RDP de un host de la granja',
+        command: 'Test-NetConnection rds01 -Port 3389',
+        result: 'TcpTestSucceeded True al host.',
+        next: 'Si falla: servicio o firewall del host (guía TS-HD-012 desde el lado servidor). Si el puerto responde pero nadie entra: broker o licencias (checks 5 y 6).',
+      },
+      {
+        check: 'El Connection Broker y la colección',
+        command: 'Get-Service Tssdis',
+        result: 'Remote Desktop Connection Broker en Running y la colección con hosts disponibles.',
+        next: 'Si Tssdis está caído: Start-Service y revisar sus dependencias (y la base interna del broker). Si el broker está bien: revisar sesiones y licencias.',
+      },
+      {
+        check: 'Licencias CAL y sesiones',
+        command: 'quser /server:rds01',
+        result: 'Sesiones activas por debajo del límite y sin mensajes de licencias.',
+        next: 'Si quser muestra el límite de sesiones alcanzado: límite por host o por usuario de la colección. Si el error habla de licencias o período de gracia: abrir lsdiag.msc (RD Licensing Diagnoser) y validar el servidor de licencias y sus CAL: sin CAL el host expulsa a los usuarios.',
+      },
+    ],
+    remediation: '30% permisos (usuario fuera de Remote Desktop Users o del grupo de la colección), 25% licencias RDS CAL agotadas o servidor de licencias sin configurar, 20% broker o su servicio, 15% DNS de la granja con registro viejo, 10% límite de sesiones.',
+    verification: 'El usuario entra por el nombre de la granja, cae en un host de la colección y el RD Licensing Diagnoser queda sin advertencias.',
+    tags: ['rds', 'granja rds', 'tssdis', 'quser', 'lsdiag', 'remote desktop users', 'cal', 'connection broker'],
+  },
+  {
+    id: 'TS-SA-020',
+    pillar: 'SYSADMIN',
+    title: 'Tarea de cron no ejecuta',
+    problem: 'El job de cron no corrió o corrió y falló en silencio: la escalera separa servicio, agenda, script y entorno del propio cron.',
+    symptoms: [
+      'El backup o reporte nocturno no aparece y nadie fue alertado.',
+      'El log del cron muestra la línea del job con error o no la muestra.',
+      'A mano el script funciona, por cron nunca corre.',
+    ],
+    level: 'Servicio cron vs Agenda (crontab) vs Script vs Entorno del cron',
+    checks: [
+      {
+        check: 'El servicio de cron',
+        command: 'systemctl status crond',
+        result: 'Active: active (running) con el uptime del servicio.',
+        next: 'Si failed o inactive: journalctl -u crond -n 30 para el error y systemctl restart crond. Si corre: ver si la tarea se agendó.',
+      },
+      {
+        check: 'El cron registró el intento',
+        command: 'journalctl -t CROND -n 20 --no-pager',
+        result: 'Aparece la línea del job con usuario y comando a la hora esperada.',
+        next: 'Si la línea nunca aparece: la agenda no existe o el servicio no la lee (check 3). Si aparece con salida de error: el script falló (checks 4 y 5).',
+      },
+      {
+        check: 'La agenda del job',
+        command: 'crontab -l -u svc-job; cat /etc/cron.d/backup-nexora',
+        result: 'La línea del job presente y con la sintaxis correcta.',
+        next: 'Si la línea falta: re-agendar. Si existe: validar la sintaxis: el % en crontab es un salto de línea (escapar como \%) y el archivo de /etc/cron.d exige el usuario en la línea y una línea en blanco al final.',
+      },
+      {
+        check: 'El script existe y es ejecutable',
+        command: 'ls -l /opt/scripts/backup-nexora.sh',
+        result: 'El script presente con -rwxr-xr-x y dueño correcto.',
+        next: 'Si falta: restaurarlo de su fuente. Si no tiene la x: chmod 750 y probar. Si el dueño no es la cuenta del cron: ajustar o correr como el usuario del cron (check 5).',
+      },
+      {
+        check: 'Ejecutarlo a mano como el usuario del cron',
+        command: 'sudo -u svc-job /opt/scripts/backup-nexora.sh',
+        result: 'El script corre limpio con la cuenta que usa el cron.',
+        next: 'Si a mano falla: el script mismo (leer su log propio). Si a mano funciona pero por cron no: entorno del cron: rutas absolutas y PATH dentro del script (cron no carga .bashrc: los binarios con ruta relativa fallan).',
+      },
+      {
+        check: 'Dónde quedó la salida del error',
+        command: 'tail -30 /var/spool/mail/svc-job',
+        result: 'Sin correos de CRON con stderr acumulado.',
+        next: 'Si el mail del usuario tiene la salida del error: esa es la causa exacta documentada en el propio sistema. Si el equipo se apaga de noche: los daily quedan a merced de anacron: validar con systemctl list-timers | grep -iE "cron|anacron".',
+      },
+    ],
+    remediation: '30% entorno del cron (PATH o rutas relativas), 25% script con error propio (se ve al correrlo a mano), 20% agenda mal escrita (% sin escapar o falta de línea final), 15% script sin permiso de ejecución, 10% servicio cron caído o máquina apagada en la ventana.',
+    verification: 'La siguiente ventana del cron ejecuta el job (línea en journalctl -t CROND), el artefacto esperado aparece y no llega stderr al mail del usuario.',
+    tags: ['cron', 'crontab', 'crond', 'journalctl', 'etc cron.d', 'sudo -u', 'anacron', 'job nocturno'],
+  },
+  {
+    id: 'TS-SA-021',
+    pillar: 'SYSADMIN',
+    title: 'Llave SSH rechazada en Windows Server',
+    problem: 'La llave pública no autentica contra el OpenSSH de Windows Server y la escalera separa servicio, ruta del authorized_keys, permisos NTFS y configuración.',
+    symptoms: [
+      'ssh devuelve Permission denied (publickey) con la llave instalada.',
+      'La contraseña sí funciona pero la llave no.',
+      'Funciona para usuarios estándar y falla para administradores (o al revés).',
+    ],
+    level: 'Servicio sshd vs authorized_keys (ruta) vs Permisos NTFS vs sshd_config',
+    checks: [
+      {
+        check: 'El servicio sshd',
+        command: 'Get-Service sshd',
+        result: 'Status Running con StartupType Automatic.',
+        next: 'Si Stopped: Start-Service sshd (y revisar la llave de host en C:\\ProgramData\\ssh si no arranca). Si corre: ver el rechazo en el log.',
+      },
+      {
+        check: 'El rechazo en el log de OpenSSH',
+        command: 'Get-WinEvent -LogName "OpenSSH/Operational" -MaxEvents 20 | fl TimeCreated, Message',
+        result: 'El intento del usuario registrado sin authentication refused.',
+        next: 'Si el mensaje dice Authentication refused: bad ownership or modes: la clave son los permisos NTFS del authorized_keys (check 4). Si no llega ni el intento: cliente o red (check 6).',
+      },
+      {
+        check: 'La ruta del authorized_keys',
+        result: 'La llave está en la ruta que espera sshd para ese perfil de usuario.',
+        next: 'Usuario administrador: la llave va en C:\\ProgramData\\ssh\\administrators_authorized_keys (la trampa clásica de Windows OpenSSH). Usuario estándar: C:\\Users\\{{USERNAME}}\\.ssh\\authorized_keys. Si está en la ruta equivocada: mover la llave.',
+      },
+      {
+        check: 'Permisos NTFS del archivo de llaves',
+        command: 'icacls "C:\\ProgramData\\ssh\\administrators_authorized_keys"',
+        result: 'Solo SYSTEM y Administrators con acceso (sin herencia abierta).',
+        next: 'Si aparecen más grupos o herencia: icacls "C:\\ProgramData\\ssh\\administrators_authorized_keys" /inheritance:r /grant "SYSTEM:F" /grant "Administrators:F" y reintentar (sshd exige dueño y permisos estrictos).',
+      },
+      {
+        check: 'La configuración de sshd',
+        command: 'findstr /i "AuthorizedKeysFile StrictModes" C:\\ProgramData\\ssh\\sshd_config',
+        result: 'AuthorizedKeysFile por defecto (.ssh/authorized_keys) o la ruta custom documentada.',
+        next: 'Si AuthorizedKeysFile apunta a otra ruta: instalar la llave ahí. Si hay un Match Group que excluya al usuario: ajustarlo y Restart-Service sshd tras cada cambio de la config.',
+      },
+      {
+        check: 'Verbose desde el cliente',
+        command: 'ssh -v {{USERNAME}}@10.10.10.25',
+        result: 'El cliente ofrece la llave correcta y el servidor la valida.',
+        next: 'Si el cliente nunca ofrece la llave (no identity): ssh-add o -i con el path en el cliente. Si la ofrece y el servidor la rechaza: los checks 3 a 5 del lado servidor; probar con una llave recién generada para descartar formato incompatible (OpenSSH nuevo vs PEM).',
+      },
+    ],
+    remediation: '35% llave en la ruta equivocada (administrators_authorized_keys), 25% permisos NTFS del archivo de llaves, 20% sshd_config o Match Group, 10% servicio sshd caído, 10% llave mal generada o formato incompatible en el cliente.',
+    verification: 'ssh -v {{USERNAME}}@10.10.10.25 autentica sin contraseña y el job o cliente automatizado que la usa entra igual desde su origen.',
+    tags: ['ssh', 'openssh', 'authorized_keys', 'administrators_authorized_keys', 'sshd_config', 'icacls', 'permission denied', 'sshd'],
+  },
+  {
+    id: 'TS-SA-022',
+    pillar: 'SYSADMIN',
+    title: 'WSUS 0x8024402C',
+    problem: 'Los clientes fallan contra WSUS con 0x8024402C y la escalera separa alcance, proxy del cliente, resolución, TLS y el lado servidor.',
+    symptoms: [
+      'Windows Update muestra el error 0x8024402C al buscar actualizaciones.',
+      'Los clientes no reportan al WSUS o reportan con días de retraso.',
+      'A veces solo falla una sede o un grupo de servidores viejos.',
+    ],
+    level: 'Alcance vs Proxy/Cliente vs Resolución y puerto vs WSUS (IIS/TLS)',
+    checks: [
+      {
+        check: 'Alcance del problema',
+        result: 'Un equipo, un segmento o toda la organización falla contra el WSUS.',
+        next: 'Si es un equipo: cliente (checks 2 y 3). Si es un segmento: proxy o firewall de esa sede (checks 3 y 4). Si son todos: el WSUS mismo (check 6).',
+      },
+      {
+        check: 'El error exacto en el cliente',
+        command: 'Get-WinEvent -LogName "Microsoft-Windows-WindowsUpdateClient/Operational" -MaxEvents 20 | fl TimeCreated, Id, Message',
+        result: 'El 0x8024402C con el detalle del motivo (nombre de proxy o servidor sin resolver).',
+        next: '0x8024402C es que no se puede resolver el nombre (del proxy o del WSUS): validar el proxy de winhttp (check 3) y la resolución (check 4). Si aparece 0x80244019 o 0x8024402F: es HTTP al servidor: revisar el puerto y el IIS.',
+      },
+      {
+        check: 'Proxy de winhttp del cliente',
+        command: 'netsh winhttp show proxy',
+        result: 'Proxy correcto o acceso directo, coherente con el segmento del equipo.',
+        next: 'Si hay un proxy viejo o retirado: netsh winhttp reset proxy (o apuntar al proxy vigente) y wuauclt /detectnow. Si está limpio: la resolución del WSUS.',
+      },
+      {
+        check: 'Resolución y puerto hacia el WSUS',
+        command: 'Test-NetConnection wsus01.{{DOMAIN}} -Port 8530',
+        result: 'TcpTestSucceeded True al 8530 (o 8531 si el WSUS usa HTTPS).',
+        next: 'Si el nombre no resuelve: DNS del cliente (guía TS-HD-001). Si el puerto falla: validar el canal HTTP/HTTPS de la GPO y de IIS: mismo canal en ambos (8530 o 8531), nunca cruzado.',
+      },
+      {
+        check: 'TLS del cliente (WinHTTP)',
+        command: 'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\WinHttp" /v DefaultSecureProtocols',
+        result: 'DefaultSecureProtocols en 0x800 (TLS 1.2) o el valor ausente en Windows moderno (TLS 1.2 nativo).',
+        next: 'En Windows Server 2012 R2 o anterior sin el valor: aplicar 0x0800 y reiniciar: el WinHTTP viejo solo habla TLS 1.0 y el HTTPS del WSUS o del proxy lo rechaza. En Windows 10/11 y 2016+: el TLS no es el problema.',
+      },
+      {
+        check: 'El lado servidor: WSUS e IIS',
+        command: 'Get-Service WsusService',
+        result: 'Update Services (WsusService) en Running y el app pool WsusPool arriba.',
+        next: 'Si WsusService o el pool WsusPool (Get-WebAppPoolState WsusPool) están caídos: levantarlos y revisar la identidad del pool (se cae por memoria con el WSUS hinchado: limpieza con su runbook). Después: wuauclt /resetauthorization /detectnow en un cliente de prueba.',
+      },
+    ],
+    remediation: '30% proxy winhttp viejo o mal aplicado (el 0x8024402C de nombre sin resolver), 25% DNS o canal HTTP/HTTPS cruzado entre GPO e IIS, 20% TLS 1.2 ausente en clientes viejos (2012 R2), 15% WsusPool o WsusService caídos, 10% firewall del segmento.',
+    verification: 'Un cliente de prueba busca actualizaciones sin error, reporta al WSUS (último contacto reciente en la consola) y descarga una actualización completa.',
+    tags: ['wsus', '0x8024402c', 'winhttp proxy', '8530', 'defaultsecureprotocols', 'wsuspool', 'windows update', 'tls 1.2'],
   },
 ];
 

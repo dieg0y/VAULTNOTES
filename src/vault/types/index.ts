@@ -179,6 +179,10 @@ export interface ImportSummary {
   /** v9 (SOC): incoming roadmapSocItems rows (roadmapSoc.json) skipped
    * because the local row is newer — preserves local roadmap SOC progress. */
   conflictRoadmapSocItems: number;
+  /** v9 (SIMULADOR SOC): incoming socTickets rows (socTickets.json)
+   * skipped because the local row is newer (updatedAt) — preserves the
+   * user's SOC triage practice work (status + notas de cierre). */
+  conflictSocTickets: number;
   /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */
@@ -361,7 +365,7 @@ export type ActiveSection =
   // Pilar 2 — SysAdmin Ops / Infra:
   | 'sysadmin' | 'roadmap-sa' | 'tools-sa' | 'troubleshooting-sa' | 'cheatsheet-sa' | 'runbooks-sa'
   // Pilar 3 — SOC / Blue Team:
-  | 'roadmap-soc' | 'tools-soc' | 'troubleshooting-soc' | 'cheatsheet-soc' | 'runbooks-soc';
+  | 'soc' | 'roadmap-soc' | 'tools-soc' | 'troubleshooting-soc' | 'cheatsheet-soc' | 'runbooks-soc';
 
 /* ------------------------------------------------------------------ */
 /* HELPDESK (v19) — tickets simulados (CRUD) + KB (dataset estático). */
@@ -549,5 +553,108 @@ export interface SysAdminKbArticle {
   /** Nombres de términos del glosario relacionados. */
   relatedTerms?: string[];
   /** Ids de tickets del dataset que lo referencian. */
+  relatedTickets?: string[];
+}
+
+/* ------------------------------------------------------------------ */
+/* SOC (v9 · SIMULADOR) — cola de alertas/incidentes del Blue Team.    */
+/* Mismo contrato que HelpDesk (v19) / SysAdmin (v21) con UNA          */
+/* extensión de dominio: `environment` clasifica la TORRE DE           */
+/* DETECCIÓN donde disparó la alerta (Identity / Endpoint / Network /  */
+/* Email / Cloud / Web / Multi) — soporta el filtro por torre de la    */
+/* cola, igual que el filtro por entorno del simulador SysAdmin.      */
+/* Las alertas se siembran desde data/socTickets.ts (Nexora S.A. —    */
+/* SOC "Blue Team", empresa ficticia) y el usuario las trabaja como   */
+/* práctica de triage L1: investigar → contener → documentar. La KB   */
+/* es solo lectura (viene de fábrica, data/socKB.ts).                 */
+/* ------------------------------------------------------------------ */
+
+export type SocTicketType = 'incidente' | 'solicitud';
+export type SocTicketPriority = 'P1' | 'P2' | 'P3' | 'P4';
+export type SocTicketLevel = 'alta' | 'media' | 'baja';
+export type SocTicketStatus = 'nuevo' | 'en_progreso' | 'resuelto' | 'cerrado' | 'escalado';
+export type SocEnvironment =
+  | 'Identity'
+  | 'Endpoint'
+  | 'Network'
+  | 'Email'
+  | 'Cloud'
+  | 'Web'
+  | 'Multi';
+
+export interface SocTicket {
+  /** Id estable del seed ('soc-001'...) o generado para tickets propios. */
+  id: string;
+  /** Número visible del caso ('SOC-3001'...). */
+  number: string;
+  title: string;
+  /** Categoría de la lista maestra (rama SOC). */
+  category: string;
+  /** Subcategoría corta ('Phishing', 'EDR', 'KQL'...). */
+  subcategory?: string;
+  type: SocTicketType;
+  priority: SocTicketPriority;
+  impact: SocTicketLevel;
+  urgency: SocTicketLevel;
+  /** Torre de detección donde disparó la alerta (filtro por torre). */
+  environment: SocEnvironment;
+  /** Origen del reporte — ficticio: 'SIEM (Sentinel)', 'Usuario (reporte)'. */
+  requester: string;
+  /** Qué reporta el origen, en sus palabras. */
+  description: string;
+  /** Síntomas observables/verificables (señales, Event IDs, IoCs...). */
+  symptoms: string;
+  /** Datos ya recolectados (KQL, logs, IoCs, severidad MITRE...). */
+  dataAvailable?: string;
+  /** Pasos esperados de investigación (guía de estudio). */
+  troubleshooting?: string;
+  /** Resolución esperada (guía de estudio — veredicto + acciones). */
+  resolution?: string;
+  /** A quién/cuándo escalar ('L2 DFIR', 'CSIRT externo'...). */
+  escalation?: string;
+  /** Id del artículo de KB relacionado ('sockb-phishing-triage'). */
+  kbRef?: string;
+  /** Habilidad práctica que entrena el caso. */
+  skill?: string;
+  /** Evidencia sugerida a registrar en el caso. */
+  evidence?: string;
+  /** Estado de trabajo del usuario. */
+  status: SocTicketStatus;
+  /** Nota de cierre/resolución escrita por el usuario. */
+  statusNote?: string;
+  /** True = forma parte del proyecto final (30 casos "primera semana SOC"). */
+  isFinalProject?: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Paso de un artículo de la KB SOC (uso interno de este módulo). */
+interface SocKbStep {
+  title: string;
+  detail?: string;
+  /** Comando/query educativo (KQL/SPL/PowerShell/bash) — texto plano. */
+  command?: string;
+}
+
+/** Artículo de la base de conocimiento SOC (dataset estático). */
+export interface SocKbArticle {
+  id: string;
+  title: string;
+  category: string;
+  /** Torre de detección dominante del artículo. */
+  environment: SocEnvironment;
+  /** Cuándo aplica el artículo (señales/síntomas). */
+  symptoms: string;
+  /** Causa(s) típica(s) — la técnica detrás de la señal. */
+  cause: string;
+  steps: SocKbStep[];
+  /** Cómo confirmar que quedó resuelto/contenida. */
+  verification?: string;
+  escalation?: string;
+  /** Nombres de términos del glosario relacionados. */
+  relatedTerms?: string[];
+  /** Ids de casos del dataset que lo referencian. */
   relatedTickets?: string[];
 }

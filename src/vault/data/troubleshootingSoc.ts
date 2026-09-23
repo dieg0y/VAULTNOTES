@@ -1,7 +1,8 @@
 /**
  * troubleshootingSoc.ts — ESCALERAS DE DECISIÓN del PILAR 3 (SOC L1 / Blue Team).
  *
- * V9 FASE 9: 16 guías TS-SOC-001..TS-SOC-016. NO es una copia de los runbooks:
+ * V9 FASE 9: 16 guías TS-SOC-001..TS-SOC-016 + FASE 19f: 6 guías TS-SOC-017..TS-SOC-022
+ * (total 22). NO es una copia de los runbooks:
  * el runbook describe el procedimiento completo de respuesta; aquí lo que
  * importa es DIAGNOSTICAR (¿es benigno, comprometido o incidente?) con la
  * escalera
@@ -857,6 +858,316 @@ export const TROUBLESHOOTING_SOC: PillarTroubleshooting[] = [
     remediation: '50% malware exfiltrando por DNS (aislar, EDR y estimar la pérdida), 25% túnel legítimo de IT sin documentar (falso positivo), 15% fallback de malware porque el HTTP está bloqueado, 10% DGA de malware común (C2, no túnel).',
     verification: 'Tras el bloqueo y la contención, DnsEvents del host vuelve a su línea base y el dominio del túnel resuelve NXDOMAIN desde la red corporativa.',
     tags: ['dns tunneling', 'dnsevents', 'exfiltracion', 'nxdomain', 'wildcard', 'resolver', 'c2', 'spl'],
+  },
+  {
+    id: 'TS-SOC-017',
+    pillar: 'SOC',
+    title: 'Descarga masiva (alerta DLP)',
+    problem: 'La política DLP disparó una descarga masiva de SharePoint o OneDrive y hay que decidir si es trabajo legítimo, herramienta o exfiltración.',
+    symptoms: [
+      'Alerta DLP con cientos de archivos descargados por una misma cuenta.',
+      'La descarga ocurre fuera de horario o desde una sesión que no es la habitual.',
+      'El usuario está próximo a renunciar o en un proceso de salida (contexto de riesgo insider).',
+    ],
+    level: 'Patrón (volumen/agente) vs Sesión vs Cuenta vs Canal de salida',
+    checks: [
+      {
+        check: 'El volumen real de la operación',
+        command: 'OfficeActivity | where TimeGenerated > ago(24h) and UserId == "{{USERNAME}}" and Operation in ("FileDownloaded", "FileSyncDownloadedFull") | summarize cnt = count() by Operation, Site_Url | order by cnt desc',
+        result: 'Pocas descargas dispersas y en sitios variados (uso normal).',
+        next: 'Si hay cientos o miles de archivos en una ventana corta y pocos sitios: descarga masiva confirmada: ver con qué cliente la hizo (check 2). Si el volumen es normal: umbral de la política mal calibrado: ajustar y cerrar.',
+      },
+      {
+        check: 'El agente y la IP que descargan',
+        command: 'OfficeActivity | where TimeGenerated > ago(24h) and UserId == "{{USERNAME}}" and Operation in ("FileDownloaded", "FileSyncDownloadedFull") | summarize cnt = count() by ClientIP, UserAgent | order by cnt desc',
+        result: 'Cliente OneDrive sync o navegador desde la IP y el equipo habituales del usuario.',
+        next: 'Si el UserAgent es rclone, python-requests o similar: herramienta de exfiltración: incidente: contener (check 6). Si es el cliente de sincronización: puede ser máquina nueva o migración: validar la sesión (check 3) y con el usuario.',
+      },
+      {
+        check: 'Qué se llevó (clasificación del daño)',
+        command: 'OfficeActivity | where TimeGenerated > ago(24h) and UserId == "{{USERNAME}}" and Operation in ("FileDownloaded", "FileSyncDownloadedFull") | summarize files = dcount(OfficeObjectId), sites = dcount(Site_Url) by Site_Url | order by files desc | take 5',
+        result: 'Archivos de los sitios propios del rol del usuario.',
+        next: 'Si los sitios son de RRHH, finanzas o legal ajenos a su rol: alcance serio: cuantificar y escalar como posible fuga de datos. Si son sus sitios de trabajo: trabajar la hipótesis de trabajo legítimo.',
+      },
+      {
+        check: 'La sesión es del usuario',
+        command: 'SigninLogs | where UserPrincipalName == "{{USERNAME}}" and TimeGenerated > ago(24h) | order by TimeGenerated desc | take 10 | project TimeGenerated, IPAddress, Location, ResultType, AppDisplayName',
+        result: 'Sign-ins del usuario desde su equipo y horario habituales.',
+        next: 'Si hay un sign-in exitoso desde IP o país anómalo justo antes de la descarga: cuenta comprometida: contención de la guía TS-SOC-001. Si las sesiones son las habituales: insider o error: llamar al usuario y al dueño del proceso.',
+      },
+      {
+        check: 'Hacia dónde salió después',
+        command: 'DeviceNetworkEvents | where DeviceName == "{{HOSTNAME}}" and TimeGenerated > ago(24h) and RemoteUrl has_any ("wetransfer", "drive.google.com", "mega.nz", "dropbox.com") | project TimeGenerated, RemoteUrl, InitiatingProcessFileName | take 20',
+        result: 'Sin tráfico hacia servicios de transferencia personal.',
+        next: 'Si hay subidas a nubes personales desde el mismo equipo y ventana: exfiltración confirmada (T1567): cuantificar el volumen y escalar. Si no: el dato puede haber quedado en el equipo o en un USB: revisar DeviceFileEvents y dejar el riesgo residual documentado.',
+      },
+      {
+        check: 'Contención según la hipótesis',
+        command: 'Revoke-MgUserSignInSession -UserId {{USERNAME}}',
+        result: 'Sesiones revocadas y el canal de descarga cortado mientras se decide.',
+        next: 'Si la cuenta está comprometida: reset y post-acceso (TS-SOC-001). Si es insider: NO confrontar sin proceso: preservar la evidencia, subir la política DLP a block y escalar por el canal de insider (RRHH y legal según la política de Nexora).',
+      },
+    ],
+    remediation: '40% insider o error humano (trabajar con RRHH y el dueño del proceso), 25% cuenta comprometida usando el repositorio (T1213), 20% herramienta de migración o sincronización sin comunicar (falso positivo), 15% umbral DLP mal calibrado.',
+    verification: 'La política DLP ajustada, el canal cerrado (sesiones revocadas o bloqueo), el volumen de archivos cuantificado en el ticket y el caso escalado o cerrado con la confirmación del usuario por teléfono.',
+    tags: ['dlp', 'descarga masiva', 'officeactivity', 'exfiltracion', 'rclone', 'filesyncdownloadedfull', 'insider', 't1213'],
+  },
+  {
+    id: 'TS-SOC-018',
+    pillar: 'SOC',
+    title: 'Web shell en IIS',
+    problem: 'Apareció un .aspx sospechoso en wwwroot o w3wp está lanzando procesos: hay que confirmar la web shell, contener y encontrar el agujero de entrada.',
+    symptoms: [
+      'Archivo .asp o .aspx nuevo con nombre aleatorio en inetpub o en un directorio de uploads.',
+      'Procesos cmd.exe o powershell.exe con padre w3wp.exe.',
+      'POSTs repetidos a una página interna desde IPs externas.',
+    ],
+    level: 'Archivo vs Ejecución (w3wp) vs Entrada (logs IIS) vs Contención',
+    checks: [
+      {
+        check: 'Archivos nuevos en el root del sitio',
+        command: 'DeviceFileEvents | where TimeGenerated > ago(48h) and FolderPath contains "inetpub" | where FileName endswith ".aspx" or FileName endswith ".asp" | project TimeGenerated, FileName, FolderPath, InitiatingProcessFileName | order by TimeGenerated asc',
+        result: 'Sin páginas nuevas fuera de los despliegues.',
+        next: 'Si hay un .aspx con nombre aleatorio creado por w3wp: web shell probable: leer su contenido (check 2). Si lo escribió un despliegue (MSDeploy o similar): validar el ticket del cambio.',
+      },
+      {
+        check: 'El contenido de la página',
+        command: 'Select-String -Path "C:\\inetpub\\wwwroot\\uploads\\cmd.aspx" -Pattern "cmd|ProcessStartInfo|WScript|cmd.exe|Invoke-Expression"',
+        result: 'Página estática sin código ejecutable.',
+        next: 'Si el patrón encuentra procesadores de comandos o eval de request: web shell confirmada (T1505.003): contener (check 6) y medir la ejecución (check 3).',
+      },
+      {
+        check: 'w3wp ejecutando comandos',
+        command: 'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" and FileName in ("cmd.exe", "powershell.exe") and InitiatingProcessFileName =~ "w3wp.exe" | project TimeGenerated, ProcessCommandLine, AccountName | order by TimeGenerated asc | take 30',
+        result: 'Sin procesos de consola lanzados por el pool de IIS.',
+        next: 'Si hay cadenas con whoami, net user o certutil -urlcache: el atacante ejecuta comandos: extraer el timeline completo y la cuenta del app pool con la que corre. Si no hay ejecución: shell sembrada sin uso: igual remover y parchar.',
+      },
+      {
+        check: 'La entrada en los logs de IIS',
+        command: 'index=iis sourcetype=iis cs_uri_stem="/uploads/cmd.aspx" | stats count by c_ip, cs_method, sc_status | sort -count',
+        result: 'Sin requests hacia la página sospechosa.',
+        next: 'Si hay POSTs desde IPs externas: así interactúa el atacante: bloquear las IPs y correlacionar con el exploit (endpoint de upload sin validación o parámetro inyectado). Si solo hay GETs del escáner interno: hallazgo de auditoría.',
+      },
+      {
+        check: 'Persistencia y movimiento después del shell',
+        command: 'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" and TimeGenerated > ago(48h) | where ProcessCommandLine has_any ("net localgroup", "net user", "schtasks", "certutil") | project TimeGenerated, ProcessCommandLine, AccountName | order by TimeGenerated asc | take 30',
+        result: 'Sin creación de cuentas, tareas ni descargas tras el uso del shell.',
+        next: 'Si creó cuentas o tareas: persistencia adicional: TS-SOC-006 y TS-SOC-009 antes de limpiar. Si descargó herramientas: bloquear los hashes y evaluar movimiento lateral (TS-SOC-011).',
+      },
+      {
+        check: 'Contención y cierre del agujero',
+        command: 'Remove-Item "C:\\inetpub\\wwwroot\\uploads\\cmd.aspx" -Force',
+        result: 'La shell removida y el directorio de uploads sin permisos de ejecución.',
+        next: 'Aislar el servidor si hay ejecución activa, parchear la app vulnerable (upload sin validación o endpoint inyectado), bloquear las IPs en el WAF o firewall y revisar los demás frontales con la misma aplicación.',
+      },
+    ],
+    remediation: '45% app vulnerable con upload o endpoint inyectable (parche urgente), 20% credenciales de FTP o publicación comprometidas, 15% servidor sin parchear (exploit conocido), 10% hallazgo de escaneo sin explotación, 10% plataforma de desarrollo expuesta por error.',
+    verification: 'Sin .aspx nuevos en wwwroot tras el parche, sin procesos de w3wp hacia consolas, las IPs bloqueadas y un escaneo de los demás frontales con la misma app sin hallazgos.',
+    tags: ['web shell', 'iis', 'w3wp', 'aspx', 't1505.003', 'inetpub', 'upload vulnerable', 'cs_uri_stem'],
+  },
+  {
+    id: 'TS-SOC-019',
+    pillar: 'SOC',
+    title: 'Brute force SSH externo',
+    problem: 'El Linux expuesto recibe oleadas de intentos SSH y hay que confirmar si solo es ruido de bots o si alguien entró.',
+    symptoms: [
+      'Miles de Failed password en /var/log/secure desde IPs externas.',
+      'Alerta del SIEM por fallos de autenticación SSH desde el perímetro.',
+      'A veces el conteo incluye algún intento exitoso sospechoso.',
+    ],
+    level: 'Volumen/IP vs Éxito (Accepted) vs Exposición vs Post-explotación',
+    checks: [
+      {
+        check: 'El volumen y su origen',
+        command: 'grep "Failed password" /var/log/secure | awk \'{print $(NF-3)}\' | sort | uniq -c | sort -rn | head -10',
+        result: 'Pocos o ningún fallo; nada fuera de serie.',
+        next: 'Si una o pocas IPs concentran miles de fallos: brute force o bot: ver si lograron algo (check 2). Si los fallos son de usuarios internos con IPs internas: no es ataque externo: otro problema.',
+      },
+      {
+        check: '¿Hubo éxito?',
+        command: 'grep "Accepted" /var/log/secure | tail -20',
+        result: 'Solo autenticaciones aceptadas de usuarios y IPs conocidas.',
+        next: 'Si hay Accepted password desde una IP del brute force: intrusión confirmada: contener YA (check 6) y cazar post-explotación. Si solo hay fallos: el ruido no entró: endurecer (checks 4 y 5).',
+      },
+      {
+        check: 'A quién atacan',
+        command: 'index=os sourcetype=linux_secure "Failed password" | stats count by user, src | sort -count | head 10',
+        result: 'Intentos de diccionario sobre root y usuarios genéricos (bots).',
+        next: 'Si atacan usuarios concretos de la organización: ataque dirigido: validar que esas cuentas existen y tienen shell. Si es root y diccionario: bot genérico: cerrar la exposición.',
+      },
+      {
+        check: 'El servicio debía estar expuesto',
+        result: 'El 22 abierto solo a la VPN o a las IPs de administración, no a internet.',
+        next: 'Si el firewall expone el SSH a todo el mundo sin necesidad: cerrarlo, mover de puerto y restringir por IP: la exposición ES el hallazgo. Si la exposición es requerida: solo llaves y fail2ban (check 5).',
+      },
+      {
+        check: 'Endurecimiento activo',
+        command: 'systemctl status fail2ban',
+        result: 'fail2ban activo con la jail de sshd baneando las IPs.',
+        next: 'Si no está instalado: instalarlo y habilitar la jail sshd (con whitelist de las IPs de administración). Validar en paralelo que sshd_config no tenga PasswordAuthentication: el host solo debe aceptar llaves.',
+      },
+      {
+        check: 'Si entró: post-explotación',
+        command: 'last -n 20 && cat /home/operador/.ssh/authorized_keys',
+        result: 'Historial de sesiones con IPs conocidas y sin llaves nuevas en authorized_keys.',
+        next: 'Si hay sesiones desde IPs desconocidas o llaves agregadas: persistencia: revocar la llave, bloquear la cuenta, capturar evidencia (journalctl -u sshd --since) y tratar el host como comprometido (TS-SOC-003).',
+      },
+    ],
+    remediation: '55% bot de internet contra el 22 expuesto (cerrar, llaves y fail2ban), 20% ataque dirigido a una cuenta concreta, 10% éxito confirmado con persistencia por llave, 10% falso positivo (scanner interno autorizado), 5% servicio de transferencia que usa SSH sin comunicar.',
+    verification: 'El 22 deja de recibir intentos externos (firewall o fail2ban baneando), los Accepted restantes son solo de IPs de administración con llave y no hay sesiones anómalas en last.',
+    tags: ['ssh', 'brute force', 'failed password', 'fail2ban', 'var/log/secure', 't1110', 'accepted password', 'linux'],
+  },
+  {
+    id: 'TS-SOC-020',
+    pillar: 'SOC',
+    title: 'Rogue AP en la oficina',
+    problem: 'Aparece un punto de acceso que no es de la organización (o clona el SSID corporativo) y hay que localizarlo y medir el riesgo.',
+    symptoms: [
+      'netsh o el controlador muestran un SSID nuevo con señal fuerte en la oficina.',
+      'Un SSID idéntico al corporativo pero con BSSID distinto (evil twin).',
+      'Usuarios reportan desconexiones o captive portals extraños.',
+    ],
+    level: 'Detección (BSSID) vs Red cableada vs Clientes asociados vs Contención',
+    checks: [
+      {
+        check: 'El SSID y su BSSID desde un equipo',
+        command: 'netsh wlan show networks mode=bssid',
+        result: 'Solo los SSID corporativos con sus BSSID registrados.',
+        next: 'Si hay un SSID desconocido con señal fuerte, o el corporativo con un BSSID que no es de nuestros AP: rogue o evil twin: cruzar con el controlador (check 2). Si solo aparecen redes vecinas con señal débil: ruido externo.',
+      },
+      {
+        check: 'La lista de rogue del controlador',
+        command: 'show rogue ap summary',
+        result: 'El WLC clasifica los AP vecinos y no hay rogues clasificados como threat.',
+        next: 'Si el BSSID detectado aparece como threat o como friendly desconocido: detallarlo (show rogue ap detailed a4bb.6d12.3456) para canal y clientes asociados: seguir (check 3). Si el WLC no lo ve: está fuera del alcance de las antenas: analizar como red externa pura.',
+      },
+      {
+        check: '¿Está conectado a nuestra red cableada?',
+        command: 'show mac address-table | include a4bb.6d12.3456',
+        result: 'La MAC del rogue no aparece en los switches de la organización.',
+        next: 'Si la MAC aparece en un access switch: AP pirata colgado de un puerto de oficina: ir al check 4 y apagar el puerto. Si no está en la tabla: es solo RF (vecino o evil twin inalámbrico puro): contención inalámbrica (check 5).',
+      },
+      {
+        check: 'Apagar el puerto del switch',
+        command: 'conf t && interface Gi1/0/12 && shutdown',
+        result: 'El puerto donde colgaba el rogue queda apagado y el AP desaparece del aire.',
+        next: 'Con el AP muerto: identificar quién lo conectó (oficina, sala o visitante) para el reporte según política. Si la MAC estaba en un puerto de sala de reuniones: revisar visitas y recepción de equipos.',
+      },
+      {
+        check: '¿Capturó credenciales? (evil twin)',
+        result: 'Nadie de la organización se asoció al rogue (cero clientes en el detalle del WLC).',
+        next: 'Si hay clientes asociados al SSID clonado: posible captive portal de robo de credenciales: identificar a esos usuarios, notificar y, si digitaron credenciales del dominio: reset masivo (TS-SOC-001) y notificación de incidente.',
+      },
+      {
+        check: 'Endurecer el acceso inalámbrico',
+        result: 'La red corporativa usa 802.1X (WPA2/WPA3-Enterprise) con credenciales por usuario.',
+        next: 'Si la WiFi corporativa usa PSK compartida: cualquier rogue con la clave clona la red sin validación: migrar a 802.1X y dejar la PSK solo para invitados con aislamiento. Documentar el caso y dejar el WLC monitoreando rogues.',
+      },
+    ],
+    remediation: '40% AP traído por un empleado o visitante (shutdown y política), 25% AP vecino con señal fuerte (falso positivo), 20% evil twin posible por PSK clonable (migrar a 802.1X), 15% dispositivo IoT con hotspot activado.',
+    verification: 'El rogue desaparece del WLC y del netsh de los equipos, los usuarios se asocian solo a los BSSID corporativos y el WLC queda clasificando rogues de forma continua.',
+    tags: ['rogue ap', 'evil twin', 'bssid', 'wlc', 'show rogue ap', 'mac address-table', '802.1x', 'wifi'],
+  },
+  {
+    id: 'TS-SOC-021',
+    pillar: 'SOC',
+    title: 'Credenciales filtradas en repo público',
+    problem: 'Un secreto de la organización apareció en un repositorio público y hay que validar el hallazgo, medir uso malicioso y rotar antes de que otro lo haga.',
+    symptoms: [
+      'Alerta de OSINT o del propio GitHub: secretos detectados en un repo de la organización.',
+      'El secreto visible en un commit viejo o en un fork.',
+      'El secreto corresponde a un service principal, un token PAT o una cadena de conexión interna.',
+    ],
+    level: 'Secreto (tipo/vigencia) vs Uso malicioso vs Alcance del repo vs Rotación',
+    checks: [
+      {
+        check: 'Confirmar el hallazgo',
+        command: 'trufflehog github --repo=hxxps://github[.]com/nexora-dev/poc-api',
+        result: 'Sin secretos con entropía real en el repositorio (o el reporte identifica la cadena y su commit).',
+        next: 'Si el reporte trae la cadena y su ubicación: clasificar el secreto (check 2). Si fue falso positivo (ejemplo de código o test): cerrar con la evidencia del reporte.',
+      },
+      {
+        check: 'Qué tipo de secreto es',
+        result: 'El secreto clasificado: llave de cloud, secret de service principal, token PAT o contraseña interna.',
+        next: 'Llaves de cloud o service principal: rotación inmediata y revisión de uso (check 3). PAT de GitHub: revocar y auditar qué hizo el token. Contraseña interna: reset y validar el reuso en otros servicios.',
+      },
+      {
+        check: '¿Alguien lo usó?',
+        command: 'AzureActivity | where TimeGenerated > ago(30d) and Caller == "svc-deploy-nexora" | project TimeGenerated, OperationNameValue, CallerIpAddress, ActivityStatusValue | order by TimeGenerated asc | take 30',
+        result: 'Solo llamadas de la automatización desde las IPs corporativas habituales.',
+        next: 'Si hay llamadas desde IPs ajenas a la organización: el secreto se usó: delimitar qué operaciones hizo y su alcance (suscripción o tenant): incidente. Si solo hay uso legítimo: rotar igual (el repo sigue público).',
+      },
+      {
+        check: 'Cuánto tiempo estuvo expuesto',
+        result: 'El commit con el secreto es reciente y sin forks.',
+        next: 'Si el repo lleva meses público o tiene forks: asumir que alguien lo vio: el tiempo de exposición multiplica el riesgo y obliga a rotar YA. Si fue un push de minutos y ya se borró: rotar y purgar el historial igual.',
+      },
+      {
+        check: 'Purgar el secreto del historial',
+        result: 'El secreto removido del historial de git (borrar solo el archivo en un commit nuevo NO basta).',
+        next: 'Usar git filter-repo (o BFG) con replace y forzar el push; en GitHub: pedir a soporte la limpieza de caches y forks. Marcar el secreto como comprometido SIEMPRE, aunque la ventana haya sido corta.',
+      },
+      {
+        check: 'Rotar y cerrar',
+        command: 'az ad app credential reset --id 00000000-0000-0000-0000-000000000000',
+        result: 'Nueva credencial emitida y la vieja invalidada.',
+        next: 'Actualizar el secreto nuevo en el vault de la automatización, confirmar que el pipeline sigue funcionando y habilitar secret scanning en la organización (o gitleaks en el pre-commit) para evitar el próximo.',
+      },
+    ],
+    remediation: '50% secreto accidental en un push (rotar, purgar y scanning), 20% repo viejo de un POC sin dueño, 15% uso confirmado por terceros (incidente con alcance), 10% falso positivo de la herramienta, 5% repo privado que se hizo público por error.',
+    verification: 'La credencial vieja rechazada en las pruebas, el historial del repo sin la cadena (trufflehog limpio), la automatización funcionando con el secreto nuevo desde el vault y secret scanning activo en la organización.',
+    tags: ['secretos filtrados', 'github', 'trufflehog', 'azureactivity', 'service principal', 'git filter-repo', 't1552.001', 'rotacion'],
+  },
+  {
+    id: 'TS-SOC-022',
+    pillar: 'SOC',
+    title: 'Dispositivo desconocido en la red (NAC)',
+    problem: 'Un dispositivo sin inventario apareció en la VLAN corporativa y hay que identificarlo, ver qué hace y decidir contener antes de permitirlo.',
+    symptoms: [
+      'Alerta del NAC o de DHCP por un MAC sin registrar en la VLAN corporativa.',
+      'El dispositivo obtuvo IP o quedó en la VLAN de cuarentena según la política.',
+      'El SIEM muestra tráfico de una IP sin inventario asociado.',
+    ],
+    level: 'Identidad (MAC/OUI) vs Autenticación (802.1X/MAB) vs Comportamiento vs Contención',
+    checks: [
+      {
+        check: 'Dónde apareció (puerto y VLAN)',
+        command: 'show mac address-table address a4bb.6d12.3456',
+        result: 'La MAC aprendida en un puerto de acceso conocido y con dueño asignado.',
+        next: 'Si aparece en un puerto de oficina o sala: identificar quién lo conectó (check 2). Si no aparece en ningún switch: el aviso vino del WiFi u otra VLAN: revisar el origen del alert.',
+      },
+      {
+        check: 'Qué es el dispositivo',
+        result: 'El OUI del MAC corresponde a un fabricante coherente con su clase (portátil, impresora, cámara).',
+        next: 'Si el OUI es de cámaras, TVs o IoT: equipo de terceros conectado sin proceso: validar con Compras o Instalaciones. Si es un NIC de portátil común: puede ser equipo personal o nuevo: ver la autenticación.',
+      },
+      {
+        check: 'Qué intentó autenticar',
+        command: 'show authentication sessions interface Gi1/0/12',
+        result: 'El puerto muestra una sesión 802.1X exitosa o un MAB de un dispositivo inventariado.',
+        next: 'Si la sesión falló y cayó a la VLAN de cuarentena: el NAC hizo su trabajo: el dispositivo no tiene credenciales: tratarlo como desconocido (check 5). Si autenticó como un usuario: es de la organización pero sin inventario: regularizar.',
+      },
+      {
+        check: 'Qué hace en la red',
+        command: 'index=firewall src=10.10.20.77 | stats count by dest_port | sort -count',
+        result: 'Tráfico DNS y hacia los servicios corporativos, sin sondeos.',
+        next: 'Si concentra conexiones a muchos puertos internos distintos: sondeo de red (T1046): contención inmediata (check 5) y escalar. Si el tráfico es externo o nulo: igual validar antes de permitir nada.',
+      },
+      {
+        check: 'Contener (el puerto)',
+        command: 'conf t && interface Gi1/0/12 && shutdown',
+        result: 'El puerto apagado o el dispositivo movido a la VLAN de cuarentena del NAC.',
+        next: 'Si el dispositivo sondeaba o no tiene dueño: apagar y escalar con la evidencia del check 4. Si ya validaste que es legítimo (check 6): reactivar el puerto y registrarlo en el inventario y el NAC.',
+      },
+      {
+        check: 'Validar con el inventario y el dueño',
+        result: 'El dispositivo corresponde a una compra o alta reciente con ticket asociado.',
+        next: 'Si hay registro: etiquetarlo, moverlo a la VLAN correcta y cerrar. Si nadie lo reclama: mantenerlo bloqueado y reportarlo a seguridad física y al dueño del piso: un equipo sin dueño en la red interna ES el hallazgo.',
+      },
+    ],
+    remediation: '35% equipo de empleado o visitante sin proceso (NAC y política), 25% dispositivo nuevo sin registrar en inventario (regularizar), 20% impresora o IoT de un proyecto (aislar por segmento), 10% dispositivo de un proveedor (validar contrato), 10% sondeo malicioso (incidente).',
+    verification: 'El dispositivo identificado y registrado (o bloqueado), el puerto reactivado solo tras la validación y el NAC aplicando política a cada MAC nueva de la VLAN.',
+    tags: ['nac', '802.1x', 'mab', 'mac address-table', 'dispositivo desconocido', 'cuarentena', 'show authentication sessions', 't1046'],
   },
 ];
 

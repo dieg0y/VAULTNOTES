@@ -44,6 +44,9 @@ import { useHelpdeskStore } from './store/helpdeskStore';
 // SYSADMIN (v21) — navigation bridge: espejo del helpdeskStore para el
 // simulador SysAdmin Ops (sección sysadmin).
 import { useSysadminStore } from './store/sysadminStore';
+// SOC (v9 simulador) — navigation bridge: espejo de los stores de los
+// otros dos simuladores (sección soc).
+import { useSocStore } from './store/socStore';
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -79,6 +82,9 @@ const HelpDeskView = dynamic(() => import('./components/HelpDeskView').then((m) 
 // SYSADMIN (v21) — simulador de Infraestructura & Operaciones (espejo del
 // Service Desk: cola de tickets de guardia + semana de guardia + KB).
 const SysAdminView = dynamic(() => import('./components/SysAdminView').then((m) => m.SysAdminView), { ssr: false, loading: ViewLoader });
+// SOC (v9 simulador) — simulador del Blue Team: cola de casos con torre
+// de detección + proyecto final "primera semana SOC" + KB.
+const SocView = dynamic(() => import('./components/SocView').then((m) => m.SocView), { ssr: false, loading: ViewLoader });
 const BlogView = dynamic(() => import('./components/BlogView').then((m) => m.BlogView), { ssr: false, loading: ViewLoader });
 const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.ToolsView), { ssr: false, loading: ViewLoader });
 const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
@@ -374,6 +380,17 @@ export default function App() {
       consumeSaNavigate();
     }
   }, [saNavigateRequest, consumeSaNavigate]);
+
+  // SOC (v9 simulador) — one-shot navigation request al SOC (deep-link de
+  // caso desde el socStore). Espejo del patrón HelpDesk/SysAdmin.
+  const socNavigateRequest = useSocStore((s) => s.navigateRequest);
+  const consumeSocNavigate = useSocStore((s) => s.consumeNavigate);
+  useEffect(() => {
+    if (socNavigateRequest > 0) {
+      setActiveSection('soc');
+      consumeSocNavigate();
+    }
+  }, [socNavigateRequest, consumeSocNavigate]);
 
   // Set initial selected note if none selected (prefer a top-level note)
   useEffect(() => {
@@ -1270,6 +1287,21 @@ export default function App() {
           {/* ROADMAP SYSADMIN (v21) — checklist de la especialización
               Infra & Ops → SRE (misma vista, variante sa). */}
           {activeSection === 'roadmap-sa' && <RoadmapView variant="sa" />}
+
+          {/* SOC (v9 simulador) — Simulador del Blue Team: cola de casos con
+              torre de detección (Identity/Endpoint/Network/Email/Cloud/Web),
+              modo estudio (revelado progresivo), proyecto final "primera
+              semana SOC" (30 casos por días) y KB enlazada. El flujo de
+              estados y las notas de cierre persisten en db.socTickets. */}
+          {activeSection === 'soc' && (
+            <SocView
+              glossaryTerms={activeTerms}
+              onOpenGlossaryTerm={(termId) => {
+                setSelectedTermId(termId);
+                setActiveSection('glossary');
+              }}
+            />
+          )}
 
           {activeSection === 'blog' && (
             <BlogView notes={notes} labs={labs} />

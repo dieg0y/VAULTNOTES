@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket } from '../types';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket } from '../types';
 import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
@@ -13,7 +13,7 @@ import {
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
   inboxItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
-  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, sysadminTicketSchema, validateArray,
+  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, sysadminTicketSchema, socTicketSchema, validateArray,
 } from './backupSchemas';
 // V6 (3.6.0) — datasets de referencia estáticos: se exportan como snapshot
 // (portabilidad USB). La importación NO los aplica: el bundle de la app es
@@ -69,8 +69,12 @@ import { SOC_CHEATSHEET } from '../data/socCheatSheet';
  *  `troubleshootingHelpDesk/SysAdmin/Soc.json` — estáticos, el bundle de
  *  la app prevalece). Un build 3.7.0 que importe un backup 3.8.0 perdería
  *  solo el progreso del roadmap SOC al re-exportar → la rechaza up-front.
+ *  3.9.0 — v9 (SIMULADOR SOC): añade `socTickets.json` (dataset de casos
+ *  del Blue Team + trabajo del usuario: status y notas de cierre). Un build
+ *  3.8.0 que importe un backup 3.9.0 DESCARTARÍA silenciosamente la
+ *  práctica de triage SOC al re-exportar → la rechaza up-front.
  */
-const BACKUP_FORMAT_VERSION = '3.8.0';
+const BACKUP_FORMAT_VERSION = '3.9.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -318,6 +322,9 @@ function emptySummary(): ImportSummary {
     conflictRoadmapSaItems: 0,
     // v9 (SOC): checklist del roadmap SOC — mismo guard latest-wins.
     conflictRoadmapSocItems: 0,
+    // v9 (SIMULADOR SOC): práctica de triage del Blue Team (casos con
+    // status/notas de cierre) — mismo guard latest-wins.
+    conflictSocTickets: 0,
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
@@ -517,6 +524,10 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   const roadmapSaRows = await db.roadmapSysAdminItems.toArray();
   // v9 (SOC) — estado del checklist del roadmap SOC (misma convención).
   const roadmapSocRows = await db.roadmapSocItems.toArray();
+  // v9 (SIMULADOR SOC) — práctica del Blue Team: casos COMPLETOS (dataset +
+  // status/statusNote del usuario — su evidencia de triage). Viajan en el
+  // ZIP con el mismo convenio root-level que HelpDesk/SysAdmin.
+  const socTicketRows = await db.socTickets.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -556,6 +567,7 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       sysadminTicketsCount: sysadminTicketRows.length,
       roadmapSaItemsCount: roadmapSaRows.length,
       roadmapSocItemsCount: roadmapSocRows.length,
+      socTicketsCount: socTicketRows.length,
       // v9 (3.8.0) — snapshots de referencia por pilar (informativo, no se restauran).
       runbooksHdCount: RUNBOOKS_HD.length,
       runbooksSaCount: RUNBOOKS_SA.length,
@@ -608,6 +620,9 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   zip.file('roadmapSysAdmin.json', JSON.stringify(roadmapSaRows, null, 2));
   // v9 (SOC) — roadmap SOC (root-level, mismo convenio).
   zip.file('roadmapSoc.json', JSON.stringify(roadmapSocRows, null, 2));
+  // v9 (SIMULADOR SOC) — casos de práctica del Blue Team (root-level,
+  // mismo convenio que los otros dos simuladores).
+  zip.file('socTickets.json', JSON.stringify(socTicketRows, null, 2));
   // V6 (3.6.0) — datasets de REFERENCIA estáticos: se exportan como
   // snapshot para portabilidad/archivo del USB. En la importación NO se
   // aplican sobre la app (el bundle de la app SIEMPRE es la versión
@@ -2080,6 +2095,64 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     }
   } catch (e) {
     console.error('Error importing roadmapSoc:', e);
+  }
+
+  // socTickets — v9 (SIMULADOR SOC): casos de práctica del Blue Team.
+  // Upsert por id con guard latest-wins: un backup viejo jamás revierte el
+  // trabajo local (status, notas de cierre, soft-delete). La fila se
+  // reconstruye campo a campo (enums validados, incluido environment =
+  // torre de detección) para que un socTickets.json malformado nunca
+  // corrompa la tabla local.
+  try {
+    const soctFile = contents.file('socTickets.json');
+    if (soctFile) {
+      const rawSoct: unknown = JSON.parse(await soctFile.async('text'));
+      const { valid: soctRows, invalid } = validateArray(socTicketSchema, rawSoct);
+      summary.invalidMisc += invalid;
+      for (const r of soctRows) {
+        const local = await db.socTickets.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictSocTickets++;
+          continue;
+        }
+        const status: SocTicket['status'] =
+          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
+            ? r.status
+            : 'nuevo';
+        const row: SocTicket = {
+          id: r.id,
+          number: r.number,
+          title: r.title,
+          category: r.category,
+          subcategory: r.subcategory ?? undefined,
+          type: r.type,
+          priority: r.priority,
+          impact: r.impact,
+          urgency: r.urgency,
+          environment: r.environment,
+          requester: r.requester,
+          description: r.description,
+          symptoms: r.symptoms,
+          dataAvailable: r.dataAvailable ?? undefined,
+          troubleshooting: r.troubleshooting ?? undefined,
+          resolution: r.resolution ?? undefined,
+          escalation: r.escalation ?? undefined,
+          kbRef: r.kbRef ?? undefined,
+          skill: r.skill ?? undefined,
+          evidence: r.evidence ?? undefined,
+          status,
+          statusNote: r.statusNote ?? undefined,
+          isFinalProject: r.isFinalProject === true ? true : undefined,
+          isDeleted: r.isDeleted === true,
+          deletedAt: r.isDeleted === true ? (r.deletedAt ?? undefined) : undefined,
+          createdAt: r.createdAt || new Date().toISOString(),
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.socTickets.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing socTickets:', e);
   }
 
   // V6 (3.6.0) — snapshots de datasets de referencia (runbooks + cheatsheet).

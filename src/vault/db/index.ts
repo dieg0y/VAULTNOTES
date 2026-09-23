@@ -1,10 +1,11 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket } from '../types';
 import { GLOSSARY_SEED_TERMS } from '../data/glossarySeed';
 import { ROADMAP_ALL_ITEM_IDS } from '../data/roadmapData';
 import { ROADMAP_HD_ALL_ITEM_IDS } from '../data/roadmapHelpDeskData';
 import { HELPDESK_TICKET_SEEDS } from '../data/helpDeskTickets';
 import { SYSADMIN_TICKET_SEEDS } from '../data/sysadminTickets';
+import { SOC_TICKET_SEEDS } from '../data/socTickets';
 import { ROADMAP_SA_ALL_ITEM_IDS } from '../data/roadmapSysAdminData';
 import { ROADMAP_SOC_ALL_ITEM_IDS } from '../data/roadmapSocData';
 
@@ -242,6 +243,8 @@ class VaultDatabase extends Dexie {
   //    usuario trabaja como práctica de guardia (OPS-2001...).
   roadmapSysAdminItems!: Table<RoadmapItem, string>;
   sysadminTickets!: Table<SysAdminTicket, string>;
+  /** v9 (SOC simulador): casos de práctica del Blue Team (SOC-3001...). */
+  socTickets!: Table<SocTicket, string>;
   /** v9 (SOC): progreso del roadmap SOC (ids 'rmsoc-*'). */
   roadmapSocItems!: Table<RoadmapItem, string>;
 
@@ -623,6 +626,15 @@ class VaultDatabase extends Dexie {
           // La tabla puede no existir en una instalación ex-novo — no-op.
         }
       });
+    // v23: SOC (SIMULADOR) — migración 100% ADITIVA (delta-only, igual
+    // que v19/v21): `socTickets` — CRUD de casos simulados del Blue Team
+    // (seed idempotente por id + dismissal; el índice status/isDeleted
+    // sostiene las vistas). Mismo contrato que helpdeskTickets/
+    // sysadminTickets con la extensión de dominio environment = torre de
+    // detección (Identity/Endpoint/Network/Email/Cloud/Web/Multi).
+    this.version(23).stores({
+      socTickets: 'id, status, isDeleted, updatedAt, createdAt',
+    });
   }
 }
 
@@ -760,7 +772,8 @@ export type HdSeedDomain =
   | 'helpdeskProfile'
   | 'sysadminTicket'
   | 'sysadminLab'
-  | 'sysadminProfile';
+  | 'sysadminProfile'
+  | 'socTicket';
 
 /** localStorage: nombres de términos del seed que el usuario borró
  * DEFINITIVAMENTE (para que el seeding no los traiga de vuelta). */
@@ -1121,6 +1134,37 @@ async function doInitializeDatabase() {
     }
   } catch (err) {
     console.warn('SysAdmin tickets seed skipped:', err);
+  }
+
+  // --- SOC (v9 · SIMULADOR) · CASOS: siembra el dataset de práctica (50
+  // casos simulados de Nexora S.A. — SOC / Blue Team). ADITIVO por id:
+  // las filas que ya existan (incluidas soft-deleted) NO se tocan, así
+  // el trabajo del usuario (status/statusNote) sobrevive. Los ids en el
+  // dismissal set (borrado definitivo) no se reviven.
+  try {
+    const existingSocTk = await db.socTickets.toArray();
+    const existingSocTkIds = new Set(existingSocTk.map((t) => t.id));
+    const missingSocTk = SOC_TICKET_SEEDS.filter(
+      (t) => !existingSocTkIds.has(t.id) && !isSeedIdDismissed('socTicket', t.id)
+    );
+    if (missingSocTk.length > 0) {
+      const nowSocTk = new Date().toISOString();
+      // bulkPut (no bulkAdd): tolera restores que ya trajeran ids soc-*
+      // sin lanzar BulkError.
+      await db.socTickets.bulkPut(
+        missingSocTk.map((t) => ({
+          ...t,
+          status: 'nuevo' as const,
+          statusNote: undefined,
+          isDeleted: false,
+          deletedAt: undefined,
+          createdAt: nowSocTk,
+          updatedAt: nowSocTk,
+        }))
+      );
+    }
+  } catch (err) {
+    console.warn('SOC tickets seed skipped:', err);
   }
 
   // --- PERFIL PROFESIONAL (v17, multi-perfil desde v18): seed inicial SOLO

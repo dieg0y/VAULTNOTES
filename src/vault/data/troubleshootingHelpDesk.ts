@@ -1,7 +1,8 @@
 /**
  * troubleshootingHelpDesk.ts — ESCALERAS DE DECISIÓN del PILAR 1 (HelpDesk L1/L2).
  *
- * V9 FASE 9: 16 guías TS-HD-001..TS-HD-016. NO es una copia de los runbooks:
+ * V9 FASE 9: 16 guías TS-HD-001..TS-HD-016 + FASE 19f: 8 guías TS-HD-017..TS-HD-024
+ * (total 24). NO es una copia de los runbooks:
  * el runbook describe el procedimiento completo de remediación; aquí lo que
  * importa es DIAGNOSTICAR (¿dónde está el problema?) con la escalera
  *
@@ -849,6 +850,412 @@ export const TROUBLESHOOTING_HD: PillarTroubleshooting[] = [
     remediation: '35% DNS de la VPN o split DNS roto, 25% proxy o PAC sin excepción para lo interno, 20% registro interno faltante en DNS, 15% sitio interno caído (escalar), 5% caché o hosts del cliente.',
     verification: 'nslookup intranet.{{DOMAIN}} devuelve la IP interna desde el equipo del usuario y el sitio carga completo con login.',
     tags: ['split dns', 'sitio interno', 'intranet', 'vpn dns', 'proxy pac', 'hosts', 'nslookup', 'rutas'],
+  },
+  {
+    id: 'TS-HD-017',
+    pillar: 'HELPDESK',
+    title: 'Correo no sale (Outbox/NDR)',
+    problem: 'El usuario envía pero el correo se queda en la Bandeja de salida o regresa con NDR: hay que separar cliente, cuenta y entrega.',
+    symptoms: [
+      'Los mensajes quedan atascados en Bandeja de salida.',
+      'Llegan rebotes (NDR) con códigos 5.x.x minutos después de enviar.',
+      'Algunos destinatarios sí reciben y otros no.',
+    ],
+    level: 'Cliente (Outbox/adjunto) vs Cuenta vs Entrega (NDR)',
+    checks: [
+      {
+        check: 'Dónde se quedó el mensaje',
+        result: 'El mensaje está en Bandeja de salida (cliente) o ya salió y rebotó (NDR del servidor).',
+        next: 'Si se queda en Outbox: problema local del cliente (checks 2 y 6). Si rebota con NDR: el envío salió y lo rechazaron: leer el código (check 3).',
+      },
+      {
+        check: 'Probar el envío desde la web',
+        command: 'start msedge https://outlook.office.com/mail',
+        result: 'OWA envía el correo de prueba y llega al destinatario.',
+        next: 'Si OWA envía: buzón y transporte bien, el problema es del cliente Outlook (perfil o adjunto, TS-HD-005). Si OWA tampoco envía: cuenta o transporte, escalar a Mensajería.',
+      },
+      {
+        check: 'Leer el código del NDR',
+        result: '550 5.1.10 buzón inexistente, 552 5.2.2 buzón lleno, 552 5.3.4 tamaño excedido, 550 5.7.x rechazo por política o reputación.',
+        next: 'Si 5.1.x: dirección mal digitada, confirmarla con el usuario. Si 5.2.2: avisar al destinatario por otro canal. Si 5.3.4: comprimir o compartir por OneDrive. Si 5.7.x: bloqueo del servidor destino o política anti-spam, escalar a Mensajería con el NDR completo.',
+      },
+      {
+        check: 'Tamaño del adjunto',
+        command: 'Get-Item "C:\\Users\\{{USERNAME}}\\Documents\\presentacion.pptx" | Select-Object Name, @{n="MB";e={[math]::Round($_.Length/1MB,1)}}',
+        result: 'El adjunto por debajo del límite del servicio (25-35 MB según el plan).',
+        next: 'Si pesa más del límite: subirlo a OneDrive y enviar el enlace (Compartir). Si está bajo el límite: el problema es otro, seguir la escalera.',
+      },
+      {
+        check: 'El mensaje en el trace del servicio',
+        command: 'Get-MessageTrace -SenderAddress {{USERNAME}}@{{DOMAIN}} -StartDate (Get-Date).AddHours(-24) -EndDate (Get-Date) | ft Received, RecipientAddress, Subject, Status',
+        result: 'El mensaje de prueba con estado Delivered bien identificado.',
+        next: 'Si Status Delivered: el correo SÍ se entregó: buscarlo en el junk del destinatario. Si Failed: el detalle del trace trae el código de rechazo (check 3). Si no aparece: nunca salió del cliente (check 6).',
+      },
+      {
+        check: 'Modo sin conexión o mensaje atascado',
+        result: 'Outlook muestra Conectado y el mensaje sale con Enviar y recibir (F9).',
+        next: 'Si está en Trabajar sin conexión: desactivarlo en la pestaña Enviar y recibir. Si un mensaje viejo bloquea la cola: arrastrarlo a Borradores y eliminarlo: el resto de la cola sale sola.',
+      },
+    ],
+    remediation: '35% adjunto sobre el límite o buzón del destinatario lleno, 25% cliente (modo sin conexión o mensaje atascado en Outbox), 20% dirección mal digitada o buzón inexistente, 10% bloqueo del servidor del destinatario (política o reputación), 10% transporte o cuenta (escalar).',
+    verification: 'Un correo de prueba a una dirección externa válida entrega en minutos (Delivered en el trace) y la Bandeja de salida queda vacía.',
+    tags: ['correo no sale', 'outbox', 'ndr', '5.7.1', 'message trace', 'adjunto grande', 'smtp', 'enviar correo'],
+  },
+  {
+    id: 'TS-HD-018',
+    pillar: 'HELPDESK',
+    title: 'Windows Hello no configura',
+    problem: 'El usuario no puede crear ni usar el PIN, la huella o el rostro de Windows Hello y hay que separar hardware, directiva y contenedor.',
+    symptoms: [
+      'La opción de configurar PIN o huella aparece gris o falla con Algo salió mal.',
+      'Ya tenía PIN y ahora pide configurarlo de nuevo en loop.',
+      'La huella nunca se registra aunque el lector funciona en otras apps.',
+    ],
+    level: 'TPM vs Dispositivo biométrico vs Directiva vs Contenedor',
+    checks: [
+      {
+        check: 'El TPM del equipo',
+        command: 'Get-Tpm',
+        result: 'TpmPresent True y TpmReady True.',
+        next: 'Si TpmReady False: activar el TPM en BIOS/UEFI (o limpiarlo si quedó tomado) y volver a probar. Si está listo: revisar el registro del equipo.',
+      },
+      {
+        check: 'Estado del aprovisionamiento',
+        command: 'dsregcmd /status',
+        result: 'AzureAdJoined YES y NgcSet YES (el contenedor de Hello ya existe).',
+        next: 'Si NgcSet NO: el aprovisionamiento nunca completó: revisar directiva y MFA (checks 4 y 5). Si NgcSet YES pero el PIN falla: el contenedor está dañado, reset local (check 6).',
+      },
+      {
+        check: 'Lector biométrico',
+        command: 'Get-PnpDevice -Class Biometric | ft FriendlyName, Status',
+        result: 'El lector de huella listado con Status OK y sin triángulo.',
+        next: 'Si hay Error o no aparece: driver del lector (actualizar o reinstalar) o lector desconectado del flat. Si está OK y solo falla el registro de la huella: seguir por directiva y contenedor.',
+      },
+      {
+        check: 'Directiva de PassportForWork',
+        command: 'reg query "HKLM\\SOFTWARE\\Policies\\Microsoft\\PassportForWork" /s',
+        result: 'Sin valores que deshabiliten el PIN o los biométricos.',
+        next: 'Si la directiva deshabilita Windows Hello o los biométricos: es GPO del dominio: escalar a SysAdmin para corregirla. Si la clave no existe: la directiva no es el problema.',
+      },
+      {
+        check: 'Métodos MFA del usuario',
+        result: 'El usuario tiene MFA registrado (Authenticator) porque el aprovisionamiento de Hello lo exige.',
+        next: 'Si no tiene métodos MFA: registrarlos primero y reintentar el PIN. Si ya los tiene: ir al reset del contenedor.',
+      },
+      {
+        check: 'Reset local del contenedor',
+        command: 'takeown /f "C:\\Windows\\ServiceProfiles\\LocalService\\AppData\\Roaming\\Microsoft\\Ngc" /r /d y && rd /s /q "C:\\Windows\\ServiceProfiles\\LocalService\\AppData\\Roaming\\Microsoft\\Ngc"',
+        result: 'La carpeta Ngc queda limpia y la creación del PIN parte de cero.',
+        next: 'Si tras el reset el PIN se crea: cerrar. Si sigue fallando: Get-WinEvent -LogName "Microsoft-Windows-HelloForBusiness/Operational" -MaxEvents 20 y escalar con esos eventos.',
+      },
+    ],
+    remediation: '30% contenedor Ngc dañado (reset y re-crear el PIN), 25% TPM no activo o no listo (BIOS), 20% falta de MFA para aprovisionar, 15% driver o hardware biométrico, 10% directiva que deshabilita Hello.',
+    verification: 'El usuario crea el PIN, entra con él tras reiniciar y la huella (si aplica) desbloquea en el lector sin error.',
+    tags: ['windows hello', 'pin', 'huella', 'tpm', 'ngc', 'passportforwork', 'dsregcmd', 'biometrico'],
+  },
+  {
+    id: 'TS-HD-019',
+    pillar: 'HELPDESK',
+    title: 'VPN conecta pero lo interno no responde',
+    problem: 'El cliente VPN muestra Conectado pero ningún recurso interno responde: el túnel existe pero no lleva tráfico útil.',
+    symptoms: [
+      'VPN en estado conectado pero el ping a servidores internos falla.',
+      'Los sitios internos cargan a veces o nunca estando en remoto.',
+      'RDP o shares internos dan timeout solo desde casa.',
+    ],
+    level: 'Túnel vs Rutas vs DNS del túnel vs MTU',
+    checks: [
+      {
+        check: 'El túnel de verdad tiene IP',
+        command: 'ipconfig',
+        result: 'El adaptador VPN aparece con IP interna del pool de VPN.',
+        next: 'Si el adaptador no tiene IP: el túnel quedó a medias: reconectar el cliente. Si tiene IP: el problema es de rutas o DNS, seguir.',
+      },
+      {
+        check: 'Rutas hacia la red interna',
+        command: 'route print -4 | findstr 10.10',
+        result: 'Ruta hacia 10.10.0.0/16 apuntando por el adaptador VPN.',
+        next: 'Si falta la ruta a la subred del recurso: split tunnel sin esa red: escalar a Redes para sumarla al perfil VPN. Si la ruta está: probar por IP.',
+      },
+      {
+        check: 'Por IP y por nombre (separa DNS de ruteo)',
+        command: 'ping 10.10.10.20 -n 2',
+        result: 'Respuestas desde la IP interna del recurso.',
+        next: 'Si por IP responde pero por nombre no: el DNS del túnel no resuelve lo interno: ir al check 4. Si por IP tampoco: firewall del gateway o MTU (check 6).',
+      },
+      {
+        check: 'El DNS que entrega el túnel',
+        command: 'ipconfig /all',
+        result: 'El adaptador VPN entrega los DNS internos (10.10.10.10 y 10.10.10.11) y el sufijo del dominio.',
+        next: 'Si el VPN entrega DNS públicos o sin sufijo: el perfil VPN no aplica DNS: reconectar y escalar a Redes (perfil mal configurado). Si entrega los internos: ipconfig /flushdns y volver a probar por nombre.',
+      },
+      {
+        check: 'MTU del túnel (el clásico oculto)',
+        command: 'ping 10.10.10.20 -f -l 1400',
+        result: 'El ping de 1400 bytes con DF pasa por el túnel.',
+        next: 'Si falla con 1400 pero pasa con 1300: overhead del túnel: ajustar la MTU del cliente (netsh interface ipv4 set subinterface "VPN" mtu=1300 store=persistent) o el MSS en el gateway. Si pasa: el canal está, revisar firewall.',
+      },
+      {
+        check: 'Puertos del recurso por el túnel',
+        command: 'Test-NetConnection srv-app.{{DOMAIN}} -Port 443',
+        result: 'TcpTestSucceeded True al recurso interno por el túnel.',
+        next: 'Si ICMP está bloqueado pero el puerto responde: el servicio funciona y el ping era falsa alarma: probar la app. Si el puerto tampoco: regla del firewall del gateway VPN para el pool remoto: escalar a Redes con la evidencia.',
+      },
+    ],
+    remediation: '30% rutas del split tunnel incompletas, 25% DNS del túnel (no aplica internos o sufijo), 20% MTU del túnel (la app sí, el ping no), 15% reglas del gateway VPN, 10% cliente VPN corrupto (reinstalar).',
+    verification: 'Por VPN el usuario abre el share o la intranet por nombre, nslookup resuelve contra el DNS interno y una sesión RDP entra sin timeout.',
+    tags: ['vpn', 'rutas', 'split tunnel', 'mtu', 'dns vpn', 'route print', 'test-netconnection', 'tunel'],
+  },
+  {
+    id: 'TS-HD-020',
+    pillar: 'HELPDESK',
+    title: 'Pantalla negra al arrancar',
+    problem: 'El equipo enciende pero la pantalla queda negra y la escalera separa no POST, sin señal y arranque del propio Windows.',
+    symptoms: [
+      'Ventiladores y luces encienden pero nada aparece en pantalla.',
+      'A veces suena un beep o sale el logo del fabricante y se queda negro.',
+      'En portátiles la pantalla externa sí muestra imagen.',
+    ],
+    level: 'POST vs Señal/Panel vs Arranque del SO',
+    checks: [
+      {
+        check: 'Señales de vida (teclado y LEDs)',
+        result: 'Caps Lock enciende y apaga su LED y el LED de actividad parpadea.',
+        next: 'Si el LED de Caps responde: el SO probablemente arrancó: es problema de señal o de video de Windows (checks 3 y 6). Si nada responde y solo van los ventiladores: no POST (check 2).',
+      },
+      {
+        check: 'No POST: beeps y LEDs de diagnóstico',
+        result: 'Sin beeps de error ni patrón de LEDs de falla según el fabricante.',
+        next: 'Si hay beeps o patrón de LEDs: decodificarlo con la tabla del fabricante (casi siempre RAM, GPU o fuente). Si no hay POST: hard reset y reseat de RAM (check 4).',
+      },
+      {
+        check: '¿El Windows respondió? (ping desde otro equipo)',
+        command: 'ping {{HOSTNAME}} -n 2',
+        result: 'El equipo responde al ping aunque la pantalla esté negra.',
+        next: 'Si responde: Windows está arriba: problema de señal o del driver de video: probar pantalla externa (check 5). Si no responde: no arrancó: seguir por el lado de POST y hardware.',
+      },
+      {
+        check: 'Hard reset y reseat de RAM',
+        result: 'Tras el hard reset (cargador fuera, mantener el botón 30 segundos) y re-asentar los módulos el equipo parte.',
+        next: 'Si parte: carga residual o contacto de RAM: cerrar y vigilar. Si sigue igual: probar con un módulo de RAM a la vez: si parte con uno: módulo o slot dañado: reemplazo.',
+      },
+      {
+        check: 'Pantalla externa en el portátil',
+        command: 'displayswitch.exe /clone',
+        result: 'La imagen aparece en el monitor externo conectado.',
+        next: 'Si el externo sí y el panel no: cable flex o panel del portátil: servicio técnico. Si el externo tampoco muestra: GPU o placa: servicio técnico con esta evidencia.',
+      },
+      {
+        check: 'Logo sí, Windows no',
+        result: 'El equipo pasa el logo del fabricante y se queda negro: POST OK, arranque del SO dañado.',
+        next: 'Forzar WinRE (tres arranques interrumpidos) y entrar en modo seguro: si en seguro hay imagen: driver de video (revertir o actualizar). Si no: ir a la guía de BSOD (TS-HD-010) por reparación de arranque.',
+      },
+    ],
+    remediation: '35% señal o panel (cable, monitor o flex del portátil), 25% RAM mal asentada o dañada, 20% no POST por fuente o placa, 10% carga residual (el hard reset lo resuelve), 10% arranque o driver del SO.',
+    verification: 'El equipo muestra POST, logo de Windows y escritorio completo, y un reinicio más confirma que la imagen queda estable.',
+    tags: ['pantalla negra', 'post', 'beeps', 'hard reset', 'ram', 'pantalla externa', 'black screen', 'no video'],
+  },
+  {
+    id: 'TS-HD-021',
+    pillar: 'HELPDESK',
+    title: 'Bluetooth no empareja',
+    problem: 'El teclado o ratón Bluetooth no empareja o empareja y deja de responder: separar periférico, radio, servicio e interferencia.',
+    symptoms: [
+      'El dispositivo no aparece en la lista al agregar Bluetooth.',
+      'Aparece pero el emparejamiento falla o se desconecta a los minutos.',
+      'Funcionaba y dejó de responder tras un cambio o actualización.',
+    ],
+    level: 'Periférico (modo/batería) vs Radio vs Servicio vs Interferencia',
+    checks: [
+      {
+        check: 'Modo de emparejamiento y baterías',
+        result: 'El periférico en modo emparejamiento (luz parpadeando) con baterías cargadas.',
+        next: 'Si la luz no parpadea: mantener el botón de emparejamiento o cambiar baterías: si ni así, periférico muerto. Si está en modo: ver si la radio lo ve.',
+      },
+      {
+        check: 'La radio Bluetooth del equipo',
+        command: 'Get-PnpDevice -Class Bluetooth | ft FriendlyName, Status',
+        result: 'El adaptador Bluetooth del equipo listado con Status OK.',
+        next: 'Si hay Error o no aparece: la radio está deshabilitada o sin driver: habilitarla o reinstalar el driver. Si está OK: revisar el servicio.',
+      },
+      {
+        check: 'Servicio de soporte Bluetooth',
+        command: 'Get-Service bthserv',
+        result: 'Bluetooth Support Service en Running.',
+        next: 'Si está Stopped: net start bthserv y dejar StartupType Automatic. Si corre y sigue sin verlo: limpiar emparejamientos viejos.',
+      },
+      {
+        check: 'Emparejamientos previos corruptos',
+        result: 'Sin dispositivos viejos con estado de error en la lista de Bluetooth.',
+        next: 'Si el teclado aparece con error: quitar el dispositivo (Configuración, Bluetooth) y re-emparejar desde cero. Si la lista está llena de dispositivos ajenos: limpiar y reintentar.',
+      },
+      {
+        check: 'Reinstalar la pila de la radio',
+        command: 'pnputil /scan-devices',
+        result: 'Tras desinstalar la radio desde el Administrador de dispositivos y re-escanear, el emparejamiento parte.',
+        next: 'Si con la pila reinstalada funciona: estaba corrupta, cerrar. Si persiste: probar un dongle USB externo para descartar la radio de la placa.',
+      },
+      {
+        check: 'Interferencia y posición',
+        result: 'El periférico a menos de dos metros y lejos de puertos y cables USB 3.',
+        next: 'Si solo falla cerca de la torre o del dock: interferencia de 2.4 GHz del USB 3: usar puertos traseros, un hub o un extensor para el dongle. Si la distancia no cambia nada: hardware del periférico.',
+      },
+    ],
+    remediation: '30% periférico (baterías o modo de emparejamiento), 25% emparejamiento previo corrupto (quitar y re-emparejar), 20% driver o pila de la radio, 15% interferencia de 2.4 GHz o USB 3, 10% radio de placa dañada (dongle externo).',
+    verification: 'El teclado o ratón queda emparejado, responde tras apagar y encender el periférico y sobrevive un reinicio del equipo.',
+    tags: ['bluetooth', 'emparejar', 'bthserv', 'get-pnpdevice', 'dongle', 'interferencia', 'pairing', 'teclado inalambrico'],
+  },
+  {
+    id: 'TS-HD-022',
+    pillar: 'HELPDESK',
+    title: 'Office lento en unidad de red',
+    problem: 'Word y Excel tardan en abrir y guardar solo en la unidad de red: separar latencia, rendimiento SMB, antivirus y caché del cliente.',
+    symptoms: [
+      'Abrir un archivo del share tarda decenas de segundos y el mismo archivo local abre instantáneo.',
+      'Guardar en la unidad de red congela la aplicación un rato.',
+      'Varios usuarios del mismo segmento se quejan a la vez.',
+    ],
+    level: 'Red (latencia/ancho) vs SMB vs Cliente (AV/caché)',
+    checks: [
+      {
+        check: 'Latencia hacia el servidor de archivos',
+        command: 'ping fileserver01 -n 4',
+        result: 'Tiempo de respuesta bajo y estable (menos de 1 ms en LAN cableada).',
+        next: 'Si la latencia es alta o variable: WiFi, WAN o saturación del enlace: medir y escalar a Redes. Si es baja: el problema no es la latencia: medir rendimiento.',
+      },
+      {
+        check: 'Rendimiento real de copia',
+        command: 'robocopy C:\\temp \\\\fileserver01\\datos prueba.bin /njh /njs /np',
+        result: 'La copia de un archivo de 100 MB completa en segundos.',
+        next: 'Si copiar es rápido pero abrir con Office es lento: no es ancho de banda: es comportamiento de Office o antivirus (checks 4 y 5). Si copiar también es lento: red o servidor: escalar a SysAdmin.',
+      },
+      {
+        check: 'Dialecto SMB de la conexión',
+        command: 'Get-SmbConnection | ft ServerName, Dialect, Signed',
+        result: 'Conexión al servidor con dialecto SMB 3.x.',
+        next: 'Si aparece 2.0 o 2.1: negociación antigua o un dispositivo intermedio desviando: validar firmas y actualizar. Si es 3.x: revisar antivirus y temporales.',
+      },
+      {
+        check: 'Antivirus escaneando cada operación',
+        result: 'Las carpetas de datos y los temporales de Office excluidos del escaneo en tiempo real.',
+        next: 'Si el AV en tiempo real escanea el share en cada apertura: excluir las extensiones de Office o tunear la política (con SOC: nunca desactivar el AV). Si ya está excluido: revisar CSC.',
+      },
+      {
+        check: 'Archivos sin conexión (CSC) activos',
+        command: 'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\NetCache" /v Enabled',
+        result: 'Enabled en 0 o la clave ausente (CSC no interviene en el share).',
+        next: 'Si Enabled 1: el equipo sincroniza el share como offline: deshabilitar CSC para ese share y medir. Si no está: revisar los temporales de Office.',
+      },
+      {
+        check: 'Temporales y bloqueos de Office',
+        command: 'dir "\\\\fileserver01\\datos\\~$*" /a',
+        result: 'Sin archivos ~$ viejos del usuario en la carpeta.',
+        next: 'Si hay ~$ propios colgados: cerrar Office y limpiarlos (los bloqueos fantasma retrasan cada apertura). Si está limpio: evaluar mover el trabajo a OneDrive con Archivos a petición.',
+      },
+    ],
+    remediation: '30% antivirus en tiempo real sobre el share, 25% red (WiFi o WAN con latencia), 20% dialecto SMB o dispositivo intermedio, 15% archivos ~$ y bloqueos fantasmas, 10% CSC u offline files.',
+    verification: 'Un archivo de 5 MB del share abre en Office en pocos segundos, guardar no congela la app y una segunda medición de ping y robocopy queda dentro de línea base.',
+    tags: ['office lento', 'smb', 'unidad de red', 'get-smbconnection', 'robocopy', 'antivirus', 'offline files', 'share'],
+  },
+  {
+    id: 'TS-HD-023',
+    pillar: 'HELPDESK',
+    title: 'SharePoint no abre en Office (sí en web)',
+    problem: 'Los archivos de SharePoint abren en el navegador pero no en las apps de Office: falla el flujo del cliente, no el archivo.',
+    symptoms: [
+      'Word o Excel muestran error al abrir el enlace de SharePoint.',
+      'En el navegador el mismo archivo abre y edita sin problema.',
+      'A veces pide iniciar sesión en loop o simplemente no hace nada.',
+    ],
+    level: 'Cliente Office (auth/protocolo) vs Navegador vs Directiva',
+    checks: [
+      {
+        check: 'El archivo abre en la web',
+        command: 'start msedge https://{{DOMAIN}}.sharepoint.com/sites/Docs',
+        result: 'El sitio y el archivo abren y editan en el navegador.',
+        next: 'Si la web funciona: servicio y permisos OK: el problema es del cliente de Office (checks 2 a 5). Si la web también falla: permisos o servicio: escalar a 365/Mensajería.',
+      },
+      {
+        check: 'Sesión en el navegador por defecto',
+        result: 'El usuario ya inició sesión en el portal con el navegador por defecto (por ahí pasa el flujo de apertura).',
+        next: 'Si nunca ha entrado con ese navegador: iniciar sesión en el portal con MFA y reintentar el enlace. Si ya tenía sesión: revisar credenciales de Office.',
+      },
+      {
+        check: 'Credenciales guardadas de Office',
+        command: 'cmdkey /list | findstr /i "MicrosoftOffice16 SSO"',
+        result: 'Credenciales actuales sin duplicados ni viejas.',
+        next: 'Si hay entradas viejas: borrarlas (cmdkey /delete:NombreEntrada), cerrar todas las apps de Office y reabrir el enlace para que pida login limpio con MFA.',
+      },
+      {
+        check: 'Protocolo ms-word registrado',
+        command: 'reg query "HKCR\\ms-word" /ve',
+        result: 'El protocolo URI de Office está registrado y apunta a Word.',
+        next: 'Si la clave no existe: la instalación de Office está rota: Reparación rápida en Aplicaciones y características y reintentar. Si existe: probar desde el explorador con ms-word: y seguir.',
+      },
+      {
+        check: '¿También falla con OneDrive sincronizado?',
+        result: 'El mismo archivo abrió bien desde la carpeta sincronizada de OneDrive.',
+        next: 'Si por OneDrive abre: el problema es solo del flujo navegador-protocolo (checks 2 a 4). Si tampoco: credenciales de la app: ir a la guía de OneDrive (TS-HD-006).',
+      },
+      {
+        check: 'Tipo de archivo bloqueado por directiva',
+        result: 'El tipo de archivo abre en el cliente de Office en otros equipos.',
+        next: 'Si solo ese tipo de archivo falla en el cliente pero abre en la web: FileBlock del Centro de confianza o GPO: escalar a SysAdmin. Si falla igual en todos: reparación en línea de Office.',
+      },
+    ],
+    remediation: '35% sesión o credenciales del navegador y Office, 25% credenciales guardadas viejas (cmdkey), 20% protocolo URI u Office roto (reparación), 10% flujo de OneDrive (TS-HD-006), 10% directiva FileBlock.',
+    verification: 'El enlace de SharePoint abre el archivo directamente en Word o Excel con la sesión del usuario, sin prompt de login y sin error.',
+    tags: ['sharepoint', 'office 365', 'ms-word', 'protocolo uri', 'cmdkey', 'reparacion de office', 'login loop', 'word online'],
+  },
+  {
+    id: 'TS-HD-024',
+    pillar: 'HELPDESK',
+    title: 'Portátil se apaga solo',
+    problem: 'El portátil se apaga sin aviso y hay que separar térmica, batería y hardware de energía antes de culpar al sistema.',
+    symptoms: [
+      'Se apaga de golpe, sin pantalla azul ni actualización pendiente.',
+      'Pasa bajo carga (reuniones con video, compilación) o al mover el equipo.',
+      'A veces solo funciona estable con ciertos cargadores o enchufado.',
+    ],
+    level: 'Térmica vs Batería/Energía vs SO (eventos)',
+    checks: [
+      {
+        check: 'Cómo se apagó (eventos del System)',
+        command: 'Get-WinEvent -FilterHashtable @{LogName="System"; Id=41,6008,1074} -MaxEvents 10 | fl TimeCreated, Id, ProviderName',
+        result: 'Eventos 41 o 6008 (apagado abrupto) y sin 1074 de un proceso iniciando apagado.',
+        next: 'Si hay 1074 con procesos tipo Windows Update: la actualización reinicia: ajustar horario activo. Si 41 o 6008: corte de energía o térmica: seguir.',
+      },
+      {
+        check: 'Correlación con la carga de trabajo',
+        result: 'Los apagados se agrupan bajo carga pesada o al mover el equipo o el cargador.',
+        next: 'Si es bajo carga: térmica (check 3). Si es al mover el equipo o con carga media en batería: hardware de energía (check 4). Si es aleatorio incluso en reposo: placa o RAM: servicio técnico.',
+      },
+      {
+        check: 'Temperatura del equipo',
+        command: 'Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature | fl InstanceName, CurrentTemperature',
+        result: 'Temperatura por debajo del umbral (el valor viene en décimas de Kelvin: 85 grados es apagado térmico típico).',
+        next: 'Si ronda o supera el umbral al momento del corte: sobrecalentamiento: limpiar ventilación y repastear (check 5). Si la temperatura es normal: descartar la térmica.',
+      },
+      {
+        check: 'Salud de la batería',
+        command: 'powercfg /batteryreport /output C:\\temp\\bateria.html',
+        result: 'Full Charge Capacity cercana al Design Capacity y sin caídas bruscas.',
+        next: 'Si la capacidad real cayó mucho (por debajo del 50-60%): batería vencida: el corte con carga media es la batería: reemplazo. Si está sana: revisar ventilación y hardware.',
+      },
+      {
+        check: 'Ventilación y ventilador',
+        result: 'El ventilador gira al cargar la CPU y las rejillas están limpias.',
+        next: 'Si el ventilador no gira o suena a rodamiento: falla del fan: servicio técnico (el equipo se apaga por protección térmica). Si está limpio y gira: la térmica queda descartada.',
+      },
+      {
+        check: 'Condiciones eléctricas',
+        result: 'El equipo funciona estable con otro cargador y en otra toma.',
+        next: 'Si el comportamiento cambia según el cargador o la toma: cargador o jack de energía: reemplazar el cargador primero (lo barato). Si es igual en todas: placa: servicio técnico con el battery report y los eventos adjuntos.',
+      },
+    ],
+    remediation: '30% sobrecalentamiento (polvo o fan muerto), 25% batería vencida (cortes con carga media), 20% cargador o jack de energía, 15% placa o hardware, 10% actualización reiniciando (horario activo).',
+    verification: 'Una hora de uso bajo carga (reunión con video) sin apagados, el System sin eventos 41 nuevos y el battery report dentro de línea base.',
+    tags: ['portatil', 'se apaga solo', 'kernel power 41', 'thermalzone', 'battery report', 'powercfg', 'sobrecalentamiento', 'bateria'],
   },
 ];
 

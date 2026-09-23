@@ -1,10 +1,12 @@
 /**
  * sysadminCheatSheet.ts — CHEATSHEET del PILAR 2: SYSADMIN OPS / INFRA.
  *
- * 52 entradas CS-SA-001..CS-SA-052: los fixes rápidos y verificables de la
+ * 58 entradas CS-SA-001..CS-SA-058: los fixes rápidos y verificables de la
  * guardia L2. AD/DC (dcdiag, replicación, FSMO, USN, SYSVOL/DFSR), DNS/DHCP,
  * File/Print SMB, Entra Connect/Identidad, Intune/Endpoint, Backup/Storage
- * (RAID/LVM), Hyper-V, WSUS y Linux (disk, systemd, cron, SSH, NFS, docker).
+ * (RAID/LVM/iSCSI), Hyper-V (y WSFC), WSUS, Linux (disk, systemd, cron, SSH,
+ * NFS, docker) y monitoreo operativo (Zabbix, SNMP, OpenSSH de Windows,
+ * granja RDS).
  *
  * Regla de contenido (cheatsheetCore): fix = 3-8 líneas, cada línea un paso
  * o comando concreto y REAL (PowerShell + bash, sin cmdlets inventados);
@@ -849,6 +851,102 @@ export const SYSADMIN_CHEATSHEET: PillarCheatEntry[] = [
     ],
     verify: 'docker ps estable en Up más de 10 minutos y el healthcheck (si existe) en healthy.',
     tags: ['docker', 'restart loop', 'docker logs', 'compose', 'force-recreate', 'oomkilled', 'healthcheck', 'depends_on', 'container', 'crash', 'pull'],
+  },
+  {
+    id: 'CS-SA-053',
+    title: 'iSCSI no conecta — servicio, IQN y portal en orden',
+    category: 'Backup / Storage',
+    problem: 'El iniciador iSCSI de {{HOSTNAME}} no ve el target del storage y el volumen (o el CSV) depende de esa sesión.',
+    fix: [
+      'El servicio es Manual por defecto: Get-Service MSiSCSI → Set-Service MSiSCSI -StartupType Automatic; Start-Service MSiSCSI',
+      'IQN del iniciador: Get-IscsiInitiatorPort (o el GUI de iSCSI Initiator) — contra el del target: Get-IscsiTarget',
+      'Conectar al portal: Connect-IscsiTarget -NodeAddress "iqn.2000-01.com.nexora:storage.target01" -TargetPortalAddress 10.10.20.50 -TargetPortalPortNumber 3260',
+      'Red y puerto: Test-NetConnection 10.10.20.50 -Port 3260 — si falla: VLAN de storage, routing o firewall intermedio (iSCSI NUNCA va por la red de usuarios)',
+      'Login persistente (si no, se pierde al reiniciar): Get-IscsiSession | Register-IscsiSession — y verificar: Get-IscsiPersistentLogin',
+      'Dos NICs de storage: MPIO obligatorio — Get-WindowsFeature Multipath-IO (instalarlo: Install-WindowsFeature Multipath-IO) y una sola sesión por camino',
+    ],
+    verify: 'Get-IscsiSession muestra la sesión Conectada, el disco aparece en Get-Disk y el login persiste tras reiniciar (Get-IscsiPersistentLogin).',
+    tags: ['iscsi', 'msiscsi', 'get-iscsitarget', 'connect-iscsitarget', 'iqn', 'portal 3260', 'mpio', 'multipath-io', 'csv', 'storage', 'test-netconnection', 'login persistente'],
+  },
+  {
+    id: 'CS-SA-054',
+    title: 'WSFC: nodo fuera del clúster — membresía, red y quórum',
+    category: 'Hyper-V',
+    problem: 'Un nodo del failover cluster aparece Down o evicted, los roles cayeron al otro nodo y hay que devolverlo sin romper el quórum.',
+    fix: [
+      'Estado general: Get-ClusterNode (NodeState Up/Down) y Get-ClusterGroup para ver dónde quedó cada rol',
+      'Si el nodo está Down pero vivo: Get-Service ClusSvc en el nodo y el porqué: Get-WinEvent -LogName "Microsoft-Windows-FailoverClustering/Operational" -MaxEvents 30',
+      'La red del clúster: Get-ClusterNetwork y Test-NetConnection entre nodos por las IPs del heartbeat — un firewall/VLAN nuevo rompe la membresía silenciosamente',
+      'Quórum: Get-ClusterQuorum — con un nodo abajo el clúster solo sobrevive con testigo (disk/file share witness) o número impar: el evento 1177 en System marca la pérdida de quórum',
+      'Devolver el nodo: Start-ClusterNode -Name {{HOSTNAME}} — si salió evicted: Add-ClusterNode (y si el equipo fue reinstalado, limpiar la cuenta de computador vieja en AD antes)',
+      'Prevenir de verdad: Test-Cluster (reporte de validación completo) — valida red, storage y MPIO antes de que falle en producción',
+    ],
+    verify: 'Get-ClusterNode con todos los nodos en Up, los roles en su nodo dueño (Move-ClusterGroup según el plan) y sin eventos 1069/1177 en 24h.',
+    tags: ['wsfc', 'failover cluster', 'nodo down', 'get-clusternode', 'clusvc', 'quorum', 'testigo', 'witness', '1177', '1069', 'start-clusternode', 'test-cluster'],
+  },
+  {
+    id: 'CS-SA-055',
+    title: 'RDS: la sesión no entra al farm — broker, colección y CAL',
+    category: 'Intune / Endpoint',
+    problem: 'Los usuarios conectan por RDP pero la granja RDS de {{HOSTNAME}} no les entrega sesión, o todos caen al mismo host saturado.',
+    fix: [
+      'Separar capas: ¿llega al broker?: Test-NetConnection {{HOSTNAME}}-rdb -Port 3389 y a cada session host de la colección — el 3389 rechazando ya define el problema',
+      'El Connection Broker es el que decide: las colecciones: Get-RDSessionCollection — y los hosts con su carga: Get-RDSessionHost (ConnectionCount por host)',
+      'Host en drain mode (NewConnectionAllowed No): Set-RDSessionHost -SessionHost {{HOSTNAME}} -NewConnectionAllowed Yes — el broker deja de mandarle usuarios y la fila se llena en los otros',
+      'Licenciamiento: RD Licensing Diagnoser (lsdiag.msc) — CAL Per User vs Per Device, host de licencias alcanzable y grace period vencido son los tres clásicos de rechazo inmediato',
+      'Eventos del session host: Get-WinEvent -LogName "Microsoft-Windows-TerminalServices-RemoteConnectionManager" -MaxEvents 20 — y sesiones colgadas: qwinsta /server:{{HOSTNAME}} + reset session <id> /server:{{HOSTNAME}}',
+      'El broker sin alta disponibilidad es un solo punto de falla: Get-RDConnectionBrokerHighAvailability — cliente SQL Server dedicado para la base del broker si el farm es serio',
+    ],
+    verify: 'Un usuario de prueba entra por mstsc al farm, recibe sesión en un host con capacidad y el RemoteConnectionManager registra su conexión (evento 1149).',
+    tags: ['rds', 'granja rds', 'broker', 'rd connection broker', 'get-rdsessioncollection', 'get-rdsessionhost', 'drain mode', 'cal', 'lsdiag', 'qwinsta', '1149', 'mstsc'],
+  },
+  {
+    id: 'CS-SA-056',
+    title: 'Agente Zabbix muerto — reinstalar y validar con zabbix_get',
+    category: 'Linux',
+    problem: 'El host {{HOSTNAME}} quedó gris en Zabbix: el agente no responde, no arranca o reporta basura tras varios intentos de restart.',
+    fix: [
+      'El error real: systemctl status zabbix-agent2 y journalctl -u zabbix-agent2 -n 50 (el clásico: Server= apuntando a la IP vieja del server tras un cambio)',
+      'Desde el server de monitoreo: zabbix_get -s {{HOSTNAME}} -k agent.ping — debe devolver 1 (timeout = firewall 10050, ListenIP o el agente muerto)',
+      'Puerto local en el host: ss -tlnp | grep 10050 — si escucha solo en 127.0.0.1: ListenIP=0.0.0.0 en /etc/zabbix/zabbix_agent2.conf y systemctl restart zabbix-agent2',
+      'Reinstalación limpia conservando config: apt reinstall zabbix-agent2 (RHEL: dnf reinstall zabbix-agent2) → systemctl enable --now zabbix-agent2',
+      'PSK/TLS que no negocia: TLSConnect/TLSAccept y la PSK del host deben calzar con lo registrado en el frontend — el detalle está en /var/log/zabbix/zabbix_agent2.log',
+      'Validación final desde el server: zabbix_get -s {{HOSTNAME}} -k system.uname — y el host pasa a verde (ZBX) en 1-2 ciclos de poll',
+    ],
+    verify: 'zabbix_get responde 1 y system.uname desde el server; el host en el frontend queda disponible (ZBX) y sin triggers en UNKNOWN.',
+    tags: ['zabbix', 'zabbix-agent2', 'zabbix_get', 'agent.ping', 'system.uname', '10050', 'listenip', 'psk', 'journalctl', 'gris', 'no data', 'monitoreo'],
+  },
+  {
+    id: 'CS-SA-057',
+    title: 'OpenSSH en Windows rechaza la llave — authorized_keys y sshd_config',
+    category: 'Linux',
+    problem: 'La llave pública configurada en un Windows Server con OpenSSH da "Permission denied (publickey)" y la contraseña sí funciona.',
+    fix: [
+      'Lo primero: la voz del cliente: ssh -vvv usuario@{{HOSTNAME}} — "Offering public key" seguido de "Server refused our key" cuenta la historia completa',
+      'La ruta en Windows: C:\\Users\\usuario\\.ssh\\authorized_keys — OpenSSH de Windows NO crea la carpeta: mkdir y colocar la llave pública a mano',
+      'Permisos estilo Linux obligatorios (sshd rechaza llaves "demasiado abiertas"): icacls "C:\\Users\\usuario\\.ssh" /inheritance:r /grant "usuario:(OI)(CI)F" /grant "SYSTEM:(OI)(CI)F"',
+      'La trampa de admins: en C:\\ProgramData\\ssh\\sshd_config, la línea "Match Group administrators" apunta a administrators_authorized_keys (en ProgramData\\ssh) — meter la llave ahí o comentar el bloque para usar el authorized_keys del perfil',
+      'Reiniciar tras cada cambio: Restart-Service sshd — y ver el rechazo con registro: Get-WinEvent -LogName "OpenSSH/Operational" -MaxEvents 20',
+      'Prueba que aísla la red: ssh localhost desde el propio servidor — si local falla, es permisos/config; si local entra y remoto no, es firewall',
+    ],
+    verify: 'ssh usuario@{{HOSTNAME}} entra sin pedir contraseña y el log OpenSSH/Operational no registra más "key denied".',
+    tags: ['openssh', 'windows ssh', 'ssh', 'authorized_keys', 'permission denied', 'publickey', 'icacls', 'sshd_config', 'programdata', 'administrators_authorized_keys', 'restart-service sshd', 'llave rechazada'],
+  },
+  {
+    id: 'CS-SA-058',
+    title: 'SNMP no responde — comunidad, puerto 161 y snmpwalk',
+    category: 'DNS / DHCP',
+    problem: 'El sistema de monitoreo no completa el poll SNMP de {{HOSTNAME}}: snmpwalk da timeout y el host quedó sin métricas de red y uptime.',
+    fix: [
+      'Probar desde el NMS: snmpwalk -v2c -c comunidad {{HOSTNAME}} system — el error dice todo (timeout = red/firewall; "Authentication failure" = comunidad incorrecta)',
+      'En el host: systemctl status snmpd y ss -ulnp | grep 161 — snmpd debe escuchar UDP 161 (agentAddress udp:161 en /etc/snmp/snmpd.conf)',
+      'La comunidad: grep com2sec /etc/snmp/snmpd.conf — el nombre Y la red de origen (com2sec readonly 10.10.0.0/16 comunidad) deben calzar con la IP del NMS',
+      'Firewall: firewall-cmd --add-service=snmp --permanent; firewall-cmd --reload (Debian/Ubuntu: ufw allow 161/udp) — SNMP es UDP: que el ping responda no prueba nada',
+      'Test local en el host: snmpwalk -v2c -c comunidad localhost system — funciona local pero no remoto = firewall/VLAN seguro',
+      'Redes nuevas en v3: snmpwalk -v3 -u usuario -l authPriv -a SHA -A "clave" -x AES -X "clave" {{HOSTNAME}} system — v2c viaja en claro y no pasa auditoría',
+    ],
+    verify: 'snmpwalk desde el NMS responde la rama system completa y el host vuelve a reportar uptime e interfaces en el monitoreo.',
+    tags: ['snmp', 'snmpwalk', 'snmpd', 'comunidad', 'community', '161 udp', 'agentaddress', 'com2sec', 'authpriv', 'nms', 'firewall-cmd', 'monitoreo'],
   },
 ];
 

@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench,
   Bookmark, Inbox, Database, IdCard, Map as RoadmapIcon, Headset, GraduationCap, LifeBuoy, Zap,
-  Server, Milestone, Shield, GitBranch,
+  Server, Milestone, Shield, ShieldAlert, GitBranch,
 } from 'lucide-react';
 // V9 — conteos estáticos de los datasets por pilar (badges del sidebar).
 // PERF (optimización de arranque): los 9 datasets por pilar suman ~1.9MB de
@@ -176,7 +176,14 @@ const SidebarBase: React.FC<SidebarProps> = ({
       ? Math.round((roadmapSaRows.filter((r) => r.done).length / roadmapSaRows.length) * 100)
       : 0;
 
-  // SOC (v9) — progreso del roadmap SOC (badge de su propia sección).
+  // SOC (v9) — casos abiertos del simulador Blue Team (badge del SOC)
+  // + progreso del roadmap SOC (badge de su propia sección).
+  const socOpenCount =
+    useLiveQuery(
+      () => db.socTickets.filter((t) => !t.isDeleted && (t.status === 'nuevo' || t.status === 'en_progreso')).count(),
+      [],
+      0
+    ) || 0;
   const roadmapSocRows = useLiveQuery(() => db.roadmapSocItems.toArray(), [], []);
   const roadmapSocPct =
     roadmapSocRows.length > 0
@@ -367,6 +374,14 @@ const SidebarBase: React.FC<SidebarProps> = ({
     {
       label: 'Pilar 3 · SOC / Blue Team',
       items: [
+        {
+          section: 'soc',
+          label: 'SOC Blue Team',
+          icon: <ShieldAlert className={SIDEBAR_ICON} />,
+          title: 'Simulador del Blue Team: trabaja la cola de casos del SOC de Nexora (Identity, Endpoint, Network, Email, Cloud, Web), la primera semana SOC y la KB',
+          badge: socOpenCount,
+          badgeClass: 'text-amber-400/90',
+        },
         {
           section: 'roadmap-soc',
           label: 'Roadmap SOC',

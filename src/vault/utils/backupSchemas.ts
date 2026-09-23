@@ -461,6 +461,40 @@ export const sysadminTicketSchema = z.object({
   updatedAt: z.string().optional(),
 }).passthrough();
 
+/** SOC (v9 simulador) — casos de práctica del Blue Team. La fila completa
+ * (contenido del dataset + trabajo del usuario: status/statusNote) viaja en
+ * socTickets.json. Mismo contrato que helpdeskTicketSchema con la extensión
+ * de dominio: environment = torre de detección. */
+export const socTicketSchema = z.object({
+  id: z.string().min(1),
+  number: z.string().min(1),
+  title: z.string().min(1),
+  category: z.string().min(1),
+  subcategory: z.string().optional().nullable(),
+  type: z.enum(['incidente', 'solicitud']),
+  priority: z.enum(['P1', 'P2', 'P3', 'P4']),
+  impact: z.enum(['alta', 'media', 'baja']),
+  urgency: z.enum(['alta', 'media', 'baja']),
+  environment: z.enum(['Identity', 'Endpoint', 'Network', 'Email', 'Cloud', 'Web', 'Multi']),
+  requester: z.string(),
+  description: z.string(),
+  symptoms: z.string(),
+  dataAvailable: z.string().optional().nullable(),
+  troubleshooting: z.string().optional().nullable(),
+  resolution: z.string().optional().nullable(),
+  escalation: z.string().optional().nullable(),
+  kbRef: z.string().optional().nullable(),
+  skill: z.string().optional().nullable(),
+  evidence: z.string().optional().nullable(),
+  status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
+  statusNote: z.string().optional().nullable(),
+  isFinalProject: z.boolean().optional().nullable(),
+  isDeleted: z.boolean().optional(),
+  deletedAt: z.string().optional().nullable(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).passthrough();
+
 // ---------------------------------------------------------------------------
 // Manifest
 // ---------------------------------------------------------------------------

@@ -1,16 +1,18 @@
 /**
  * socCheatSheet.ts — CHEATSHEET del PILAR 3: SOC / BLUE TEAM.
  *
- * 42 entradas CS-SOC-001..CS-SOC-042: la respuesta rápida del analista L1
+ * 48 entradas CS-SOC-001..CS-SOC-048: la respuesta rápida del analista L1
  * ante phishing y fraude de correo (triage, clic, credenciales, adjuntos,
  * BEC, spoof, alcance, purga), cuentas comprometidas (risky sign-in,
  * impossible travel, MFA fatigue, reglas de buzón, robo de token/PRT,
- * kill switch), password spray y brute force, eventos críticos de Windows
- * (4740/4720/4728/4732/4688/1102/104/7045), procesos y EDR (Defender,
- * PowerShell -enc, LOLBins, linaje, cuarentena vs remove), persistencia
- * (tareas, run keys, WMI, startup), lateral y C2 (PsExec/WinRM, beaconing,
- * DNS tunneling), ransomware/infostealer/aislamiento y plantillas de caza
- * KQL/SPL/Sigma.
+ * kill switch, DLP de descarga masiva, credenciales en repos públicos),
+ * password spray y brute force (incl. SSH externo con fail2ban), eventos
+ * críticos de Windows (4740/4720/4728/4732/4688/1102/104/7045), procesos
+ * y EDR (Defender, PowerShell -enc, LOLBins, linaje, cuarentena vs
+ * remove), persistencia (tareas, run keys, WMI, startup, web shells),
+ * lateral y C2 (PsExec/WinRM, beaconing, DNS tunneling, rogue AP),
+ * ransomware/infostealer/aislamiento, plantillas de caza KQL/SPL/Sigma y
+ * extracción de payloads de SQLi desde logs de WAF.
  *
  * Regla de contenido (cheatsheetCore): fix = 3-8 líneas, cada línea un paso
  * o comando/consulta concreta y REAL (KQL de Sentinel/MDO, SPL de Splunk,
@@ -696,6 +698,102 @@ export const SOC_CHEATSHEET: PillarCheatEntry[] = [
     ],
     verify: 'La query convertida corre en el SIEM con hits manejables (falsos positivos ajustados) y la regla versionada en el repo de detecciones.',
     tags: ['sigma', 'yaml', 'detection engineering', 'sigma convert', 'sigma check', 'logsource', 'selection', 'condition', 'mitre', 'tags', 'yml', 'traduccion'],
+  },
+  {
+    id: 'CS-SOC-043',
+    title: 'Web shell en IIS — hallar el archivo y el request que la plantó',
+    category: 'Persistencia',
+    problem: 'El WAF alertó requests POST extraños hacia un .aspx recién creado en el wwwroot del IIS de {{HOSTNAME}}: hasta demostrar lo contrario, hay web shell plantada (T1505.003).',
+    fix: [
+      'Archivo nuevo en el webroot: DeviceFileEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(24h) | where FolderPath has_any ("wwwroot", "inetpub", "www") | where FileName endswith ".aspx" or FileName endswith ".asp" or FileName endswith ".php" or FileName endswith ".jsp" | project Timestamp, FileName, FolderPath, SHA256, InitiatingProcessFileName (w3wp.exe o java creando script = bandera roja)',
+      'El request que la plantó (SPL del WAF/proxy): index=web sourcetype=access_combined method=POST status=200 uri_path="*.aspx*" | table _time, src, uri_path, bytes_in, bytes_out — el POST justo antes de la hora de creación del archivo',
+      'Quién escribió el archivo: SecurityEvent | where EventID == 4663 | where ObjectName has ".aspx" | project TimeGenerated, Computer, SubjectUserName, ProcessName (requiere SACL del folder; sin SACL, el InitiatingProcessCommandLine de DeviceFileEvents da el linaje)',
+      'Confirmar sin ejecutarla: el SHA256 a VirusTotal/feeds y leer el contenido con strings — JAMÁS abrir la URL desde la red corporativa (el hit notifica al atacante)',
+      'Contener: aislar el host o sacar el site offline (CS-SOC-039), snapshot forense ANTES de borrar, retirar el archivo y cerrar el vector (upload sin validación, plugin/CMS desactualizado)',
+      'Cazar shells hermanas: el mismo patrón de DeviceFileEvents en TODOS los servidores web 7d atrás y barrido de IOCs (SHA256, IP, URI) en el SIEM (CS-SOC-040)',
+    ],
+    verify: 'Ningún archivo de script creado por el proceso web en 48h en los servidores monitoreados y los IOCs de la shell barridos sin más hits.',
+    tags: ['web shell', 'iis', 'aspx', 't1505.003', 'w3wp', 'wwwroot', 'devicefileevents', '4663', 'access_combined', 'post upload', 'backdoor', 'server software component'],
+  },
+  {
+    id: 'CS-SOC-044',
+    title: 'DLP: descarga masiva — contener y cerrar el alcance',
+    category: 'Cuentas / Identidad',
+    problem: 'La alerta DLP marca que una cuenta se descargó miles de archivos de SharePoint/OneDrive en poco tiempo: insider que se va o cuenta comprometida (T1213).',
+    fix: [
+      'Dimensionar: OfficeActivity | where Timestamp > ago(24h) | where UserId == "{{USERNAME}}@{{DOMAIN}}" | where Operation == "FileDownloaded" | summarize archivos = count() by SiteUrl, ClientIP | order by archivos desc — sitios, volúmenes y desde qué IP',
+      '¿Cuenta comprometida o persona?: SigninLogs | where UserPrincipalName == "{{USERNAME}}@{{DOMAIN}}" | where Timestamp > ago(24h) | project Timestamp, IPAddress, Location, ResultType, ClientApp — IP/ubicación/ClientApp nuevo = compromiso; todo desde la oficina de siempre = insider',
+      'El UserAgent delata la herramienta: descargas masivas con cliente de sync/API en vez de navegador = preparación automatizada — guardar el UserAgent de OfficeActivity como IOC del caso',
+      'Contener: revocar sesiones y reset (CS-SOC-014) — con insider confirmado, coordinar con legal/RRHH ANTES de confrontar (la evidencia de OfficeActivity ya quedó capturada)',
+      'Cerrar el alcance: total de archivos y sitios, clasificación de lo descargado, ventana exacta y UserAgent, firmados en {{TICKET_ID}} — es el insumo del flujo de privacidad si hay datos personales',
+      'Elevar: volumen de datos personales/financieros = activar el flujo de incidente de datos (plazos de notificación) — un caso DLP no se cierra como ticket de soporte',
+    ],
+    verify: 'Alcance documentado (archivos, sitios, ventana, UserAgent) en el ticket, cuenta contenida sin destruir la evidencia y remisión al flujo de privacidad si aplica.',
+    tags: ['dlp', 'descarga masiva', 'officeactivity', 'filedownloaded', 'sharepoint', 'onedrive', 't1213', 'exfiltracion', 'insider', 'data loss', 'revocar sesiones', 'privacidad'],
+  },
+  {
+    id: 'CS-SOC-045',
+    title: 'Rogue AP — confirmarlo y ubicarlo antes de tocarlo',
+    category: 'Lateral / C2',
+    problem: 'El WIDS (o un usuario atento) reporta un SSID casi idéntico al corporativo con señal fuerte en la oficina: posible rogue AP o evil twin (T1557).',
+    fix: [
+      'Primer filtro: SSID sospechoso vs legítimo (un solo carácter de diferencia = evil twin) — y el BSSID (MAC del AP) contra el inventario: netsh wlan show networks mode=bssid (SSID, BSSID, canal y señal %)',
+      'La señal delata la distancia: medir el % desde dos puntos del piso (misma sala y pasillo) — donde la señal pica en ambas mediciones está el AP (a 90% de señal estás a metros)',
+      'Vendor del BSSID: los 3 primeros octetos (OUI) → un AP doméstico (TP-Link, Mercusys, D-Link) en zona corporativa es casi seguro rogue',
+      'En el SIEM: CommonSecurityLog del sensor WIDS/controlador WLAN con los eventos de asociación del BSSID — cuántos clientes corporativos ya cayeron (cada uno es potencial exposición de credenciales)',
+      'Contener: bloquear el BSSID en el WLAN controller, ubicar el puerto del switch por la MAC (show mac address-table) y retirar físicamente el AP — foto y evidencia a {{TICKET_ID}}',
+      'Si hubo clientes conectados al evil twin: cada usuario se trata como robo de credenciales (CS-SOC-003) — un portal cautivo falso captura usuario y contraseña',
+    ],
+    verify: 'BSSID bloqueado, AP retirado físicamente, ningún cliente corporativo reconecta al SSID falso y los usuarios expuestos pasaron por reset.',
+    tags: ['rogue ap', 'evil twin', 'bssid', 'ssid', 'wids', 'wifi', 'netsh wlan', 'mode=bssid', 'oui', 'triangulacion', 't1557', 'wlan controller'],
+  },
+  {
+    id: 'CS-SOC-046',
+    title: 'SSH brute force externo — atajar con fail2ban y leer el auth.log',
+    category: 'Ataques de Contraseña',
+    problem: 'El auth.log de {{HOSTNAME}} (servidor Linux expuesto) se llena de "Failed password" desde IPs externas: brute force SSH en curso (T1110.001).',
+    fix: [
+      'Medir la magnitud: grep -c "Failed password" /var/log/auth.log — y las IPs top: grep "Failed password" /var/log/auth.log | grep -oE "([0-9]{1,3}[.]){3}[0-9]{1,3}" | sort | uniq -c | sort -rn | head',
+      'Lo que importa de verdad: ¿alguien entró?: grep "Accepted password" /var/log/auth.log | tail -20 — una línea Accepted desde la IP del brute force = incidente completo, no intento fallido',
+      'Estado de fail2ban: fail2ban-client status sshd (current banned y total) — y ban manual inmediato: fail2ban-client set sshd banip {{IP}}',
+      'Ajustar la cárcel en /etc/fail2ban/jail.local ([sshd] maxretry=5, findtime=10m, bantime=1h; reincidentes: bantime=-1) → systemctl restart fail2ban',
+      'Blindar de verdad: PasswordAuthentication no y PermitRootLogin no en /etc/ssh/sshd_config → systemctl restart sshd — con solo llaves, el brute force muere',
+      'Si hubo un Accepted: rotar credenciales (CS-SOC-014), revisar sesiones (who, w) y cazar persistencia Linux (crontab -l, systemctl list-timers, ~/.ssh/authorized_keys)',
+    ],
+    verify: 'fail2ban-client status sshd muestra la IP baneada, el conteo de "Failed password" cae a cero y sshd rechaza contraseñas.',
+    tags: ['ssh', 'brute force', 'fail2ban', 'auth.log', 'failed password', 't1110.001', 'passwordauthentication', 'jail.local', 'banip', 'sshd_config', 'permitrootlogin', 'linux'],
+  },
+  {
+    id: 'CS-SOC-047',
+    title: 'SQLi en los logs del WAF — extraer el payload con SPL',
+    category: 'Threat Hunting / Tooling',
+    problem: 'El WAF bloqueó una ráfaga de inyección SQL contra el portal de {{HOSTNAME}}: extraer el payload exacto, confirmar que nada pasó y blindar (T1190).',
+    fix: [
+      'La ráfaga bloqueada: index=waf sourcetype=waf:blocked attack_type="SQL Injection" | stats count dc(uri_path) as uris values(signature) as firmas by src_ip | sort - count',
+      'Extraer el payload de los access logs: index=web sourcetype=access_combined | rex field=uri_query "id=(?<payload>[^&]+)" | where match(payload, "(?i)union.+select|sleep|or 1=1") | table _time, src_ip, uri_path, payload, status',
+      'Lo que importa: ¿pasó algo? — las bloqueadas viven en el WAF, las que PASARON en el web server: mismas queries con status=200 en access_combined, y time-based SLEEP: stats avg(response_time) p95(response_time) by uri_path (respuesta de segundos = la base respondió)',
+      'Del lado de la app: el log de errores SQL en la ventana de la ráfaga (index=app "SQL syntax") correlacionado con el src_ip — el error de sintaxis vivo = la query llegó a la base',
+      'IOCs y bloqueo: src_ip + patrón + uri a {{TICKET_ID}}, regla de bloqueo temporal en el edge/WAF y mirar si la misma IP venía probando semanas atrás (index=web src_ip={{IP}} earliest=-30d | stats count by uri_path)',
+      'Blindar de fondo: queries parametrizadas (la raíz), la firma del WAF de detect a block y rate-limit por IP — sin esto, la ráfaga vuelve mañana',
+    ],
+    verify: 'El payload extraído y los IOCs documentados en el ticket, cero requests con status=200 que casen con el patrón tras el bloqueo y la firma del WAF en modo block.',
+    tags: ['sqli', 'sql injection', 'waf', 'payload', 't1190', 'rex', 'uri_query', 'access_combined', 'union select', 'sleep', 'time-based', 'index=web'],
+  },
+  {
+    id: 'CS-SOC-048',
+    title: 'Credenciales en repo público — verificar, rotar y purgar el historial',
+    category: 'Cuentas / Identidad',
+    problem: 'El monitor de repos reporta credenciales de Nexora S.A. expuestas en un repo público: hay que verificar, contener y rotar sin asumir que "nadie la vio" (T1552.001).',
+    fix: [
+      'Verificar qué es: el snippet del repo (contraseña, token, llave), a qué sistema abre la puerta y desde cuándo está publicado (git log del archivo) — un secreto con meses de exposición se asume usado',
+      'Buscar actividad ANTES de rotar: SigninLogs | where UserPrincipalName == "{{USERNAME}}@{{DOMAIN}}" | where Timestamp > ago(30d) | project Timestamp, IPAddress, Location, ResultType — y para apps/service principals: AADNonInteractiveUserSignInLogs | where AppId == "{{APP_ID}}" | summarize intentos = count() by IPAddress | order by intentos desc',
+      'ROTAR INMEDIATAMENTE (la rotación no espera más evidencia): reset + revocar sesiones (CS-SOC-014); tokens/PAT: regenerar en el sistema dueño; llaves SSH: retirar del authorized_keys y generar nuevas',
+      'Purga real del repo: borrar el archivo NO basta (queda en el historial de git) — rewrite del historial si es repo propio, o contacto al dueño/takedown si es de tercero; asumir que alguien ya lo clonó',
+      'Barrido de re-uso: la misma contraseña en otros sistemas (la gente repite), buscar el patrón del secreto en los repos internos y revisar OfficeActivity/AzureActivity del dueño de la credencial en 30d',
+      'Que no se repita: pre-commit hooks + secret scanning en el pipeline (gitleaks/trufflehog) — el fix es de proceso, no de rotar más rápido',
+    ],
+    verify: 'La credencial vieja rechazada (prueba de login controlada), la nueva en uso, el historial del repo reescrito y secret scanning activo en CI.',
+    tags: ['credenciales expuestas', 'repo publico', 'github', 'secret scanning', 'gitleaks', 't1552.001', 'rotacion', 'token', 'pat', 'git history', 'filtracion', 'leak'],
   },
 ];
 
