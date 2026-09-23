@@ -19,6 +19,7 @@ import {
   Wrench,
   Zap,
   LifeBuoy,
+  GitBranch,
 } from 'lucide-react';
 import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
 import { searchAllVault, SearchResultItem, resultToToolDeepLink } from '../utils/fuzzySearch';
@@ -42,6 +43,8 @@ interface GlobalSearchModalProps {
   /** V6 FASE 4 — runbook/cheatsheet deep-links desde Ctrl+K. */
   onSelectRunbook?: (runbookId: string) => void;
   onSelectCheatSheet?: (cheatsheetId: string) => void;
+  /** V9 — deep-links de guías de troubleshooting (escaleras de decisión). */
+  onSelectTroubleshooting?: (troubleshootingId: string) => void;
 }
 
 /** Outer wrapper: mounts fresh content each time the modal opens. */
@@ -64,6 +67,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
   onSelectCommand,
   onSelectRunbook,
   onSelectCheatSheet,
+  onSelectTroubleshooting,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -101,6 +105,8 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
       onSelectRunbook(item.id);
     } else if (item.type === 'cheatsheet' && onSelectCheatSheet) {
       onSelectCheatSheet(item.id);
+    } else if (item.type === 'troubleshooting-tree' && onSelectTroubleshooting) {
+      onSelectTroubleshooting(item.id);
     } else if (toolLink && onSelectTool) {
       onSelectTool(toolLink);
     } else if (item.type === 'reference' && onSelectReference) {
@@ -166,6 +172,8 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
         return { label: 'Runbook', icon: <LifeBuoy className="w-3.5 h-3.5" />, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: 'bg-blue-500/10 text-blue-400' };
       case 'cheatsheet':
         return { label: 'CheatSheet', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-amber-500/10 text-amber-400 border-amber-500/20', dot: 'bg-amber-500/10 text-amber-400' };
+      case 'troubleshooting-tree':
+        return { label: 'Troubleshooting', icon: <GitBranch className="w-3.5 h-3.5" />, color: 'bg-teal-500/10 text-teal-400 border-teal-500/20', dot: 'bg-teal-500/10 text-teal-400' };
       case 'command':
         return { label: 'Comando', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-violet-500/10 text-violet-400 border-violet-500/20', dot: 'bg-violet-500/10 text-violet-400' };
       default:

@@ -18,8 +18,15 @@ import {
 // V6 (3.6.0) — datasets de referencia estáticos: se exportan como snapshot
 // (portabilidad USB). La importación NO los aplica: el bundle de la app es
 // siempre la versión vigente (latest-wins sin pérdida).
-import { TROUBLESHOOTING_RUNBOOKS } from '../data/troubleshootingRunbooks';
+import { RUNBOOKS_HD } from '../data/runbooksHelpDesk';
+import { RUNBOOKS_SA } from '../data/runbooksSysAdmin';
+import { RUNBOOKS_SOC } from '../data/runbooksSoc';
+import { TROUBLESHOOTING_HD } from '../data/troubleshootingHelpDesk';
+import { TROUBLESHOOTING_SA } from '../data/troubleshootingSysAdmin';
+import { TROUBLESHOOTING_SOC } from '../data/troubleshootingSoc';
 import { SERVICE_DESK_CHEATSHEET } from '../data/serviceDeskCheatSheet';
+import { SYSADMIN_CHEATSHEET } from '../data/sysadminCheatSheet';
+import { SOC_CHEATSHEET } from '../data/socCheatSheet';
 
 // ------------------------------------------------------------------
 // Backup manifest versioning (spec #35)
@@ -56,8 +63,14 @@ import { SERVICE_DESK_CHEATSHEET } from '../data/serviceDeskCheatSheet';
  *  `roadmapSysAdmin.json` (checklist del roadmap SysAdmin). Un build 3.6.0
  *  que importe un backup 3.7.0 DESCARTARÍA silenciosamente la práctica de
  *  guardia al re-exportar → la rechaza up-front.
+ *  3.8.0 — v9 (3 PILARES): añade `roadmapSoc.json` (checklist del roadmap
+ *  SOC) y los snapshots de referencia de los datasets por pilar
+ *  (`runbooksSysAdmin/Soc.json`, `cheatsheetSysAdmin/Soc.json`,
+ *  `troubleshootingHelpDesk/SysAdmin/Soc.json` — estáticos, el bundle de
+ *  la app prevalece). Un build 3.7.0 que importe un backup 3.8.0 perdería
+ *  solo el progreso del roadmap SOC al re-exportar → la rechaza up-front.
  */
-const BACKUP_FORMAT_VERSION = '3.7.0';
+const BACKUP_FORMAT_VERSION = '3.8.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -303,6 +316,8 @@ function emptySummary(): ImportSummary {
     // cierre) y checklist del roadmap SysAdmin — mismo guard latest-wins.
     conflictSysadminTickets: 0,
     conflictRoadmapSaItems: 0,
+    // v9 (SOC): checklist del roadmap SOC — mismo guard latest-wins.
+    conflictRoadmapSocItems: 0,
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
@@ -500,6 +515,8 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // root-level que HelpDesk.
   const sysadminTicketRows = await db.sysadminTickets.toArray();
   const roadmapSaRows = await db.roadmapSysAdminItems.toArray();
+  // v9 (SOC) — estado del checklist del roadmap SOC (misma convención).
+  const roadmapSocRows = await db.roadmapSocItems.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -538,9 +555,17 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       roadmapHdItemsCount: roadmapHdRows.length,
       sysadminTicketsCount: sysadminTicketRows.length,
       roadmapSaItemsCount: roadmapSaRows.length,
-      // V6 (3.6.0) — snapshots de referencia (informativo, no se restauran).
-      troubleshootingRunbooksCount: TROUBLESHOOTING_RUNBOOKS.length,
-      serviceDeskCheatSheetCount: SERVICE_DESK_CHEATSHEET.length,
+      roadmapSocItemsCount: roadmapSocRows.length,
+      // v9 (3.8.0) — snapshots de referencia por pilar (informativo, no se restauran).
+      runbooksHdCount: RUNBOOKS_HD.length,
+      runbooksSaCount: RUNBOOKS_SA.length,
+      runbooksSocCount: RUNBOOKS_SOC.length,
+      cheatsheetHdCount: SERVICE_DESK_CHEATSHEET.length,
+      cheatsheetSaCount: SYSADMIN_CHEATSHEET.length,
+      cheatsheetSocCount: SOC_CHEATSHEET.length,
+      troubleshootingHdCount: TROUBLESHOOTING_HD.length,
+      troubleshootingSaCount: TROUBLESHOOTING_SA.length,
+      troubleshootingSocCount: TROUBLESHOOTING_SOC.length,
     }
   };
 
@@ -581,12 +606,23 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // mismo convenio que el resto de tablas auxiliares).
   zip.file('sysadminTickets.json', JSON.stringify(sysadminTicketRows, null, 2));
   zip.file('roadmapSysAdmin.json', JSON.stringify(roadmapSaRows, null, 2));
+  // v9 (SOC) — roadmap SOC (root-level, mismo convenio).
+  zip.file('roadmapSoc.json', JSON.stringify(roadmapSocRows, null, 2));
   // V6 (3.6.0) — datasets de REFERENCIA estáticos: se exportan como
   // snapshot para portabilidad/archivo del USB. En la importación NO se
   // aplican sobre la app (el bundle de la app SIEMPRE es la versión
   // vigente = latest-wins sin pérdida: el contenido viaja con la app).
-  zip.file('troubleshootingRunbooks.json', JSON.stringify(TROUBLESHOOTING_RUNBOOKS, null, 2));
+  // v9 (3.8.0) — snapshots de referencia de los 3 PILARES (mismas
+  // política y convenio que 3.6.0: informativos, el bundle prevalece).
+  zip.file('troubleshootingRunbooks.json', JSON.stringify(RUNBOOKS_HD, null, 2));
+  zip.file('runbooksSysAdmin.json', JSON.stringify(RUNBOOKS_SA, null, 2));
+  zip.file('runbooksSoc.json', JSON.stringify(RUNBOOKS_SOC, null, 2));
   zip.file('serviceDeskCheatSheet.json', JSON.stringify(SERVICE_DESK_CHEATSHEET, null, 2));
+  zip.file('cheatsheetSysAdmin.json', JSON.stringify(SYSADMIN_CHEATSHEET, null, 2));
+  zip.file('cheatsheetSoc.json', JSON.stringify(SOC_CHEATSHEET, null, 2));
+  zip.file('troubleshootingHelpDesk.json', JSON.stringify(TROUBLESHOOTING_HD, null, 2));
+  zip.file('troubleshootingSysAdmin.json', JSON.stringify(TROUBLESHOOTING_SA, null, 2));
+  zip.file('troubleshootingSoc.json', JSON.stringify(TROUBLESHOOTING_SOC, null, 2));
 
   // 2. /glosario/terminos.json
   const glossaryFolder = zip.folder('glosario');
@@ -2020,6 +2056,32 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     console.error('Error importing roadmapSysAdmin:', e);
   }
 
+  // roadmapSoc — v9: checklist del roadmap SOC (rmsoc-*). Upsert por id
+  // con el mismo guard latest-wins de los otros roadmaps.
+  try {
+    const rmsocFile = contents.file('roadmapSoc.json');
+    if (rmsocFile) {
+      const rawRmsoc: unknown = JSON.parse(await rmsocFile.async('text'));
+      const { valid: rmsocRows } = validateArray(roadmapItemSchema, rawRmsoc);
+      for (const r of rmsocRows) {
+        const local = await db.roadmapSocItems.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictRoadmapSocItems++;
+          continue;
+        }
+        const row: RoadmapItem = {
+          id: r.id,
+          done: r.done === true,
+          doneAt: r.doneAt || undefined,
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.roadmapSocItems.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing roadmapSoc:', e);
+  }
+
   // V6 (3.6.0) — snapshots de datasets de referencia (runbooks + cheatsheet).
   // POLÍTICA latest-wins SIN PÉRDIDA: el contenido es estático y viaja con la
   // app (bundle), por lo que la importación NO lo aplica sobre la app — el
@@ -2045,6 +2107,30 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
         console.info('[backup 3.6.0] Snapshot de cheatsheet presente (' + rawSnap.length + ') — el bundle de la app prevalece (latest-wins).');
       } else {
         console.warn('[backup 3.6.0] Snapshot de cheatsheet con forma inesperada — ignorado (no afecta a los datos del usuario).');
+      }
+    }
+    // v9 (3.8.0) — snapshots por pilar: mismo chequeo informativo.
+    const PILLAR_SNAPSHOT_FILES = [
+      'runbooksSysAdmin.json',
+      'runbooksSoc.json',
+      'cheatsheetSysAdmin.json',
+      'cheatsheetSoc.json',
+      'troubleshootingHelpDesk.json',
+      'troubleshootingSysAdmin.json',
+      'troubleshootingSoc.json',
+    ] as const;
+    for (const fname of PILLAR_SNAPSHOT_FILES) {
+      const f = contents.file(fname);
+      if (!f) continue;
+      try {
+        const rawSnap: unknown = JSON.parse(await f.async('text'));
+        if (Array.isArray(rawSnap) && rawSnap.every((r) => typeof r === 'object' && r !== null && 'id' in r)) {
+          console.info('[backup 3.8.0] Snapshot ' + fname + ' presente (' + rawSnap.length + ') — el bundle de la app prevalece.');
+        } else {
+          console.warn('[backup 3.8.0] Snapshot ' + fname + ' con forma inesperada — ignorado.');
+        }
+      } catch {
+        console.warn('[backup 3.8.0] Snapshot ' + fname + ' ilegible — ignorado.');
       }
     }
   } catch (e) {

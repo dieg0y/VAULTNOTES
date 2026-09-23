@@ -9,8 +9,18 @@ import { SIGMA_RULES, SigmaRule } from '../data/sigmaData';
 import { DETECTION_PRESETS, DetectionPreset } from '../data/detectionPresets';
 import { KNOWN_RIDS, WELL_KNOWN_SIDS, KNOWN_SID_AUTHORITIES, KnownRid, WellKnownSid, KnownSidAuthority } from '../data/sidRidData';
 import { TOOLS_CATALOG, type ToolId, type ToolCatalogEntry } from '../data/toolsCatalog';
-import { TROUBLESHOOTING_RUNBOOKS, type TroubleshootingRunbook } from '../data/troubleshootingRunbooks';
-import { SERVICE_DESK_CHEATSHEET, type CheatSheetEntry } from '../data/serviceDeskCheatSheet';
+import { type PillarRunbook } from '../data/runbooksCore';
+import { RUNBOOKS_HD } from '../data/runbooksHelpDesk';
+import { RUNBOOKS_SA } from '../data/runbooksSysAdmin';
+import { RUNBOOKS_SOC } from '../data/runbooksSoc';
+import { type PillarCheatEntry } from '../data/cheatsheetCore';
+import { SERVICE_DESK_CHEATSHEET } from '../data/serviceDeskCheatSheet';
+import { SYSADMIN_CHEATSHEET } from '../data/sysadminCheatSheet';
+import { SOC_CHEATSHEET } from '../data/socCheatSheet';
+import { type PillarTroubleshooting } from '../data/troubleshootingCore';
+import { TROUBLESHOOTING_HD } from '../data/troubleshootingHelpDesk';
+import { TROUBLESHOOTING_SA } from '../data/troubleshootingSysAdmin';
+import { TROUBLESHOOTING_SOC } from '../data/troubleshootingSoc';
 import { escapeHtml } from './escapeHtml';
 
 interface SearchMatchDetail {
@@ -35,8 +45,9 @@ type SearchResultType =
   | 'tool-sid-rid'           // KNOWN_RIDS + WELL_KNOWN_SIDS + KNOWN_SID_AUTHORITIES
   | 'tool-cvss'              // CVSS metric codes (lookup-style navigation)
   | 'tool'                   // the tool catalog itself (search-as-you-type "open X")
-  | 'runbook'                // V6 FASE 4 — runbooks universales de troubleshooting
-  | 'cheatsheet'             // V6 FASE 4 — fixes top del CheatSheet Service Desk
+  | 'runbook'                // V9 — runbooks por pilar (ticket + pasos + respuesta EN)
+  | 'cheatsheet'             // V9 — cheatsheets por pilar (HD/SA/SOC)
+  | 'troubleshooting-tree'   // V9 — escaleras de decisión por pilar (TS-XX-NNN)
   | 'command';               // command palette entries (new note, open trash, …)
 
 export interface SearchResultItem {
@@ -55,7 +66,7 @@ export interface SearchResultItem {
   highlightedSnippet?: string;
   /** For 'command' results: the command key the modal dispatches. */
   commandId?: string;
-  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | TroubleshootingRunbook | CheatSheetEntry;
+  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarCheatEntry | PillarTroubleshooting;
 }
 
 /** A synthetic command palette entry (spec items #7). */
@@ -86,7 +97,7 @@ interface SearchDocument {
    *  corpus build). Optional so hand-built docs keep working. */
   titleLower?: string;
   acronymLower?: string;
-  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | TroubleshootingRunbook | CheatSheetEntry;
+  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarCheatEntry | PillarTroubleshooting;
 }
 
 /** Parsed query: filter tokens + the remaining free-text search term. */
@@ -161,6 +172,10 @@ const TYPE_FILTER_MAP: Record<string, SearchResultType[]> = {
   cheatsheet: ['cheatsheet'],
   cheat: ['cheatsheet'],
   cs: ['cheatsheet'],
+  ts: ['troubleshooting-tree'],
+  troubleshooting: ['troubleshooting-tree'],
+  arbol: ['troubleshooting-tree'],
+  'arbol-decision': ['troubleshooting-tree'],
   command: ['command'],
   cmd: ['command'],
 };
@@ -471,41 +486,71 @@ function buildToolDoc(t: ToolCatalogEntry): SearchDocument {
   };
 }
 
-/** V6 FASE 4 — Runbook search document. "bloqueada" / "vpn 691" / "outlook bucle"
- *  llevan directo al runbook universal correspondiente. */
-function buildRunbookDoc(r: TroubleshootingRunbook): SearchDocument {
+/** V9 — Runbook search document (por pilar). "bloqueada" / "dns" /
+ *  "phishing" llevan directo al runbook del pilar correspondiente. */
+const RUNBOOK_PILLAR_LABEL: Record<string, string> = {
+  HELPDESK: 'HelpDesk',
+  SYSADMIN: 'SysAdmin',
+  SOC: 'SOC',
+};
+function buildRunbookDoc(r: PillarRunbook): SearchDocument {
+  const pillarLabel = RUNBOOK_PILLAR_LABEL[r.pillar] ?? r.pillar;
   return {
     id: r.id,
     type: 'runbook',
     title: r.title,
     acronym: r.id,
-    platform: 'Troubleshooting',
-    category: r.category,
-    tools: r.tags.join(' '),
+    platform: 'Runbooks',
+    category: `${pillarLabel} • ${r.category}`,
+    tools: r.keywords.join(' '),
     sourceUrl: '',
-    content: [r.title, r.id, r.category, ...r.symptoms, ...r.tags].join(' '),
-    subtitle: `Runbook • ${r.category}`,
+    content: [r.title, r.id, r.category, r.ticket_example, ...r.symptoms, ...r.keywords].join(' '),
+    subtitle: `Runbook ${pillarLabel} • ${r.category}`,
     status: undefined,
     rawItem: r,
   };
 }
 
-/** V6 FASE 4 — CheatSheet search document. Los fixes top L1/L2 encuentran
- *  por síntoma tal cual lo dice el usuario ("no imprime", "pide contraseña"). */
-function buildCheatSheetDoc(c: CheatSheetEntry): SearchDocument {
+/** V9 — CheatSheet search document por pilar. Los fixes encuentran por
+ *  síntoma tal cual lo dice el usuario ("no imprime", "pide contraseña"). */
+function buildCheatSheetDoc(c: PillarCheatEntry, pillar: string): SearchDocument {
   return {
     id: c.id,
     type: 'cheatsheet',
     title: c.title,
     acronym: c.id,
     platform: 'CheatSheet',
-    category: c.category,
+    category: `${pillar} • ${c.category}`,
     tools: c.tags.join(' '),
     sourceUrl: '',
     content: [c.title, c.id, c.category, c.problem, ...c.tags].join(' '),
-    subtitle: `CheatSheet • ${c.category}`,
+    subtitle: `CheatSheet ${pillar} • ${c.category}`,
     status: undefined,
     rawItem: c,
+  };
+}
+
+/** V9 — Troubleshooting (escalera de decisión) search document. */
+const TS_PILLAR_LABEL: Record<string, string> = {
+  HELPDESK: 'HelpDesk',
+  SYSADMIN: 'SysAdmin',
+  SOC: 'SOC',
+};
+function buildTroubleshootingDoc(t: PillarTroubleshooting): SearchDocument {
+  const pillarLabel = TS_PILLAR_LABEL[t.pillar] ?? t.pillar;
+  return {
+    id: t.id,
+    type: 'troubleshooting-tree',
+    title: t.title,
+    acronym: t.id,
+    platform: 'Troubleshooting',
+    category: `${pillarLabel} • ${t.level}`,
+    tools: t.tags.join(' '),
+    sourceUrl: '',
+    content: [t.title, t.id, t.problem, ...t.symptoms, ...t.tags].join(' '),
+    subtitle: `Troubleshooting ${pillarLabel} • ${t.problem.slice(0, 60)}`,
+    status: undefined,
+    rawItem: t,
   };
 }
 
@@ -549,9 +594,16 @@ const STATIC_TOOL_DOCS: SearchDocument[] = [
   ...WELL_KNOWN_SIDS.map(buildWellKnownSidDoc),
   ...KNOWN_SID_AUTHORITIES.map(buildSidAuthorityDoc),
   ...TOOLS_CATALOG.map(buildToolDoc),
-  // V6 FASE 4 — runbooks universales + cheatsheet en el índice global.
-  ...TROUBLESHOOTING_RUNBOOKS.map(buildRunbookDoc),
-  ...SERVICE_DESK_CHEATSHEET.map(buildCheatSheetDoc),
+  // V9 — runbooks + cheatsheets + troubleshooting de los 3 pilares.
+  ...RUNBOOKS_HD.map(buildRunbookDoc),
+  ...RUNBOOKS_SA.map(buildRunbookDoc),
+  ...RUNBOOKS_SOC.map(buildRunbookDoc),
+  ...(SERVICE_DESK_CHEATSHEET as PillarCheatEntry[]).map((c) => buildCheatSheetDoc(c, 'HelpDesk')),
+  ...SYSADMIN_CHEATSHEET.map((c) => buildCheatSheetDoc(c, 'SysAdmin')),
+  ...SOC_CHEATSHEET.map((c) => buildCheatSheetDoc(c, 'SOC')),
+  ...TROUBLESHOOTING_HD.map(buildTroubleshootingDoc),
+  ...TROUBLESHOOTING_SA.map(buildTroubleshootingDoc),
+  ...TROUBLESHOOTING_SOC.map(buildTroubleshootingDoc),
 ].map(withLowercase);
 
 // ------------------------------------------------------------------
@@ -666,15 +718,25 @@ const COMMAND_ENTRIES: CommandEntry[] = [
     { id: 'open-ip', label: 'Abrir IP Analyzer', hint: 'Herramienta', keywords: ['open', 'abrir', 'ip', 'ipv4'], commandId: 'open-tool:ip' },
     { id: 'open-ioc-defang', label: 'Abrir IOC Defanger', hint: 'Herramienta', keywords: ['open', 'abrir', 'defang', 'refang'], commandId: 'open-tool:ioc-defang' },
     { id: 'open-cmd-analyzer', label: 'Abrir Command Line Analyzer', hint: 'Herramienta', keywords: ['open', 'abrir', 'cmd', 'command'], commandId: 'open-tool:cmd-analyzer' },
-    { id: 'open-tools', label: 'Ver todas las herramientas', hint: 'Navegación', keywords: ['open', 'abrir', 'tools', 'herramientas'], commandId: 'open-section:tools' },
+    { id: 'open-tools-hd', label: 'Ver Herramientas HelpDesk', hint: 'Navegación', keywords: ['open', 'abrir', 'tools', 'herramientas', 'helpdesk'], commandId: 'open-section:tools-hd' },
+    { id: 'open-tools-sa', label: 'Ver Herramientas SysAdmin', hint: 'Navegación', keywords: ['open', 'abrir', 'tools', 'herramientas', 'sysadmin', 'infra'], commandId: 'open-section:tools-sa' },
+    { id: 'open-tools-soc', label: 'Ver Herramientas SOC', hint: 'Navegación', keywords: ['open', 'abrir', 'tools', 'herramientas', 'soc', 'blue team'], commandId: 'open-section:tools-soc' },
     { id: 'open-dashboard', label: 'Ir al Dashboard', hint: 'Navegación', keywords: ['open', 'abrir', 'dashboard', 'inicio', 'home'], commandId: 'open-section:dashboard' },
     { id: 'open-notes', label: 'Ver apuntes', hint: 'Navegación', keywords: ['open', 'abrir', 'notes', 'apuntes'], commandId: 'open-section:notes' },
     { id: 'open-labs', label: 'Ver labs', hint: 'Navegación', keywords: ['open', 'abrir', 'labs'], commandId: 'open-section:labs' },
     { id: 'open-glossary', label: 'Ver glosario', hint: 'Navegación', keywords: ['open', 'abrir', 'glossary', 'glosario'], commandId: 'open-section:glossary' },
     { id: 'open-references', label: 'Ver referencias', hint: 'Navegación', keywords: ['open', 'abrir', 'references', 'referencias'], commandId: 'open-section:references' },
     { id: 'open-inbox', label: 'Ver Inbox', hint: 'Navegación', keywords: ['open', 'abrir', 'inbox'], commandId: 'open-section:inbox' },
-    { id: 'open-troubleshooting', label: 'Ver Troubleshooting & Runbooks', hint: 'Navegación', keywords: ['open', 'abrir', 'troubleshooting', 'runbooks', 'runbook', 'soporte', 'fix'], commandId: 'open-section:troubleshooting' },
-    { id: 'open-cheatsheet', label: 'Ver Service Desk CheatSheet', hint: 'Navegación', keywords: ['open', 'abrir', 'cheatsheet', 'cheat sheet', 'fixes', 'service desk'], commandId: 'open-section:cheatsheet' },
+    { id: 'open-troubleshooting-hd', label: 'Ver Troubleshooting HelpDesk', hint: 'Navegación', keywords: ['open', 'abrir', 'troubleshooting', 'helpdesk', 'escalera', 'diagnostico'], commandId: 'open-section:troubleshooting-hd' },
+    { id: 'open-troubleshooting-sa', label: 'Ver Troubleshooting SysAdmin', hint: 'Navegación', keywords: ['open', 'abrir', 'troubleshooting', 'sysadmin', 'infra', 'escalera', 'diagnostico'], commandId: 'open-section:troubleshooting-sa' },
+    { id: 'open-troubleshooting-soc', label: 'Ver Troubleshooting SOC', hint: 'Navegación', keywords: ['open', 'abrir', 'troubleshooting', 'soc', 'escalera', 'diagnostico'], commandId: 'open-section:troubleshooting-soc' },
+    { id: 'open-cheatsheet-hd', label: 'Ver CheatSheet HelpDesk', hint: 'Navegación', keywords: ['open', 'abrir', 'cheatsheet', 'cheat sheet', 'fixes', 'service desk', 'helpdesk'], commandId: 'open-section:cheatsheet-hd' },
+    { id: 'open-cheatsheet-sa', label: 'Ver CheatSheet SysAdmin', hint: 'Navegación', keywords: ['open', 'abrir', 'cheatsheet', 'cheat sheet', 'fixes', 'sysadmin', 'infra'], commandId: 'open-section:cheatsheet-sa' },
+    { id: 'open-cheatsheet-soc', label: 'Ver CheatSheet SOC', hint: 'Navegación', keywords: ['open', 'abrir', 'cheatsheet', 'cheat sheet', 'fixes', 'soc', 'blue team'], commandId: 'open-section:cheatsheet-soc' },
+    { id: 'open-runbooks-hd', label: 'Ver Runbooks HelpDesk', hint: 'Navegación', keywords: ['open', 'abrir', 'runbooks', 'runbook', 'helpdesk', 'respuestas', 'ingles'], commandId: 'open-section:runbooks-hd' },
+    { id: 'open-runbooks-sa', label: 'Ver Runbooks SysAdmin', hint: 'Navegación', keywords: ['open', 'abrir', 'runbooks', 'runbook', 'sysadmin', 'infra', 'respuestas', 'ingles'], commandId: 'open-section:runbooks-sa' },
+    { id: 'open-runbooks-soc', label: 'Ver Runbooks SOC', hint: 'Navegación', keywords: ['open', 'abrir', 'runbooks', 'runbook', 'soc', 'blue team', 'respuestas', 'ingles'], commandId: 'open-section:runbooks-soc' },
+    { id: 'open-roadmap-soc', label: 'Ver Roadmap SOC', hint: 'Navegación', keywords: ['open', 'abrir', 'roadmap', 'soc', 'blue team', 'carrera'], commandId: 'open-section:roadmap-soc' },
     { id: 'open-trash', label: 'Ver papelera', hint: 'Navegación', keywords: ['open', 'abrir', 'trash', 'papelera'], commandId: 'open-section:trash' },
     { id: 'open-settings', label: 'Abrir configuración', hint: 'Navegación', keywords: ['open', 'abrir', 'settings', 'configuracion'], commandId: 'open-section:settings' },
     { id: 'backup-now', label: 'Guardar backup ahora', hint: 'Acción', keywords: ['backup', 'guardar', 'export', 'zip'], commandId: 'backup-now' },

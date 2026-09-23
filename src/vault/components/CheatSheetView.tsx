@@ -5,8 +5,18 @@ import {
   SERVICE_DESK_CHEATSHEET,
   CHEATSHEET_COUNT,
   CHEATSHEET_CATEGORIES,
-  type CheatSheetEntry,
 } from '../data/serviceDeskCheatSheet';
+import {
+  SYSADMIN_CHEATSHEET,
+  SYSADMIN_CHEATSHEET_COUNT,
+  SYSADMIN_CHEATSHEET_CATEGORIES,
+} from '../data/sysadminCheatSheet';
+import {
+  SOC_CHEATSHEET,
+  SOC_CHEATSHEET_COUNT,
+  SOC_CHEATSHEET_CATEGORIES,
+} from '../data/socCheatSheet';
+import { type PillarCheatEntry } from '../data/cheatsheetCore';
 
 /**
  * CheatSheetView — FASE 4c (V6).
@@ -16,14 +26,18 @@ import {
  * estilo terminal) → verificación.
  */
 
+export type CheatSheetViewPillar = 'hd' | 'sa' | 'soc';
+
 interface CheatSheetViewProps {
-  /** Deep-link desde Ctrl+K: id de entrada a pre-seleccionar (CS-NNN). */
+  /** Qué pilar renderiza. */
+  pillar: CheatSheetViewPillar;
+  /** Deep-link desde Ctrl+K: id de entrada a resaltar. */
   autoSelectId?: string | null;
   /** Consumir el deep-link (App limpia su estado tras montar la vista). */
   onConsumeAutoSelect?: () => void;
 }
 
-const FUSE_OPTIONS: IFuseOptions<CheatSheetEntry> = {
+const FUSE_OPTIONS: IFuseOptions<PillarCheatEntry> = {
   keys: [
     { name: 'title', weight: 0.4 },
     { name: 'problem', weight: 0.2 },
@@ -34,7 +48,59 @@ const FUSE_OPTIONS: IFuseOptions<CheatSheetEntry> = {
   ignoreLocation: true,
 };
 
-const cheatFuse = new Fuse(SERVICE_DESK_CHEATSHEET, FUSE_OPTIONS);
+
+interface CheatPillarConfig {
+  title: string;
+  subtitle: (count: number) => string;
+  entries: PillarCheatEntry[];
+  count: number;
+  categories: string[];
+  accentText: string;
+  accentBg: string;
+  accentBorder: string;
+  accentRing: string;
+  placeholder: string;
+}
+
+const PILLAR_CONFIG: Record<CheatSheetViewPillar, CheatPillarConfig> = {
+  hd: {
+    title: 'CheatSheet — Service Desk',
+    subtitle: (c) => `${c} fixes top L1/L2 · sin input · 100% offline`,
+    entries: SERVICE_DESK_CHEATSHEET as PillarCheatEntry[],
+    count: CHEATSHEET_COUNT,
+    categories: CHEATSHEET_CATEGORIES,
+    accentText: 'text-amber-400',
+    accentBg: 'bg-amber-500/10',
+    accentBorder: 'border-amber-500/20',
+    accentRing: 'focus:border-amber-500/40',
+    placeholder: 'Buscar fix: «vpn 691», «bloqueada», «spooler», «teams»…',
+  },
+  sa: {
+    title: 'CheatSheet — SysAdmin Ops',
+    subtitle: (c) => `${c} fixes de infra · sin input · 100% offline`,
+    entries: SYSADMIN_CHEATSHEET,
+    count: SYSADMIN_CHEATSHEET_COUNT,
+    categories: SYSADMIN_CHEATSHEET_CATEGORIES,
+    accentText: 'text-cyan-400',
+    accentBg: 'bg-cyan-500/10',
+    accentBorder: 'border-cyan-500/20',
+    accentRing: 'focus:border-cyan-500/40',
+    placeholder: 'Buscar fix: «dcdiag», «gpo», «dhcp», «raid», «repadmin»…',
+  },
+  soc: {
+    title: 'CheatSheet — SOC / Blue Team',
+    subtitle: (c) => `${c} fixes de detección y respuesta · sin input · 100% offline`,
+    entries: SOC_CHEATSHEET,
+    count: SOC_CHEATSHEET_COUNT,
+    categories: SOC_CHEATSHEET_CATEGORIES,
+    accentText: 'text-emerald-400',
+    accentBg: 'bg-emerald-500/10',
+    accentBorder: 'border-emerald-500/20',
+    accentRing: 'focus:border-emerald-500/40',
+    placeholder: 'Buscar fix: «phishing», «4625», «kql», «spray», «sysmon»…',
+  },
+};
+
 
 const CATEGORY_COLOR: Record<string, string> = {
   'AD / Identidad': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -46,7 +112,9 @@ const CATEGORY_COLOR: Record<string, string> = {
   'Ofimática y Comunicación': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
 };
 
-export const CheatSheetView: React.FC<CheatSheetViewProps> = ({ autoSelectId, onConsumeAutoSelect }) => {
+export const CheatSheetView: React.FC<CheatSheetViewProps> = ({ pillar, autoSelectId, onConsumeAutoSelect }) => {
+  const cfg = PILLAR_CONFIG[pillar];
+  const cheatFuse = useMemo(() => new Fuse(cfg.entries, FUSE_OPTIONS), [cfg.entries]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -64,16 +132,16 @@ export const CheatSheetView: React.FC<CheatSheetViewProps> = ({ autoSelectId, on
   }, [autoSelectId, onConsumeAutoSelect]);
 
   const filtered = useMemo(() => {
-    let list: CheatSheetEntry[];
+    let list: PillarCheatEntry[];
     const q = query.trim().toLowerCase();
     if (q.length >= 2) {
       list = cheatFuse.search(q).map((r) => r.item);
     } else {
-      list = SERVICE_DESK_CHEATSHEET;
+      list = cfg.entries;
     }
     if (category) list = list.filter((c) => c.category === category);
     return list;
-  }, [query, category]);
+  }, [query, category, cheatFuse, cfg.entries]);
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#0A0A0A] h-[calc(100vh-48px)]">
@@ -81,13 +149,13 @@ export const CheatSheetView: React.FC<CheatSheetViewProps> = ({ autoSelectId, on
         {/* Header */}
         <div className="flex flex-col gap-3 pb-3 border-b border-[#262626]">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-md flex items-center justify-center bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+            <div className={`w-9 h-9 rounded-md flex items-center justify-center ${cfg.accentBg} ${cfg.accentText} ${cfg.accentBorder} border shrink-0`}>
               <Zap className="w-5 h-5" />
             </div>
             <div className="flex flex-col min-w-0">
-              <h1 className="text-lg md:text-xl font-bold text-white tracking-tight leading-tight">Service Desk CheatSheet</h1>
+              <h1 className="text-lg md:text-xl font-bold text-white tracking-tight leading-tight">{cfg.title}</h1>
               <p className="text-[11px] text-[#666] font-mono">
-                {CHEATSHEET_COUNT} fixes top L1/L2 · sin input · 100% offline
+                {cfg.subtitle(cfg.count)}
               </p>
             </div>
           </div>
@@ -99,9 +167,9 @@ export const CheatSheetView: React.FC<CheatSheetViewProps> = ({ autoSelectId, on
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar fix: «vpn 691», «bloqueada», «spooler», «teams»…"
+              placeholder={cfg.placeholder}
               aria-label="Buscar en el CheatSheet"
-              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-8 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-amber-500/40"
+              className={`w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-8 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none ${cfg.accentRing}`}
             />
             {query && (
               <button
@@ -122,13 +190,13 @@ export const CheatSheetView: React.FC<CheatSheetViewProps> = ({ autoSelectId, on
               onClick={() => setCategory(null)}
               className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
                 category === null
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/40'
+                  ? `${cfg.accentBg} ${cfg.accentText} ${cfg.accentBorder}`
                   : 'text-[#777] border-[#262626] hover:text-white hover:border-[#333]'
               }`}
             >
               Todas
             </button>
-            {CHEATSHEET_CATEGORIES.map((c) => (
+            {cfg.categories.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -145,7 +213,7 @@ export const CheatSheetView: React.FC<CheatSheetViewProps> = ({ autoSelectId, on
           </div>
 
           <p className="text-[11px] text-[#666]">
-            {filtered.length} de {CHEATSHEET_COUNT} entradas
+            {filtered.length} de {cfg.count} entradas
             {query && <> · búsqueda fuzzy activa</>}
           </p>
         </div>

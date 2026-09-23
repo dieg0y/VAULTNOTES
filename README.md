@@ -1,6 +1,8 @@
 # VAULTNOTES
 
-**Tu segundo cerebro de ciberseguridad.** Una PWA **local-first y 100% offline** para estudiar, trabajar y investigar en ciberseguridad: apuntes con editor rico, labs SOC/IAM, glosario con flashcards, **41 herramientas de análisis**, **42 runbooks universales de troubleshooting L1/L2**, **CheatSheet de 62 fixes top**, simulador de Service Desk L1, simulador de guardia SysAdmin, datasets de inteligencia (IoCs · eventos · reglas) y backups ZIP portables — todo dentro de tu navegador, sin servidor, sin cuenta, sin nube.
+**Tu segundo cerebro de ciberseguridad.** Una PWA **local-first y 100% offline** para estudiar, trabajar y investigar ciberseguridad como se hace en el puesto real: **3 PILARES AUTÓNOMOS** (Service Desk/HelpDesk · SysAdmin Ops · SOC/Blue Team), cada uno con su roadmap, herramientas, troubleshooting, CheatSheet y Runbooks — y cada runbook presentado como **ticket real de trabajo** con paso a paso universal, comandos copiables y **respuesta en inglés lista para copiar**. Apuntes con editor rico, glosario con flashcards (773 términos), **49 herramientas de análisis**, **116 runbooks**, **156 fixes de CheatSheet**, simulador de Service Desk L1, simulador de guardia SysAdmin, datasets de inteligencia (IoCs · eventos · reglas) y backups ZIP portables — todo dentro de tu navegador, sin servidor, sin cuenta, sin nube.
+
+> 🎯 **V9 — 3 pilares autónomos**: HelpDesk (60 tickets · 42 runbooks · 62 cheats · 16 troubleshooting · roadmap 65) · SysAdmin (56 tickets · 42 runbooks · 52 cheats · 16 troubleshooting · roadmap 91) · SOC (roadmap 65 · 32 runbooks · 42 cheats · 16 troubleshooting · 8 guías de tools SIEM). **Labs queda vacío a propósito** ("tú decides qué hacer después") y **Review se eliminó** — la práctica guiada ahora vive en los simuladores y el resto es knowledge base consultable: BUSCAR → ABRIR → LEER → COPIAR → APLICAR.
 
 > 🔒 **Privacidad por diseño**: tus datos nunca salen de tu máquina. La base de datos vive en IndexedDB (tu navegador). La única funcionalidad online es **opcional y explícita** (enriquecer IOCs o buscar CVEs cuando TÚ lo pides).
 
@@ -12,7 +14,7 @@
 | **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` — resuelve todo solo (Bun incluido si falta) y abre el navegador. Cualquier SO: `bun install` + `bun run dev`. |
 | **¿Puedo llevarla en una USB?** | Sí — la carpeta es 100% portable (app + runtime + build) y el **Respaldo automático** hace que tus fotos y apuntes viajen en la misma USB. Ver sección 🎒 abajo. |
 | **¿Dónde están mis datos?** | En IndexedDB de tu navegador (tu PC). Backups ZIP para cambiar de máquina/navegador — o activa el Respaldo automático y llévalos en tu USB. |
-| **¿Qué hay dentro?** | **41 herramientas offline** (SOC · IAM · Red · Datos · Linux · HelpDesk · SysAdmin), **Troubleshooting & Runbooks (42 universales L1/L2)**, **Service Desk CheatSheet (62 fixes top sin input)**, explorador de Vulnerabilidades (203) y Ataques (102, sin duplicados), **simulador de Service Desk (60 tickets + proyecto final + KB de 28)**, **simulador SysAdmin Ops (56 tickets de guardia + semana de guardia + KB de 28)**, roadmap IAM (52), roadmap HelpDesk (65) y roadmap SysAdmin (91), apuntes con editor rico, labs, glosario con flashcards (**770 términos**), datasets de intel (IoCs · eventos · reglas). |
+| **¿Qué hay dentro?** | **3 pilares autónomos** — HelpDesk: 60 tickets + 28 KB + 42 runbooks + 62 cheats + 16 troubleshooting + roadmap 65; SysAdmin: 56 tickets + 28 KB + 42 runbooks + 52 cheats + 16 troubleshooting + roadmap 91; SOC: roadmap 65 + 32 runbooks + 42 cheats + 16 troubleshooting + 8 guías de tools (Sentinel KQL · Splunk SPL · Elastic · Wireshark · Sysmon · Defender · sandbox · TheHive). Además: **49 herramientas offline**, explorador de Vulnerabilidades (203) y Ataques (102), roadmap IAM (52), apuntes con editor rico, glosario con flashcards (**773 términos**), datasets de intel (IoCs · eventos · reglas). Labs **vacío intencional**. |
 | **¿Y si actualizo el código?** | Botón **Pull** del header: descarga los cambios desde GitHub sin tocar tus datos. En producción regenera el build solo y te pide reiniciar. |
 | **Regla de oro** | Los **videos nunca entran a la base ni a los backups** — viven en tu carpeta de videos (disco). |
 
@@ -22,8 +24,8 @@
 
 ### 📝 Conocimiento
 - **Apuntes** con editor rico (WYSIWYG): títulos, listas, checkboxes, tablas, código, imágenes, PDFs adjuntos y **videos** (ver política de videos abajo). Jerarquía de subpáginas, plataformas/categorías, favoritos y "revisar después".
-- **Hands-On / Labs** — plantillas para laboratorios SOC/IAM con el mismo editor.
-- **Glosario (sembrado)** — **770 términos incluidos** (**389 IAM/GRC/SOC** ~75% IAM + **250 HelpDesk/IT Support**: fundamentos, Windows, redes, M365, AD, ITSM y seguridad de soporte + **134 SysAdmin/Infra & Ops**: Linux, Windows Server, redes, storage/backup, virtualización, cloud/contenedores, monitoreo y automatización) + **flashcards** con repaso espaciado: abre la app y están todos ahí, sin importar nada (ver abajo).
+- **Hands-On / Labs** — **vacío a propósito (V9)**: "Sin labs — tú decides qué hacer después." La práctica guiada ya vive en los simuladores (Service Desk, SysAdmin Ops) y los roadmaps; el espacio queda libre para TUS propios labs (mismo editor rico).
+- **Glosario (sembrado)** — **773 términos incluidos** (**389 IAM/GRC/SOC** ~75% IAM + **250 HelpDesk/IT Support**: fundamentos, Windows, redes, M365, AD, ITSM y seguridad de soporte + **134 SysAdmin/Infra & Ops**: Linux, Windows Server, redes, storage/backup, virtualización, cloud/contenedores, monitoreo y automatización) + **flashcards** con repaso espaciado: abre la app y están todos ahí, sin importar nada (ver abajo).
 - **Perfil Profesional (multi-perfil)** — tus CVs vivos: crea tantos perfiles como quieras (CV IAM, CV SOC, CV en inglés…), cada uno con datos, puestos objetivo, skills con estado real, tools, experiencia, educación, certs, idiomas, proyectos, keywords ATS y notas de búsqueda. Cada perfil exporta su **Markdown AI-ready** para que tu IA te arme el CV perfecto (ver abajo).
 - **Roadmap IAM** — checklist interactivo del roadmap *Junior IAM / Identity Security Analyst* (3 tiers + proyecto final, 14 fases, 52 ítems): progreso global/por tier/por fase, persistente, exportable como Markdown (ver abajo). El **Dashboard muestra el progreso en vivo** (tarjeta Roadmap IAM con % y barra — clic y saltas al checklist).
 - **Service Desk (v19, mejorado en v21)** — simulador L1 de práctica: **60 tickets de la empresa ficticia Nexora S.A.** con cola filtrable (estado/prioridad/**tipo incidente/solicitud**/categoría/ámbito/búsqueda + **orden por número o por prioridad**), **modo estudio** (la guía de diagnóstico/resolución/escalación va OCULTA — primero intentas, luego contrastas), flujo de estados real (nuevo → en progreso → resuelto/escalado → cerrado) con **nota de cierre obligatoria** como evidencia, **Proyecto Final "primera semana"** (30 tickets en 5 días con dificultad creciente) y **Base de Conocimiento de 28 artículos** cruzada con tickets y términos del glosario. El trabajo (estados + notas) persiste y viaja en el backup ZIP.
@@ -36,13 +38,14 @@
 - **Generar Blog** — convierte apuntes/labs en un blog estático exportable.
 - **Data & Intel** — datasets de trabajo (IoCs · eventos · reglas) con CRUD completo, buscador, filtros y contadores. Integrado con las tools: envía IoCs desde el **IoC Extractor**, reglas desde el **Sigma Explorer** y queries desde el **Detection Query Helper** con un clic — todo se actualiza al instante, sin refresh. Import .json y export .json/.csv propios, además de viajar en el backup ZIP.
 
-### 🧰 41 Herramientas offline (SOC / IAM / Red / Datos / Linux / HelpDesk / SysAdmin)
+### 🧰 49 Herramientas offline (SOC / IAM / Red / Datos / Linux / HelpDesk / SysAdmin)
 
 > **V6 (limpieza)**: las 9 tools que eran guías/checklists estáticos (Password & MFA Reset, BitLocker, Outlook, Impresoras, BSOD, Permisos Share/NTFS, Asistencia Remota, GPO) **migraron al dataset universal de runbooks** (sección de abajo) y la **Calculadora SLA se eliminó**. Quedan solo tools INTERACTIVAS reales — parsers, simuladores y generadores. El conteo del catálogo es dinámico (`TOOLS_CATALOG.length`).
 
 | Categoría | Herramientas |
 |---|---|
 | **SOC** | Windows Event IDs · IoC Extractor (refang, scoring, KQL/SPL/STIX) · IOC Defanger/Refanger · PowerShell Analyzer · Command Line Analyzer · Log Parser (SSH/Apache/Nginx/Syslog/EVTX) · MITRE ATT&CK Explorer · Sigma Explorer · Detection Query Helper (KQL/SPL) |
+| **Guías de tools SOC (8, V9)** | **Microsoft Sentinel (KQL)** (sintaxis, hunting de sign-ins, spray, MFA fatigue 50076/500121, SecurityEvent, DeviceProcessEvents, EmailEvents, joins/ventanas) · **Splunk (SPL)** (stats/dc, spray, beaconing, 4104/4688, 4728/4732, timechart) · **Elastic Security** (KQL/Lucene/EQL, ECS, reglas) · **Wireshark** (display filters, BPF, TCP handshake, follow stream, beaconing) · **Sysmon** (instalación, XML EventFiltering, eventos 1/3/7/8/10/11/13/22/25, casos de detección) · **MS Defender** (Get-Mp* completo, scans, exclusiones, aislamiento) · **VirusTotal + ANY.RUN** (workflow de análisis de muestra, qué NO subir, defang) · **TheHive** (Case→Task→Observable, plantillas de descripción/reporte) — **todo copiable, 100% offline** |
 | **IAM** | JWT Decoder · SID/RID Analyzer · LDAP/DN Parser · RBAC Analyzer (matriz + permisos efectivos) |
 | **Red** | Subnetting (IPv4/CIDR) · IP Analyzer (v4/v6) · Puertos y Servicios |
 | **Web** | HTTP Status (códigos con explicación) |
@@ -109,7 +112,7 @@ Todas las herramientas están integradas a la **búsqueda global** (`Ctrl+K`): e
 - Si se pierde el acceso o el archivo, la app muestra un placeholder con **Conceder acceso / Re-linkear carpeta / Buscar archivo**.
 - **Backups ZIP excluyen videos por completo** — ligeros y portables; los videos ya están a salvo en tu carpeta.
 
-### 📚 Glosario — 770 términos YA incluidos (offline, sin importar nada)
+### 📚 Glosario — 773 términos YA incluidos (offline, sin importar nada)
 
 El glosario viene **sembrado de fábrica** con **770 términos** (base 194 + ampliación IAM/GRC/SOC 195 + HelpDesk/IT Support 250 + SysAdmin/Infra & Ops 134), en `src/vault/data/glossarySeedBase.ts` + `glossarySeedMore.ts` + `glossarySeedHelpDesk.ts` + `glossarySeedSysAdmin.ts`. Se cargan solos al abrir la app: **no hay nada que importar** — abre el Glosario y están todos ahí (lista A-Z + búsqueda + filtro por categoría + flashcards).
 

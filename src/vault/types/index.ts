@@ -176,6 +176,9 @@ export interface ImportSummary {
   /** v21 (SYSADMIN): incoming roadmapSysAdminItems rows
    * (roadmapSysAdmin.json) skipped because the local row is newer. */
   conflictRoadmapSaItems: number;
+  /** v9 (SOC): incoming roadmapSocItems rows (roadmapSoc.json) skipped
+   * because the local row is newer — preserves local roadmap SOC progress. */
+  conflictRoadmapSocItems: number;
   /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */
@@ -343,7 +346,22 @@ export interface RoadmapItem {
   updatedAt: string;
 }
 
-export type ActiveSection = 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'tools' | 'references' | 'trash' | 'settings' | 'inbox' | 'data-intel' | 'profile' | 'roadmap' | 'helpdesk' | 'roadmap-hd' | 'troubleshooting' | 'cheatsheet' | 'sysadmin' | 'roadmap-sa';
+/**
+ * V9 — 3 PILARES AUTÓNOMOS. Cada pilar (HelpDesk / SysAdmin / SOC) tiene su
+ * propia sección de Herramientas, Troubleshooting (árbol de decisión),
+ * CheatSheet y Runbooks. Las antiguas secciones globales 'tools',
+ * 'troubleshooting' y 'cheatsheet' se reemplazan por las variantes por pilar
+ * (el roadmap SOC añade 'roadmap-soc' junto a los otros 3 roadmaps).
+ */
+export type ActiveSection =
+  | 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'references' | 'trash' | 'settings'
+  | 'inbox' | 'data-intel' | 'profile' | 'roadmap'
+  // Pilar 1 — Service Desk / HelpDesk:
+  | 'helpdesk' | 'roadmap-hd' | 'tools-hd' | 'troubleshooting-hd' | 'cheatsheet-hd' | 'runbooks-hd'
+  // Pilar 2 — SysAdmin Ops / Infra:
+  | 'sysadmin' | 'roadmap-sa' | 'tools-sa' | 'troubleshooting-sa' | 'cheatsheet-sa' | 'runbooks-sa'
+  // Pilar 3 — SOC / Blue Team:
+  | 'roadmap-soc' | 'tools-soc' | 'troubleshooting-soc' | 'cheatsheet-soc' | 'runbooks-soc';
 
 /* ------------------------------------------------------------------ */
 /* HELPDESK (v19) — tickets simulados (CRUD) + KB (dataset estático). */

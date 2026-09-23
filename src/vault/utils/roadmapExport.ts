@@ -12,6 +12,7 @@
 import { ROADMAP_TIERS, ROADMAP_MASTERY_NOTE, ROADMAP_HEADER, type RoadmapTierDef, type RoadmapPhaseDef, type RoadmapHeaderDef } from '../data/roadmapData';
 import { ROADMAP_HD_TIERS, ROADMAP_HD_MASTERY_NOTE, ROADMAP_HD_HEADER } from '../data/roadmapHelpDeskData';
 import { ROADMAP_SA_TIERS, ROADMAP_SA_MASTERY_NOTE, ROADMAP_SA_HEADER } from '../data/roadmapSysAdminData';
+import { ROADMAP_SOC_TIERS, ROADMAP_SOC_MASTERY_NOTE, ROADMAP_SOC_HEADER } from '../data/roadmapSocData';
 
 const tierProgress = (tier: RoadmapTierDef, doneMap: Map<string, boolean>): { done: number; total: number } => {
   let done = 0;
@@ -123,4 +124,14 @@ export function buildRoadmapSaMarkdown(doneMap: Map<string, boolean>): string {
 /** Nombre de archivo seguro para el export del roadmap SysAdmin. */
 export function roadmapSaMarkdownFilename(): string {
   return `Roadmap-SysAdmin-${dateStamp()}.md`;
+}
+
+/** Markdown del roadmap SOC completo con el estado de cada ítem. */
+export function buildRoadmapSocMarkdown(doneMap: Map<string, boolean>): string {
+  return buildChecklistMarkdown(ROADMAP_SOC_TIERS, ROADMAP_SOC_HEADER, ROADMAP_SOC_MASTERY_NOTE, doneMap);
+}
+
+/** Nombre de archivo seguro para el export del roadmap SOC. */
+export function roadmapSocMarkdownFilename(): string {
+  return `Roadmap-SOC-${dateStamp()}.md`;
 }

@@ -9,7 +9,9 @@ import {
   // HELPDESK (V6 FASE 3) — iconos de las 6 tools que siguen.
   ListFilter, UserX, Wifi, Laptop, Eraser,
   // SYSADMIN (v21) — iconos de las 6 tools de Infra & Ops.
-  Cog, HardDrive, Layers, Timer, Flame, TrendingUp
+  Cog, HardDrive, Layers, Timer, Flame, TrendingUp,
+  // SOC (v9) — iconos de las 8 guías de herramientas SOC.
+  Radar, SearchCode, BarChart3, Activity, ShieldCheck, FlaskConical, FolderKanban
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -82,6 +84,8 @@ import { SaCronBuilderTool } from './tools/sa/SaCronBuilderTool';
 import { SaFirewallTool } from './tools/sa/SaFirewallTool';
 import { SaCapacityTool } from './tools/sa/SaCapacityTool';
 import { HdNetworkTool } from './tools/hd/HdNetworkTool';
+import { SocGuideTool } from './tools/soc/SocGuideTool';
+import { type ToolPillar } from '../data/toolsCatalog';
 import { HdIntuneTool } from './tools/hd/HdIntuneTool';
 import { HdSanitizerTool } from './tools/hd/HdSanitizerTool';
 // IoC Extractor — full SOC/IAM pipeline view (see section 7 below).
@@ -104,7 +108,11 @@ export interface ToolDeepLink {
   entryId: string | number;
 }
 
+export type ToolsViewPillar = 'hd' | 'sa' | 'soc';
+
 interface ToolsViewProps {
+  /** V9 — pilar cuyas herramientas se listan (HELPDESK / SYSADMIN / SOC). */
+  pillar: ToolsViewPillar;
   /** When set, switches active tool to `toolId` and asks the corresponding tool to auto-open the entry with `entryId`. */
   pendingTool?: ToolDeepLink | null;
   /** Called once after the deep-link has been consumed (so the parent can clear it). */
@@ -159,9 +167,18 @@ const TOOL_ICONS: Record<ToolId, React.ReactNode> = {
   'sa-cron-builder': <Timer className="w-4 h-4" />,
   'sa-firewall': <Flame className="w-4 h-4" />,
   'sa-capacity': <TrendingUp className="w-4 h-4" />,
+  // SOC (v9) — guías de herramientas SOC reales (referencia copiable).
+  'soc-sentinel': <Radar className="w-4 h-4" />,
+  'soc-splunk': <SearchCode className="w-4 h-4" />,
+  'soc-elastic': <BarChart3 className="w-4 h-4" />,
+  'soc-wireshark': <Network className="w-4 h-4" />,
+  'soc-sysmon': <Activity className="w-4 h-4" />,
+  'soc-defender': <ShieldCheck className="w-4 h-4" />,
+  'soc-sandbox': <FlaskConical className="w-4 h-4" />,
+  'soc-thehive': <FolderKanban className="w-4 h-4" />,
 };
 
-const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; desc: string; tags?: string[] }[] =
+const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; desc: string; tags?: string[]; pillars?: ToolPillar[] }[] =
   TOOLS_CATALOG.map((t) => ({ ...t, icon: TOOL_ICONS[t.id] }));
 
 /* ---------- Shared UI helpers ---------- */
@@ -1657,7 +1674,26 @@ const CronTool: React.FC<CronToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
 /* MAIN ToolsView                                                 */
 /* ============================================================= */
 
-export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePending }) => {
+const PILLAR_META: Record<ToolsViewPillar, { label: string; icon: React.ReactNode; accent: string }> = {
+  hd: {
+    label: 'Herramientas — Service Desk',
+    icon: <Wrench className="w-4 h-4 text-blue-400" />,
+    accent: 'text-blue-400',
+  },
+  sa: {
+    label: 'Herramientas — SysAdmin Ops',
+    icon: <Wrench className="w-4 h-4 text-cyan-400" />,
+    accent: 'text-cyan-400',
+  },
+  soc: {
+    label: 'Herramientas — SOC / Blue Team',
+    icon: <Wrench className="w-4 h-4 text-emerald-400" />,
+    accent: 'text-emerald-400',
+  },
+};
+
+export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onConsumePending }) => {
+  const pillarMeta = PILLAR_META[pillar];
   // BLOQUE 3 — Subscribe to the cross-tool zustand store so any tool
   // (MITRE/Sigma/WinEvent/Detection Query) can trigger navigation to another
   // tool by calling `usePendingToolStore.getState().setPending({toolId, entryId?})`.
@@ -1667,7 +1703,13 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
   const effectivePending = pendingTool || zustandPending;
   const clearZustandPending = usePendingToolStore((s) => s.clear);
 
-  const [active, setActive] = useState<ToolId>(effectivePending?.toolId as ToolId || 'subnet');
+  // V9 — tools del pilar (sin pillars = transversal, aparece en los 3).
+  const pillarTools = useMemo(
+    () => TOOLS.filter((t) => !t.pillars || t.pillars.includes(pillar.toUpperCase() as ToolPillar)),
+    [pillar]
+  );
+  const firstPillarTool = pillarTools[0]?.id ?? 'subnet';
+  const [active, setActive] = useState<ToolId>(effectivePending?.toolId as ToolId || firstPillarTool);
 
   // BLOQUE 5 — tool search (filters by name / desc / category / tags).
   const [toolQuery, setToolQuery] = useState('');
@@ -1711,8 +1753,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
   // Tool search — match on name, desc, category, tags (case-insensitive substring).
   const filteredTools = useMemo(() => {
     const q = toolQuery.trim().toLowerCase();
-    if (!q) return TOOLS;
-    return TOOLS.filter((t) => {
+    if (!q) return pillarTools;
+    return pillarTools.filter((t) => {
       const haystack = [
         t.name,
         t.desc,
@@ -1721,7 +1763,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
       ].join(' ').toLowerCase();
       return haystack.includes(q);
     });
-  }, [toolQuery]);
+  }, [toolQuery, pillarTools]);
 
   // Rebuild the categories map ONLY from the filtered tools so search hides
   // categories that have zero matches.
@@ -1737,14 +1779,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
 
   // Favorites list (preserve TOOLS order for stable UX) and recents.
   const favoriteTools = useMemo(
-    () => TOOLS.filter((t) => favoriteIds.has(t.id)),
-    [favoriteIds]
+    () => pillarTools.filter((t) => favoriteIds.has(t.id)),
+    [favoriteIds, pillarTools]
   );
   const recentTools = useMemo(
     () => recentIdsOrdered
-      .map((id) => TOOLS.find((t) => t.id === id))
+      .map((id) => pillarTools.find((t) => t.id === id))
       .filter((t): t is (typeof TOOLS)[number] => Boolean(t)),
-    [recentIdsOrdered]
+    [recentIdsOrdered, pillarTools]
   );
 
   // Render the active tool, passing the deep-link entryId ONLY to the tool
@@ -1787,8 +1829,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
 
       // HELPDESK (V6 FASE 3) — 6 tools de soporte que siguen: todas
       // interactivas reales (parser/simulador/generador). Las 9 guías
-      // estáticas migraron a data/troubleshootingRunbooks.ts; la SLA
-      // Calculator se eliminó por spec V6.
+      // estáticas migraron a los runbooks por pilar (V9:
+      // data/runbooksHelpDesk.ts); la SLA Calculator se eliminó por spec V6.
       case 'hd-triage':    return <HdTicketTriageTool />;
       case 'hd-ad-account': return <HdAdAccountTool />;
       case 'hd-kb-gen':    return <HdKbGeneratorTool />;
@@ -1804,6 +1846,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
       case 'sa-cron-builder': return <SaCronBuilderTool />;
       case 'sa-firewall':     return <SaFirewallTool />;
       case 'sa-capacity':     return <SaCapacityTool />;
+
+      // SOC (v9) — guías de herramientas SOC (referencia copiable offline).
+      case 'soc-sentinel':   return <SocGuideTool guideId="sentinel" />;
+      case 'soc-splunk':     return <SocGuideTool guideId="splunk" />;
+      case 'soc-elastic':    return <SocGuideTool guideId="elastic" />;
+      case 'soc-wireshark':  return <SocGuideTool guideId="wireshark" />;
+      case 'soc-sysmon':     return <SocGuideTool guideId="sysmon" />;
+      case 'soc-defender':   return <SocGuideTool guideId="defender" />;
+      case 'soc-sandbox':    return <SocGuideTool guideId="sandbox" />;
+      case 'soc-thehive':    return <SocGuideTool guideId="thehive" />;
       // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
       case 'sid-rid':            return <SidRidAnalyzerTool />;
       case 'ldap-dn':            return <LdapDnParserTool />;
@@ -1824,13 +1876,13 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-base font-bold text-white flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-blue-400" />
-              Herramientas — Ciberseguridad y Soporte IT
+              {pillarMeta.icon}
+              {pillarMeta.label}
             </h1>
             {/* AUDIT FIX: the old claim "100% offline — sin llamadas a internet"
                 was inaccurate — the catalog includes CVE Search, whose online
                 lookup is MANUAL and opt-in. The wording now matches reality. */}
-            <p className="text-xs text-[#888]">{TOOLS.length} utilidades offline — sin llamadas automáticas a internet. La búsqueda online de CVEs es manual y opcional.</p>
+            <p className="text-xs text-[#888]">{pillarTools.length} utilidades offline — sin llamadas automáticas a internet. La búsqueda online de CVEs es manual y opcional.</p>
           </div>
           {/* Tool search box — filters by name / desc / category / tags. */}
           <div className="relative w-full sm:w-72 max-w-full">

@@ -3,8 +3,18 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench,
   Bookmark, Inbox, Database, IdCard, Map as RoadmapIcon, Headset, GraduationCap, LifeBuoy, Zap,
-  Server, Milestone,
+  Server, Milestone, Shield, GitBranch,
 } from 'lucide-react';
+// V9 — conteos estáticos de los datasets por pilar (badges del sidebar).
+import { RUNBOOKS_HD_COUNT } from '../data/runbooksHelpDesk';
+import { RUNBOOKS_SA_COUNT } from '../data/runbooksSysAdmin';
+import { RUNBOOKS_SOC_COUNT } from '../data/runbooksSoc';
+import { CHEATSHEET_COUNT } from '../data/serviceDeskCheatSheet';
+import { SYSADMIN_CHEATSHEET_COUNT } from '../data/sysadminCheatSheet';
+import { SOC_CHEATSHEET_COUNT } from '../data/socCheatSheet';
+import { TROUBLESHOOTING_HD_COUNT } from '../data/troubleshootingHelpDesk';
+import { TROUBLESHOOTING_SA_COUNT } from '../data/troubleshootingSysAdmin';
+import { TROUBLESHOOTING_SOC_COUNT } from '../data/troubleshootingSoc';
 import { ActiveSection } from '../types';
 import { db } from '../db';
 import { useIsOnline } from '../integrations/online';
@@ -16,10 +26,6 @@ interface SidebarProps {
   labsCount: number;
   glossaryCount: number;
   trashCount: number;
-  /** Conteo de runbooks universales (badge de Troubleshooting & Runbooks). */
-  runbooksCount: number;
-  /** Conteo de entradas del CheatSheet (badge de Service Desk CheatSheet). */
-  cheatsheetCount: number;
   /** Visibilidad del drawer en móvil (< md). El sidebar de escritorio (≥ md) siempre está visible. */
   open?: boolean;
   /** Cierra el drawer móvil (clic en el backdrop). */
@@ -107,8 +113,6 @@ const SidebarBase: React.FC<SidebarProps> = ({
   labsCount,
   glossaryCount,
   trashCount,
-  runbooksCount,
-  cheatsheetCount,
   open = false,
   onClose,
 }) => {
@@ -157,14 +161,25 @@ const SidebarBase: React.FC<SidebarProps> = ({
       ? Math.round((roadmapSaRows.filter((r) => r.done).length / roadmapSaRows.length) * 100)
       : 0;
 
+  // SOC (v9) — progreso del roadmap SOC (badge de su propia sección).
+  const roadmapSocRows = useLiveQuery(() => db.roadmapSocItems.toArray(), [], []);
+  const roadmapSocPct =
+    roadmapSocRows.length > 0
+      ? Math.round((roadmapSocRows.filter((r) => r.done).length / roadmapSocRows.length) * 100)
+      : 0;
+
   // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
   // events. NO network probe, NO periodic fetch. Purely visual state.
   const online = useIsOnline();
 
-  // ORDEN EXACTO (FASE 2) — declarado una sola vez, por grupos.
+  // ORDEN EXACTO (V9 — 3 PILARES) — declarado una sola vez, por grupos.
+  // GLOBAL KNOWLEDGE → GLOBAL CAREER CORE (IAM) → PILAR 1/2/3 →
+  // GLOBAL CAREER + SYSTEM (Perfil ARRIBA de Dashboard). Cada pilar tiene
+  // su simulador/roadmap + Herramientas + Troubleshooting + CheatSheet +
+  // Runbooks.
   const groups: NavGroupDef[] = [
     {
-      label: 'Conocimiento',
+      label: 'Global Knowledge',
       items: [
         { section: 'notes', label: 'Apuntes', icon: <FileText className={SIDEBAR_ICON} />, badge: notesCount },
         { section: 'glossary', label: 'Glosario', icon: <BookOpen className={SIDEBAR_ICON} />, badge: glossaryCount },
@@ -176,25 +191,32 @@ const SidebarBase: React.FC<SidebarProps> = ({
           badge: inboxCount,
           badgeClass: 'text-amber-400/90',
         },
-      ],
-    },
-    {
-      label: 'Laboratorio',
-      items: [
-        { section: 'labs', label: 'Hands-On / Labs', icon: <FlaskConical className={SIDEBAR_ICON} />, badge: labsCount },
-        { section: 'blog', label: 'Generar Blog', icon: <FileCode className={SIDEBAR_ICON} /> },
-        { section: 'tools', label: 'Herramientas', icon: <Wrench className={SIDEBAR_ICON} /> },
+        { section: 'labs', label: 'Labs', icon: <FlaskConical className={SIDEBAR_ICON} />, badge: labsCount, title: 'Sin labs — tú decides qué hacer después (vacío intencional desde V9)' },
+        { section: 'blog', label: 'Blog', icon: <FileCode className={SIDEBAR_ICON} /> },
+        { section: 'references', label: 'Referencias', icon: <Bookmark className={SIDEBAR_ICON} /> },
         {
-          section: 'troubleshooting',
-          label: 'Troubleshooting & Runbooks',
-          icon: <LifeBuoy className={SIDEBAR_ICON} />,
-          title: 'Runbooks universales L1/L2: cuenta bloqueada, VPN, Outlook, impresora, BSOD… paso a paso, 100% offline',
-          badge: runbooksCount,
+          section: 'data-intel',
+          label: 'Data & Intel',
+          icon: <Database className={SIDEBAR_ICON} />,
+          title: 'Sincronización de datasets + estado de integraciones + actividad online',
         },
       ],
     },
     {
-      label: 'Service Desk',
+      label: 'Career Core',
+      items: [
+        {
+          section: 'roadmap',
+          label: 'Roadmap IAM',
+          icon: <RoadmapIcon className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap Junior IAM / Identity Security Analyst (Tier 1-3 + proyecto final)',
+          badge: roadmapPct,
+          badgeClass: roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+        },
+      ],
+    },
+    {
+      label: 'Pilar 1 · Service Desk',
       items: [
         {
           section: 'helpdesk',
@@ -205,22 +227,44 @@ const SidebarBase: React.FC<SidebarProps> = ({
           badgeClass: 'text-amber-400/90',
         },
         {
-          section: 'cheatsheet',
-          label: 'Service Desk CheatSheet',
-          icon: <Zap className={SIDEBAR_ICON} />,
-          title: 'Los fixes top de L1/L2 al instante: sin input, buscador fuzzy, 100% offline',
-          badge: cheatsheetCount,
+          section: 'roadmap-hd',
+          label: 'Roadmap HelpDesk',
+          icon: <GraduationCap className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)',
+          badge: roadmapHdPct,
+          badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]',
         },
         {
-          section: 'data-intel',
-          label: 'Data & Intel',
-          icon: <Database className={SIDEBAR_ICON} />,
-          title: 'Sincronización de datasets + estado de integraciones + actividad online',
+          section: 'tools-hd',
+          label: 'Herramientas',
+          icon: <Wrench className={SIDEBAR_ICON} />,
+          title: 'Herramientas del pilar Service Desk (parsers, simuladores, generadores)',
+        },
+        {
+          section: 'troubleshooting-hd',
+          label: 'Troubleshooting',
+          icon: <GitBranch className={SIDEBAR_ICON} />,
+          title: 'Escaleras de decisión: Problema → Síntoma → Check → Resultado → Siguiente acción',
+          badge: TROUBLESHOOTING_HD_COUNT,
+        },
+        {
+          section: 'cheatsheet-hd',
+          label: 'CheatSheet',
+          icon: <Zap className={SIDEBAR_ICON} />,
+          title: 'Los fixes top de L1/L2 al instante: sin input, buscador fuzzy, 100% offline',
+          badge: CHEATSHEET_COUNT,
+        },
+        {
+          section: 'runbooks-hd',
+          label: 'Runbooks',
+          icon: <LifeBuoy className={SIDEBAR_ICON} />,
+          title: 'Runbooks completos: ticket real + paso a paso universal + respuesta en inglés copiable',
+          badge: RUNBOOKS_HD_COUNT,
         },
       ],
     },
     {
-      label: 'SysAdmin',
+      label: 'Pilar 2 · SysAdmin Ops',
       items: [
         {
           section: 'sysadmin',
@@ -230,28 +274,6 @@ const SidebarBase: React.FC<SidebarProps> = ({
           badge: saOpenCount,
           badgeClass: 'text-amber-400/90',
         },
-      ],
-    },
-    {
-      label: 'Carrera',
-      items: [
-        { section: 'references', label: 'Referencias', icon: <Bookmark className={SIDEBAR_ICON} /> },
-        {
-          section: 'roadmap',
-          label: 'Roadmap IAM',
-          icon: <RoadmapIcon className={SIDEBAR_ICON} />,
-          title: 'Checklist del roadmap Junior IAM / Identity Security Analyst (Tier 1-3 + proyecto final)',
-          badge: roadmapPct,
-          badgeClass: roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]',
-        },
-        {
-          section: 'roadmap-hd',
-          label: 'Roadmap HelpDesk',
-          icon: <GraduationCap className={SIDEBAR_ICON} />,
-          title: 'Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)',
-          badge: roadmapHdPct,
-          badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]',
-        },
         {
           section: 'roadmap-sa',
           label: 'Roadmap SysAdmin',
@@ -260,6 +282,78 @@ const SidebarBase: React.FC<SidebarProps> = ({
           badge: roadmapSaPct,
           badgeClass: roadmapSaPct > 0 ? 'text-emerald-400' : 'text-[#555]',
         },
+        {
+          section: 'tools-sa',
+          label: 'Herramientas',
+          icon: <Wrench className={SIDEBAR_ICON} />,
+          title: 'Herramientas del pilar SysAdmin Ops (systemd, RAID, LVM, cron builder, firewall, capacity)',
+        },
+        {
+          section: 'troubleshooting-sa',
+          label: 'Troubleshooting',
+          icon: <GitBranch className={SIDEBAR_ICON} />,
+          title: 'Escaleras de decisión de infra: Problema → Síntoma → Check → Resultado → Siguiente acción',
+          badge: TROUBLESHOOTING_SA_COUNT,
+        },
+        {
+          section: 'cheatsheet-sa',
+          label: 'CheatSheet',
+          icon: <Zap className={SIDEBAR_ICON} />,
+          title: 'Fixes de infra al instante: AD, DNS, DHCP, GPO, backup, Hyper-V… 100% offline',
+          badge: SYSADMIN_CHEATSHEET_COUNT,
+        },
+        {
+          section: 'runbooks-sa',
+          label: 'Runbooks',
+          icon: <LifeBuoy className={SIDEBAR_ICON} />,
+          title: 'Runbooks de infra con ticket real + paso a paso universal + respuesta en inglés copiable',
+          badge: RUNBOOKS_SA_COUNT,
+        },
+      ],
+    },
+    {
+      label: 'Pilar 3 · SOC / Blue Team',
+      items: [
+        {
+          section: 'roadmap-soc',
+          label: 'Roadmap SOC',
+          icon: <Shield className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap SOC Analyst L1 / Blue Team (Tier 1-3 + proyecto final)',
+          badge: roadmapSocPct,
+          badgeClass: roadmapSocPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+        },
+        {
+          section: 'tools-soc',
+          label: 'Herramientas',
+          icon: <Wrench className={SIDEBAR_ICON} />,
+          title: 'Herramientas del pilar SOC: MITRE, Sigma, KQL/SPL, Event IDs, IoC + guías de Sentinel/Splunk/Wireshark/Sysmon/Defender/sandbox/TheHive',
+        },
+        {
+          section: 'troubleshooting-soc',
+          label: 'Troubleshooting',
+          icon: <GitBranch className={SIDEBAR_ICON} />,
+          title: 'Escaleras de decisión de detección: Problema → Síntoma → Check → Resultado → Siguiente acción',
+          badge: TROUBLESHOOTING_SOC_COUNT,
+        },
+        {
+          section: 'cheatsheet-soc',
+          label: 'CheatSheet',
+          icon: <Zap className={SIDEBAR_ICON} />,
+          title: 'Fixes de detección y respuesta al instante: phishing, spray, EDR, KQL… 100% offline',
+          badge: SOC_CHEATSHEET_COUNT,
+        },
+        {
+          section: 'runbooks-soc',
+          label: 'Runbooks',
+          icon: <LifeBuoy className={SIDEBAR_ICON} />,
+          title: 'Runbooks SOC: Detection → Investigation → Evidence → Containment → Remediation → Verification → Escalation',
+          badge: RUNBOOKS_SOC_COUNT,
+        },
+      ],
+    },
+    {
+      label: 'Career + System',
+      items: [
         {
           section: 'profile',
           label: 'Perfil Profesional',

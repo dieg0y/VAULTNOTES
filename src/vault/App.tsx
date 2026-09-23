@@ -33,8 +33,8 @@ import type { ToolDeepLink } from './components/ToolsView';
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
 // V6 FASE 4 — conteos estáticos para los badges del sidebar.
-import { RUNBOOK_COUNT } from './data/troubleshootingRunbooks';
-import { CHEATSHEET_COUNT } from './data/serviceDeskCheatSheet';
+// V9 — datasets estáticos por pilar (para el dispatch de deep-links).
+import { TOOLS_CATALOG, type ToolId } from './data/toolsCatalog';
 // DATA & INTEL (v16) — navigation bridge: tools can ask App to switch to the
 // data-intel section via useIntelStore.getState().requestNavigate().
 import { useIntelStore } from './store/intelStore';
@@ -90,6 +90,8 @@ const DataIntelView = dynamic(() => import('./components/DataIntelView').then((m
 // V6 FASE 4 — runbooks universales + cheatsheet (datasets estáticos, sin Dexie).
 const RunbooksView = dynamic(() => import('./components/RunbooksView').then((m) => m.RunbooksView), { ssr: false, loading: ViewLoader });
 const CheatSheetView = dynamic(() => import('./components/CheatSheetView').then((m) => m.CheatSheetView), { ssr: false, loading: ViewLoader });
+// V9 — Troubleshooting por pilar (escaleras de decisión).
+const TroubleshootingView = dynamic(() => import('./components/TroubleshootingView').then((m) => m.TroubleshootingView), { ssr: false, loading: ViewLoader });
 
 /* Modals — mounted (and chunk-loaded) only while open. */
 const ModalLoader = () => null;
@@ -337,6 +339,8 @@ export default function App() {
   // que pendingTool): la vista consume el id al montar y limpia el estado.
   const [pendingRunbookId, setPendingRunbookId] = useState<string | null>(null);
   const [pendingCheatSheetId, setPendingCheatSheetId] = useState<string | null>(null);
+  // V9 — deep-links de guías de troubleshooting por pilar (TS-XX-NNN).
+  const [pendingTroubleshootingId, setPendingTroubleshootingId] = useState<string | null>(null);
 
   // DATA & INTEL (v16) — one-shot navigation request from any tool
   // ("Enviar a Data & Intel" flows). Consumed immediately to avoid loops.
@@ -444,23 +448,23 @@ export default function App() {
       } else if (letter === 'i') {
         e.preventDefault();
         setPendingTool({ toolId: 'ioc', entryId: 'ioc' });
-        setActiveSection('tools');
+        setActiveSection('tools-soc');
       } else if (letter === 't') {
         e.preventDefault();
         setPendingTool({ toolId: 'timestamp', entryId: 'timestamp' });
-        setActiveSection('tools');
+        setActiveSection('tools-hd');
       } else if (letter === 'h') {
         e.preventDefault();
         setPendingTool({ toolId: 'hash', entryId: 'hash' });
-        setActiveSection('tools');
+        setActiveSection('tools-sa');
       } else if (letter === 'r') {
         e.preventDefault();
         setPendingTool({ toolId: 'regex', entryId: 'regex' });
-        setActiveSection('tools');
+        setActiveSection('tools-soc');
       } else if (letter === 'm') {
         e.preventDefault();
         setPendingTool({ toolId: 'mitre', entryId: 'mitre' });
-        setActiveSection('tools');
+        setActiveSection('tools-soc');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1039,7 +1043,11 @@ export default function App() {
       // BLOQUE 5 — record tool use when the user opens a tool from the
       // command palette (light metadata only: toolId + timestamp).
       setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
-      setActiveSection('tools');
+      // V9 — abre la sección de herramientas del pilar que contiene el tool.
+      const cat = TOOLS_CATALOG.find((t) => t.id === (toolId as ToolId));
+      if (cat?.pillars?.includes('SYSADMIN')) setActiveSection('tools-sa');
+      else if (cat?.pillars?.includes('HELPDESK')) setActiveSection('tools-hd');
+      else setActiveSection('tools-soc');
     } else if (commandId === 'backup-now') {
       void handleExportBackup();
     } else if (commandId === 'import-backup') {
@@ -1103,8 +1111,6 @@ export default function App() {
         labsCount={activeLabs.length}
         glossaryCount={activeTerms.length}
         trashCount={deletedNotes.length + deletedLabs.length + deletedTerms.length}
-        runbooksCount={RUNBOOK_COUNT}
-        cheatsheetCount={CHEATSHEET_COUNT}
         open={mobileSidebarOpen}
         onClose={handleCloseMobileSidebar}
       />
@@ -1153,7 +1159,10 @@ export default function App() {
               }}
               onOpenTool={(toolId) => {
                 setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
-                setActiveSection('tools');
+                const cat = TOOLS_CATALOG.find((t) => t.id === (toolId as ToolId));
+                if (cat?.pillars?.includes('SYSADMIN')) setActiveSection('tools-sa');
+                else if (cat?.pillars?.includes('HELPDESK')) setActiveSection('tools-hd');
+                else setActiveSection('tools-soc');
               }}
             />
           )}
@@ -1266,8 +1275,15 @@ export default function App() {
             <BlogView notes={notes} labs={labs} />
           )}
 
-          {activeSection === 'tools' && (
-            <ToolsView pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
+          {/* V9 — Herramientas por pilar (misma vista, filtrada). */}
+          {activeSection === 'tools-hd' && (
+            <ToolsView pillar="hd" pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
+          )}
+          {activeSection === 'tools-sa' && (
+            <ToolsView pillar="sa" pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
+          )}
+          {activeSection === 'tools-soc' && (
+            <ToolsView pillar="soc" pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
           )}
 
           {activeSection === 'references' && (
@@ -1317,23 +1333,42 @@ export default function App() {
             <DataIntelView />
           )}
 
-          {/* V6 FASE 4 — Runbooks universales de troubleshooting L1/L2
-              (dataset estático: 42 guías paso a paso, sin Dexie, sin input). */}
-          {activeSection === 'troubleshooting' && (
-            <RunbooksView
-              autoSelectId={pendingRunbookId}
-              onConsumeAutoSelect={() => setPendingRunbookId(null)}
-            />
+          {/* V9 — Runbooks por pilar: ticket real + paso a paso universal +
+              respuesta en inglés copiable (datasets estáticos, sin Dexie). */}
+          {activeSection === 'runbooks-hd' && (
+            <RunbooksView pillar="hd" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
+          )}
+          {activeSection === 'runbooks-sa' && (
+            <RunbooksView pillar="sa" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
+          )}
+          {activeSection === 'runbooks-soc' && (
+            <RunbooksView pillar="soc" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
           )}
 
-          {/* V6 FASE 4 — CheatSheet Service Desk: los fixes top L1/L2 al
-              instante (sin input, buscador fuzzy, 100% offline). */}
-          {activeSection === 'cheatsheet' && (
-            <CheatSheetView
-              autoSelectId={pendingCheatSheetId}
-              onConsumeAutoSelect={() => setPendingCheatSheetId(null)}
-            />
+          {/* V9 — CheatSheet por pilar (fixes top al instante, sin input). */}
+          {activeSection === 'cheatsheet-hd' && (
+            <CheatSheetView pillar="hd" autoSelectId={pendingCheatSheetId} onConsumeAutoSelect={() => setPendingCheatSheetId(null)} />
           )}
+          {activeSection === 'cheatsheet-sa' && (
+            <CheatSheetView pillar="sa" autoSelectId={pendingCheatSheetId} onConsumeAutoSelect={() => setPendingCheatSheetId(null)} />
+          )}
+          {activeSection === 'cheatsheet-soc' && (
+            <CheatSheetView pillar="soc" autoSelectId={pendingCheatSheetId} onConsumeAutoSelect={() => setPendingCheatSheetId(null)} />
+          )}
+
+          {/* V9 — Troubleshooting por pilar (escaleras de decisión). */}
+          {activeSection === 'troubleshooting-hd' && (
+            <TroubleshootingView pillar="hd" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
+          )}
+          {activeSection === 'troubleshooting-sa' && (
+            <TroubleshootingView pillar="sa" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
+          )}
+          {activeSection === 'troubleshooting-soc' && (
+            <TroubleshootingView pillar="soc" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
+          )}
+
+          {/* V9 — Roadmap SOC (cuarto roadmap, variante soc). */}
+          {activeSection === 'roadmap-soc' && <RoadmapView variant="soc" />}
         </main>
       </div>
 
@@ -1366,16 +1401,34 @@ export default function App() {
           }}
           onSelectTool={(deepLink) => {
             setPendingTool(deepLink);
-            setActiveSection('tools');
+            // V9 — el deep-link abre la sección de herramientas del pilar
+            // que contiene el tool (tools sin pillars viven en los 3).
+            const cat = TOOLS_CATALOG.find((t) => t.id === deepLink.toolId);
+            if (cat?.pillars?.includes('SYSADMIN')) setActiveSection('tools-sa');
+            else if (cat?.pillars?.includes('HELPDESK')) setActiveSection('tools-hd');
+            else setActiveSection('tools-soc');
           }}
-          // V6 FASE 4 — deep-links a runbooks/cheatsheet:
+          // V9 — deep-links por prefijo de id:
+          //   RB-HD-* → runbooks-hd · RB-SA-* → runbooks-sa · RB-SOC-* → runbooks-soc
+          //   CS-SA-* → cheatsheet-sa · CS-SOC-* → cheatsheet-soc · resto → cheatsheet-hd
+          //   TS-HD-* → troubleshooting-hd · TS-SA-* → troubleshooting-sa · TS-SOC-* → troubleshooting-soc
           onSelectRunbook={(runbookId) => {
             setPendingRunbookId(runbookId);
-            setActiveSection('troubleshooting');
+            if (runbookId.startsWith('RB-SA-')) setActiveSection('runbooks-sa');
+            else if (runbookId.startsWith('RB-SOC-')) setActiveSection('runbooks-soc');
+            else setActiveSection('runbooks-hd');
           }}
           onSelectCheatSheet={(cheatsheetId) => {
             setPendingCheatSheetId(cheatsheetId);
-            setActiveSection('cheatsheet');
+            if (cheatsheetId.startsWith('CS-SA-')) setActiveSection('cheatsheet-sa');
+            else if (cheatsheetId.startsWith('CS-SOC-')) setActiveSection('cheatsheet-soc');
+            else setActiveSection('cheatsheet-hd');
+          }}
+          onSelectTroubleshooting={(troubleshootingId) => {
+            setPendingTroubleshootingId(troubleshootingId);
+            if (troubleshootingId.startsWith('TS-SA-')) setActiveSection('troubleshooting-sa');
+            else if (troubleshootingId.startsWith('TS-SOC-')) setActiveSection('troubleshooting-soc');
+            else setActiveSection('troubleshooting-hd');
           }}
           // BLOQUE 5 — command palette dispatch (new note / open X / backup / etc.)
           onSelectCommand={(commandId) => {

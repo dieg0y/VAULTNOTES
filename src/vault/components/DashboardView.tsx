@@ -30,7 +30,12 @@ import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
 import { findToolById } from '../data/toolsCatalog';
-import { Map as RoadmapIcon, Headset, Server } from 'lucide-react';
+import { Map as RoadmapIcon, Headset, Server, Shield } from 'lucide-react';
+// V9 — conteos estáticos del pilar SOC (tarjeta del dashboard).
+import { ROADMAP_SOC_ALL_ITEM_IDS } from '../data/roadmapSocData';
+import { RUNBOOKS_SOC_COUNT } from '../data/runbooksSoc';
+import { SOC_CHEATSHEET_COUNT } from '../data/socCheatSheet';
+import { TROUBLESHOOTING_SOC_COUNT } from '../data/troubleshootingSoc';
 import confetti from 'canvas-confetti';
 
 interface DashboardViewProps {
@@ -123,6 +128,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // guardia trabajados (resueltos/escalados/cerrados) + semana de guardia
   // (30). Misma filosofía: solo contar filas, sin joins.
   const saTicketRows = useLiveQuery(() => db.sysadminTickets.filter((t) => !t.isDeleted).toArray(), [], []);
+  // SOC (v9) — progreso del roadmap SOC (pilar 3).
+  const socRoadmapRows = useLiveQuery(() => db.roadmapSocItems.toArray(), [], []);
+  const socRoadmapDone = socRoadmapRows.filter((r) => r.done).length;
+  const socRoadmapPct =
+    ROADMAP_SOC_ALL_ITEM_IDS.length > 0
+      ? Math.round((socRoadmapDone / ROADMAP_SOC_ALL_ITEM_IDS.length) * 100)
+      : 0;
   const saWorked = saTicketRows.filter((t) => hdWorkedStatuses.has(t.status)).length;
   const saOpen = saTicketRows.filter((t) => hdOpenStatuses.has(t.status)).length;
   const saTotal = saTicketRows.length;
@@ -394,11 +406,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (onOpenTool) {
       onOpenTool('ioc');
     } else if (onSelectSection) {
-      onSelectSection('tools');
+      onSelectSection('tools-soc');
     }
   };
   const handleOpenTools = () => {
-    if (onSelectSection) onSelectSection('tools');
+    if (onSelectSection) onSelectSection('tools-soc');
   };
   const handleOpenGlossary = () => {
     if (onSelectSection) onSelectSection('glossary');
@@ -619,6 +631,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : saWorked > 0
                   ? 'Vas avanzando en la guardia de Infra — clic para seguir.'
                   : 'Simulador SysAdmin: 56 tickets de guardia (Linux, Windows Server, red, storage, VM) — empieza por el día 1.'}
+            </p>
+          </div>
+
+          {/* SOC (v9) — pilar 3: roadmap SOC + runbooks/cheatsheet/
+              troubleshooting estáticos (knowledge base consultable). */}
+          <div
+            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-emerald-500/40 transition-colors"
+            onClick={() => onSelectSection?.('roadmap-soc')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSection?.('roadmap-soc'); }}
+            title="Abrir el pilar SOC: roadmap Blue Team, runbooks de detección y respuesta, cheatsheets y troubleshooting"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">SOC / Blue Team</span>
+              <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <span className="text-2xl font-bold text-white font-mono">
+                {socRoadmapDone}<span className="text-sm text-[#666]">/{ROADMAP_SOC_ALL_ITEM_IDS.length}</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#666] shrink-0">
+                RB {RUNBOOKS_SOC_COUNT} · CS {SOC_CHEATSHEET_COUNT} · TS {TROUBLESHOOTING_SOC_COUNT}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden mt-2" role="progressbar" aria-valuenow={socRoadmapPct} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${socRoadmapPct === 100 ? 'bg-emerald-500' : 'bg-emerald-500/70'}`}
+                style={{ width: `${socRoadmapPct}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+              {socRoadmapPct === 100
+                ? '¡Roadmap SOC completado! Exporta el checklist como evidencia.'
+                : socRoadmapDone > 0
+                  ? 'Pilar SOC: roadmap Blue Team + {0} runbooks con respuesta en inglés — clic para seguir.'.replace('{0}', String(RUNBOOKS_SOC_COUNT))
+                  : 'Pilar 3 listo: runbooks, cheatsheets y troubleshooting de detección — 100% offline.'}
             </p>
           </div>
 

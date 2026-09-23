@@ -4,10 +4,9 @@ import { GLOSSARY_SEED_TERMS } from '../data/glossarySeed';
 import { ROADMAP_ALL_ITEM_IDS } from '../data/roadmapData';
 import { ROADMAP_HD_ALL_ITEM_IDS } from '../data/roadmapHelpDeskData';
 import { HELPDESK_TICKET_SEEDS } from '../data/helpDeskTickets';
-import { HELPDESK_LAB_SEEDS } from '../data/helpDeskLabsData';
 import { SYSADMIN_TICKET_SEEDS } from '../data/sysadminTickets';
-import { SYSADMIN_LAB_SEEDS } from '../data/sysadminLabsData';
 import { ROADMAP_SA_ALL_ITEM_IDS } from '../data/roadmapSysAdminData';
+import { ROADMAP_SOC_ALL_ITEM_IDS } from '../data/roadmapSocData';
 
 /**
  * BLOQUE 6 — Online-Optional integration tables. These live in the MAIN
@@ -243,6 +242,8 @@ class VaultDatabase extends Dexie {
   //    usuario trabaja como práctica de guardia (OPS-2001...).
   roadmapSysAdminItems!: Table<RoadmapItem, string>;
   sysadminTickets!: Table<SysAdminTicket, string>;
+  /** v9 (SOC): progreso del roadmap SOC (ids 'rmsoc-*'). */
+  roadmapSocItems!: Table<RoadmapItem, string>;
 
   constructor() {
     super('VaultLocalDB');
@@ -592,6 +593,36 @@ class VaultDatabase extends Dexie {
       roadmapSysAdminItems: 'id, updatedAt',
       sysadminTickets: 'id, status, isDeleted, updatedAt, createdAt',
     });
+    // v9: SOC + LABS VACÍO — migración ADITIVA + cleanup dirigido:
+    //  · roadmapSocItems — progreso del roadmap SOC (ids 'rmsoc-*' en
+    //    data/roadmapSocData.ts). Delta-only: nada más se toca.
+    //  · Upgrade(): elimina EXCLUSIVAMENTE los 9 ids sembrados de labs
+    //    (4 HelpDesk 'labhd-*' + 5 SysAdmin 'labsa-*' — spec V9 Phase 1:
+    //    Labs queda vacío). SOLO esos ids: un lab creado por el usuario
+    //    nunca se borra (regla de preservación #1). El seeding de labs
+    //    desaparece en esta misma versión (no se siembran más).
+    this.version(22)
+      .stores({
+        roadmapSocItems: 'id, updatedAt',
+      })
+      .upgrade(async () => {
+        const SEEDED_LAB_IDS = [
+          'labhd-jml-onboarding-l1',
+          'labhd-printer-troubleshooting',
+          'labhd-entra-joined-migration',
+          'labhd-phishing-mfa-security',
+          'labsa-guardia-linux-diagnostico',
+          'labsa-lvm-raid-extend',
+          'labsa-backup-restore-321',
+          'labsa-cambio-parches',
+          'labsa-monitor-umbrales',
+        ];
+        try {
+          await db.labs.bulkDelete(SEEDED_LAB_IDS);
+        } catch {
+          // La tabla puede no existir en una instalación ex-novo — no-op.
+        }
+      });
   }
 }
 
@@ -599,7 +630,7 @@ class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 21;
+export const CURRENT_SCHEMA_VERSION = 22;
 
 export const db = new VaultDatabase();
 
@@ -1023,34 +1054,6 @@ async function doInitializeDatabase() {
     console.warn('HelpDesk tickets seed skipped:', err);
   }
 
-  // --- HELPDESK (v19) · LAB TEMPLATES: 4 labs guiados en la tabla `labs`
-  // EXISTENTE (misma arquitectura de labs del usuario — no hay segunda
-  // app de labs). ADITIVO por id + dismissal. El usuario los trabaja
-  // igual que cualquier lab (partes, estado, evidencia).
-  try {
-    const existingLabs = await db.labs.toArray();
-    const existingLabIds = new Set(existingLabs.map((l) => l.id));
-    const missingLabs = HELPDESK_LAB_SEEDS.filter(
-      (l) => !existingLabIds.has(l.id) && !isSeedIdDismissed('helpdeskLab', l.id)
-    );
-    if (missingLabs.length > 0) {
-      const nowLabs = new Date().toISOString();
-      await db.labs.bulkPut(
-        missingLabs.map((l) => ({
-          ...l,
-          status: 'No iniciado' as const,
-          isFavorite: false,
-          isDeleted: false,
-          deletedAt: undefined,
-          createdAt: nowLabs,
-          updatedAt: nowLabs,
-        }))
-      );
-    }
-  } catch (err) {
-    console.warn('HelpDesk labs seed skipped:', err);
-  }
-
   // --- SYSADMIN (v21) · ROADMAP: igual que los bloques anteriores pero para
   // data/roadmapSysAdminData.ts (ids 'rmsa-*') en su PROPIA tabla — el
   // progreso SysAdmin, HelpDesk e IAM son completamente independientes.
@@ -1068,6 +1071,25 @@ async function doInitializeDatabase() {
     }
   } catch (err) {
     console.warn('SysAdmin roadmap seed skipped:', err);
+  }
+
+  // --- SOC (v9) · ROADMAP: igual que los bloques anteriores pero para
+  // data/roadmapSocData.ts (ids 'rmsoc-*') en su PROPIA tabla — el
+  // progreso SOC, SysAdmin, HelpDesk e IAM son completamente independientes.
+  try {
+    const existingRmSoc = await db.roadmapSocItems.toArray();
+    const existingRmSocIds = new Set(existingRmSoc.map((r) => r.id));
+    const missingSoc = ROADMAP_SOC_ALL_ITEM_IDS.filter(
+      (id) => !existingRmSocIds.has(id)
+    );
+    if (missingSoc.length > 0) {
+      const nowRmSoc = new Date().toISOString();
+      await db.roadmapSocItems.bulkPut(
+        missingSoc.map((id) => ({ id, done: false, updatedAt: nowRmSoc }))
+      );
+    }
+  } catch (err) {
+    console.warn('SOC roadmap seed skipped:', err);
   }
 
   // --- SYSADMIN (v21) · TICKETS: siembra el dataset de práctica (56
@@ -1099,33 +1121,6 @@ async function doInitializeDatabase() {
     }
   } catch (err) {
     console.warn('SysAdmin tickets seed skipped:', err);
-  }
-
-  // --- SYSADMIN (v21) · LAB TEMPLATES: labs guiados en la tabla `labs`
-  // EXISTENTE (misma arquitectura que los labs HelpDesk). ADITIVO por id +
-  // dismissal. El usuario los trabaja igual que cualquier lab.
-  try {
-    const existingSaLabs = await db.labs.toArray();
-    const existingSaLabIds = new Set(existingSaLabs.map((l) => l.id));
-    const missingSaLabs = SYSADMIN_LAB_SEEDS.filter(
-      (l) => !existingSaLabIds.has(l.id) && !isSeedIdDismissed('sysadminLab', l.id)
-    );
-    if (missingSaLabs.length > 0) {
-      const nowSaLabs = new Date().toISOString();
-      await db.labs.bulkPut(
-        missingSaLabs.map((l) => ({
-          ...l,
-          status: 'No iniciado' as const,
-          isFavorite: false,
-          isDeleted: false,
-          deletedAt: undefined,
-          createdAt: nowSaLabs,
-          updatedAt: nowSaLabs,
-        }))
-      );
-    }
-  } catch (err) {
-    console.warn('SysAdmin labs seed skipped:', err);
   }
 
   // --- PERFIL PROFESIONAL (v17, multi-perfil desde v18): seed inicial SOLO

@@ -7,6 +7,7 @@ import { db } from '../db';
 import { ROADMAP_TIERS, ROADMAP_MASTERY_NOTE, ROADMAP_HEADER, type RoadmapTierDef, type RoadmapPhaseDef, type RoadmapItemDef } from '../data/roadmapData';
 import { ROADMAP_HD_TIERS, ROADMAP_HD_MASTERY_NOTE, ROADMAP_HD_HEADER } from '../data/roadmapHelpDeskData';
 import { ROADMAP_SA_TIERS, ROADMAP_SA_MASTERY_NOTE, ROADMAP_SA_HEADER } from '../data/roadmapSysAdminData';
+import { ROADMAP_SOC_TIERS, ROADMAP_SOC_MASTERY_NOTE, ROADMAP_SOC_HEADER } from '../data/roadmapSocData';
 import {
   buildRoadmapMarkdown,
   roadmapMarkdownFilename,
@@ -14,6 +15,8 @@ import {
   roadmapHdMarkdownFilename,
   buildRoadmapSaMarkdown,
   roadmapSaMarkdownFilename,
+  buildRoadmapSocMarkdown,
+  roadmapSocMarkdownFilename,
 } from '../utils/roadmapExport';
 import { downloadBlob } from '../utils/downloadBlob';
 
@@ -30,6 +33,8 @@ import { downloadBlob } from '../utils/downloadBlob';
  *   - 'hd'            → data/roadmapHelpDeskData.ts + db.roadmapHelpDeskItems
  * v21 — TRES roadmaps:
  *   - 'sa'            → data/roadmapSysAdminData.ts + db.roadmapSysAdminItems
+ * v9 — CUATRO roadmaps:
+ *   - 'soc'           → data/roadmapSocData.ts + db.roadmapSocItems
  * Misma UI, mismos acentos por posición de tier, export Markdown propio.
  *
  * Progreso global + por tier + por fase. Export del checklist completo
@@ -200,20 +205,34 @@ const TierSection: React.FC<{ tier: RoadmapTierDef; doneMap: Map<string, boolean
 };
 
 export interface RoadmapViewProps {
-  /** Qué roadmap renderiza: 'iam' (default), 'hd' (HelpDesk/IT Support)
-   *  o 'sa' (SysAdmin/Infra & Ops). */
-  variant?: 'iam' | 'hd' | 'sa';
+  /** Qué roadmap renderiza: 'iam' (default), 'hd' (HelpDesk/IT Support),
+   *  'sa' (SysAdmin/Infra & Ops) o 'soc' (SOC/Blue Team). */
+  variant?: 'iam' | 'hd' | 'sa' | 'soc';
 }
 
 export const RoadmapView: React.FC<RoadmapViewProps> = ({ variant = 'iam' }) => {
   const isHd = variant === 'hd';
   const isSa = variant === 'sa';
-  const tiers = isHd ? ROADMAP_HD_TIERS : isSa ? ROADMAP_SA_TIERS : ROADMAP_TIERS;
-  const header = isHd ? ROADMAP_HD_HEADER : isSa ? ROADMAP_SA_HEADER : ROADMAP_HEADER;
-  const masteryNote = isHd ? ROADMAP_HD_MASTERY_NOTE : isSa ? ROADMAP_SA_MASTERY_NOTE : ROADMAP_MASTERY_NOTE;
+  const isSoc = variant === 'soc';
+  const tiers = isHd ? ROADMAP_HD_TIERS : isSa ? ROADMAP_SA_TIERS : isSoc ? ROADMAP_SOC_TIERS : ROADMAP_TIERS;
+  const header = isHd ? ROADMAP_HD_HEADER : isSa ? ROADMAP_SA_HEADER : isSoc ? ROADMAP_SOC_HEADER : ROADMAP_HEADER;
+  const masteryNote = isHd
+    ? ROADMAP_HD_MASTERY_NOTE
+    : isSa
+      ? ROADMAP_SA_MASTERY_NOTE
+      : isSoc
+        ? ROADMAP_SOC_MASTERY_NOTE
+        : ROADMAP_MASTERY_NOTE;
 
   const rows = useLiveQuery(
-    () => (isHd ? db.roadmapHelpDeskItems.toArray() : isSa ? db.roadmapSysAdminItems.toArray() : db.roadmapItems.toArray()),
+    () =>
+      isHd
+        ? db.roadmapHelpDeskItems.toArray()
+        : isSa
+          ? db.roadmapSysAdminItems.toArray()
+          : isSoc
+            ? db.roadmapSocItems.toArray()
+            : db.roadmapItems.toArray(),
     [variant],
     []
   );
@@ -235,7 +254,13 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({ variant = 'iam' }) => 
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   const handleToggle = (id: string, next: boolean) => {
-    const table = isHd ? db.roadmapHelpDeskItems : isSa ? db.roadmapSysAdminItems : db.roadmapItems;
+    const table = isHd
+      ? db.roadmapHelpDeskItems
+      : isSa
+        ? db.roadmapSysAdminItems
+        : isSoc
+          ? db.roadmapSocItems
+          : db.roadmapItems;
     void table.update(id, {
       done: next,
       doneAt: next ? new Date().toISOString() : undefined,
@@ -249,9 +274,21 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({ variant = 'iam' }) => 
   };
 
   const currentMarkdown = () =>
-    isHd ? buildRoadmapHdMarkdown(doneMap) : isSa ? buildRoadmapSaMarkdown(doneMap) : buildRoadmapMarkdown(doneMap);
+    isHd
+      ? buildRoadmapHdMarkdown(doneMap)
+      : isSa
+        ? buildRoadmapSaMarkdown(doneMap)
+        : isSoc
+          ? buildRoadmapSocMarkdown(doneMap)
+          : buildRoadmapMarkdown(doneMap);
   const currentFilename = () =>
-    isHd ? roadmapHdMarkdownFilename() : isSa ? roadmapSaMarkdownFilename() : roadmapMarkdownFilename();
+    isHd
+      ? roadmapHdMarkdownFilename()
+      : isSa
+        ? roadmapSaMarkdownFilename()
+        : isSoc
+          ? roadmapSocMarkdownFilename()
+          : roadmapMarkdownFilename();
 
   const handleExport = () => {
     downloadBlob(new Blob([currentMarkdown()], { type: 'text/markdown;charset=utf-8' }), currentFilename());
@@ -273,7 +310,7 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({ variant = 'iam' }) => 
       <div className="px-6 py-3 border-b border-[#262626] bg-[#0D0D0D] flex flex-wrap items-center justify-between gap-3 sticky top-0 z-10">
         <div className="min-w-0">
           <h1 className="text-base font-bold text-white flex items-center gap-2">
-            <RoadmapIcon className={`w-4 h-4 ${isHd ? 'text-sky-400' : isSa ? 'text-cyan-400' : 'text-blue-400'}`} />
+            <RoadmapIcon className={`w-4 h-4 ${isHd ? 'text-sky-400' : isSa ? 'text-cyan-400' : isSoc ? 'text-emerald-400' : 'text-blue-400'}`} />
             {header.title}
           </h1>
           <p className="text-xs text-[#888]">
