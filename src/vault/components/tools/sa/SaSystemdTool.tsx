@@ -525,4 +525,3 @@ export const SaSystemdTool: React.FC = () => {
   );
 };
 
-export default SaSystemdTool;

@@ -513,4 +513,3 @@ export const SaCapacityTool: React.FC = () => {
   );
 };
 
-export default SaCapacityTool;

@@ -85,23 +85,3 @@ export interface PillarRunbook {
   keywords: string[];
 }
 
-/** Validador de integridad de un runbook (QA de contenido, V9 FASE 5). */
-export function runbookIsComplete(r: PillarRunbook): boolean {
-  return (
-    r.id.length > 0 &&
-    r.title.length > 0 &&
-    r.category.length > 0 &&
-    r.ticket_example.length > 0 &&
-    r.problem_description.length > 0 &&
-    r.business_impact.length > 0 &&
-    r.symptoms.length >= 2 &&
-    r.root_causes.length >= 2 &&
-    r.step_by_step_universal.length >= 5 &&
-    r.verification.length > 0 &&
-    r.evidence_to_collect.length >= 1 &&
-    r.escalation.length > 0 &&
-    r.english_customer_response_template.length > 40 &&
-    r.english_technical_explanation.length > 40 &&
-    r.keywords.length >= 6
-  );
-}

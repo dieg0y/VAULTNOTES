@@ -265,4 +265,3 @@ export const CvssCalculatorTool: React.FC = () => {
   );
 };
 
-export default CvssCalculatorTool;

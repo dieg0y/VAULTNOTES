@@ -667,4 +667,3 @@ export const HdAdAccountTool: React.FC = () => {
   );
 };
 
-export default HdAdAccountTool;

@@ -435,4 +435,3 @@ export const SaRaidTool: React.FC = () => {
   );
 };
 
-export default SaRaidTool;

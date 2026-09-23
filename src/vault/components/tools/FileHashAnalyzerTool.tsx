@@ -428,4 +428,3 @@ export const FileHashAnalyzerTool: React.FC = () => {
   );
 };
 
-export default FileHashAnalyzerTool;

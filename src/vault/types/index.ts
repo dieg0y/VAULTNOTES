@@ -422,8 +422,8 @@ export interface HelpDeskTicket {
   updatedAt: string;
 }
 
-/** Paso de un artículo de la KB HelpDesk. */
-export interface HelpDeskKbStep {
+/** Paso de un artículo de la KB HelpDesk (uso interno de este módulo). */
+interface HelpDeskKbStep {
   title: string;
   detail?: string;
   /** Comando educativo (PowerShell/CMD) — texto plano. */
@@ -523,8 +523,8 @@ export interface SysAdminTicket {
   updatedAt: string;
 }
 
-/** Paso de un artículo de la KB SysAdmin. */
-export interface SysAdminKbStep {
+/** Paso de un artículo de la KB SysAdmin (uso interno de este módulo). */
+interface SysAdminKbStep {
   title: string;
   detail?: string;
   /** Comando educativo (bash/PowerShell) — texto plano. */

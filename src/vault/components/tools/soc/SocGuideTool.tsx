@@ -97,4 +97,3 @@ export const SocGuideTool: React.FC<SocGuideToolProps> = ({ guideId }) => {
   return <GuideRenderer guide={guide} />;
 };
 
-export default SocGuideTool;

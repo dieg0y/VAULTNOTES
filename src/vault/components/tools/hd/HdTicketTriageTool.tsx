@@ -1048,4 +1048,3 @@ export const HdTicketTriageTool: React.FC = () => {
   );
 };
 
-export default HdTicketTriageTool;

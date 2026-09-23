@@ -498,4 +498,3 @@ export const LinuxPermissionsTool: React.FC = () => {
   );
 };
 
-export default LinuxPermissionsTool;

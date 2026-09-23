@@ -642,4 +642,3 @@ export const LogParserTool: React.FC = () => {
   );
 };
 
-export default LogParserTool;

@@ -827,4 +827,3 @@ export const PowerShellAnalyzerTool: React.FC = () => {
   );
 };
 
-export default PowerShellAnalyzerTool;

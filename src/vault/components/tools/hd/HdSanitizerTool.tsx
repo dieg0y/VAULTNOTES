@@ -401,4 +401,3 @@ export const HdSanitizerTool: React.FC = () => {
   );
 };
 
-export default HdSanitizerTool;

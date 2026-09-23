@@ -754,4 +754,3 @@ export const CommandLineAnalyzerTool: React.FC = () => {
   );
 };
 
-export default CommandLineAnalyzerTool;

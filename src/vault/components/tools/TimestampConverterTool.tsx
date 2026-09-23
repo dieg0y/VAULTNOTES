@@ -194,4 +194,3 @@ export const TimestampConverterTool: React.FC = () => {
   );
 };
 
-export default TimestampConverterTool;

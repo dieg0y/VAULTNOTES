@@ -405,4 +405,3 @@ export const LdapDnParserTool: React.FC = () => {
   );
 };
 
-export default LdapDnParserTool;

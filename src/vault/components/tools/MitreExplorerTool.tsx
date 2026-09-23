@@ -490,4 +490,3 @@ export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, on
   );
 };
 
-export default MitreExplorerTool;

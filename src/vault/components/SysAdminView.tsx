@@ -1322,4 +1322,3 @@ export const SysAdminView: React.FC<SysAdminViewProps> = ({ glossaryTerms, onOpe
   );
 };
 
-export default SysAdminView;

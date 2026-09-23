@@ -795,4 +795,3 @@ export const CveSearchTool: React.FC = () => {
   );
 };
 
-export default CveSearchTool;

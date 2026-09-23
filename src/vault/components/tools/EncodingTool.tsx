@@ -396,4 +396,3 @@ export const EncodingTool: React.FC = () => {
   );
 };
 
-export default EncodingTool;

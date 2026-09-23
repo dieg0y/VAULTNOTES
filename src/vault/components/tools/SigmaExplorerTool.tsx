@@ -756,4 +756,3 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
   );
 };
 
-export default SigmaExplorerTool;

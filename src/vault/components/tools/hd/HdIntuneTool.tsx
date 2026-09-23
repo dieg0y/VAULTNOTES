@@ -455,4 +455,3 @@ export const HdIntuneTool: React.FC = () => {
   );
 };
 
-export default HdIntuneTool;

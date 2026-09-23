@@ -536,4 +536,3 @@ export const SaFirewallTool: React.FC = () => {
   );
 };
 
-export default SaFirewallTool;

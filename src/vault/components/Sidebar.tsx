@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench,
@@ -6,15 +6,30 @@ import {
   Server, Milestone, Shield, GitBranch,
 } from 'lucide-react';
 // V9 — conteos estáticos de los datasets por pilar (badges del sidebar).
-import { RUNBOOKS_HD_COUNT } from '../data/runbooksHelpDesk';
-import { RUNBOOKS_SA_COUNT } from '../data/runbooksSysAdmin';
-import { RUNBOOKS_SOC_COUNT } from '../data/runbooksSoc';
-import { CHEATSHEET_COUNT } from '../data/serviceDeskCheatSheet';
-import { SYSADMIN_CHEATSHEET_COUNT } from '../data/sysadminCheatSheet';
-import { SOC_CHEATSHEET_COUNT } from '../data/socCheatSheet';
-import { TROUBLESHOOTING_HD_COUNT } from '../data/troubleshootingHelpDesk';
-import { TROUBLESHOOTING_SA_COUNT } from '../data/troubleshootingSysAdmin';
-import { TROUBLESHOOTING_SOC_COUNT } from '../data/troubleshootingSoc';
+// PERF (optimización de arranque): los 9 datasets por pilar suman ~1.9MB de
+// código fuente; importarlos estáticamente SOLO para los números de los
+// badges los metía en el chunk del shell y bloqueaba el primer render.
+// Ahora se cargan post-paint con import() dinámico (mismos chunks que ya
+// calienta el warm-up del GlobalSearchModal en requestIdleCallback →
+// comparten módulo, no hay descarga extra). Mientras llegan, los badges
+// simplemente no se muestran (regla badge > 0); sin drift posible porque
+// los números SIGEN derivándose de los arrays reales (.length).
+interface PillarCounts {
+  runbooksHd: number;
+  runbooksSa: number;
+  runbooksSoc: number;
+  cheatHd: number;
+  cheatSa: number;
+  cheatSoc: number;
+  tsHd: number;
+  tsSa: number;
+  tsSoc: number;
+}
+const PILLAR_COUNTS_ZERO: PillarCounts = {
+  runbooksHd: 0, runbooksSa: 0, runbooksSoc: 0,
+  cheatHd: 0, cheatSa: 0, cheatSoc: 0,
+  tsHd: 0, tsSa: 0, tsSoc: 0,
+};
 import { ActiveSection } from '../types';
 import { db } from '../db';
 import { useIsOnline } from '../integrations/online';
@@ -168,6 +183,44 @@ const SidebarBase: React.FC<SidebarProps> = ({
       ? Math.round((roadmapSocRows.filter((r) => r.done).length / roadmapSocRows.length) * 100)
       : 0;
 
+  // V9 — conteos por pilar cargados post-paint (ver nota en la cabecera):
+  // import() dinámico de los 9 datasets SOLO para los badges, después del
+  // primer render. No bloquea el shell y deduplica con el warm-up de la
+  // búsqueda global (requestIdleCallback) que carga los mismos chunks.
+  const [pillarCounts, setPillarCounts] = useState<PillarCounts>(PILLAR_COUNTS_ZERO);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [rbHd, rbSa, rbSoc, csHd, csSa, csSoc, tsHd, tsSa, tsSoc] = await Promise.all([
+        import('../data/runbooksHelpDesk'),
+        import('../data/runbooksSysAdmin'),
+        import('../data/runbooksSoc'),
+        import('../data/serviceDeskCheatSheet'),
+        import('../data/sysadminCheatSheet'),
+        import('../data/socCheatSheet'),
+        import('../data/troubleshootingHelpDesk'),
+        import('../data/troubleshootingSysAdmin'),
+        import('../data/troubleshootingSoc'),
+      ]);
+      if (!alive) return;
+      setPillarCounts({
+        runbooksHd: rbHd.RUNBOOKS_HD_COUNT,
+        runbooksSa: rbSa.RUNBOOKS_SA_COUNT,
+        runbooksSoc: rbSoc.RUNBOOKS_SOC_COUNT,
+        cheatHd: csHd.CHEATSHEET_COUNT,
+        cheatSa: csSa.SYSADMIN_CHEATSHEET_COUNT,
+        cheatSoc: csSoc.SOC_CHEATSHEET_COUNT,
+        tsHd: tsHd.TROUBLESHOOTING_HD_COUNT,
+        tsSa: tsSa.TROUBLESHOOTING_SA_COUNT,
+        tsSoc: tsSoc.TROUBLESHOOTING_SOC_COUNT,
+      });
+    })().catch(() => {
+      // Sin badges no hay pérdida funcional: las vistas siempre muestran
+      // el conteo real derivado del dataset completo.
+    });
+    return () => { alive = false; };
+  }, []);
+
   // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
   // events. NO network probe, NO periodic fetch. Purely visual state.
   const online = useIsOnline();
@@ -245,21 +298,21 @@ const SidebarBase: React.FC<SidebarProps> = ({
           label: 'Troubleshooting',
           icon: <GitBranch className={SIDEBAR_ICON} />,
           title: 'Escaleras de decisión: Problema → Síntoma → Check → Resultado → Siguiente acción',
-          badge: TROUBLESHOOTING_HD_COUNT,
+          badge: pillarCounts.tsHd,
         },
         {
           section: 'cheatsheet-hd',
           label: 'CheatSheet',
           icon: <Zap className={SIDEBAR_ICON} />,
           title: 'Los fixes top de L1/L2 al instante: sin input, buscador fuzzy, 100% offline',
-          badge: CHEATSHEET_COUNT,
+          badge: pillarCounts.cheatHd,
         },
         {
           section: 'runbooks-hd',
           label: 'Runbooks',
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
           title: 'Runbooks completos: ticket real + paso a paso universal + respuesta en inglés copiable',
-          badge: RUNBOOKS_HD_COUNT,
+          badge: pillarCounts.runbooksHd,
         },
       ],
     },
@@ -293,21 +346,21 @@ const SidebarBase: React.FC<SidebarProps> = ({
           label: 'Troubleshooting',
           icon: <GitBranch className={SIDEBAR_ICON} />,
           title: 'Escaleras de decisión de infra: Problema → Síntoma → Check → Resultado → Siguiente acción',
-          badge: TROUBLESHOOTING_SA_COUNT,
+          badge: pillarCounts.tsSa,
         },
         {
           section: 'cheatsheet-sa',
           label: 'CheatSheet',
           icon: <Zap className={SIDEBAR_ICON} />,
           title: 'Fixes de infra al instante: AD, DNS, DHCP, GPO, backup, Hyper-V… 100% offline',
-          badge: SYSADMIN_CHEATSHEET_COUNT,
+          badge: pillarCounts.cheatSa,
         },
         {
           section: 'runbooks-sa',
           label: 'Runbooks',
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
           title: 'Runbooks de infra con ticket real + paso a paso universal + respuesta en inglés copiable',
-          badge: RUNBOOKS_SA_COUNT,
+          badge: pillarCounts.runbooksSa,
         },
       ],
     },
@@ -333,21 +386,21 @@ const SidebarBase: React.FC<SidebarProps> = ({
           label: 'Troubleshooting',
           icon: <GitBranch className={SIDEBAR_ICON} />,
           title: 'Escaleras de decisión de detección: Problema → Síntoma → Check → Resultado → Siguiente acción',
-          badge: TROUBLESHOOTING_SOC_COUNT,
+          badge: pillarCounts.tsSoc,
         },
         {
           section: 'cheatsheet-soc',
           label: 'CheatSheet',
           icon: <Zap className={SIDEBAR_ICON} />,
           title: 'Fixes de detección y respuesta al instante: phishing, spray, EDR, KQL… 100% offline',
-          badge: SOC_CHEATSHEET_COUNT,
+          badge: pillarCounts.cheatSoc,
         },
         {
           section: 'runbooks-soc',
           label: 'Runbooks',
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
           title: 'Runbooks SOC: Detection → Investigation → Evidence → Containment → Remediation → Verification → Escalation',
-          badge: RUNBOOKS_SOC_COUNT,
+          badge: pillarCounts.runbooksSoc,
         },
       ],
     },

@@ -523,4 +523,3 @@ export const SidRidAnalyzerTool: React.FC<SidRidAnalyzerProps> = () => {
   );
 };
 
-export default SidRidAnalyzerTool;

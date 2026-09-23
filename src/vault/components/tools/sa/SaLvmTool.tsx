@@ -466,4 +466,3 @@ export const SaLvmTool: React.FC = () => {
   );
 };
 
-export default SaLvmTool;

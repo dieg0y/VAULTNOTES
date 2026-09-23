@@ -1350,4 +1350,3 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
   );
 };
 
-export default RbacAnalyzerTool;

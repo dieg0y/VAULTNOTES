@@ -233,4 +233,3 @@ export const IocDefangerTool: React.FC = () => {
   );
 };
 
-export default IocDefangerTool;

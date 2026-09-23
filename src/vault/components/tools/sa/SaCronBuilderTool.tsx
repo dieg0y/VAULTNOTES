@@ -626,4 +626,3 @@ export const SaCronBuilderTool: React.FC = () => {
   );
 };
 
-export default SaCronBuilderTool;

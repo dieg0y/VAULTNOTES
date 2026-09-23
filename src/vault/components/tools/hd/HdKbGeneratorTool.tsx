@@ -451,4 +451,3 @@ export const HdKbGeneratorTool: React.FC = () => {
   );
 };
 
-export default HdKbGeneratorTool;

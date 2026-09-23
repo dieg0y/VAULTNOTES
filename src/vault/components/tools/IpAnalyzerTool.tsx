@@ -396,4 +396,3 @@ export const IpAnalyzerTool: React.FC = () => {
   );
 };
 
-export default IpAnalyzerTool;

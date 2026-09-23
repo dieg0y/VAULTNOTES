@@ -624,4 +624,3 @@ export const DetectionQueryHelperTool: React.FC<DetectionQueryHelperProps> = ({
   );
 };
 
-export default DetectionQueryHelperTool;

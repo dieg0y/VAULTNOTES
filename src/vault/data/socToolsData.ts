@@ -16,8 +16,8 @@
  * sentinel, splunk, elastic, wireshark, sysmon, defender, sandbox, thehive.
  */
 
-/** Bloque copiable de una guía. */
-export interface SocGuideBlock {
+/** Bloque copiable de una guía (uso interno del dataset). */
+interface SocGuideBlock {
   /** Qué es este snippet / paso. */
   label: string;
   /** Cuándo usarlo / por qué importa. */
@@ -28,8 +28,8 @@ export interface SocGuideBlock {
   note?: string;
 }
 
-/** Sección temática de una guía. */
-export interface SocGuideSection {
+/** Sección temática de una guía (uso interno del dataset). */
+interface SocGuideSection {
   title: string;
   intro?: string;
   blocks: SocGuideBlock[];
@@ -50,7 +50,7 @@ export interface SocToolGuide {
   proTips?: string[];
 }
 
-export const SOC_TOOL_GUIDES: SocToolGuide[] = [
+const SOC_TOOL_GUIDES: SocToolGuide[] = [
   {
     id: 'sentinel',
     name: 'Microsoft Sentinel (KQL)',
@@ -1652,5 +1652,3 @@ severidad final revisada`,
 
 /** Mapa id → guía (lookup O(1) para el componente). */
 export const SOC_TOOL_GUIDE_BY_ID: Map<string, SocToolGuide> = new Map(SOC_TOOL_GUIDES.map((g) => [g.id, g]));
-
-export const SOC_TOOL_GUIDE_COUNT = SOC_TOOL_GUIDES.length;

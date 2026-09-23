@@ -492,4 +492,3 @@ export const HashToolkitTool: React.FC = () => {
   );
 };
 
-export default HashToolkitTool;

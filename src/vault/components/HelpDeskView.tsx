@@ -1208,4 +1208,3 @@ export const HelpDeskView: React.FC<HelpDeskViewProps> = ({ glossaryTerms, onOpe
   );
 };
 
-export default HelpDeskView;

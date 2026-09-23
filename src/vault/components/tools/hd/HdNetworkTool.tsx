@@ -602,4 +602,3 @@ export const HdNetworkTool: React.FC = () => {
   );
 };
 
-export default HdNetworkTool;
