@@ -49,9 +49,10 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import {
-  MITRE_TACTICS, MITRE_TECHNIQUES, findMitreById,
+  MITRE_TACTICS,
   type MitreTechnique, type VaultToolRef,
 } from '../../data/mitreData';
+import { useMitreTechniques } from '../../integrations/mitre/sync';
 import { findSigmaByMitre } from '../../data/sigmaData';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
@@ -102,9 +103,17 @@ interface MitreExplorerProps {
 }
 
 export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, onAutoOpenConsumed }) => {
+  // V10 — merged techniques: bundled curated base + official synced layer
+  // (db.mitreTechniques, filled by the Sync Center). Falls back to the
+  // bundled array while Dexie resolves, so the tool works exactly as before
+  // when nothing was ever synced.
+  const techniques = useMitreTechniques();
+  const findById = (id: string): MitreTechnique | undefined =>
+    techniques.find((t) => t.id.toLowerCase() === id.toLowerCase());
+
   // Initial deep-link: resolve on mount so the modal opens immediately.
   const initialMatch = (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '')
-    ? findMitreById(String(autoOpenId))
+    ? findById(String(autoOpenId))
     : undefined;
 
   const [q, setQ] = useState(initialMatch ? String(autoOpenId) : '');
@@ -118,7 +127,7 @@ export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, on
   if (autoOpenId !== prevAutoOpen) {
     setPrevAutoOpen(autoOpenId);
     if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      const m = findMitreById(String(autoOpenId));
+      const m = findById(String(autoOpenId));
       if (m) {
         setSelected(m);
         setQ(String(autoOpenId));
@@ -149,10 +158,10 @@ export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, on
       )) return true;
       return false;
     };
-    return MITRE_TECHNIQUES.filter(
+    return techniques.filter(
       (t) => (selectedTactic === null || t.tactic === selectedTactic) && qMatches(t),
     );
-  }, [q, selectedTactic]);
+  }, [q, selectedTactic, techniques]);
 
   /* ---------- cross-tool navigation ---------- */
 

@@ -24,21 +24,22 @@
  * 100% offline data — the only network call goes through `searchCveOnline`.
  * All async DB ops wrapped in try/catch — failures show a small inline banner.
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ShieldAlert, Search, Save, Trash2, ExternalLink, BookOpen,
-  X, Check, RefreshCw, Wifi, WifiOff,
+  X, Check, RefreshCw, Wifi, WifiOff, Flame, Gauge,
 } from 'lucide-react';
 import {
   inputCls, taCls, btnPrimary, btnGhost, btnDanger,
   Field, ErrorBanner, InfoBanner, CopyBtn,
 } from './_shared';
-import { db, type SavedCve } from '../../db';
+import { db, type SavedCve, type KevEntry } from '../../db';
 import {
   searchCveOnline, saveCveLocal, updateSavedCve, deleteSavedCve,
   type CveSearchResult,
 } from '../../integrations/cve/search';
+import { findKevEntry, fetchEpss, getLocalKevMeta, type EpssResult } from '../../integrations/kev/kev';
 import { useIsOnline } from '../../integrations/online';
 
 // Stable fallback so the useLiveQuery result keeps a constant reference while
@@ -567,6 +568,25 @@ export const CveSearchTool: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [expandedCveId, setExpandedCveId] = useState<string | null>(null);
+  // V10 — official enrichment layer for the searched CVE: CISA KEV (local
+  // catalog, offline after one sync) + EPSS (FIRST, fetched on the explicit
+  // search click, cached 24h in tiCache).
+  const [kevEntry, setKevEntry] = useState<KevEntry | null>(null);
+  const [kevChecked, setKevChecked] = useState(false);
+  const [epss, setEpss] = useState<EpssResult | null>(null);
+  // Whether the local KEV catalog is synced at all (drives the hint under
+  // "Not in the local CISA KEV catalog" — a missing catalog is not the same
+  // as a clean result).
+  const [kevCatalogSynced, setKevCatalogSynced] = useState<boolean | null>(null);
+  useEffect(() => {
+    getLocalKevMeta()
+      .then((m) => setKevCatalogSynced(m.count > 0))
+      .catch(() => setKevCatalogSynced(false));
+  }, []);
+  const kevMetaNote =
+    kevCatalogSynced === false
+      ? ' — sync the KEV catalog in Data & Intel first (this result may be incomplete)'
+      : '';
   // Monotonic sequence guard: only the LATEST search may write state. Without
   // this, a slow in-flight response could overwrite the result of a newer
   // "Re-search online" click (stale-response race).
@@ -596,6 +616,32 @@ export const CveSearchTool: React.FC = () => {
       const res = await searchCveOnline(id);
       if (seq !== searchSeqRef.current) return; // stale response — a newer search took over
       setResult(res);
+      // Official enrichment (V10): KEV badge from the LOCAL synced catalog
+      // (instant, offline-capable) + EPSS score from FIRST (online, cached).
+      // Both are best-effort — a failure never blocks the NVD result. Guarded
+      // by the same monotonic sequence so a stale enrichment can't leak into
+      // a newer search.
+      setKevEntry(null);
+      setKevChecked(false);
+      setEpss(null);
+      if (res.ok && res.cve) {
+        const cveId = res.cve.id;
+        findKevEntry(cveId)
+          .then((k) => {
+            if (seq !== searchSeqRef.current) return;
+            setKevEntry(k);
+            setKevChecked(true);
+          })
+          .catch(() => {
+            if (seq === searchSeqRef.current) setKevChecked(true);
+          });
+        fetchEpss(cveId)
+          .then((e) => {
+            if (seq !== searchSeqRef.current) return;
+            setEpss(e);
+          })
+          .catch(() => { /* best-effort */ });
+      }
     } catch (e) {
       if (seq !== searchSeqRef.current) return;
       console.warn('searchCveOnline failed:', e);
@@ -740,6 +786,68 @@ export const CveSearchTool: React.FC = () => {
           onUpdate={() => void handleUpdate()}
           onOpenSaved={() => currentCve && handleOpenSaved(currentCve.id)}
         />
+      )}
+
+      {/* V10 — Official enrichment: CISA KEV + EPSS (best-effort, after the
+          NVD result). KEV works offline once the catalog is synced in
+          Data & Intel; EPSS needs the online click and is cached 24h. */}
+      {!searching && currentCve && (
+        <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-3.5 space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1.5">
+            <Gauge className="w-3.5 h-3.5 text-blue-400" />
+            Official Enrichment — CISA KEV · EPSS
+          </span>
+          {kevEntry ? (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-300 border border-red-500/30">
+                  <Flame className="w-3 h-3" />
+                  CISA KEV — KNOWN EXPLOITED
+                </span>
+                {kevEntry.knownRansomwareCampaignUse === 'Known' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Ransomware campaign
+                  </span>
+                )}
+                <span className="text-[10px] text-[#888] font-mono">
+                  added {kevEntry.dateAdded} · due {kevEntry.dueDate || '—'}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#AAA] leading-relaxed">
+                {kevEntry.vendorProject} · {kevEntry.product} — {kevEntry.vulnerabilityName}
+              </p>
+              {kevEntry.requiredAction && (
+                <p className="text-[11px] text-[#888] leading-relaxed">
+                  <span className="text-[#999] font-semibold">Required action (CISA):</span>{' '}
+                  {kevEntry.requiredAction}
+                </p>
+              )}
+            </div>
+          ) : kevChecked ? (
+            <p className="text-[11px] text-[#666] flex items-center gap-1.5">
+              <Check className="w-3 h-3 text-green-400" />
+              Not in the local CISA KEV catalog
+              {kevMetaNote}
+            </p>
+          ) : (
+            <p className="text-[11px] text-[#555]">Checking the local KEV catalog…</p>
+          )}
+          {epss && epss.ok && typeof epss.epss === 'number' && isFinite(epss.epss) && (
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#1a1a1a]">
+              <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider">EPSS</span>
+              <span className="text-sm font-mono font-bold text-blue-300">
+                {(epss.epss * 100).toFixed(2)}%
+              </span>
+              <span className="text-[10px] text-[#888]">
+                probability of exploitation in the next 30 days
+              </span>
+              <span className="text-[10px] text-[#666] font-mono">
+                (percentile {((epss.percentile ?? 0) * 100).toFixed(1)}% · {epss.date}
+                {epss.cached ? ' · cached' : ''})
+              </span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Saved CVEs section — always visible, live-query on db.savedCves */}

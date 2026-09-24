@@ -20,9 +20,11 @@
  *   - 100% offline-first. NO fetch on mount. NO fetch while idle. The only
  *     network triggers are explicit button clicks on [Check Updates] / [Sync],
  *     and those go through the integration-layer helpers (never `fetch`).
- *   - MITRE / Sigma Check/Sync are architecture stubs — they report the
- *     bundled dataset as "latest" so the UI can render honestly without a
- *     live backend. Sync only updates the local datasetMeta marker.
+ *   - V10: MITRE / Sigma / KEV Check/Sync are REAL — they download official
+ *     public data (attack-stix-data, SigmaHQ/sigma, cisagov/kev-data) on the
+ *     explicit click, validate, and store locally so everything works
+ *     offline afterwards. The bundled datasets always remain the baseline;
+ *     synced data is a merged layer on top. No API keys involved.
  *   - Sigma YAML is NEVER executed. It is treated as DATA only — validated
  *     structurally by the integration layer, then stored verbatim.
  *   - IOC values are NEVER shown in the Online Activity list — only the TYPE
@@ -48,6 +50,7 @@ import {
   Pencil,
   X,
   CheckCircle2,
+  ShieldAlert,
 } from 'lucide-react';
 import { db, type OnlineActivityRow, type CustomSigmaRule } from '../db';
 // DATA & INTEL (v16) — datasets de trabajo (IoCs · eventos · reglas):
@@ -61,6 +64,7 @@ import {
   type MitreLocalMeta,
   type MitreUpdateMeta,
   type MitreSyncResult,
+  type SyncProgress,
 } from '../integrations/mitre/sync';
 import {
   getLocalSigmaMeta,
@@ -69,7 +73,16 @@ import {
   type SigmaLocalMeta,
   type SigmaUpdateMeta,
   type SigmaSyncResult,
+  type SigmaSyncProgress,
 } from '../integrations/sigma/sync';
+import {
+  getLocalKevMeta,
+  checkKevUpdates,
+  syncKev,
+  type KevLocalMeta,
+  type KevUpdateMeta,
+  type KevSyncResult,
+} from '../integrations/kev/kev';
 import {
   importSigmaRule,
   updateCustomSigmaRule,
@@ -298,8 +311,13 @@ export const DataIntelView: React.FC = () => {
     setMitreCheckMsg(null);
     try {
       const r: MitreUpdateMeta = await checkMitreUpdates();
+      const local = await getLocalMitreMeta();
       setMitreCheckMsg(
-        `Latest known version ${r.latestVersion} — ${r.entryCount} entries. You are up to date.`,
+        local.source === 'bundled'
+          ? `Latest official: ATT&CK v${r.latestVersion} (published ${new Date(r.publishedAt).toLocaleDateString()}). Not synced yet — click Sync to download it.`
+          : local.version === r.latestVersion
+            ? `Official ATT&CK v${r.latestVersion} — you are up to date.`
+            : `Update available: official v${r.latestVersion} (you have v${local.version}).`,
       );
     } catch (e) {
       setMitreCheckMsg('Failed: ' + (e instanceof Error ? e.message : String(e)));
@@ -312,7 +330,10 @@ export const DataIntelView: React.FC = () => {
     setMitreSyncBusy(true);
     setMitreSyncMsg(null);
     try {
-      const r: MitreSyncResult = await syncMitre();
+      const onProgress: SyncProgress = ({ bytes, objects }) => {
+        setMitreSyncMsg(`Downloading official STIX bundle… ${(bytes / 1024 / 1024).toFixed(1)} MB · ${objects} objects scanned`);
+      };
+      const r: MitreSyncResult = await syncMitre({ onProgress });
       setMitreSyncMsg(r.message);
       await refreshMitreMeta();
     } catch (e) {
@@ -347,8 +368,13 @@ export const DataIntelView: React.FC = () => {
     setSigmaCheckMsg(null);
     try {
       const r: SigmaUpdateMeta = await checkSigmaUpdates();
+      const local = await getLocalSigmaMeta();
       setSigmaCheckMsg(
-        `Latest known version ${r.latestVersion} — ${r.ruleCount} rules. You are up to date.`,
+        local.syncedRulesCount === 0
+          ? `Official repo has ${r.ruleCount} rules in rules/windows/builtin/security — not synced yet. Click Sync.`
+          : local.syncedRulesCount === r.ruleCount
+            ? `Official rules up to date — ${r.ruleCount} rules available.`
+            : `Update available: ${r.ruleCount} official rules (you have ${local.syncedRulesCount} synced).`,
       );
     } catch (e) {
       setSigmaCheckMsg('Failed: ' + (e instanceof Error ? e.message : String(e)));
@@ -361,7 +387,10 @@ export const DataIntelView: React.FC = () => {
     setSigmaSyncBusy(true);
     setSigmaSyncMsg(null);
     try {
-      const r: SigmaSyncResult = await syncSigma();
+      const onProgress: SigmaSyncProgress = ({ done, total }) => {
+        setSigmaSyncMsg(`Downloading official rules… ${done}/${total}`);
+      };
+      const r: SigmaSyncResult = await syncSigma({ onProgress });
       setSigmaSyncMsg(r.message);
       await refreshSigmaMeta();
     } catch (e) {
@@ -370,6 +399,59 @@ export const DataIntelView: React.FC = () => {
       setSigmaSyncBusy(false);
     }
   }, [refreshSigmaMeta]);
+
+  /* ---------------- CISA KEV state ---------------- */
+  const [kevMeta, setKevMeta] = useState<KevLocalMeta | null>(null);
+  const [kevMetaError, setKevMetaError] = useState<string | null>(null);
+  const [kevCheckMsg, setKevCheckMsg] = useState<string | null>(null);
+  const [kevSyncMsg, setKevSyncMsg] = useState<string | null>(null);
+  const [kevCheckBusy, setKevCheckBusy] = useState(false);
+  const [kevSyncBusy, setKevSyncBusy] = useState(false);
+
+  const refreshKevMeta = useCallback(async () => {
+    try {
+      setKevMeta(await getLocalKevMeta());
+      setKevMetaError(null);
+    } catch (e) {
+      setKevMetaError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+  useEffect(() => {
+    refreshKevMeta();
+  }, [refreshKevMeta]);
+
+  const handleCheckKev = useCallback(async () => {
+    setKevCheckBusy(true);
+    setKevCheckMsg(null);
+    try {
+      const r: KevUpdateMeta = await checkKevUpdates();
+      setKevCheckMsg(
+        kevMeta && kevMeta.count > 0
+          ? r.changed
+            ? 'Update available — the official catalog changed since your last sync.'
+            : `Official KEV catalog up to date (v${kevMeta.catalogVersion}).`
+          : 'Not synced yet — click Sync to store the official catalog locally.',
+      );
+    } catch (e) {
+      setKevCheckMsg('Failed: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setKevCheckBusy(false);
+    }
+  }, [kevMeta]);
+
+  const handleSyncKev = useCallback(async () => {
+    setKevSyncBusy(true);
+    setKevSyncMsg(null);
+    try {
+      const r: KevSyncResult = await syncKev();
+      setKevSyncMsg(r.message);
+      await refreshKevMeta();
+    } catch (e) {
+      setKevSyncMsg('Failed: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setKevSyncBusy(false);
+    }
+  }, [refreshKevMeta]);
 
   /* ---------------- Custom Sigma Rules (live) ---------------- */
   const customRules: CustomSigmaRule[] =
@@ -637,8 +719,10 @@ export const DataIntelView: React.FC = () => {
         {mitreCheckMsg && <p className="text-[11px] text-blue-300">{mitreCheckMsg}</p>}
         {mitreSyncMsg && <p className="text-[11px] text-green-300">{mitreSyncMsg}</p>}
         <p className="text-[10px] text-[#666] leading-relaxed pt-2 border-t border-[#1a1a1a]">
-          MITRE works offline. The bundled dataset is always available. Sync only updates the local
-          metadata marker — live download is architecture-ready but not wired (no backend).
+          MITRE works offline — the bundled curated dataset is always available. Sync downloads the
+          OFFICIAL STIX bundle (attack-stix-data, ~54MB, memory-safe streaming) and stores every
+          technique locally; the Explorer merges official data over the curated base. Never
+          automatic — only on this explicit click. No API key, no account.
         </p>
       </div>
 
@@ -660,6 +744,10 @@ export const DataIntelView: React.FC = () => {
           <div className="flex justify-between">
             <dt className="text-[#888]">Custom rules</dt>
             <dd className="text-[#DDD] font-mono">{sigmaMeta?.customRulesCount ?? '—'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-[#888]">Official synced</dt>
+            <dd className="text-[#DDD] font-mono">{sigmaMeta?.syncedRulesCount ?? '—'}</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-[#888]">Total</dt>
@@ -785,7 +873,73 @@ export const DataIntelView: React.FC = () => {
         </div>
         <p className="text-[10px] text-[#666] leading-relaxed">
           Sigma rules are NEVER executed. YAML is treated as data only. Manual import of .yml/.yaml
-          files happens via the [Import rule] button above.
+          files happens via the [Import rule] button above. Sync downloads OFFICIAL rules from
+          SigmaHQ/sigma (rules/windows/builtin/security) through the public jsDelivr CDN serving the
+          repo byte-identically — same validator as manual imports, never automatic, no API key.
+        </p>
+      </div>
+
+      {/* 3b. CISA KEV (V10 — official updated data) */}
+      <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            CISA KEV Catalog
+          </span>
+          <ShieldAlert className="w-4 h-4 text-blue-400" />
+        </div>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-[11px]">
+          <div className="flex justify-between">
+            <dt className="text-[#888]">Local</dt>
+            <dd className={kevMeta && kevMeta.count > 0 ? 'text-green-300 font-mono' : 'text-[#888] font-mono'}>
+              {kevMeta && kevMeta.count > 0 ? '✓ Synced' : 'Not synced'}
+            </dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-[#888]">Catalog version</dt>
+            <dd className="text-[#DDD] font-mono">{kevMeta?.catalogVersion || '—'}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-[#888]">Known-exploited CVEs</dt>
+            <dd className="text-[#DDD] font-mono">{kevMeta?.count || 0}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-[#888]">Last Sync</dt>
+            <dd className="text-[#DDD] font-mono">
+              {kevMeta ? formatIsoOrNever(kevMeta.lastSync) : '—'}
+            </dd>
+          </div>
+        </dl>
+        {kevMetaError && (
+          <p className="text-[11px] text-red-300 flex items-start gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            {kevMetaError}
+          </p>
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleCheckKev}
+            disabled={!online || kevCheckBusy}
+            className={BTN_NEUTRAL}
+          >
+            <RefreshCw className={`w-3 h-3 ${kevCheckBusy ? 'animate-spin' : ''}`} />
+            {kevCheckBusy ? 'Checking...' : 'Check for Updates'}
+          </button>
+          <button
+            onClick={handleSyncKev}
+            disabled={!online || kevSyncBusy}
+            className={BTN_PRIMARY}
+          >
+            <Database className="w-3 h-3" />
+            {kevSyncBusy ? 'Syncing...' : 'Sync'}
+          </button>
+        </div>
+        {kevCheckMsg && <p className="text-[11px] text-blue-300">{kevCheckMsg}</p>}
+        {kevSyncMsg && <p className="text-[11px] text-green-300">{kevSyncMsg}</p>}
+        <p className="text-[10px] text-[#666] leading-relaxed pt-2 border-t border-[#1a1a1a]">
+          Official CISA Known Exploited Vulnerabilities catalog (cisagov/kev-data, ~1.7MB). After
+          one sync, the CVE Search tool badges any CVE as “known exploited” OFFLINE, with the
+          official required action and ransomware flags. Never automatic — only on this explicit
+          click. No API key, no account.
         </p>
       </div>
 

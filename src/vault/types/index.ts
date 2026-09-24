@@ -156,6 +156,13 @@ export interface ImportSummary {
    *  row is newer (updatedAt) — same non-destructive conflict guard as the
    *  other upsert-by-id tables. */
   conflictIntelItems: number;
+  /** V10 (3.10.0): official synced dataset rows (mitreTechniques /
+   *  sigmaRulesSynced / kevCatalog) skipped because the local row is newer
+   *  (syncedAt / fetchedAt) — datasets are also re-downloadable from the
+   *  Sync Center at any time. */
+  conflictMitreTechniques: number;
+  conflictSigmaRulesSynced: number;
+  conflictKevCatalog: number;
   /** v18: incoming profile rows (profiles.json) skipped because the local
    * row is newer (updatedAt) — same non-destructive conflict guard. */
   conflictProfiles: number;

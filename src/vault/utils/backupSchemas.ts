@@ -274,6 +274,69 @@ export const datasetMetaSchema = z.object({
   sigmaLastSync: z.union([z.string(), z.null()]).optional(),
   sigmaRulesCount: z.number().optional(),
   updatedAt: z.string().optional(),
+  // V10 (v24) — KEV catalog markers (optional: older rows lack them).
+  kevVersion: z.string().optional(),
+  kevLastSync: z.union([z.string(), z.null()]).optional(),
+  kevCount: z.number().optional(),
+}).passthrough();
+
+/** V10 (v24) — MITRE ATT&CK techniques synced from the official STIX bundle.
+ *  Tolerant-import contract: id required, everything else optional (old
+ *  backups / partial hand-written .json keep working). */
+export const syncedMitreTechniqueSchema = z.object({
+  id: z.string().min(1),
+  stixId: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  tactic: z.string().optional(),
+  platforms: z.array(z.string()).optional(),
+  url: z.string().optional(),
+  version: z.string().optional(),
+  syncedAt: z.string().optional(),
+  revoked: z.boolean().optional(),
+  deprecated: z.boolean().optional(),
+}).passthrough();
+
+/** V10 (v24) — official SigmaHQ rules synced from the repo (same field
+ *  contract as customSigmaRuleSchema plus sync provenance). */
+export const syncedSigmaRuleSchema = z.object({
+  id: z.string().min(1),
+  ruleUuid: z.union([z.string(), z.null()]).optional(),
+  title: z.string().optional(),
+  status: z.string().optional(),
+  level: z.string().optional(),
+  description: z.string().optional(),
+  author: z.string().optional(),
+  date: z.string().optional(),
+  logsource: z.string().optional(),
+  detection: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  mitre: z.array(z.string()).optional(),
+  yaml: z.string().optional(),
+  sourcePath: z.string().optional(),
+  syncedAt: z.string().optional(),
+}).passthrough();
+
+/** V10 (v24) — CISA KEV catalog singleton row (entries trimmed). */
+export const kevEntrySchema = z.object({
+  cveID: z.string().optional(),
+  vendorProject: z.string().optional(),
+  product: z.string().optional(),
+  vulnerabilityName: z.string().optional(),
+  dateAdded: z.string().optional(),
+  dueDate: z.union([z.string(), z.null()]).optional(),
+  knownRansomwareCampaignUse: z.string().optional(),
+  requiredAction: z.string().optional(),
+}).passthrough();
+
+export const kevCatalogSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().optional(),
+  catalogVersion: z.string().optional(),
+  dateReleased: z.string().optional(),
+  count: z.number().optional(),
+  fetchedAt: z.string().optional(),
+  entries: z.array(kevEntrySchema).optional(),
 }).passthrough();
 
 /** DATA & INTEL (v16) — IoCs · eventos · reglas. All fields optional except

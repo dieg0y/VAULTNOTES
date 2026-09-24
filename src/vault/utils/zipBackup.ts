@@ -14,6 +14,7 @@ import {
   inboxItemSchema, rbacModelSchema, flashcardStatSchema,
   tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
   savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, sysadminTicketSchema, socTicketSchema, validateArray,
+  syncedMitreTechniqueSchema, syncedSigmaRuleSchema, kevCatalogSchema,
 } from './backupSchemas';
 // V6 (3.6.0) — datasets de referencia estáticos: se exportan como snapshot
 // (portabilidad USB). La importación NO los aplica: el bundle de la app es
@@ -73,8 +74,17 @@ import { SOC_CHEATSHEET } from '../data/socCheatSheet';
  *  del Blue Team + trabajo del usuario: status y notas de cierre). Un build
  *  3.8.0 que importe un backup 3.9.0 DESCARTARÍA silenciosamente la
  *  práctica de triage SOC al re-exportar → la rechaza up-front.
+ *  3.10.0 — v10 (ONLINE DATASET SYNC): añade los datasets oficiales
+ *  descargados vía Sync Center: `mitreTechniques.json` (técnicas ATT&CK del
+ *  STIX oficial), `sigmaRulesSynced.json` (reglas oficiales SigmaHQ) y
+ *  `kevCatalog.json` (catálogo CISA KEV). Todos se importan con la misma
+ *  política latest-wins por `syncedAt`/`fetchedAt` que tiCache. Un build
+ *  3.9.0 que importe un backup 3.10.0 DESCARTARÍA esos datasets al
+ *  re-exportar → se rechaza up-front (misma regla spec #35). NOTA: ningún
+ *  build pierde DATOS DE USUARIO — los datasets son re-descargables con un
+ *  click en el Sync Center.
  */
-const BACKUP_FORMAT_VERSION = '3.9.0';
+const BACKUP_FORMAT_VERSION = '3.10.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -308,6 +318,11 @@ function emptySummary(): ImportSummary {
     conflictDatasetMeta: 0,
     conflictTiCache: 0,
     conflictIntelItems: 0,
+    // V10 (3.10.0): datasets oficiales sincronizados (upsert por id con el
+    // mismo guard latest-wins por syncedAt/fetchedAt).
+    conflictMitreTechniques: 0,
+    conflictSigmaRulesSynced: 0,
+    conflictKevCatalog: 0,
     // v18 (VN-B-012): perfiles y roadmap del checklist (upsert por id con
     // guard latest-wins — un backup viejo no pisa ediciones nuevas).
     conflictProfiles: 0,
@@ -499,6 +514,10 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   const customSigmaRules = await db.customSigmaRules.toArray();
   const savedCves = await db.savedCves.toArray();
   const datasetMeta = await db.datasetMeta.toArray();
+  // V10 (v24) — official synced datasets (no user PII, no API keys).
+  const mitreTechniques = await db.mitreTechniques.toArray();
+  const sigmaRulesSynced = await db.sigmaRulesSynced.toArray();
+  const kevCatalog = await db.kevCatalog.toArray();
   // DATA & INTEL (v16) — dataset de trabajo (IoCs · eventos · reglas).
   // Texto plano escrito por el usuario o generado por tools; nada sensible.
   const intelItems = await db.intelItems.toArray();
@@ -559,6 +578,10 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       onlineActivityCount: onlineActivity.length,
       customSigmaRulesCount: customSigmaRules.length,
       savedCvesCount: savedCves.length,
+      // V10 (v24) — official synced datasets (re-downloadable, no user data).
+      mitreTechniquesCount: mitreTechniques.length,
+      sigmaRulesSyncedCount: sigmaRulesSynced.length,
+      kevCatalogCount: kevCatalog.length,
       intelItemsCount: intelItems.length,
       profileCount: profileRows.length,
       roadmapItemsCount: roadmapRows.length,
@@ -601,6 +624,12 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   zip.file('customSigmaRules.json', JSON.stringify(customSigmaRules, null, 2));
   zip.file('savedCves.json', JSON.stringify(savedCves, null, 2));
   zip.file('datasetMeta.json', JSON.stringify(datasetMeta, null, 2));
+  // V10 (3.10.0) — official synced datasets from the Sync Center. They hold
+  // public official content (MITRE/SigmaHQ/CISA), never API keys or user
+  // PII. Import policy: latest-wins by syncedAt/fetchedAt (like tiCache).
+  zip.file('mitreTechniques.json', JSON.stringify(mitreTechniques, null, 2));
+  zip.file('sigmaRulesSynced.json', JSON.stringify(sigmaRulesSynced, null, 2));
+  zip.file('kevCatalog.json', JSON.stringify(kevCatalog, null, 2));
   // DATA & INTEL (v16) — IoCs · eventos · reglas (formato flat root-level,
   // mismo convenio que el resto de tablas auxiliares).
   zip.file('intelItems.json', JSON.stringify(intelItems, null, 2));
@@ -1655,6 +1684,117 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   //  non-destructive. API KEYS are NEVER imported — they don't exist in the
   //  backup at all (they live in the separate VaultIntelDB).
   //  AUDIT VN-006: validate each row via Zod before inserting.
+  // V10 (3.10.0) — official synced datasets (Sync Center). Same policy as
+  //  tiCache: latest-wins by sync timestamp; a newer local dataset is never
+  //  replaced by a staler backup row. Datasets are public official content
+  //  (no user data) and are always re-downloadable with one click.
+  // mitreTechniques — upsert by id (official ATT&CK techniques).
+  try {
+    const mtFile = contents.file('mitreTechniques.json');
+    if (mtFile) {
+      const rawRows: unknown = JSON.parse(await mtFile.async('text'));
+      const { valid: rows, invalid } = validateArray(syncedMitreTechniqueSchema, rawRows);
+      summary.invalidMisc += invalid;
+      for (const r of rows) {
+        const existing = await db.mitreTechniques.get(r.id);
+        if (existing && rowTs(existing, 'syncedAt') > rowTs(r, 'syncedAt')) {
+          summary.conflictMitreTechniques++;
+          continue;
+        }
+        await db.mitreTechniques.put({
+          id: r.id,
+          stixId: String(r.stixId || ''),
+          name: String(r.name || ''),
+          description: String(r.description || ''),
+          tactic: String(r.tactic || ''),
+          platforms: Array.isArray(r.platforms) ? r.platforms.map(String) : [],
+          url: String(r.url || ''),
+          version: String(r.version || ''),
+          syncedAt: r.syncedAt || new Date().toISOString(),
+          revoked: r.revoked === true,
+          deprecated: r.deprecated === true,
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error importing mitreTechniques:', e);
+  }
+
+  // sigmaRulesSynced — upsert by id (official SigmaHQ rules).
+  try {
+    const srFile = contents.file('sigmaRulesSynced.json');
+    if (srFile) {
+      const rawRows: unknown = JSON.parse(await srFile.async('text'));
+      const { valid: rows, invalid } = validateArray(syncedSigmaRuleSchema, rawRows);
+      summary.invalidMisc += invalid;
+      for (const r of rows) {
+        const existing = await db.sigmaRulesSynced.get(r.id);
+        if (existing && rowTs(existing, 'syncedAt') > rowTs(r, 'syncedAt')) {
+          summary.conflictSigmaRulesSynced++;
+          continue;
+        }
+        await db.sigmaRulesSynced.put({
+          id: r.id,
+          ruleUuid: r.ruleUuid ?? undefined,
+          title: String(r.title || ''),
+          status: String(r.status || ''),
+          level: String(r.level || ''),
+          description: String(r.description || ''),
+          author: String(r.author || ''),
+          date: String(r.date || ''),
+          logsource: String(r.logsource || ''),
+          detection: String(r.detection || ''),
+          tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
+          mitre: Array.isArray(r.mitre) ? r.mitre.map(String) : [],
+          yaml: String(r.yaml || ''),
+          sourcePath: String(r.sourcePath || ''),
+          syncedAt: r.syncedAt || new Date().toISOString(),
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error importing sigmaRulesSynced:', e);
+  }
+
+  // kevCatalog — singleton row, fresher fetch wins.
+  try {
+    const kevFile = contents.file('kevCatalog.json');
+    if (kevFile) {
+      const rawRows: unknown = JSON.parse(await kevFile.async('text'));
+      const { valid: rows, invalid } = validateArray(kevCatalogSchema, rawRows);
+      summary.invalidMisc += invalid;
+      for (const r of rows) {
+        const existing = await db.kevCatalog.get(r.id);
+        if (existing && rowTs(existing, 'fetchedAt') > rowTs(r, 'fetchedAt')) {
+          summary.conflictKevCatalog++;
+          continue;
+        }
+        await db.kevCatalog.put({
+          id: r.id,
+          title: String(r.title || ''),
+          catalogVersion: String(r.catalogVersion || ''),
+          dateReleased: String(r.dateReleased || ''),
+          count: typeof r.count === 'number' ? r.count : (r.entries || []).length,
+          fetchedAt: r.fetchedAt || new Date().toISOString(),
+          entries: Array.isArray(r.entries)
+            ? r.entries.map((e: Record<string, unknown>) => ({
+                cveID: String(e.cveID || ''),
+                vendorProject: String(e.vendorProject || ''),
+                product: String(e.product || ''),
+                vulnerabilityName: String(e.vulnerabilityName || ''),
+                dateAdded: String(e.dateAdded || ''),
+                dueDate: e.dueDate ? String(e.dueDate) : undefined,
+                knownRansomwareCampaignUse: String(e.knownRansomwareCampaignUse || ''),
+                requiredAction: String(e.requiredAction || ''),
+              }))
+            : [],
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error importing kevCatalog:', e);
+  }
+
   // tiCache — upsert by id (cache can be overwritten; it's just a cache).
   try {
     const tiCacheFile = contents.file('tiCache.json');

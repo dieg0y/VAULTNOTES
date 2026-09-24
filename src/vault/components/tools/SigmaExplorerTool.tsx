@@ -62,9 +62,10 @@ import {
   inputCls, btnPrimary, btnGhost, CopyBtn, CodeBlock,
 } from './_shared';
 import {
-  SIGMA_RULES, SIGMA_LEVELS, SIGMA_STATUSES, findSigmaById,
+  SIGMA_LEVELS, SIGMA_STATUSES,
   type SigmaRule, type SigmaLevel, type SigmaStatus,
 } from '../../data/sigmaData';
+import { useSigmaRules } from '../../integrations/sigma/sync';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
 // DATA & INTEL (v16) — envío de la regla al dataset persistente.
@@ -235,10 +236,15 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
   autoOpenId,
   onAutoOpenConsumed,
 }) => {
+  /* ---------- V10 — merged rules (bundled + custom + official synced) ---------- */
+  const rules = useSigmaRules();
+  const findById = (id: string): SigmaRule | undefined =>
+    rules.find((r) => r.id.toLowerCase() === id.toLowerCase());
+
   /* ---------- initial deep-link (resolved at mount) ---------- */
   const initialMatch =
     autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== ''
-      ? findSigmaById(String(autoOpenId))
+      ? findById(String(autoOpenId))
       : undefined;
 
   const [q, setQ] = useState<string>(initialMatch ? String(autoOpenId) : '');
@@ -254,7 +260,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
   if (autoOpenId !== prevAutoOpen) {
     setPrevAutoOpen(autoOpenId);
     if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      const m = findSigmaById(String(autoOpenId));
+      const m = findById(String(autoOpenId));
       if (m) {
         setSelected(m);
         setQ(String(autoOpenId));
@@ -272,7 +278,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
   /* ---------- filtering ---------- */
   const filtered = useMemo(() => {
     const qLower = q.trim().toLowerCase();
-    return SIGMA_RULES.filter((r) => {
+    return rules.filter((r) => {
       // Search text match (case-insensitive across many fields).
       if (qLower) {
         const qMatches =
@@ -294,7 +300,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
       if (selectedStatus !== 'All' && r.status !== selectedStatus) return false;
       return true;
     });
-  }, [q, selectedLevel, selectedStatus]);
+  }, [q, selectedLevel, selectedStatus, rules]);
 
   /* ---------- cross-tool hand-offs ---------- */
   const openMitre = (mitreId: string) => {

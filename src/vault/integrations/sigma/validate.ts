@@ -19,7 +19,7 @@
 import { db, type CustomSigmaRule } from '../../db';
 
 /** The minimal shape we extract from a Sigma rule YAML. */
-interface ParsedSigmaRule {
+export interface ParsedSigmaRule {
   title: string;
   id?: string;
   status: string;
@@ -37,16 +37,55 @@ interface ParsedSigmaRule {
   errors: string[];
 }
 
-/** Tiny YAML-subset parser. Handles only the constructs Sigma rules use:
- *  top-level `key: value` pairs, nested maps (logsource, detection), and
- *  block lists (`- item`). Throws on unsupported constructs so callers can
- *  reject the rule rather than guess. */
+/** Tiny YAML-subset parser. Handles the constructs Sigma rules use:
+ *  top-level `key: value` pairs, nested maps (logsource, detection), block
+ *  lists (`- item` — BOTH indented under their key AND at the key's own
+ *  indent, the two styles the official SigmaHQ rules mix), lists of maps
+ *  (`- key: value` items with nested keys/lists), and quoted scalars.
+ *  Throws on unsupported constructs so callers can reject the rule rather
+ *  than guess.
+ *
+ *  V10 FIX: the original parser could not attach a block list to the `key:`
+ *  that owned it (it looked for the key INSIDE the child map, which is
+ *  empty), so every official SigmaHQ rule (they all use block lists) failed
+ *  validation with "list item without parent key". Frames now record their
+ *  owner object + key so list items resolve to the right parent; flat/curated
+ *  rules parse exactly as before (same output for the constructs that
+ *  already worked). */
+interface YamlFrame {
+  /** Map that new key-lines write into. */
+  obj: Record<string, unknown>;
+  /** Indent of the line that created this frame (list/key lines at an indent
+   *  <= this pop the frame — its content is finished). */
+  indent: number;
+  /** For `key:` frames: the object that holds `key` — block lists under this
+   *  frame attach to owner[key] as an array. Null for root/map-item frames. */
+  owner: Record<string, unknown> | null;
+  /** For `key:` frames: the key name in `owner`. */
+  key: string | null;
+  /** For map-item frames (`- key: value` inside a list): the sibling list —
+   *  the next `- ` item at the same indent continues here after this frame
+   *  is popped. Null otherwise. */
+  arr: unknown[] | null;
+}
+
+/** True when a list item's content should be treated as `key: value` (the
+ *  start of a map item) rather than a plain scalar. Quoted scalars and URLs
+ *  (scheme colons) are excluded. */
+function looksLikeKeyValue(s: string): boolean {
+  if (s.startsWith('"') || s.startsWith("'")) return false;
+  const colonIdx = s.indexOf(':');
+  if (colonIdx <= 0) return false;
+  return /^[A-Za-z0-9_.\-|[\]() ]+$/.test(s.slice(0, colonIdx));
+}
+
 function parseYamlSubset(text: string): Record<string, unknown> {
   const root: Record<string, unknown> = {};
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   let i = 0;
-  // Stack of { obj, indent } — root has indent 0.
-  const stack: { obj: Record<string, unknown>; indent: number }[] = [{ obj: root, indent: -1 }];
+  const stack: YamlFrame[] = [
+    { obj: root, indent: -1, owner: null, key: null, arr: null },
+  ];
   while (i < lines.length) {
     let line = lines[i];
     // strip trailing comments (but not inside quoted strings — sigma rules
@@ -57,37 +96,76 @@ function parseYamlSubset(text: string): Record<string, unknown> {
     if (!line.trim()) { i++; continue; }
     const indent = line.match(/^[ \t]*/)?.[0].length ?? 0;
     const content = line.slice(indent).trim();
-    // pop stack until parent.indent < indent
+
+    /* ---- LIST ITEM (`- …`) ---- handled with the SAME pop rule as key
+     * lines: frames whose content is finished (indent >= this line's) are
+     * popped first; then the list resolves to (a) the top `key:` frame's
+     * owner[key] (indented style), or (b) the last key of the top map
+     * (same-indent style pops the owning frame, landing on its parent). */
+    if (content.startsWith('- ') || content === '-') {
+      while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
+      const top = stack[stack.length - 1];
+      let arr: unknown[];
+      if (top.key !== null && top.owner && top.indent < indent) {
+        // Indented style: `key:` on a previous line, items deeper.
+        const cur = top.owner[top.key];
+        arr = Array.isArray(cur) ? cur : (top.owner[top.key] = []);
+      } else {
+        // Same-indent style (or a list directly inside the top map): the
+        // last key written into the top map owns the list.
+        const key = Object.keys(top.obj).pop();
+        if (!key) throw new Error(`list item without parent key @ line ${i + 1}`);
+        const cur = top.obj[key];
+        arr = Array.isArray(cur) ? cur : (top.obj[key] = []);
+      }
+      const rest = content === '-' ? '' : content.slice(2).trim();
+      if (rest === '') {
+        arr.push('');
+      } else if (looksLikeKeyValue(rest)) {
+        // Map item: `- key: value` (or `- key:` with a nested block).
+        const colonIdx = rest.indexOf(':');
+        const k = rest.slice(0, colonIdx).trim();
+        const v = rest.slice(colonIdx + 1).trim();
+        const m: Record<string, unknown> = {};
+        arr.push(m);
+        if (v === '') {
+          const child: Record<string, unknown> = {};
+          m[k] = child;
+          stack.push({ obj: child, indent, owner: m, key: k, arr: null });
+        } else {
+          m[k] = parseScalar(v);
+          // Frame so following deeper keys/nested lists write into the map
+          // item; sibling `- ` items at the same indent pop it first.
+          stack.push({ obj: m, indent, owner: null, key: null, arr });
+        }
+      } else {
+        arr.push(parseScalar(rest));
+      }
+      i++;
+      continue;
+    }
+
+    /* ---- KEY LINE (`key:` / `key: value`) ---- */
+    // pop stack until the top frame's content is finished (its creating
+    // indent is shallower than this line's).
     while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop();
     const parent = stack[stack.length - 1].obj;
-    if (content.startsWith('- ')) {
-      // list item — collect as array under the last key
-      const key = Object.keys(parent).pop();
-      if (!key) throw new Error('list item without parent key');
-      const arr = (parent[key] as unknown[]) || (parent[key] = []);
-      const val = parseScalarOrMap(content.slice(2).trim());
-      if (typeof val === 'string' && val.includes(':') && !val.startsWith('"') && !val.startsWith("'")) {
-        // nested map item like `- key: value`
-        const m: Record<string, unknown> = {};
-        const [k, ...rest] = val.split(':');
-        m[k.trim()] = parseScalar(rest.join(':').trim());
-        (arr as unknown[]).push(m);
-      } else {
-        (arr as unknown[]).push(val);
-      }
-    } else if (content.includes(':')) {
+    if (content.includes(':')) {
       const colonIdx = content.indexOf(':');
       const key = content.slice(0, colonIdx).trim();
       const val = content.slice(colonIdx + 1).trim();
       if (val === '') {
-        // nested map — push new frame
+        // nested map — push new frame remembering its owner + key so block
+        // lists under it can resolve to owner[key].
         const child: Record<string, unknown> = {};
         parent[key] = child;
-        stack.push({ obj: child, indent });
+        stack.push({ obj: child, indent, owner: parent, key, arr: null });
       } else {
         parent[key] = parseScalar(val);
       }
     }
+    // Lines without ':' and without '- ' (folded scalar continuations, plain
+    // prose under a `|` block) are ignored — same as the original parser.
     i++;
   }
   return root;
@@ -104,10 +182,6 @@ function findCommentIndex(line: string): number {
   return -1;
 }
 
-function parseScalarOrMap(s: string): unknown {
-  return parseScalar(s);
-}
-
 function parseScalar(s: string): unknown {
   if (!s) return '';
   if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
@@ -122,8 +196,10 @@ function parseScalar(s: string): unknown {
 
 /** Validate a Sigma rule YAML text. Returns the parsed rule with errors[]
  *  empty if valid, or with one or more errors if not. NEVER throws — the
- *  caller decides what to do with the errors. */
-function parseSigmaRule(yamlText: string): ParsedSigmaRule {
+ *  caller decides what to do with the errors.
+ *  (V10: exported — the official-repo sync reuses this exact validator so
+ *  synced rules go through the SAME structural gate as manual imports.) */
+export function parseSigmaRule(yamlText: string): ParsedSigmaRule {
   const empty: ParsedSigmaRule = {
     title: '', id: undefined, status: '', description: '', author: '', date: '',
     level: '', logsource: '', detection: '', tags: [], mitre: [], yaml: yamlText, errors: [],

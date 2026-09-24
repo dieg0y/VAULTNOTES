@@ -15,7 +15,7 @@
  * NO usa `export default`.
  */
 
-interface MitreSubtechnique {
+export interface MitreSubtechnique {
   id: string;       // ej: "T1059.001"
   name: string;     // ej: "PowerShell"
   description: string;

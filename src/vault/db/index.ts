@@ -79,7 +79,7 @@ export interface SavedCve {
   savedAt: string;
 }
 
-interface DatasetMeta {
+export interface DatasetMeta {
   /** Single-row table — id is always 'singleton'. */
   id: string;
   mitreVersion: string;
@@ -88,6 +88,94 @@ interface DatasetMeta {
   sigmaLastSync: string | null;
   sigmaRulesCount: number;
   updatedAt: string;
+  // V10 (v24) — CISA KEV catalog markers (optional: old rows lack them).
+  kevVersion?: string;
+  kevLastSync?: string | null;
+  kevCount?: number;
+}
+
+// ------------------------------------------------------------------
+// V10 (v24) — ONLINE DATASET SYNC tables. All three are ADDED in schema
+// v24 (delta-only migration). They hold OFFICIAL public data explicitly
+// downloaded by the user via the Sync Center (MITRE ATT&CK techniques from
+// attack-stix-data, official SigmaHQ rules, CISA KEV catalog). They contain
+// NO user PII and NO API keys — keys stay in VaultIntelDB as always — so
+// they are exported by the vault backup like tiCache/savedCves (latest-wins
+// on import). The bundled datasets always remain the offline baseline.
+// ------------------------------------------------------------------
+
+/** One MITRE ATT&CK technique/sub-technique synced from the official STIX
+ *  bundle (github.com/mitre-attack/attack-stix-data). Normalized shape —
+ *  sanitized, description capped. Merged over the bundled dataset by id. */
+export interface SyncedMitreTechnique {
+  /** MITRE canonical id, e.g. "T1059" or "T1059.001". Primary key. */
+  id: string;
+  /** STIX object id ("attack-pattern--<uuid>"), kept for provenance. */
+  stixId: string;
+  name: string;
+  /** Official English description (sanitized, capped ~600 chars). */
+  description: string;
+  /** Tactic display names joined with " / " (e.g. "Execution"). */
+  tactic: string;
+  platforms: string[];
+  /** Official reference URL (attack.mitre.org/techniques/Txxxx). */
+  url: string;
+  /** ATT&CK version the row was synced from (e.g. "19.2"). */
+  version: string;
+  /** ISO timestamp of the sync. */
+  syncedAt: string;
+  revoked: boolean;
+  deprecated: boolean;
+}
+
+/** One official Sigma rule synced from github.com/SigmaHQ/sigma
+ *  (rules/windows/builtin/**). Same field contract as CustomSigmaRule
+ *  (logsource/detection stored as JSON strings, yaml verbatim, NEVER
+ *  executed — see sigma/validate.ts) plus sync provenance. */
+export interface SyncedSigmaRule {
+  id: string;
+  ruleUuid?: string;
+  title: string;
+  status: string;
+  level: string;
+  description: string;
+  author: string;
+  date: string;
+  logsource: string;
+  detection: string;
+  tags: string[];
+  mitre: string[];
+  /** Raw yaml text — stored verbatim, NEVER executed. */
+  yaml: string;
+  /** Repo path of the source file (provenance). */
+  sourcePath: string;
+  syncedAt: string;
+}
+
+/** One entry of the CISA Known Exploited Vulnerabilities catalog
+ *  (github.com/cisagov/kev-data — official mirror of cisa.gov). Trimmed to
+ *  the fields the app actually uses (the full catalog keeps 1.7MB; we keep
+ *  ~600KB with the official requiredAction guidance). */
+export interface KevEntry {
+  cveID: string;
+  vendorProject: string;
+  product: string;
+  vulnerabilityName: string;
+  dateAdded: string;
+  dueDate?: string;
+  knownRansomwareCampaignUse: string;
+  requiredAction: string;
+}
+
+/** Singleton row (id='singleton') with the synced KEV catalog. */
+export interface KevCatalogRow {
+  id: string;
+  title: string;
+  catalogVersion: string;
+  dateReleased: string;
+  count: number;
+  fetchedAt: string;
+  entries: KevEntry[];
 }
 
 /**
@@ -216,6 +304,10 @@ class VaultDatabase extends Dexie {
   customSigmaRules!: Table<CustomSigmaRule, string>;
   savedCves!: Table<SavedCve, string>;
   datasetMeta!: Table<DatasetMeta, string>;
+  // V10 (v24) — official dataset sync tables (see interfaces above).
+  mitreTechniques!: Table<SyncedMitreTechnique, string>;
+  sigmaRulesSynced!: Table<SyncedSigmaRule, string>;
+  kevCatalog!: Table<KevCatalogRow, string>;
   // DATA & INTEL — dataset de trabajo (IoCs · eventos · reglas). v16.
   intelItems!: Table<IntelItem, string>;
   // PERFIL PROFESIONAL (v17, multi-perfil desde v18) — documentos del CV:
@@ -635,14 +727,36 @@ class VaultDatabase extends Dexie {
     this.version(23).stores({
       socTickets: 'id, status, isDeleted, updatedAt, createdAt',
     });
+    // V10 (v24): ONLINE DATASET SYNC — migración 100% ADITIVA (delta-only,
+    // igual que v19/v21/v23): tres tablas nuevas para los datasets oficiales
+    // descargados explícitamente desde el Sync Center:
+    //  · mitreTechniques — técnicas ATT&CK sincronizadas del bundle STIX
+    //    oficial (mitre-attack/attack-stix-data). El bundle curado de la app
+    //    (data/mitreData.ts) SIGUE siendo la base offline; esto es una capa
+    //    encima (merge por id, el sync no borra el bundle).
+    //  · sigmaRulesSynced — reglas oficiales de SigmaHQ/sigma (subset
+    //    rules/windows/builtin). Nunca se ejecutan (data only, igual que
+    //    customSigmaRules).
+    //  · kevCatalog — catálogo CISA KEV (cisagov/kev-data), fila única
+    //    'singleton' con las entradas recortadas.
+    // Nada más se toca. Las claves API NO viven aquí (VaultIntelDB, como
+    // siempre). El backup ZIP las exporta (3.10.0) con latest-wins.
+    this.version(24).stores({
+      mitreTechniques: 'id, syncedAt',
+      sigmaRulesSynced: 'id, syncedAt',
+      kevCatalog: 'id, fetchedAt',
+    });
   }
 }
 
 /** Current Dexie schema version. Used by the backup manifest so the importer
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
- *  bumping `this.version(N)` above. */
-export const CURRENT_SCHEMA_VERSION = 22;
+ *  bumping `this.version(N)` above.
+ *  v24 fix (auditoría V10, H1): la constante quedó rezagada en 22 mientras el
+ *  schema ya declaraba v23 (socTickets) — se realinea a 24 con la migración
+ *  aditiva del sync online (mitreTechniques/sigmaRulesSynced/kevCatalog). */
+export const CURRENT_SCHEMA_VERSION = 24;
 
 export const db = new VaultDatabase();
 
