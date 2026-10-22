@@ -52,10 +52,6 @@ import { LogParserTool } from './tools/LogParserTool';
 import { MitreExplorerTool } from './tools/MitreExplorerTool';
 import { SigmaExplorerTool } from './tools/SigmaExplorerTool';
 import { DetectionQueryHelperTool } from './tools/DetectionQueryHelperTool';
-// BLOQUE 6 — Online-Optional. CVE Search is the only tool that touches the
-// online layer (NVD API via integrations/cve/search.ts). It still works
-// offline for browsing saved CVEs.
-import { CveSearchTool } from './tools/CveSearchTool';
 // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5)
 import { SidRidAnalyzerTool } from './tools/SidRidAnalyzerTool';
 import { LdapDnParserTool } from './tools/LdapDnParserTool';
@@ -85,7 +81,6 @@ import { SaFirewallTool } from './tools/sa/SaFirewallTool';
 import { SaCapacityTool } from './tools/sa/SaCapacityTool';
 import { HdNetworkTool } from './tools/hd/HdNetworkTool';
 import { SocGuideTool } from './tools/soc/SocGuideTool';
-import { type ToolPillar } from '../data/toolsCatalog';
 import { HdIntuneTool } from './tools/hd/HdIntuneTool';
 import { HdSanitizerTool } from './tools/hd/HdSanitizerTool';
 // IoC Extractor — full SOC/IAM pipeline view (see section 7 below).
@@ -98,7 +93,7 @@ import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
 import { recordToolUse, toggleToolFavorite, inputCls, taCls, useAddToNoteToast } from './tools/_shared';
 // BLOQUE 5 — single source of truth for the tool catalog (also used by
 // global search to index tools into Ctrl+K results).
-import { TOOLS_CATALOG, type ToolId } from '../data/toolsCatalog';
+import { TOOLS_CATALOG, TOOL_PILLAR_META, type ToolId, type ToolPillar } from '../data/toolsCatalog';
 
 /** Deep-link descriptor — used by the global fuzzy search to navigate the user
  *  directly into a tool + auto-open the detail modal for a specific entry. */
@@ -108,11 +103,9 @@ export interface ToolDeepLink {
   entryId: string | number;
 }
 
-export type ToolsViewPillar = 'hd' | 'sa' | 'soc';
-
 interface ToolsViewProps {
-  /** V9 — pilar cuyas herramientas se listan (HELPDESK / SYSADMIN / SOC). */
-  pillar: ToolsViewPillar;
+  /** V11 — catálogo GLOBAL unificado: cada tool aparece UNA vez, con su
+   *  etiqueta de rol (IAM / SOC / Service Desk / SysAdmin / Global). */
   /** When set, switches active tool to `toolId` and asks the corresponding tool to auto-open the entry with `entryId`. */
   pendingTool?: ToolDeepLink | null;
   /** Called once after the deep-link has been consumed (so the parent can clear it). */
@@ -150,7 +143,6 @@ const TOOL_ICONS: Record<ToolId, React.ReactNode> = {
   mitre: <Crosshair className="w-4 h-4" />,
   sigma: <BookMarked className="w-4 h-4" />,
   'detection-query': <Braces className="w-4 h-4" />,
-  'cve-search': <Bug className="w-4 h-4" />, // reuse Bug icon (already imported); CVSS Calculator uses Bug too — fine.
   vuln: <ShieldAlert className="w-4 h-4" />, // Vulnerabilidades IAM/SOC (dataset offline)
   ataques: <Swords className="w-4 h-4" />, // Ataques — técnicas ofensivas (dataset offline)
   // HELPDESK (V6 FASE 3) — 6 tools que siguen (ver toolsCatalog.ts).
@@ -1328,7 +1320,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
 /* ============================================================= */
 /* 7. IoC EXTRACTOR — moved to IocExtractorView.tsx              */
 /* (full SOC/IAM pipeline: refang, validate, dedup, context,     */
-/*  scoring, enrichment links, KQL/SPL/STIX/CSV/JSON export,      */
+/*  scoring, KQL/SPL/STIX/CSV/JSON export,                       */
 /*  defang toggle, secret detection, editable whitelist)         */
 /* ============================================================= */
 /* (IocExtractorView is statically imported at the top of this file —     */
@@ -1674,26 +1666,23 @@ const CronTool: React.FC<CronToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
 /* MAIN ToolsView                                                 */
 /* ============================================================= */
 
-const PILLAR_META: Record<ToolsViewPillar, { label: string; icon: React.ReactNode; accent: string }> = {
-  hd: {
-    label: 'Herramientas — Service Desk',
-    icon: <Wrench className="w-4 h-4 text-blue-400" />,
-    accent: 'text-blue-400',
-  },
-  sa: {
-    label: 'Herramientas — SysAdmin Ops',
-    icon: <Wrench className="w-4 h-4 text-cyan-400" />,
-    accent: 'text-cyan-400',
-  },
-  soc: {
-    label: 'Herramientas — SOC / Blue Team',
-    icon: <Wrench className="w-4 h-4 text-emerald-400" />,
-    accent: 'text-emerald-400',
-  },
-};
+/** V11 — filtros de rol del catálogo unificado (chips del header). */
+type RoleFilter = 'all' | ToolPillar;
+const ROLE_FILTERS: Array<{ id: RoleFilter; label: string }> = [
+  { id: 'all', label: 'Todas' },
+  { id: 'IAM', label: 'IAM' },
+  { id: 'SOC', label: 'SOC' },
+  { id: 'HELPDESK', label: 'Service Desk' },
+  { id: 'SYSADMIN', label: 'SysAdmin' },
+  { id: 'GLOBAL', label: 'Global' },
+];
 
-export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onConsumePending }) => {
-  const pillarMeta = PILLAR_META[pillar];
+/** Roles de un tool (sin pillars = GLOBAL — todos los tools V11 están
+ *  etiquetados, esto es solo una defensa). */
+const toolRoles = (t: (typeof TOOLS)[number]): ToolPillar[] =>
+  t.pillars && t.pillars.length > 0 ? t.pillars : ['GLOBAL'];
+
+export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePending }) => {
   // BLOQUE 3 — Subscribe to the cross-tool zustand store so any tool
   // (MITRE/Sigma/WinEvent/Detection Query) can trigger navigation to another
   // tool by calling `usePendingToolStore.getState().setPending({toolId, entryId?})`.
@@ -1703,13 +1692,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
   const effectivePending = pendingTool || zustandPending;
   const clearZustandPending = usePendingToolStore((s) => s.clear);
 
-  // V9 — tools del pilar (sin pillars = transversal, aparece en los 3).
-  const pillarTools = useMemo(
-    () => TOOLS.filter((t) => !t.pillars || t.pillars.includes(pillar.toUpperCase() as ToolPillar)),
-    [pillar]
+  // V11 — catálogo global: cada tool aparece UNA sola vez; el filtro de rol
+  // solo reduce la lista (los tools sin pillars heredan GLOBAL).
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const roleTools = useMemo(
+    () => TOOLS.filter((t) => roleFilter === 'all' || toolRoles(t).includes(roleFilter)),
+    [roleFilter]
   );
-  const firstPillarTool = pillarTools[0]?.id ?? 'subnet';
-  const [active, setActive] = useState<ToolId>(effectivePending?.toolId as ToolId || firstPillarTool);
+  const firstRoleTool = roleTools[0]?.id ?? 'subnet';
+  const [active, setActive] = useState<ToolId>(effectivePending?.toolId as ToolId || firstRoleTool);
 
   // BLOQUE 5 — tool search (filters by name / desc / category / tags).
   const [toolQuery, setToolQuery] = useState('');
@@ -1753,8 +1744,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
   // Tool search — match on name, desc, category, tags (case-insensitive substring).
   const filteredTools = useMemo(() => {
     const q = toolQuery.trim().toLowerCase();
-    if (!q) return pillarTools;
-    return pillarTools.filter((t) => {
+    if (!q) return roleTools;
+    return roleTools.filter((t) => {
       const haystack = [
         t.name,
         t.desc,
@@ -1763,7 +1754,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
       ].join(' ').toLowerCase();
       return haystack.includes(q);
     });
-  }, [toolQuery, pillarTools]);
+  }, [toolQuery, roleTools]);
 
   // Rebuild the categories map ONLY from the filtered tools so search hides
   // categories that have zero matches.
@@ -1779,14 +1770,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
 
   // Favorites list (preserve TOOLS order for stable UX) and recents.
   const favoriteTools = useMemo(
-    () => pillarTools.filter((t) => favoriteIds.has(t.id)),
-    [favoriteIds, pillarTools]
+    () => roleTools.filter((t) => favoriteIds.has(t.id)),
+    [favoriteIds, roleTools]
   );
   const recentTools = useMemo(
     () => recentIdsOrdered
-      .map((id) => pillarTools.find((t) => t.id === id))
+      .map((id) => roleTools.find((t) => t.id === id))
       .filter((t): t is (typeof TOOLS)[number] => Boolean(t)),
-    [recentIdsOrdered, pillarTools]
+    [recentIdsOrdered, roleTools]
   );
 
   // Render the active tool, passing the deep-link entryId ONLY to the tool
@@ -1819,9 +1810,6 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
       case 'mitre':              return <MitreExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
       case 'sigma':              return <SigmaExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
       case 'detection-query':    return <DetectionQueryHelperTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      // BLOQUE 6 — Online-Optional. CVE Search has no deep-link autoOpen
-      // (search is user-driven; saved CVEs are browsed in-tool).
-      case 'cve-search':         return <CveSearchTool />;
       // Vulnerabilidades IAM/SOC — soporta deep-link por id (p. ej. "AD-016").
       case 'vuln':               return <VulnerabilityExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
       // Ataques — soporta deep-link por id (p. ej. "IAM-004").
@@ -1876,13 +1864,12 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-base font-bold text-white flex items-center gap-2">
-              {pillarMeta.icon}
-              {pillarMeta.label}
+              <Wrench className="w-4 h-4 text-blue-400" />
+              Herramientas
             </h1>
-            {/* AUDIT FIX: the old claim "100% offline — sin llamadas a internet"
-                was inaccurate — the catalog includes CVE Search, whose online
-                lookup is MANUAL and opt-in. The wording now matches reality. */}
-            <p className="text-xs text-[#888]">{pillarTools.length} utilidades offline — sin llamadas automáticas a internet. La búsqueda online de CVEs es manual y opcional.</p>
+            {/* V11: catálogo UNIFICADO — cada tool aparece UNA vez, con su rol.
+                El CVE Search online se retiró junto con Data & Intel. */}
+            <p className="text-xs text-[#888]">{roleTools.length} de {TOOLS.length} utilidades 100% offline — cada tool una sola vez, con su rol.</p>
           </div>
           {/* Tool search box — filters by name / desc / category / tags. */}
           <div className="relative w-full sm:w-72 max-w-full">
@@ -1904,6 +1891,23 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
               </button>
             )}
           </div>
+        </div>
+        {/* V11 — filtro por rol: cada tool está etiquetada con el rol al que
+            pertenece (IAM / SOC / Service Desk / SysAdmin / Global). */}
+        <div className="flex items-center gap-1.5 flex-wrap mt-2.5" role="group" aria-label="Filtrar herramientas por rol">
+          {ROLE_FILTERS.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setRoleFilter(r.id)}
+              className={`text-[10px] px-2 py-1 rounded border transition-colors cursor-pointer ${
+                roleFilter === r.id
+                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/40'
+                  : 'bg-[#161616] text-[#999] border-[#262626] hover:text-white'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1973,10 +1977,21 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
                   >
                     <button
                       onClick={() => handleSelectTool(t.id)}
-                      className="flex-1 flex items-center gap-2 px-2.5 py-1.5 min-w-0"
+                      className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 min-w-0"
                     >
                       {t.icon}
                       <span className="truncate">{t.name}</span>
+                      <span className="flex items-center gap-0.5 shrink-0">
+                        {toolRoles(t).map((p) => (
+                          <span
+                            key={p}
+                            className={`text-[8px] font-mono font-bold px-1 py-px rounded border ${TOOL_PILLAR_META[p].chip}`}
+                            title={TOOL_PILLAR_META[p].label}
+                          >
+                            {TOOL_PILLAR_META[p].short}
+                          </span>
+                        ))}
+                      </span>
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); e.preventDefault(); void handleToggleFavorite(t.id); }}
@@ -2008,6 +2023,17 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pillar, pendingTool, onCon
                   {activeToolMeta?.icon}
                   {activeToolMeta?.name}
                 </h2>
+                <div className="flex items-center gap-1 flex-wrap mb-1">
+                  {activeToolMeta && toolRoles(activeToolMeta).map((p) => (
+                    <span
+                      key={p}
+                      className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${TOOL_PILLAR_META[p].chip}`}
+                      title={`Rol: ${TOOL_PILLAR_META[p].label}`}
+                    >
+                      {TOOL_PILLAR_META[p].label}
+                    </span>
+                  ))}
+                </div>
                 <p className="text-[11px] text-[#888]">{activeToolMeta?.desc}</p>
               </div>
               <button

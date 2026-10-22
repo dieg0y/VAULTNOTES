@@ -40,9 +40,8 @@ interface GlobalSearchModalProps {
   onSelectTool?: (deepLink: ToolDeepLink) => void;
   /** BLOQUE 5 — command palette dispatch (new note / open section / open tool / backup). */
   onSelectCommand?: (commandId: string) => void;
-  /** V6 FASE 4 — runbook/cheatsheet deep-links desde Ctrl+K. */
+  /** V11 — deep-links de runbook desde Ctrl+K (incluye quick-fixes ex-CheatSheet). */
   onSelectRunbook?: (runbookId: string) => void;
-  onSelectCheatSheet?: (cheatsheetId: string) => void;
   /** V9 — deep-links de guías de troubleshooting (escaleras de decisión). */
   onSelectTroubleshooting?: (troubleshootingId: string) => void;
 }
@@ -66,7 +65,6 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
   onSelectTool,
   onSelectCommand,
   onSelectRunbook,
-  onSelectCheatSheet,
   onSelectTroubleshooting,
 }) => {
   const [query, setQuery] = useState('');
@@ -103,8 +101,6 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
     const toolLink = resultToToolDeepLink(item);
     if (item.type === 'runbook' && onSelectRunbook) {
       onSelectRunbook(item.id);
-    } else if (item.type === 'cheatsheet' && onSelectCheatSheet) {
-      onSelectCheatSheet(item.id);
     } else if (item.type === 'troubleshooting-tree' && onSelectTroubleshooting) {
       onSelectTroubleshooting(item.id);
     } else if (toolLink && onSelectTool) {
@@ -167,11 +163,10 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
         return { label: 'CVSS', icon: <Bug className="w-3.5 h-3.5" />, color: 'bg-pink-500/10 text-pink-400 border-pink-500/20', dot: 'bg-pink-500/10 text-pink-400' };
       case 'tool':
         return { label: 'Herramienta', icon: <Wrench className="w-3.5 h-3.5" />, color: 'bg-sky-500/10 text-sky-400 border-sky-500/20', dot: 'bg-sky-500/10 text-sky-400' };
-      // V6 FASE 4 — runbooks + cheatsheet en la búsqueda global:
+      // V6 FASE 4 + V11 — runbooks en la búsqueda global (los quick-fixes
+      // ex-CheatSheet viven aquí desde la fusión V11):
       case 'runbook':
         return { label: 'Runbook', icon: <LifeBuoy className="w-3.5 h-3.5" />, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: 'bg-blue-500/10 text-blue-400' };
-      case 'cheatsheet':
-        return { label: 'CheatSheet', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-amber-500/10 text-amber-400 border-amber-500/20', dot: 'bg-amber-500/10 text-amber-400' };
       case 'troubleshooting-tree':
         return { label: 'Troubleshooting', icon: <GitBranch className="w-3.5 h-3.5" />, color: 'bg-teal-500/10 text-teal-400 border-teal-500/20', dot: 'bg-teal-500/10 text-teal-400' };
       case 'command':

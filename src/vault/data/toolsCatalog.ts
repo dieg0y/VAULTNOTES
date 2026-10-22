@@ -20,10 +20,6 @@ export type ToolId =
   | 'mitre' | 'sigma' | 'detection-query'
   // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5):
   | 'sid-rid' | 'ldap-dn' | 'rbac' | 'cvss' | 'file-hash' | 'linux-perms'
-  // BLOQUE 6 — Online-Optional. CVE Search is the only tool that uses the
-  // online layer (NVD API, supports CORS, no API key required). It still
-  // works for browsing saved CVEs when offline.
-  | 'cve-search'
   // Explorador offline de vulnerabilidades IAM/SOC (dataset
   // data/vulnerabilities.ts, 203 entradas).
   | 'vuln'
@@ -53,8 +49,19 @@ export type ToolId =
   | 'soc-wireshark' | 'soc-sysmon' | 'soc-defender'
   | 'soc-sandbox' | 'soc-thehive';
 
-/** Los 3 pilares autónomos (V9) — un tool puede vivir en varios. */
-export type ToolPillar = 'HELPDESK' | 'SYSADMIN' | 'SOC';
+/** Los 4 pilares + GLOBAL (V11) — cada tool aparece UNA sola vez en el
+ *  catálogo unificado y lleva su etiqueta de rol: si es de un rol
+ *  específico, el badge lo dice; GLOBAL = utilidad transversal. */
+export type ToolPillar = 'HELPDESK' | 'SYSADMIN' | 'SOC' | 'IAM' | 'GLOBAL';
+
+/** Metadatos visuales por rol (badge de la fila + filtro de la vista). */
+export const TOOL_PILLAR_META: Record<ToolPillar, { label: string; short: string; chip: string }> = {
+  IAM: { label: 'IAM', short: 'IAM', chip: 'bg-violet-500/10 text-violet-400 border-violet-500/30' },
+  SOC: { label: 'SOC', short: 'SOC', chip: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+  HELPDESK: { label: 'Service Desk', short: 'SD', chip: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+  SYSADMIN: { label: 'SysAdmin', short: 'SA', chip: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' },
+  GLOBAL: { label: 'Global', short: 'GL', chip: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30' },
+};
 
 export interface ToolCatalogEntry {
   id: ToolId;
@@ -62,8 +69,8 @@ export interface ToolCatalogEntry {
   cat: string;
   desc: string;
   tags?: string[];
-  /** V9 — pilares donde aparece el tool (Herramientas por pilar).
-   *  Opcional: si falta, el tool es transversal y aparece en los 3. */
+  /** V11 — rol(es) del tool (catálogo unificado: cada tool aparece UNA vez,
+   *  etiquetada con su rol). Obligatorio en V11: sin pillars = GLOBAL. */
   pillars?: ToolPillar[];
 }
 
@@ -76,25 +83,25 @@ export interface ToolCatalogEntry {
  * PowerShell Analyzer, Command Line Analyzer, MITRE ATT&CK, etc.).
  */
 export const TOOLS_CATALOG: ToolCatalogEntry[] = [
-  { id: 'subnet', name: 'Subnetting', cat: 'Red', desc: 'Calcular red, broadcast, hosts y máscara', tags: ['subnetting', 'cidr', 'ipv4', 'red'] },
-  { id: 'ports', name: 'Puertos y Servicios', cat: 'Red', desc: '119 puertos TCP/UDP con riesgos, hardening paso a paso y comandos de detección', tags: ['puertos', 'tcp', 'udp', 'servicios', 'llmnr', 'tr-069', 'ajp', 'mqtt', 'ics'] },
-  { id: 'jwt', name: 'JWT Decoder', cat: 'IAM', desc: 'Decodificar header y payload de un JWT', tags: ['jwt', 'token', 'auth', 'iam'] },
-  { id: 'sid-rid', name: 'SID / RID Analyzer', cat: 'IAM', desc: 'Parsear Windows SIDs, identificar RIDs conocidos (500 Administrator, 502 KRBTGT, 512 Domain Admins…). 100% offline.', tags: ['sid', 'rid', 'windows', 'ad', 'iam', 'admin', 's-1-5'] },
-  { id: 'ldap-dn', name: 'LDAP / DN Parser', cat: 'IAM', desc: 'Parsear Distinguished Names LDAP — CN/OU/DC, derivar dominio, árbol jerárquico.', tags: ['ldap', 'dn', 'ad', 'iam', 'domain'] },
-  { id: 'rbac', name: 'RBAC Analyzer', cat: 'IAM', desc: 'Modelar Users/Roles/Permissions — matriz, effective permissions, detecciones. IndexedDB.', tags: ['rbac', 'roles', 'permissions', 'iam', 'access-control'] },
-  { id: 'base', name: 'Base Converter', cat: 'Datos', desc: 'Decimal, Hex, Octal y Binario en vivo', tags: ['base', 'hex', 'decimal', 'octal', 'binary'] },
-  { id: 'http', name: 'HTTP Status', cat: 'Web', desc: 'Códigos HTTP con explicación detallada', tags: ['http', 'status', 'web', 'codes'] },
+  { id: 'subnet', name: 'Subnetting', cat: 'Red', desc: 'Calcular red, broadcast, hosts y máscara', tags: ['subnetting', 'cidr', 'ipv4', 'red'], pillars: ['SYSADMIN'] },
+  { id: 'ports', name: 'Puertos y Servicios', cat: 'Red', desc: '119 puertos TCP/UDP con riesgos, hardening paso a paso y comandos de detección', tags: ['puertos', 'tcp', 'udp', 'servicios', 'llmnr', 'tr-069', 'ajp', 'mqtt', 'ics'], pillars: ['SYSADMIN'] },
+  { id: 'jwt', name: 'JWT Decoder', cat: 'IAM', desc: 'Decodificar header y payload de un JWT', tags: ['jwt', 'token', 'auth', 'iam'], pillars: ['IAM'] },
+  { id: 'sid-rid', name: 'SID / RID Analyzer', cat: 'IAM', desc: 'Parsear Windows SIDs, identificar RIDs conocidos (500 Administrator, 502 KRBTGT, 512 Domain Admins…). 100% offline.', tags: ['sid', 'rid', 'windows', 'ad', 'iam', 'admin', 's-1-5'], pillars: ['IAM'] },
+  { id: 'ldap-dn', name: 'LDAP / DN Parser', cat: 'IAM', desc: 'Parsear Distinguished Names LDAP — CN/OU/DC, derivar dominio, árbol jerárquico.', tags: ['ldap', 'dn', 'ad', 'iam', 'domain'], pillars: ['IAM'] },
+  { id: 'rbac', name: 'RBAC Analyzer', cat: 'IAM', desc: 'Modelar Users/Roles/Permissions — matriz, effective permissions, detecciones. IndexedDB.', tags: ['rbac', 'roles', 'permissions', 'iam', 'access-control'], pillars: ['IAM'] },
+  { id: 'base', name: 'Base Converter', cat: 'Datos', desc: 'Decimal, Hex, Octal y Binario en vivo', tags: ['base', 'hex', 'decimal', 'octal', 'binary'], pillars: ['GLOBAL'] },
+  { id: 'http', name: 'HTTP Status', cat: 'Web', desc: 'Códigos HTTP con explicación detallada', tags: ['http', 'status', 'web', 'codes'], pillars: ['SYSADMIN', 'SOC'] },
   { id: 'winevent', name: 'Windows Event IDs', cat: 'SOC', desc: '93 Event IDs (Security, PowerShell y Sysmon) con explicación, detección, MITRE y threat hunting', tags: ['windows', 'event', 'logs', 'soc', '4624', '4625', 'security', '4720', 'sysmon', '1102', '5136'], pillars: ['SOC'] },
   { id: 'ioc', name: 'IoC Extractor', cat: 'SOC', desc: 'SOC Tier1/2 + IAM: refang, valida, dedup, contexto, scoring, KQL/SPL/STIX', tags: ['ioc', 'ip', 'hash', 'url', 'domain', 'soc', 'triage', 'stix'], pillars: ['SOC'] },
   { id: 'cron', name: 'Cron Parser', cat: 'LINUX', desc: 'Explicar una expresión cron con guía', tags: ['cron', 'schedule', 'linux', 'crontab'], pillars: ['SYSADMIN'] },
   { id: 'linux-perms', name: 'Linux Permissions', cat: 'LINUX', desc: 'chmod numérico ↔ simbólico (755 ↔ rwxr-xr-x) con SUID/SGID/Sticky bit.', tags: ['chmod', 'permissions', 'linux', 'suid', 'sgid', 'sticky'], pillars: ['SYSADMIN'] },
-  { id: 'timestamp', name: 'Timestamp Converter', cat: 'Datos', desc: 'Unix sec/ms, ISO 8601, UTC y Local — auto-detección sec vs ms', tags: ['timestamp', 'unix', 'iso', 'date', 'utc'] },
-  { id: 'hash', name: 'Hash Toolkit', cat: 'SECURITY', desc: 'MD5/SHA-1/256/384/512 (Web Crypto), identificar por longitud, comparar', tags: ['hash', 'md5', 'sha', 'sha256', 'security'] },
-  { id: 'file-hash', name: 'File Hash Analyzer', cat: 'SECURITY', desc: 'Hash SHA-1/256/384/512 de archivos vía Web Crypto + drag-and-drop.', tags: ['hash', 'file', 'sha', 'integrity', 'security'] },
-  { id: 'cvss', name: 'CVSS Calculator', cat: 'SECURITY', desc: 'CVSS 3.1 base score + severity + vector. 8 métricas.', tags: ['cvss', 'vulnerability', 'score', 'security', 'vector'] },
-  { id: 'encoding', name: 'Encoding / Decoding', cat: 'Datos', desc: 'Base64/URL-safe/Hex/ASCII/Unicode/HTML — encode/decode/swap', tags: ['encoding', 'base64', 'hex', 'url', 'ascii'] },
-  { id: 'regex', name: 'Regex Tester', cat: 'Datos', desc: 'Test regex con 14 presets (IPv4/IPv6/Email/CVE/JWT…), capture groups', tags: ['regex', 'pattern', 'ipv4', 'email', 'cve'] },
-  { id: 'ip', name: 'IP Analyzer', cat: 'Red', desc: 'IPv4/IPv6 — scope, binario, hex, integer, ULA, multicast. 100% local', tags: ['ip', 'ipv4', 'ipv6', 'subnet', 'red'] },
+  { id: 'timestamp', name: 'Timestamp Converter', cat: 'Datos', desc: 'Unix sec/ms, ISO 8601, UTC y Local — auto-detección sec vs ms', tags: ['timestamp', 'unix', 'iso', 'date', 'utc'], pillars: ['SOC', 'SYSADMIN'] },
+  { id: 'hash', name: 'Hash Toolkit', cat: 'SECURITY', desc: 'MD5/SHA-1/256/384/512 (Web Crypto), identificar por longitud, comparar', tags: ['hash', 'md5', 'sha', 'sha256', 'security'], pillars: ['SOC'] },
+  { id: 'file-hash', name: 'File Hash Analyzer', cat: 'SECURITY', desc: 'Hash SHA-1/256/384/512 de archivos vía Web Crypto + drag-and-drop.', tags: ['hash', 'file', 'sha', 'integrity', 'security'], pillars: ['SOC'] },
+  { id: 'cvss', name: 'CVSS Calculator', cat: 'SECURITY', desc: 'CVSS 3.1 base score + severity + vector. 8 métricas.', tags: ['cvss', 'vulnerability', 'score', 'security', 'vector'], pillars: ['SOC'] },
+  { id: 'encoding', name: 'Encoding / Decoding', cat: 'Datos', desc: 'Base64/URL-safe/Hex/ASCII/Unicode/HTML — encode/decode/swap', tags: ['encoding', 'base64', 'hex', 'url', 'ascii'], pillars: ['GLOBAL'] },
+  { id: 'regex', name: 'Regex Tester', cat: 'Datos', desc: 'Test regex con 14 presets (IPv4/IPv6/Email/CVE/JWT…), capture groups', tags: ['regex', 'pattern', 'ipv4', 'email', 'cve'], pillars: ['GLOBAL'] },
+  { id: 'ip', name: 'IP Analyzer', cat: 'Red', desc: 'IPv4/IPv6 — scope, binario, hex, integer, ULA, multicast. 100% local', tags: ['ip', 'ipv4', 'ipv6', 'subnet', 'red'], pillars: ['SOC', 'SYSADMIN'] },
   { id: 'ioc-defang', name: 'IOC Defanger / Refanger', cat: 'SOC', desc: 'Defang/refang URLs, IPs, emails — hxxps[://] y [.] invertible', tags: ['ioc', 'defang', 'refang', 'url', 'soc'], pillars: ['SOC'] },
   { id: 'powershell-analyzer', name: 'PowerShell Analyzer', cat: 'SOC', desc: 'Análisis offline de scripts PowerShell — indicadores, MITRE, Base64.', tags: ['powershell', 'windows', 'soc', 't1059', 'encoded', 'mitre'], pillars: ['SOC'] },
   { id: 'cmd-analyzer', name: 'Command Line Analyzer', cat: 'SOC', desc: 'Parsing CMD/PowerShell/Linux — executable, args, switches, recon, MITRE', tags: ['cmd', 'command', 'powershell', 'linux', 'soc', 'recon'], pillars: ['SOC'] },
@@ -102,19 +109,16 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
   { id: 'mitre', name: 'MITRE ATT&CK', cat: 'SOC', desc: 'Explorar técnicas MITRE ATT&CK locales — búsqueda por ID, táctica o keyword.', tags: ['mitre', 'attack', 'tactics', 'techniques', 't1059', 'soc', 'windows'], pillars: ['SOC'] },
   { id: 'sigma', name: 'Sigma Explorer', cat: 'SOC', desc: 'Reglas Sigma locales con YAML highlighting — MITRE, Event IDs, KQL, SPL.', tags: ['sigma', 'yaml', 'rules', 'detection', 'mitre', 'soc'], pillars: ['SOC'] },
   { id: 'detection-query', name: 'Detection Query Helper', cat: 'SOC', desc: 'Constructor visual de queries KQL/SPL con 11 presets SOC y cross-links MITRE.', tags: ['kql', 'spl', 'sentinel', 'splunk', 'detection', 'soc'], pillars: ['SOC'] },
-  // BLOQUE 6 — Online-Optional. CVE Search uses NVD API (online, optional).
-  // Saved CVEs are stored locally and browsable offline.
-  { id: 'cve-search', name: 'CVE Search', cat: 'SECURITY', desc: 'Buscar CVE-ID en NVD online (opcional) y guardar copia local. Funciona offline para consultar CVEs guardados.', tags: ['cve', 'nvd', 'vulnerability', 'cvss', 'security', 'online'], pillars: ['SOC'] },
   // Vulnerabilidades IAM/SOC — dataset 100% offline (data/vulnerabilities.ts).
   // Tags ES/EN para máxima recall en la búsqueda global (Ctrl+K).
-  { id: 'vuln', name: 'Vulnerabilidades IAM/SOC', cat: 'SECURITY', desc: 'Explorador de 203 vulnerabilidades de identidad y SOC: JWT/OAuth/SAML, AD (Kerberos, delegación, AD CS ESC1-16, DnsAdmins, AdminSDHolder), Cloud IAM (AWS/Azure/GCP/K8s/Snowflake), governance IAM (JML, PIM, access reviews), PrivEsc (privilegios Windows, caps Linux), evasión SOC (BYOVD, AiTM, fileless), movimiento lateral y persistencia — con detección KQL/SPL/Sigma y remediación paso a paso. 100% offline.', tags: ['vulnerabilidades', 'vulnerability', 'iam', 'soc', 'ad', 'esc1', 'adcs', 'kerberoasting', 'golden ticket', 'pass-the-hash', 'dcsync', 'jwt', 'oauth', 'saml', 'cloud', 'aws', 'azure', 'gcp', 'snowflake', 'pim', 'jml', 'access review', 'byovd', 'aitm', 'privesc', 'persistence', 'evasion', 'lateral', 'hardening', 'kql', 'sigma'], pillars: ['SOC'] },
+  { id: 'vuln', name: 'Vulnerabilidades IAM/SOC', cat: 'SECURITY', desc: 'Explorador de 203 vulnerabilidades de identidad y SOC: JWT/OAuth/SAML, AD (Kerberos, delegación, AD CS ESC1-16, DnsAdmins, AdminSDHolder), Cloud IAM (AWS/Azure/GCP/K8s/Snowflake), governance IAM (JML, PIM, access reviews), PrivEsc (privilegios Windows, caps Linux), evasión SOC (BYOVD, AiTM, fileless), movimiento lateral y persistencia — con detección KQL/SPL/Sigma y remediación paso a paso. 100% offline.', tags: ['vulnerabilidades', 'vulnerability', 'iam', 'soc', 'ad', 'esc1', 'adcs', 'kerberoasting', 'golden ticket', 'pass-the-hash', 'dcsync', 'jwt', 'oauth', 'saml', 'cloud', 'aws', 'azure', 'gcp', 'snowflake', 'pim', 'jml', 'access review', 'byovd', 'aitm', 'privesc', 'persistence', 'evasion', 'lateral', 'hardening', 'kql', 'sigma'], pillars: ['SOC', 'IAM'] },
   // Ataques — dataset 100% offline (data/attacks/, 89 entradas).
   // Complementa a Vulnerabilidades SIN duplicarla: allí viven los fallos de
   // implementación y las técnicas de abuso AD/IAM (Kerberoasting, PtH,
   // tickets, delegaciones, ESC, escalada, lateral, persistencia, relay,
   // MFA fatigue, AiTM, SIM swap, Golden SAML); aquí SOLO lo que no se
   // repite. Tags ES/EN para máxima recall.
-  { id: 'ataques', name: 'Ataques (técnicas ofensivas)', cat: 'SECURITY', desc: 'Explorador de 102 técnicas de ataque de todo tipo SIN duplicar Vulnerabilidades: IAM/Identidad en lo que aquella no cubre (MS14-068, Bronze Bit, extracción SAM/NTDS.dit, recon AD con BloodHound, keylogging, phishing de código de dispositivo, robo de PRT, registro fraudulento de dispositivos, abuso de SCCM/Intune, AD Recycle Bin, inyección CSV), Red (MITM, ARP/DNS spoofing, DHCP starvation y rogue, MAC flooding, sniffing, port scanning, VLAN hopping, SSL stripping, evil twin, deauth, BGP hijack, KRACK, Bluetooth, mitm6, bypass de 802.1X, enumeración DNS, envenenamiento de routing interior), DoS/DDoS (SYN flood, amplificación DNS/NTP/Memcached, slow HTTP, Rapid Reset, ReDoS), Web (SQLi, XSS, SSRF, XXE, deserialización, request smuggling, CRLF, HPP, GraphQL), ingeniería social (phishing, vishing, smishing, BEC, watering hole, deepfakes), malware/C2/exfil (ransomware, supply chain, infostealers, gusanos, beaconing, exfiltración) y escalada de privilegios (PrivEsc Windows/Linux), con cómo funciona, detección KQL/SPL/Sigma y mitigación paso a paso. Sinónimos como alias, nunca filas duplicadas. 100% offline.', tags: ['ataques', 'attacks', 'ataque', 'attack', 'técnicas', 'techniques', 'red team', 'offensive', 'iam', 'sccm', 'intune', 'prt', 'bloodhound', 'device code', 'csv injection', 'mitm', 'arp spoofing', 'dns spoofing', 'sniffing', 'port scanning', 'mac flooding', 'dhcp', 'mitm6', '802.1x', 'bgp', 'krack', 'dos', 'ddos', 'syn flood', 'amplificación', 'redos', 'sqli', 'xss', 'ssrf', 'smuggling', 'crlf', 'graphql', 'phishing', 'bec', 'deepfake', 'ransomware', 'supply chain', 'worms', 'c2', 'privesc', 'kql', 'sigma', 'mitre'], pillars: ['SOC'] },
+  { id: 'ataques', name: 'Ataques (técnicas ofensivas)', cat: 'SECURITY', desc: 'Explorador de 102 técnicas de ataque de todo tipo SIN duplicar Vulnerabilidades: IAM/Identidad en lo que aquella no cubre (MS14-068, Bronze Bit, extracción SAM/NTDS.dit, recon AD con BloodHound, keylogging, phishing de código de dispositivo, robo de PRT, registro fraudulento de dispositivos, abuso de SCCM/Intune, AD Recycle Bin, inyección CSV), Red (MITM, ARP/DNS spoofing, DHCP starvation y rogue, MAC flooding, sniffing, port scanning, VLAN hopping, SSL stripping, evil twin, deauth, BGP hijack, KRACK, Bluetooth, mitm6, bypass de 802.1X, enumeración DNS, envenenamiento de routing interior), DoS/DDoS (SYN flood, amplificación DNS/NTP/Memcached, slow HTTP, Rapid Reset, ReDoS), Web (SQLi, XSS, SSRF, XXE, deserialización, request smuggling, CRLF, HPP, GraphQL), ingeniería social (phishing, vishing, smishing, BEC, watering hole, deepfakes), malware/C2/exfil (ransomware, supply chain, infostealers, gusanos, beaconing, exfiltración) y escalada de privilegios (PrivEsc Windows/Linux), con cómo funciona, detección KQL/SPL/Sigma y mitigación paso a paso. Sinónimos como alias, nunca filas duplicadas. 100% offline.', tags: ['ataques', 'attacks', 'ataque', 'attack', 'técnicas', 'techniques', 'red team', 'offensive', 'iam', 'sccm', 'intune', 'prt', 'bloodhound', 'device code', 'csv injection', 'mitm', 'arp spoofing', 'dns spoofing', 'sniffing', 'port scanning', 'mac flooding', 'dhcp', 'mitm6', '802.1x', 'bgp', 'krack', 'dos', 'ddos', 'syn flood', 'amplificación', 'redos', 'sqli', 'xss', 'ssrf', 'smuggling', 'crlf', 'graphql', 'phishing', 'bec', 'deepfake', 'ransomware', 'supply chain', 'worms', 'c2', 'privesc', 'kql', 'sigma', 'mitre'], pillars: ['SOC', 'IAM'] },
   // ---------------- HELPDESK (V6 FASE 3) ----------------
   // Tools L1/L2 de Service Desk que siguen en el catálogo: todas son
   // INTERACTIVAS reales (parser, simulador o generador). 100% offline.
@@ -142,7 +146,7 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
     id: 'hd-kb-gen',
     name: 'KB Article Generator',
     cat: 'HELPDESK',
-    desc: 'Generador de artículos de base de conocimiento: formulario con pasos dinámicos y comandos → vista previa en vivo + salida Markdown exportable a Notas y Data & Intel.',
+    desc: 'Generador de artículos de base de conocimiento: formulario con pasos dinámicos y comandos → vista previa en vivo + salida Markdown exportable a Notas.',
     tags: ['kb', 'knowledge base', 'base de conocimiento', 'artículo', 'documentación', 'generator', 'markdown', 'runbook', 'itsm', 'helpdesk', 'service desk', 'documentar'],
     pillars: ['HELPDESK'],
   },

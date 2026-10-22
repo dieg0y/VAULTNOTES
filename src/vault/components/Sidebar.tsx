@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench,
-  Bookmark, Inbox, Database, IdCard, Map as RoadmapIcon, Headset, GraduationCap, LifeBuoy, Zap,
-  Server, Milestone, Shield, ShieldAlert, GitBranch,
+  Bookmark, Inbox, IdCard, Map as RoadmapIcon, Headset, GraduationCap, LifeBuoy,
+  Server, Milestone, Shield, ShieldAlert, GitBranch, Fingerprint, ChevronDown,
 } from 'lucide-react';
-// V9 — conteos estáticos de los datasets por pilar (badges del sidebar).
-// PERF (optimización de arranque): los 9 datasets por pilar suman ~1.9MB de
+// V11 — conteos estáticos de los datasets por pilar (badges del sidebar).
+// PERF (optimización de arranque): los datasets por pilar pesan ~2.4MB de
 // código fuente; importarlos estáticamente SOLO para los números de los
 // badges los metía en el chunk del shell y bloqueaba el primer render.
 // Ahora se cargan post-paint con import() dinámico (mismos chunks que ya
@@ -18,21 +18,19 @@ interface PillarCounts {
   runbooksHd: number;
   runbooksSa: number;
   runbooksSoc: number;
-  cheatHd: number;
-  cheatSa: number;
-  cheatSoc: number;
+  runbooksIam: number;
   tsHd: number;
   tsSa: number;
   tsSoc: number;
+  tsIam: number;
 }
 const PILLAR_COUNTS_ZERO: PillarCounts = {
-  runbooksHd: 0, runbooksSa: 0, runbooksSoc: 0,
-  cheatHd: 0, cheatSa: 0, cheatSoc: 0,
-  tsHd: 0, tsSa: 0, tsSoc: 0,
+  runbooksHd: 0, runbooksSa: 0, runbooksSoc: 0, runbooksIam: 0,
+  tsHd: 0, tsSa: 0, tsSoc: 0, tsIam: 0,
 };
 import { ActiveSection } from '../types';
 import { db } from '../db';
-import { useIsOnline } from '../integrations/online';
+import { useSidebarLayoutStore } from '../store/sidebarLayoutStore';
 
 interface SidebarProps {
   activeSection: ActiveSection;
@@ -48,20 +46,16 @@ interface SidebarProps {
 }
 
 /* ------------------------------------------------------------------ */
-/* FASE 2 (V6) — REORG ANTI-CAOS + v21 (SYSADMIN)                      */
-/* El sidebar se agrupa con títulos para dejar de ser una lista plana.  */
-/* v21 añade el grupo "SysAdmin / Infra" (simulador de guardia) tras    */
-/* Service Desk y "Roadmap SysAdmin" en Carrera junto a los demás       */
-/* roadmaps. Orden por grupos:                                          */
-/*   CONOCIMIENTO : Apuntes · Glosario (+ Inbox)                        */
-/*   LABORATORIO  : Labs · Generar Blog · Herramientas ·                */
-/*                  Troubleshooting & Runbooks                         */
-/*   SERVICE DESK : Service Desk (simulador) · CheatSheet ·             */
-/*                  Data & Intel                                        */
-/*   SYSADMIN     : SysAdmin Ops (simulador de Infra)                   */
-/*   CARRERA      : Referencias · Roadmap IAM · Roadmap HelpDesk ·      */
-/*                  Roadmap SysAdmin · Perfil · Dashboard               */
-/*   Pie          : Papelera · Configuración · estado online            */
+/* V11 — REORG POR USUARIO + 4 PILARES                                 */
+/*   · El usuario puede ARRASTRAR apartados y grupos enteros           */
+/*     (orden persistido en sidebarLayoutStore) y PLEGAR/DESPLEGAR     */
+/*     grupos con un clic.                                             */
+/*   · Orden por defecto: HERRAMIENTAS (catálogo unificado, arriba     */
+/*     del todo) → Global Knowledge → Pilar 1 IAM → Pilar 2 SOC →     */
+/*     Pilar 3 Service Desk → Pilar 4 SysAdmin → Career + System.      */
+/*   · Cada pilar: simulador, roadmap, Troubleshooting y Runbooks      */
+/*     (el CheatSheet se fusionó dentro de Runbooks en V11).          */
+/*   · Pie: Papelera · Configuración · badge estático Local-first.     */
 /* ------------------------------------------------------------------ */
 
 interface NavItemDef {
@@ -76,6 +70,8 @@ interface NavItemDef {
 }
 
 interface NavGroupDef {
+  /** Id estable del grupo (clave del orden persistido). */
+  id: string;
   label: string;
   items: NavItemDef[];
 }
@@ -109,13 +105,31 @@ const NavButton: React.FC<{
   </button>
 );
 
-/** Título de grupo con separadores (FASE 2: grupos con títulos). */
-const GroupLabel: React.FC<{ label: string }> = ({ label }) => (
-  <div className="flex items-center gap-2 pt-3 pb-1 px-3 select-none" aria-hidden="true">
-    <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#4a4a4a]">{label}</span>
-    <span className="flex-1 h-px bg-[#1d1d1d]" />
-  </div>
-);
+/* ------------------------------------------------------------------ */
+/* Drag & drop (HTML5 nativo — cero dependencias)                       */
+/* ------------------------------------------------------------------ */
+
+type DragPayload =
+  | { kind: 'item'; id: string; groupId: string }
+  | { kind: 'group'; id: string };
+
+/** Reconcilia un orden persistido contra los valores por defecto:
+ *  los ids conocidos se ordenan como el usuario pidió; los NUEVOS que no
+ *  estén en el orden guardado se agregan al final (nunca se pierden). */
+function reconcile<T>(defaults: T[], order: string[] | undefined, keyOf: (t: T) => string): T[] {
+  if (!order || order.length === 0) return defaults;
+  const byKey = new Map(defaults.map((d) => [keyOf(d), d] as const));
+  const out: T[] = [];
+  for (const k of order) {
+    const d = byKey.get(k);
+    if (d) {
+      out.push(d);
+      byKey.delete(k);
+    }
+  }
+  for (const d of defaults) if (byKey.has(keyOf(d))) out.push(d);
+  return out;
+}
 
 // PERFORMANCE (cleanup pass): App subscribes to 7 live queries — every DB
 // write (e.g. each autosave flush) re-renders the whole tree. memo + stable
@@ -141,7 +155,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
     0
   ) || 0;
 
-  // ROADMAP (v18) — progreso del checklist para el badge de la sección.
+  // ROADMAP (v18) — progreso del checklist IAM para el badge de su sección.
   const roadmapRows = useLiveQuery(() => db.roadmapItems.toArray(), [], []);
   const roadmapPct =
     roadmapRows.length > 0
@@ -190,36 +204,42 @@ const SidebarBase: React.FC<SidebarProps> = ({
       ? Math.round((roadmapSocRows.filter((r) => r.done).length / roadmapSocRows.length) * 100)
       : 0;
 
-  // V9 — conteos por pilar cargados post-paint (ver nota en la cabecera):
-  // import() dinámico de los 9 datasets SOLO para los badges, después del
+  // IAM (V11 · PILAR 1) — tickets abiertos del simulador IAM (badge).
+  const iamOpenCount =
+    useLiveQuery(
+      () => db.iamTickets.filter((t) => !t.isDeleted && (t.status === 'nuevo' || t.status === 'en_progreso')).count(),
+      [],
+      0
+    ) || 0;
+
+  // V11 — conteos por pilar cargados post-paint (ver nota en la cabecera):
+  // import() dinámico de los 8 datasets SOLO para los badges, después del
   // primer render. No bloquea el shell y deduplica con el warm-up de la
   // búsqueda global (requestIdleCallback) que carga los mismos chunks.
   const [pillarCounts, setPillarCounts] = useState<PillarCounts>(PILLAR_COUNTS_ZERO);
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [rbHd, rbSa, rbSoc, csHd, csSa, csSoc, tsHd, tsSa, tsSoc] = await Promise.all([
+      const [rbHd, rbSa, rbSoc, rbIam, tsHd, tsSa, tsSoc, tsIam] = await Promise.all([
         import('../data/runbooksHelpDesk'),
         import('../data/runbooksSysAdmin'),
         import('../data/runbooksSoc'),
-        import('../data/serviceDeskCheatSheet'),
-        import('../data/sysadminCheatSheet'),
-        import('../data/socCheatSheet'),
+        import('../data/runbooksIam'),
         import('../data/troubleshootingHelpDesk'),
         import('../data/troubleshootingSysAdmin'),
         import('../data/troubleshootingSoc'),
+        import('../data/troubleshootingIam'),
       ]);
       if (!alive) return;
       setPillarCounts({
         runbooksHd: rbHd.RUNBOOKS_HD_COUNT,
         runbooksSa: rbSa.RUNBOOKS_SA_COUNT,
         runbooksSoc: rbSoc.RUNBOOKS_SOC_COUNT,
-        cheatHd: csHd.CHEATSHEET_COUNT,
-        cheatSa: csSa.SYSADMIN_CHEATSHEET_COUNT,
-        cheatSoc: csSoc.SOC_CHEATSHEET_COUNT,
+        runbooksIam: rbIam.RUNBOOKS_IAM_COUNT,
         tsHd: tsHd.TROUBLESHOOTING_HD_COUNT,
         tsSa: tsSa.TROUBLESHOOTING_SA_COUNT,
         tsSoc: tsSoc.TROUBLESHOOTING_SOC_COUNT,
+        tsIam: tsIam.TROUBLESHOOTING_IAM_COUNT,
       });
     })().catch(() => {
       // Sin badges no hay pérdida funcional: las vistas siempre muestran
@@ -228,17 +248,31 @@ const SidebarBase: React.FC<SidebarProps> = ({
     return () => { alive = false; };
   }, []);
 
-  // Block 6 — Online-Optional: reads navigator.onLine via window online/offline
-  // events. NO network probe, NO periodic fetch. Purely visual state.
-  const online = useIsOnline();
+  // V11 — layout del usuario (orden de grupos/items + plegado), persistido.
+  const groupOrder = useSidebarLayoutStore((s) => s.groupOrder);
+  const itemOrder = useSidebarLayoutStore((s) => s.itemOrder);
+  const collapsedMap = useSidebarLayoutStore((s) => s.collapsed);
+  const setGroupOrder = useSidebarLayoutStore((s) => s.setGroupOrder);
+  const setItemOrder = useSidebarLayoutStore((s) => s.setItemOrder);
+  const toggleCollapsed = useSidebarLayoutStore((s) => s.toggleCollapsed);
 
-  // ORDEN EXACTO (V9 — 3 PILARES) — declarado una sola vez, por grupos.
-  // GLOBAL KNOWLEDGE → GLOBAL CAREER CORE (IAM) → PILAR 1/2/3 →
-  // GLOBAL CAREER + SYSTEM (Perfil ARRIBA de Dashboard). Cada pilar tiene
-  // su simulador/roadmap + Herramientas + Troubleshooting + CheatSheet +
-  // Runbooks.
-  const groups: NavGroupDef[] = [
+  // ORDEN POR DEFECTO (V11 — 4 pilares + herramientas unificadas arriba).
+  // Declarado aquí (no módulo) para usar los conteos live de los badges.
+  const defaultGroups: NavGroupDef[] = [
     {
+      id: 'tools',
+      label: 'Herramientas',
+      items: [
+        {
+          section: 'tools',
+          label: 'Herramientas',
+          icon: <Wrench className={SIDEBAR_ICON} />,
+          title: 'Catálogo unificado: cada tool aparece UNA vez, etiquetada con su rol (IAM / SOC / Service Desk / SysAdmin / Global)',
+        },
+      ],
+    },
+    {
+      id: 'global',
       label: 'Global Knowledge',
       items: [
         { section: 'notes', label: 'Apuntes', icon: <FileText className={SIDEBAR_ICON} />, badge: notesCount },
@@ -254,17 +288,20 @@ const SidebarBase: React.FC<SidebarProps> = ({
         { section: 'labs', label: 'Labs', icon: <FlaskConical className={SIDEBAR_ICON} />, badge: labsCount, title: 'Sin labs — tú decides qué hacer después (vacío intencional desde V9)' },
         { section: 'blog', label: 'Blog', icon: <FileCode className={SIDEBAR_ICON} /> },
         { section: 'references', label: 'Referencias', icon: <Bookmark className={SIDEBAR_ICON} /> },
-        {
-          section: 'data-intel',
-          label: 'Data & Intel',
-          icon: <Database className={SIDEBAR_ICON} />,
-          title: 'Sincronización de datasets + estado de integraciones + actividad online',
-        },
       ],
     },
     {
-      label: 'Career Core',
+      id: 'iam',
+      label: 'Pilar 1 · IAM',
       items: [
+        {
+          section: 'iam',
+          label: 'Simulador IAM',
+          icon: <Fingerprint className={SIDEBAR_ICON} />,
+          title: 'Simulador del equipo IAM de Nexora: cola de tickets (JML · Access · PAM · Gobernanza · Infra IAM), Semana de Access Review y KB',
+          badge: iamOpenCount,
+          badgeClass: 'text-amber-400/90',
+        },
         {
           section: 'roadmap',
           label: 'Roadmap IAM',
@@ -273,106 +310,25 @@ const SidebarBase: React.FC<SidebarProps> = ({
           badge: roadmapPct,
           badgeClass: roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]',
         },
-      ],
-    },
-    {
-      label: 'Pilar 1 · Service Desk',
-      items: [
         {
-          section: 'helpdesk',
-          label: 'Service Desk',
-          icon: <Headset className={SIDEBAR_ICON} />,
-          title: 'Simulador L1: trabaja la cola de tickets de Nexora, el proyecto final y la KB',
-          badge: hdOpenCount,
-          badgeClass: 'text-amber-400/90',
-        },
-        {
-          section: 'roadmap-hd',
-          label: 'Roadmap HelpDesk',
-          icon: <GraduationCap className={SIDEBAR_ICON} />,
-          title: 'Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)',
-          badge: roadmapHdPct,
-          badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]',
-        },
-        {
-          section: 'tools-hd',
-          label: 'Herramientas',
-          icon: <Wrench className={SIDEBAR_ICON} />,
-          title: 'Herramientas del pilar Service Desk (parsers, simuladores, generadores)',
-        },
-        {
-          section: 'troubleshooting-hd',
+          section: 'troubleshooting-iam',
           label: 'Troubleshooting',
           icon: <GitBranch className={SIDEBAR_ICON} />,
-          title: 'Escaleras de decisión: Problema → Síntoma → Check → Resultado → Siguiente acción',
-          badge: pillarCounts.tsHd,
+          title: 'Escaleras de decisión IAM: Problema → Síntoma → Check → Resultado → Siguiente acción',
+          badge: pillarCounts.tsIam,
         },
         {
-          section: 'cheatsheet-hd',
-          label: 'CheatSheet',
-          icon: <Zap className={SIDEBAR_ICON} />,
-          title: 'Los fixes top de L1/L2 al instante: sin input, buscador fuzzy, 100% offline',
-          badge: pillarCounts.cheatHd,
-        },
-        {
-          section: 'runbooks-hd',
+          section: 'runbooks-iam',
           label: 'Runbooks',
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
-          title: 'Runbooks completos: ticket real + paso a paso universal + respuesta en inglés copiable',
-          badge: pillarCounts.runbooksHd,
+          title: 'Runbooks IAM: JML, Access, PAM y Gobernanza — paso a paso universal + respuesta en inglés copiable',
+          badge: pillarCounts.runbooksIam,
         },
       ],
     },
     {
-      label: 'Pilar 2 · SysAdmin Ops',
-      items: [
-        {
-          section: 'sysadmin',
-          label: 'SysAdmin Ops',
-          icon: <Server className={SIDEBAR_ICON} />,
-          title: 'Simulador de guardia: trabaja la cola de tickets de Infraestructura de Nexora (Linux, Windows Server, red, storage, VM), la semana de guardia y la KB',
-          badge: saOpenCount,
-          badgeClass: 'text-amber-400/90',
-        },
-        {
-          section: 'roadmap-sa',
-          label: 'Roadmap SysAdmin',
-          icon: <Milestone className={SIDEBAR_ICON} />,
-          title: 'Checklist del roadmap SysAdmin / Infra & Ops → SRE (Tier 1-3 + semana de guardia de 30 tickets)',
-          badge: roadmapSaPct,
-          badgeClass: roadmapSaPct > 0 ? 'text-emerald-400' : 'text-[#555]',
-        },
-        {
-          section: 'tools-sa',
-          label: 'Herramientas',
-          icon: <Wrench className={SIDEBAR_ICON} />,
-          title: 'Herramientas del pilar SysAdmin Ops (systemd, RAID, LVM, cron builder, firewall, capacity)',
-        },
-        {
-          section: 'troubleshooting-sa',
-          label: 'Troubleshooting',
-          icon: <GitBranch className={SIDEBAR_ICON} />,
-          title: 'Escaleras de decisión de infra: Problema → Síntoma → Check → Resultado → Siguiente acción',
-          badge: pillarCounts.tsSa,
-        },
-        {
-          section: 'cheatsheet-sa',
-          label: 'CheatSheet',
-          icon: <Zap className={SIDEBAR_ICON} />,
-          title: 'Fixes de infra al instante: AD, DNS, DHCP, GPO, backup, Hyper-V… 100% offline',
-          badge: pillarCounts.cheatSa,
-        },
-        {
-          section: 'runbooks-sa',
-          label: 'Runbooks',
-          icon: <LifeBuoy className={SIDEBAR_ICON} />,
-          title: 'Runbooks de infra con ticket real + paso a paso universal + respuesta en inglés copiable',
-          badge: pillarCounts.runbooksSa,
-        },
-      ],
-    },
-    {
-      label: 'Pilar 3 · SOC / Blue Team',
+      id: 'soc',
+      label: 'Pilar 2 · SOC / Blue Team',
       items: [
         {
           section: 'soc',
@@ -391,12 +347,6 @@ const SidebarBase: React.FC<SidebarProps> = ({
           badgeClass: roadmapSocPct > 0 ? 'text-emerald-400' : 'text-[#555]',
         },
         {
-          section: 'tools-soc',
-          label: 'Herramientas',
-          icon: <Wrench className={SIDEBAR_ICON} />,
-          title: 'Herramientas del pilar SOC: MITRE, Sigma, KQL/SPL, Event IDs, IoC + guías de Sentinel/Splunk/Wireshark/Sysmon/Defender/sandbox/TheHive',
-        },
-        {
           section: 'troubleshooting-soc',
           label: 'Troubleshooting',
           icon: <GitBranch className={SIDEBAR_ICON} />,
@@ -404,22 +354,88 @@ const SidebarBase: React.FC<SidebarProps> = ({
           badge: pillarCounts.tsSoc,
         },
         {
-          section: 'cheatsheet-soc',
-          label: 'CheatSheet',
-          icon: <Zap className={SIDEBAR_ICON} />,
-          title: 'Fixes de detección y respuesta al instante: phishing, spray, EDR, KQL… 100% offline',
-          badge: pillarCounts.cheatSoc,
-        },
-        {
           section: 'runbooks-soc',
           label: 'Runbooks',
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
-          title: 'Runbooks SOC: Detection → Investigation → Evidence → Containment → Remediation → Verification → Escalation',
+          title: 'Runbooks SOC: Detection → Investigation → Evidence → Containment → Remediation → Verification → Escalation (incluye los quick-fixes ex-CheatSheet)',
           badge: pillarCounts.runbooksSoc,
         },
       ],
     },
     {
+      id: 'hd',
+      label: 'Pilar 3 · Service Desk',
+      items: [
+        {
+          section: 'helpdesk',
+          label: 'Service Desk',
+          icon: <Headset className={SIDEBAR_ICON} />,
+          title: 'Simulador L1: trabaja la cola de tickets de Nexora, el proyecto final y la KB',
+          badge: hdOpenCount,
+          badgeClass: 'text-amber-400/90',
+        },
+        {
+          section: 'roadmap-hd',
+          label: 'Roadmap HelpDesk',
+          icon: <GraduationCap className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)',
+          badge: roadmapHdPct,
+          badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+        },
+        {
+          section: 'troubleshooting-hd',
+          label: 'Troubleshooting',
+          icon: <GitBranch className={SIDEBAR_ICON} />,
+          title: 'Escaleras de decisión: Problema → Síntoma → Check → Resultado → Siguiente acción',
+          badge: pillarCounts.tsHd,
+        },
+        {
+          section: 'runbooks-hd',
+          label: 'Runbooks',
+          icon: <LifeBuoy className={SIDEBAR_ICON} />,
+          title: 'Runbooks completos: ticket real + paso a paso universal + respuesta en inglés copiable (incluye los quick-fixes ex-CheatSheet)',
+          badge: pillarCounts.runbooksHd,
+        },
+      ],
+    },
+    {
+      id: 'sa',
+      label: 'Pilar 4 · SysAdmin Ops',
+      items: [
+        {
+          section: 'sysadmin',
+          label: 'SysAdmin Ops',
+          icon: <Server className={SIDEBAR_ICON} />,
+          title: 'Simulador de guardia: trabaja la cola de tickets de Infraestructura de Nexora (Linux, Windows Server, red, storage, VM), la semana de guardia y la KB',
+          badge: saOpenCount,
+          badgeClass: 'text-amber-400/90',
+        },
+        {
+          section: 'roadmap-sa',
+          label: 'Roadmap SysAdmin',
+          icon: <Milestone className={SIDEBAR_ICON} />,
+          title: 'Checklist del roadmap SysAdmin / Infra & Ops → SRE (Tier 1-3 + semana de guardia de 30 tickets)',
+          badge: roadmapSaPct,
+          badgeClass: roadmapSaPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+        },
+        {
+          section: 'troubleshooting-sa',
+          label: 'Troubleshooting',
+          icon: <GitBranch className={SIDEBAR_ICON} />,
+          title: 'Escaleras de decisión de infra: Problema → Síntoma → Check → Resultado → Siguiente acción',
+          badge: pillarCounts.tsSa,
+        },
+        {
+          section: 'runbooks-sa',
+          label: 'Runbooks',
+          icon: <LifeBuoy className={SIDEBAR_ICON} />,
+          title: 'Runbooks de infra con ticket real + paso a paso universal + respuesta en inglés copiable (incluye los quick-fixes ex-CheatSheet)',
+          badge: pillarCounts.runbooksSa,
+        },
+      ],
+    },
+    {
+      id: 'career',
       label: 'Career + System',
       items: [
         {
@@ -432,6 +448,114 @@ const SidebarBase: React.FC<SidebarProps> = ({
       ],
     },
   ];
+
+  // V11 — orden mostrado = orden del usuario reconciliado con los defaults.
+  const groups = React.useMemo(() => {
+    const ordered = reconcile(defaultGroups, groupOrder.length > 0 ? groupOrder : undefined, (g) => g.id);
+    return ordered.map((g) => ({
+      ...g,
+      items: reconcile(g.items, itemOrder[g.id], (i) => i.section),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupOrder, itemOrder, notesCount, labsCount, glossaryCount, trashCount, inboxCount, roadmapPct, hdOpenCount, roadmapHdPct, saOpenCount, roadmapSaPct, socOpenCount, roadmapSocPct, iamOpenCount, pillarCounts]);
+
+  // ---- Drag & drop state (HTML5 nativo, sin dependencias) ----
+  const dragPayload = useRef<DragPayload | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+
+  const handleItemDrop = (targetGroupId: string, targetSection: string, before: boolean) => {
+    const drag = dragPayload.current;
+    setDragOverKey(null);
+    setDraggingKey(null);
+    if (!drag || drag.kind !== 'item') return;
+    if (drag.id === targetSection && drag.groupId === targetGroupId) return;
+    const srcGroup = groups.find((g) => g.id === drag.groupId);
+    const dstGroup = groups.find((g) => g.id === targetGroupId);
+    if (!srcGroup || !dstGroup) return;
+    const srcSections: string[] = srcGroup.items.map((i) => i.section).filter((s) => s !== drag.id);
+    if (drag.groupId === targetGroupId) {
+      const idx = srcSections.indexOf(targetSection);
+      srcSections.splice(before ? idx : idx + 1, 0, drag.id);
+      setItemOrder(targetGroupId, srcSections);
+    } else {
+      const dstSections: string[] = dstGroup.items.map((i) => i.section);
+      const idx = dstSections.indexOf(targetSection);
+      dstSections.splice(before ? idx : idx + 1, 0, drag.id);
+      setItemOrder(drag.groupId, srcSections);
+      setItemOrder(targetGroupId, dstSections);
+    }
+  };
+
+  const handleGroupDrop = (targetGroupId: string) => {
+    const drag = dragPayload.current;
+    setDragOverKey(null);
+    setDraggingKey(null);
+    if (!drag) return;
+    if (drag.kind === 'group') {
+      if (drag.id === targetGroupId) return;
+      const order = groups.map((g) => g.id);
+      const from = order.indexOf(drag.id);
+      const to = order.indexOf(targetGroupId);
+      if (from === -1 || to === -1) return;
+      order.splice(from, 1);
+      order.splice(to, 0, drag.id);
+      setGroupOrder(order);
+    } else {
+      // Item sobre el header de un grupo → moverlo a la PRIMERA posición.
+      if (drag.groupId === targetGroupId) return;
+      const srcGroup = groups.find((g) => g.id === drag.groupId);
+      const dstGroup = groups.find((g) => g.id === targetGroupId);
+      if (!srcGroup || !dstGroup) return;
+      setItemOrder(drag.groupId, srcGroup.items.map((i) => i.section).filter((s) => s !== drag.id));
+      setItemOrder(targetGroupId, [drag.id, ...dstGroup.items.map((i) => i.section)]);
+    }
+  };
+
+  /** Header de grupo — clic plega/despliega; arrastre reordena el grupo. */
+  const renderGroupHeader = (g: NavGroupDef, isCollapsed: boolean, itemCount: number) => {
+    const isDragOver = dragOverKey === `grp/${g.id}`;
+    const isDragging = draggingKey === `grp/${g.id}`;
+    return (
+      <div
+        draggable
+        onDragStart={(e) => {
+          dragPayload.current = { kind: 'group', id: g.id };
+          setDraggingKey(`grp/${g.id}`);
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', g.id); } catch { /* Safari privado */ }
+        }}
+        onDragEnd={() => { dragPayload.current = null; setDraggingKey(null); setDragOverKey(null); }}
+        onDragOver={(e) => {
+          if (!dragPayload.current) return;
+          e.preventDefault();
+          setDragOverKey(`grp/${g.id}`);
+        }}
+        onDrop={(e) => { e.preventDefault(); handleGroupDrop(g.id); }}
+        className={`flex items-center gap-2 pt-3 pb-1 px-3 select-none ${isDragging ? 'opacity-40' : ''} ${
+          isDragOver ? 'shadow-[inset_0_2px_0_0_rgba(96,165,250,0.9)] rounded-t' : ''
+        }`}
+        title="Clic: plegar/desplegar · Arrastra: mover el grupo"
+      >
+        <button
+          type="button"
+          onClick={() => toggleCollapsed(g.id)}
+          aria-expanded={!isCollapsed}
+          aria-label={isCollapsed ? `Desplegar grupo ${g.label}` : `Plegar grupo ${g.label}`}
+          className="flex items-center gap-1.5 min-w-0 text-left cursor-pointer"
+        >
+          <ChevronDown className={`w-3 h-3 text-[#4a4a4a] transition-transform shrink-0 ${isCollapsed ? '-rotate-90' : ''}`} />
+          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#4a4a4a]">{g.label}</span>
+        </button>
+        {isCollapsed && (
+          <span className="text-[9px] font-mono text-[#555] shrink-0" title={`${itemCount} apartados`}>
+            {itemCount}
+          </span>
+        )}
+        <span className="flex-1 h-px bg-[#1d1d1d]" />
+      </div>
+    );
+  };
 
   // Contenido compartido entre el sidebar de escritorio y el drawer móvil.
   const sidebarContent = (
@@ -453,20 +577,64 @@ const SidebarBase: React.FC<SidebarProps> = ({
           <span className="font-semibold text-sm tracking-tight text-white">VAULT</span>
         </div>
 
-        {/* Grouped navigation (FASE 2 — orden exacto, grupos con separadores) */}
+        {/* Grouped navigation (V11 — orden del usuario, grupos plegables) */}
         <nav className="p-3 pt-1 flex flex-col gap-0.5" aria-label="Navegación principal">
-          {groups.map((g) => (
-            <div key={g.label} className="flex flex-col gap-0.5">
-              <GroupLabel label={g.label} />
-              {g.items.map((item) => (
-                <NavButton key={item.section} def={item} activeSection={activeSection} onSelectSection={onSelectSection} />
-              ))}
-            </div>
-          ))}
+          {groups.map((g) => {
+            const isCollapsed = collapsedMap[g.id] === true;
+            // El grupo que contiene la sección activa SIEMPRE se revela
+            // (el plegado persiste, pero nunca esconde dónde estás).
+            const showItems = !isCollapsed || g.items.some((i) => i.section === activeSection);
+            return (
+              <div key={g.id} className="flex flex-col gap-0.5">
+                {renderGroupHeader(g, isCollapsed, g.items.length)}
+                {showItems &&
+                  g.items.map((item) => {
+                    const beforeKey = `${g.id}/${item.section}/b`;
+                    const afterKey = `${g.id}/${item.section}/a`;
+                    const indicator =
+                      dragOverKey === beforeKey
+                        ? 'shadow-[0_-2px_0_0_rgba(96,165,250,0.9)]'
+                        : dragOverKey === afterKey
+                          ? 'shadow-[0_2px_0_0_rgba(96,165,250,0.9)]'
+                          : '';
+                    return (
+                      <div
+                        key={item.section}
+                        draggable
+                        onDragStart={(e) => {
+                          dragPayload.current = { kind: 'item', id: item.section, groupId: g.id };
+                          setDraggingKey(`item/${item.section}`);
+                          e.dataTransfer.effectAllowed = 'move';
+                          try { e.dataTransfer.setData('text/plain', item.section); } catch { /* Safari privado */ }
+                        }}
+                        onDragEnd={() => { dragPayload.current = null; setDraggingKey(null); setDragOverKey(null); }}
+                        onDragOver={(e) => {
+                          if (!dragPayload.current) return;
+                          e.preventDefault();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          const before = e.clientY < r.top + r.height / 2;
+                          setDragOverKey(before ? beforeKey : afterKey);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          const before = e.clientY < r.top + r.height / 2;
+                          handleItemDrop(g.id, item.section, before);
+                        }}
+                        className={`rounded-md ${indicator} ${draggingKey === `item/${item.section}` ? 'opacity-40' : ''}`}
+                        title={item.title ? `${item.title} · (arrastra para mover)` : 'Arrastra para mover de sitio'}
+                      >
+                        <NavButton def={item} activeSection={activeSection} onSelectSection={onSelectSection} />
+                      </div>
+                    );
+                  })}
+              </div>
+            );
+          })}
         </nav>
       </div>
 
-      {/* Bottom navigation: Papelera · Configuración · estado online */}
+      {/* Bottom navigation: Papelera · Configuración · badge estático */}
       <div className="p-3 border-t border-[#262626] flex flex-col gap-1.5">
         <button
           onClick={() => onSelectSection('trash')}
@@ -499,28 +667,16 @@ const SidebarBase: React.FC<SidebarProps> = ({
           </span>
         </button>
 
-        {/* Connectivity state badge (Block 6 — Online-Optional).
-            Reads navigator.onLine via useIsOnline() — no fetch, no probe.
-            Replaces the static "100% Offline" badge from Block 5 with a real
-            reflection of the browser's connectivity state. Local-first
-            always works; online enrichment is the only thing gated by this. */}
+        {/* Badge estático Local-first (V11): con la retirada de Data & Intel
+            y el threat intel, el indicador dinámico online/offline se retira —
+            la app vuelve a ser 100% offline-first por diseño. */}
         <div
           className="px-3 py-1.5 rounded bg-[#161616] border border-[#262626] flex items-center justify-between text-[10px] text-[#888]"
-          title={
-            online
-              ? 'Online: local tools + online enrichment available'
-              : 'Offline: local only — Notes ✓, Search ✓, MITRE ✓, Sigma ✓ · Online enrichment ✕ (disabled)'
-          }
+          title="Tus datos viven en IndexedDB (tu navegador). Backups ZIP para llevar tus datos a otra máquina."
         >
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <span
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                online ? 'bg-green-400' : 'bg-amber-400 animate-pulse'
-              }`}
-            />
-            <span className="truncate">
-              {online ? 'Online · Local-first' : 'Offline · Local-only'}
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-green-400" />
+            <span className="truncate">Local-first · 100% Offline</span>
           </div>
           <span className="font-mono text-[9px] text-[#555] shrink-0 ml-2">Dexie</span>
         </div>

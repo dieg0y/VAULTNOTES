@@ -8,6 +8,7 @@ import { type PillarTroubleshooting, type DecisionCheck } from '../data/troubles
 import { TROUBLESHOOTING_HD, TROUBLESHOOTING_HD_COUNT, TROUBLESHOOTING_HD_CATEGORIES } from '../data/troubleshootingHelpDesk';
 import { TROUBLESHOOTING_SA, TROUBLESHOOTING_SA_COUNT, TROUBLESHOOTING_SA_CATEGORIES } from '../data/troubleshootingSysAdmin';
 import { TROUBLESHOOTING_SOC, TROUBLESHOOTING_SOC_COUNT, TROUBLESHOOTING_SOC_CATEGORIES } from '../data/troubleshootingSoc';
+import { TROUBLESHOOTING_IAM, TROUBLESHOOTING_IAM_COUNT, TROUBLESHOOTING_IAM_CATEGORIES } from '../data/troubleshootingIam';
 
 /**
  * TroubleshootingView (V9 FASE 9) — escaleras de decisión por pilar.
@@ -18,7 +19,7 @@ import { TROUBLESHOOTING_SOC, TROUBLESHOOTING_SOC_COUNT, TROUBLESHOOTING_SOC_CAT
  * Comandos de check copiables. 100% offline, dataset estático.
  */
 
-export type TroubleshootingViewPillar = 'hd' | 'sa' | 'soc';
+export type TroubleshootingViewPillar = 'hd' | 'sa' | 'soc' | 'iam';
 
 interface TroubleshootingViewProps {
   /** Qué pilar renderiza. */
@@ -85,6 +86,17 @@ const PILLAR_CONFIG: Record<TroubleshootingViewPillar, PillarConfig> = {
     accentBg: 'bg-emerald-500/10',
     accentBorder: 'border-emerald-500/20',
     accentRing: 'focus:border-emerald-500/40',
+  },
+  iam: {
+    label: 'Troubleshooting — IAM',
+    icon: <LifeBuoy className="w-5 h-5" />,
+    entries: TROUBLESHOOTING_IAM,
+    count: TROUBLESHOOTING_IAM_COUNT,
+    categories: TROUBLESHOOTING_IAM_CATEGORIES,
+    accentText: 'text-violet-400',
+    accentBg: 'bg-violet-500/10',
+    accentBorder: 'border-violet-500/20',
+    accentRing: 'focus:border-violet-500/40',
   },
 };
 

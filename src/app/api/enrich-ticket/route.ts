@@ -16,8 +16,7 @@ import ZAI from 'z-ai-web-dev-sdk';
  *    análisis offline local.
  *
  * El SDK vive AQUÍ (backend), nunca en cliente (regla del entorno).
- * Sin API key del usuario: el puente es el backend local de la propia app
- * (las keys cifradas de terceros siguen siendo exclusivas de Threat Intel).
+ * Sin API key del usuario: el puente es el backend local de la propia app.
  */
 
 const EnrichRequest = z.object({

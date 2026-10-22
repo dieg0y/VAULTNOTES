@@ -20,8 +20,8 @@
  *    ¿qué evidencia? ¿cuándo escalar? ¿qué decir al cliente / a L2?
  */
 
-/** Los 3 pilares autónomos de VaultNotes. */
-export type RunbookPillar = 'HELPDESK' | 'SYSADMIN' | 'SOC';
+/** Los 4 pilares autónomos de VaultNotes (V11: IAM pasa a ser Pilar 1). */
+export type RunbookPillar = 'HELPDESK' | 'SYSADMIN' | 'SOC' | 'IAM';
 
 /** Un paso del procedimiento universal — con comando copiable opcional. */
 export interface RunbookStep {

@@ -32,12 +32,6 @@ import type { ToolDeepLink } from './components/ToolsView';
 // (mismo módulo cacheado ⇒ instanceof de las clases de error sigue válido).
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
-// V6 FASE 4 — conteos estáticos para los badges del sidebar.
-// V9 — datasets estáticos por pilar (para el dispatch de deep-links).
-import { TOOLS_CATALOG, type ToolId } from './data/toolsCatalog';
-// DATA & INTEL (v16) — navigation bridge: tools can ask App to switch to the
-// data-intel section via useIntelStore.getState().requestNavigate().
-import { useIntelStore } from './store/intelStore';
 // HELPDESK (v19) — navigation bridge: el Dashboard/la KB pueden pedir abrir
 // la sección Service Desk (con ticket seleccionado vía helpdeskStore).
 import { useHelpdeskStore } from './store/helpdeskStore';
@@ -47,6 +41,9 @@ import { useSysadminStore } from './store/sysadminStore';
 // SOC (v9 simulador) — navigation bridge: espejo de los stores de los
 // otros dos simuladores (sección soc).
 import { useSocStore } from './store/socStore';
+// IAM (V11 · PILAR 1) — navigation bridge: espejo de los stores de los
+// otros simuladores (sección iam).
+import { useIamStore } from './store/iamStore';
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -85,17 +82,19 @@ const SysAdminView = dynamic(() => import('./components/SysAdminView').then((m) 
 // SOC (v9 simulador) — simulador del Blue Team: cola de casos con torre
 // de detección + proyecto final "primera semana SOC" + KB.
 const SocView = dynamic(() => import('./components/SocView').then((m) => m.SocView), { ssr: false, loading: ViewLoader });
+// IAM (V11 · PILAR 1) — simulador de Identity & Access Management (espejo
+// de los otros simuladores: cola de tickets + Semana de Access Review + KB).
+const IamView = dynamic(() => import('./components/IamView').then((m) => m.IamView), { ssr: false, loading: ViewLoader });
 const BlogView = dynamic(() => import('./components/BlogView').then((m) => m.BlogView), { ssr: false, loading: ViewLoader });
 const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.ToolsView), { ssr: false, loading: ViewLoader });
 const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
 const TrashView = dynamic(() => import('./components/TrashView').then((m) => m.TrashView), { ssr: false, loading: ViewLoader });
 const SettingsView = dynamic(() => import('./components/SettingsView').then((m) => m.SettingsView), { ssr: false, loading: ViewLoader });
 const InboxView = dynamic(() => import('./components/InboxView').then((m) => m.InboxView), { ssr: false, loading: ViewLoader });
-// BLOQUE 6 — Online-Optional. Data & Intelligence sync center view.
-const DataIntelView = dynamic(() => import('./components/DataIntelView').then((m) => m.DataIntelView), { ssr: false, loading: ViewLoader });
-// V6 FASE 4 — runbooks universales + cheatsheet (datasets estáticos, sin Dexie).
+// V6 FASE 4 — runbooks universales (datasets estáticos, sin Dexie).
+// V11 — el CheatSheet se fusionó dentro de Runbooks (el usuario prefiere
+// esa presentación): los quick-fixes ex-CS viven en los datasets RB-*.
 const RunbooksView = dynamic(() => import('./components/RunbooksView').then((m) => m.RunbooksView), { ssr: false, loading: ViewLoader });
-const CheatSheetView = dynamic(() => import('./components/CheatSheetView').then((m) => m.CheatSheetView), { ssr: false, loading: ViewLoader });
 // V9 — Troubleshooting por pilar (escaleras de decisión).
 const TroubleshootingView = dynamic(() => import('./components/TroubleshootingView').then((m) => m.TroubleshootingView), { ssr: false, loading: ViewLoader });
 
@@ -341,26 +340,14 @@ export default function App() {
   // Deep-link into the Tools view — when set, ToolsView switches the active
   // tool and auto-opens the entry matching `entryId`. Cleared after consumption.
   const [pendingTool, setPendingTool] = useState<ToolDeepLink | null>(null);
-  // V6 FASE 4 — deep-links de runbook/cheatsheet desde Ctrl+K (mismo patrón
-  // que pendingTool): la vista consume el id al montar y limpia el estado.
+  // V6 FASE 4 — deep-links de runbook desde Ctrl+K (mismo patrón que
+  // pendingTool): la vista consume el id al montar y limpia el estado.
   const [pendingRunbookId, setPendingRunbookId] = useState<string | null>(null);
-  const [pendingCheatSheetId, setPendingCheatSheetId] = useState<string | null>(null);
   // V9 — deep-links de guías de troubleshooting por pilar (TS-XX-NNN).
   const [pendingTroubleshootingId, setPendingTroubleshootingId] = useState<string | null>(null);
 
-  // DATA & INTEL (v16) — one-shot navigation request from any tool
-  // ("Enviar a Data & Intel" flows). Consumed immediately to avoid loops.
-  const intelNavigateRequest = useIntelStore((s) => s.navigateRequest);
-  const consumeIntelNavigate = useIntelStore((s) => s.consumeNavigate);
-  useEffect(() => {
-    if (intelNavigateRequest > 0) {
-      setActiveSection('data-intel');
-      consumeIntelNavigate();
-    }
-  }, [intelNavigateRequest, consumeIntelNavigate]);
-
   // HELPDESK (v19) — one-shot navigation request al Service Desk (deep-link
-  // de ticket desde el helpdeskStore). Mismo patrón que el de Data & Intel.
+  // de ticket desde el helpdeskStore).
   const hdNavigateRequest = useHelpdeskStore((s) => s.navigateRequest);
   const consumeHdNavigate = useHelpdeskStore((s) => s.consumeNavigate);
   useEffect(() => {
@@ -391,6 +378,17 @@ export default function App() {
       consumeSocNavigate();
     }
   }, [socNavigateRequest, consumeSocNavigate]);
+
+  // IAM (V11 · PILAR 1) — one-shot navigation request al simulador IAM
+  // (deep-link de ticket desde el iamStore). Espejo del patrón de los otros.
+  const iamNavigateRequest = useIamStore((s) => s.navigateRequest);
+  const consumeIamNavigate = useIamStore((s) => s.consumeNavigate);
+  useEffect(() => {
+    if (iamNavigateRequest > 0) {
+      setActiveSection('iam');
+      consumeIamNavigate();
+    }
+  }, [iamNavigateRequest, consumeIamNavigate]);
 
   // Set initial selected note if none selected (prefer a top-level note)
   useEffect(() => {
@@ -465,23 +463,23 @@ export default function App() {
       } else if (letter === 'i') {
         e.preventDefault();
         setPendingTool({ toolId: 'ioc', entryId: 'ioc' });
-        setActiveSection('tools-soc');
+        setActiveSection('tools');
       } else if (letter === 't') {
         e.preventDefault();
         setPendingTool({ toolId: 'timestamp', entryId: 'timestamp' });
-        setActiveSection('tools-hd');
+        setActiveSection('tools');
       } else if (letter === 'h') {
         e.preventDefault();
         setPendingTool({ toolId: 'hash', entryId: 'hash' });
-        setActiveSection('tools-sa');
+        setActiveSection('tools');
       } else if (letter === 'r') {
         e.preventDefault();
         setPendingTool({ toolId: 'regex', entryId: 'regex' });
-        setActiveSection('tools-soc');
+        setActiveSection('tools');
       } else if (letter === 'm') {
         e.preventDefault();
         setPendingTool({ toolId: 'mitre', entryId: 'mitre' });
-        setActiveSection('tools-soc');
+        setActiveSection('tools');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1060,11 +1058,8 @@ export default function App() {
       // BLOQUE 5 — record tool use when the user opens a tool from the
       // command palette (light metadata only: toolId + timestamp).
       setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
-      // V9 — abre la sección de herramientas del pilar que contiene el tool.
-      const cat = TOOLS_CATALOG.find((t) => t.id === (toolId as ToolId));
-      if (cat?.pillars?.includes('SYSADMIN')) setActiveSection('tools-sa');
-      else if (cat?.pillars?.includes('HELPDESK')) setActiveSection('tools-hd');
-      else setActiveSection('tools-soc');
+      // V11 — sección de herramientas UNIFICADA (un solo catálogo).
+      setActiveSection('tools');
     } else if (commandId === 'backup-now') {
       void handleExportBackup();
     } else if (commandId === 'import-backup') {
@@ -1176,10 +1171,7 @@ export default function App() {
               }}
               onOpenTool={(toolId) => {
                 setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
-                const cat = TOOLS_CATALOG.find((t) => t.id === (toolId as ToolId));
-                if (cat?.pillars?.includes('SYSADMIN')) setActiveSection('tools-sa');
-                else if (cat?.pillars?.includes('HELPDESK')) setActiveSection('tools-hd');
-                else setActiveSection('tools-soc');
+                setActiveSection('tools');
               }}
             />
           )}
@@ -1303,19 +1295,31 @@ export default function App() {
             />
           )}
 
+          {/* IAM (V11 · PILAR 1) — Simulador de Identity & Access Management:
+              cola de tickets por torre (JML/Access/PAM/Gobernanza/Infra IAM),
+              modo estudio (revelado progresivo), proyecto final "Semana de
+              Access Review" (10 tickets, 2 por día × 5 días) y KB enlazada.
+              El flujo de estados y las notas de cierre persisten en
+              db.iamTickets. */}
+          {activeSection === 'iam' && (
+            <IamView
+              glossaryTerms={activeTerms}
+              onOpenGlossaryTerm={(termId) => {
+                setSelectedTermId(termId);
+                setActiveSection('glossary');
+              }}
+            />
+          )}
+
           {activeSection === 'blog' && (
             <BlogView notes={notes} labs={labs} />
           )}
 
-          {/* V9 — Herramientas por pilar (misma vista, filtrada). */}
-          {activeSection === 'tools-hd' && (
-            <ToolsView pillar="hd" pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
-          )}
-          {activeSection === 'tools-sa' && (
-            <ToolsView pillar="sa" pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
-          )}
-          {activeSection === 'tools-soc' && (
-            <ToolsView pillar="soc" pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
+          {/* V11 — Herramientas UNIFICADAS: un solo catálogo global; cada
+              tool aparece una vez con su etiqueta de rol (IAM/SOC/Service
+              Desk/SysAdmin/Global). */}
+          {activeSection === 'tools' && (
+            <ToolsView pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
           )}
 
           {activeSection === 'references' && (
@@ -1358,15 +1362,9 @@ export default function App() {
             <SettingsView categories={categories} tools={tools} />
           )}
 
-          {/* BLOQUE 6 — Online-Optional. Data & Intelligence sync center.
-              MITRE/Sigma sync architecture, TI provider status, saved CVEs,
-              online activity log. All local; sync buttons gated by online. */}
-          {activeSection === 'data-intel' && (
-            <DataIntelView />
-          )}
-
-          {/* V9 — Runbooks por pilar: ticket real + paso a paso universal +
-              respuesta en inglés copiable (datasets estáticos, sin Dexie). */}
+          {/* V11 — Runbooks por pilar (incluye los QUICK FIXES ex-CheatSheet
+              fusionados): ticket real + paso a paso universal + respuesta
+              en inglés copiable (datasets estáticos, sin Dexie). */}
           {activeSection === 'runbooks-hd' && (
             <RunbooksView pillar="hd" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
           )}
@@ -1376,16 +1374,8 @@ export default function App() {
           {activeSection === 'runbooks-soc' && (
             <RunbooksView pillar="soc" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
           )}
-
-          {/* V9 — CheatSheet por pilar (fixes top al instante, sin input). */}
-          {activeSection === 'cheatsheet-hd' && (
-            <CheatSheetView pillar="hd" autoSelectId={pendingCheatSheetId} onConsumeAutoSelect={() => setPendingCheatSheetId(null)} />
-          )}
-          {activeSection === 'cheatsheet-sa' && (
-            <CheatSheetView pillar="sa" autoSelectId={pendingCheatSheetId} onConsumeAutoSelect={() => setPendingCheatSheetId(null)} />
-          )}
-          {activeSection === 'cheatsheet-soc' && (
-            <CheatSheetView pillar="soc" autoSelectId={pendingCheatSheetId} onConsumeAutoSelect={() => setPendingCheatSheetId(null)} />
+          {activeSection === 'runbooks-iam' && (
+            <RunbooksView pillar="iam" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
           )}
 
           {/* V9 — Troubleshooting por pilar (escaleras de decisión). */}
@@ -1397,6 +1387,9 @@ export default function App() {
           )}
           {activeSection === 'troubleshooting-soc' && (
             <TroubleshootingView pillar="soc" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
+          )}
+          {activeSection === 'troubleshooting-iam' && (
+            <TroubleshootingView pillar="iam" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
           )}
 
           {/* V9 — Roadmap SOC (cuarto roadmap, variante soc). */}
@@ -1433,32 +1426,26 @@ export default function App() {
           }}
           onSelectTool={(deepLink) => {
             setPendingTool(deepLink);
-            // V9 — el deep-link abre la sección de herramientas del pilar
-            // que contiene el tool (tools sin pillars viven en los 3).
-            const cat = TOOLS_CATALOG.find((t) => t.id === deepLink.toolId);
-            if (cat?.pillars?.includes('SYSADMIN')) setActiveSection('tools-sa');
-            else if (cat?.pillars?.includes('HELPDESK')) setActiveSection('tools-hd');
-            else setActiveSection('tools-soc');
+            // V11 — sección de herramientas UNIFICADA (un solo catálogo).
+            setActiveSection('tools');
           }}
-          // V9 — deep-links por prefijo de id:
-          //   RB-HD-* → runbooks-hd · RB-SA-* → runbooks-sa · RB-SOC-* → runbooks-soc
-          //   CS-SA-* → cheatsheet-sa · CS-SOC-* → cheatsheet-soc · resto → cheatsheet-hd
-          //   TS-HD-* → troubleshooting-hd · TS-SA-* → troubleshooting-sa · TS-SOC-* → troubleshooting-soc
+          // V11 — deep-links por prefijo de id (el CheatSheet se fusionó en
+          // Runbooks, así que los quick-fixes ex-CS también viven ahí):
+          //   RB-HD-* / CS-* → runbooks-hd · RB-SA-* / CS-SA-* → runbooks-sa
+          //   RB-SOC-* / CS-SOC-* → runbooks-soc · RB-IAM-* → runbooks-iam
+          //   TS-HD-* → troubleshooting-hd · TS-SA-* → troubleshooting-sa
+          //   TS-SOC-* → troubleshooting-soc · TS-IAM-* → troubleshooting-iam
           onSelectRunbook={(runbookId) => {
             setPendingRunbookId(runbookId);
-            if (runbookId.startsWith('RB-SA-')) setActiveSection('runbooks-sa');
-            else if (runbookId.startsWith('RB-SOC-')) setActiveSection('runbooks-soc');
+            if (runbookId.startsWith('RB-IAM-')) setActiveSection('runbooks-iam');
+            else if (runbookId.startsWith('RB-SA-') || runbookId.startsWith('CS-SA-')) setActiveSection('runbooks-sa');
+            else if (runbookId.startsWith('RB-SOC-') || runbookId.startsWith('CS-SOC-')) setActiveSection('runbooks-soc');
             else setActiveSection('runbooks-hd');
-          }}
-          onSelectCheatSheet={(cheatsheetId) => {
-            setPendingCheatSheetId(cheatsheetId);
-            if (cheatsheetId.startsWith('CS-SA-')) setActiveSection('cheatsheet-sa');
-            else if (cheatsheetId.startsWith('CS-SOC-')) setActiveSection('cheatsheet-soc');
-            else setActiveSection('cheatsheet-hd');
           }}
           onSelectTroubleshooting={(troubleshootingId) => {
             setPendingTroubleshootingId(troubleshootingId);
-            if (troubleshootingId.startsWith('TS-SA-')) setActiveSection('troubleshooting-sa');
+            if (troubleshootingId.startsWith('TS-IAM-')) setActiveSection('troubleshooting-iam');
+            else if (troubleshootingId.startsWith('TS-SA-')) setActiveSection('troubleshooting-sa');
             else if (troubleshootingId.startsWith('TS-SOC-')) setActiveSection('troubleshooting-soc');
             else setActiveSection('troubleshooting-hd');
           }}

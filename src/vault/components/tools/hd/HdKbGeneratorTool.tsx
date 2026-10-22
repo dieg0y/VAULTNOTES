@@ -11,17 +11,16 @@
  * ```bash para comandos, ## Verificación, ## Escalación, tags finales) en un
  * CodeBlock con CopyBtn.
  *
- * [Guardar en Data & Intel] (kind rule, contentLang markdown) y [Añadir a
- * Notas] (buildNoteHtmlTable con valores escapados). 100% offline.
+ * [Añadir a Notas] (buildNoteHtmlTable con valores escapados) y vista
+ * previa en vivo. 100% offline.
  */
 'use client';
 
 import React, { useState } from 'react';
 import {
-  Plus, Trash2, ArrowUp, ArrowDown, X, Tag, BookOpen, Database, Eye, FileText,
+  Plus, Trash2, ArrowUp, ArrowDown, X, Tag, BookOpen, Eye, FileText,
 } from 'lucide-react';
 import { useNoteStore } from '../../../store/noteStore';
-import { useIntelStore } from '../../../store/intelStore';
 import {
   inputCls, taCls, btnPrimary, btnGhost, CodeBlock, InfoBanner, Field,
   buildNoteHtmlTable, useAddToNoteToast,
@@ -126,7 +125,6 @@ export const HdKbGeneratorTool: React.FC = () => {
   const [escalation, setEscalation] = useState<Escalation>('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [feedback, setFeedback] = useState<string | null>(null);
   const { addedToast, showToast } = useAddToNoteToast();
 
   const updateStep = (i: number, field: keyof GenStep, value: string): void => {
@@ -166,21 +164,6 @@ export const HdKbGeneratorTool: React.FC = () => {
   const markdown = buildMarkdown(title, category, symptoms, cause, steps, verification, escalation, tags);
   const realSteps = steps.filter((s) => s.title.trim() || s.detail.trim() || s.command.trim());
 
-  const saveToIntel = async (): Promise<void> => {
-    if (!title.trim()) return;
-    const res = await useIntelStore.getState().addIntelItems([{
-      kind: 'rule',
-      title: `KB — ${title.trim()}`,
-      content: markdown,
-      contentLang: 'markdown',
-      description: symptoms.trim() || `Artículo KB generado: ${title.trim()}`,
-      tags: [category, ...tags, 'kb'],
-      source: 'KB Article Generator',
-    }]);
-    setFeedback(res.added > 0 ? 'Guardado en Data & Intel ✓' : 'Ya existía en Data & Intel');
-    window.setTimeout(() => setFeedback(null), 2500);
-  };
-
   const addToNote = (): void => {
     if (!title.trim()) return;
     const rows: Array<[string, string]> = [
@@ -202,7 +185,7 @@ export const HdKbGeneratorTool: React.FC = () => {
       <InfoBanner>
         Genera artículos de la base de conocimiento con vista previa en vivo y
         salida Markdown. 100% offline: nada se publica ni se envía; lo que
-        guardes vive solo en tu Data &amp; Intel local.
+        guardes vive solo en tu vault local.
       </InfoBanner>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -437,15 +420,11 @@ export const HdKbGeneratorTool: React.FC = () => {
 
       {/* acciones */}
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={saveToIntel} disabled={!title.trim()} className={`${btnPrimary} inline-flex items-center gap-1.5`} title="Guardar el artículo como regla markdown en Data e Intel">
-          <Database className="w-3.5 h-3.5" /> Guardar en Data &amp; Intel
-        </button>
-        <button type="button" onClick={addToNote} disabled={!title.trim()} className={`${btnGhost} inline-flex items-center gap-1.5`} title="Añadir el resumen del artículo a Notas">
+        <button type="button" onClick={addToNote} disabled={!title.trim()} className={`${btnPrimary} inline-flex items-center gap-1.5`} title="Añadir el resumen del artículo a Notas">
           <BookOpen className="w-3.5 h-3.5" /> Añadir a Notas
         </button>
       </div>
 
-      {feedback && <InfoBanner>{feedback}</InfoBanner>}
       {addedToast && <InfoBanner>Añadido a Notas — crea o elige una nota para verlo.</InfoBanner>}
     </div>
   );

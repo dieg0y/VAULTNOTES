@@ -1,8 +1,10 @@
 /**
  * runbooksSoc.ts — RUNBOOKS del PILAR 3: SOC / BLUE TEAM L1.
  *
- * Dataset COMPLETO (V9 FASE 5 + extensión 19-d): 40 runbooks
- * RB-SOC-001…RB-SOC-040.
+ * Dataset COMPLETO (V9 FASE 5 + extensión 19-d + fusión V11): 41 runbooks
+ * RB-SOC-001…RB-SOC-040 y CS-SOC-033 (ex-CheatSheet SOC; los 47 quick
+ * fixes restantes del CheatSheet SOC duplicaban runbooks existentes y
+ * sus comandos únicos fueron absorbidos en los runbooks gemelos).
  * Cobertura: phishing (reporte, clic, credenciales, adjunto macro/ISO,
  * BEC/spam/spoof), compromiso de cuentas (sign-in riesgoso, viaje
  * imposible, fatiga MFA, robo de token/PRT, reglas de bandeja,
@@ -128,6 +130,11 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'New-ComplianceSearchAction -SearchName "Purge-SOC-{{TICKET_ID}}" -Purge -PurgeType SoftDelete',
       'New-TransportRule -Name "SOC{{TICKET_ID}} bloqueo phish" -SenderDomainIs "dominio-lookalike.com" -SetSCL 9',
       'Get-FileHash .\phishing.eml -Algorithm SHA256',
+      'EmailPostDeliveryEvents | where Timestamp > ago(24h) | where Action == "ZAP" | project Timestamp, NetworkMessageId, Action, ThreatTypes',
+      'DeviceNetworkEvents | where TimeGenerated > ago(24h) | where RemoteUrl has "dominio-lookalike.com" | project TimeGenerated, DeviceName, RemoteUrl, RemoteIP, InitiatingProcessFileName',
+      'Connect-IPPSSession',
+      'Start-ComplianceSearch "Purge-SOC-{{TICKET_ID}}"',
+      'Get-ComplianceSearchAction "Purge-SOC-{{TICKET_ID}}_Purge" | Format-List Status, Results',
     ],
     verification: 'Al re-ejecutar la búsqueda de campaña no quedan mensajes con DeliveryAction "Delivered" fuera de cuarentena; el dominio del remitente queda bloqueado por regla de transporte y ningún usuario reporta mensajes nuevos de la campaña en las siguientes 24 horas.',
     evidence_to_collect: [
@@ -221,6 +228,9 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'Update-MgUser -UserId "{{USERNAME}}" -PasswordProfile @{ Password = "Temporal2025!"; ForceChangePasswordNextSignIn = $true }',
       'Revoke-MgUserSession -UserId "{{USERNAME}}"',
       'Get-InboxRule -Mailbox "{{USERNAME}}" | Format-List Name, Description, Enabled, RedirectTo, ForwardTo',
+      'Search-UnifiedAuditLog -StartDate (Get-Date).AddDays(-3) -EndDate (Get-Date) -UserIds "{{USERNAME}}" -Operations "User registered security info" -ResultSize 50 | Format-List CreationDate, Operations, UserIds, AuditData',
+      'Remove-MgUserAuthenticationPhoneMethod -UserId "{{USERNAME}}" -PhoneAuthenticationMethodId "<id-del-metodo>"',
+      'Get-MgUser -UserId "{{USERNAME}}" -Property refreshTokensValidFromDateTime | Format-List refreshTokensValidFromDateTime',
     ],
     verification: 'Tras el reset y la revocación, SigninLogs solo muestra inicios del usuario verificado (ubicación y dispositivo habituales) y AADNonInteractiveUserSignInLogs no registra accesos de la IP maliciosa durante 24 horas; no aparecen reglas de bandeja ni consentimientos nuevos en la cuenta.',
     evidence_to_collect: [
@@ -315,6 +325,8 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'Get-MpThreat | Format-List ThreatName, SeverityID, DidThreatExecute, Resources',
       'Remove-MpThreat; Start-MpScan -ScanType FullScan',
       'Get-FileHash .\adjunto.iso -Algorithm SHA256',
+      'EmailAttachmentInfo | where Timestamp > ago(24h) | where FileName endswith ".iso" or FileName endswith ".lnk" or FileType == "docm" | project Timestamp, NetworkMessageId, FileName, FileType, SHA256',
+      'DeviceFileEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(24h) | where FileName endswith ".iso" or FileName endswith ".docm" | project Timestamp, FileName, FolderPath, SHA256, InitiatingProcessFileName',
     ],
     verification: 'El linaje Office a intérpretes desaparece de DeviceProcessEvents en las horas posteriores; Get-MpThreat vuelve vacío tras Remove-MpThreat; el escaneo completo no reporta hallazgos; el adjunto fue purgado de los buzones y el hash quedó bloqueado como indicador.',
     evidence_to_collect: [
@@ -409,6 +421,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'Resolve-DnsName -Type TXT -Name "_dmarc.{{DOMAIN}}"',
       'New-TransportRule -Name "SOC{{TICKET_ID}} bloqueo BEC" -SenderDomainIs "dominio-lookalike.com" -SetSCL 9',
       'Revoke-MgUserSession -UserId "{{USERNAME}}"',
+      'Set-HostedContentFilterPolicy -Identity Default -MarkAsSpamSpfRecordHardFail $true',
     ],
     verification: 'El trace del buzón comprometido no muestra nuevas oleadas de spam tras la revocación; no llegan mensajes inbound con From del dominio propio sin autenticar; Finanzas confirma que no se ejecutó transferencia alguna derivada del correo; el dominio lookalike queda bloqueado por regla de transporte.',
     evidence_to_collect: [
@@ -502,6 +515,9 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'Get-MgRiskDetection -Filter "userPrincipalName eq \'{{USERNAME}}\'"',
       'Revoke-MgUserSession -UserId "{{USERNAME}}"',
       'Update-MgUser -UserId "{{USERNAME}}" -PasswordProfile @{ Password = "Temporal2025!"; ForceChangePasswordNextSignIn = $true }',
+      'Confirm-MgRiskyUserCompromised -RiskyUserId "<id-del-usuario-riesgoso>"',
+      'Dismiss-MgRiskyUser -RiskyUserId "<id-del-usuario-riesgoso>"',
+      'SigninLogs | where UserPrincipalName == "{{USERNAME}}" | where TimeGenerated > ago(24h) | where ResultType == 500121 | summarize Intentos = count() by IPAddress, bin(TimeGenerated, 15m) | order by Intentos desc',
     ],
     verification: 'Tras la revocación y el reset, SigninLogs no registra inicios exitosos desde la IP o país anómalo durante 24 horas; el bombardeo de solicitudes MFA cesa; el usuario re-autentica desde su equipo habitual y confirma que ya no recibe notificaciones inesperadas.',
     evidence_to_collect: [
@@ -595,6 +611,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'Revoke-MgUserSession -UserId "{{USERNAME}}"',
       'Get-MgUser -UserId "{{USERNAME}}" -Property DisplayName, AccountEnabled',
       'Get-MpThreat | Format-List ThreatName, SeverityID, DidThreatExecute, Resources',
+      'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" | where ProcessCommandLine has_any ("MiniDump", "comsvcs.dll", "procdump") | project Timestamp, FileName, ProcessCommandLine | order by Timestamp desc',
     ],
     verification: 'Tras la revocación de sesiones, el re-registro de MFA y la limpieza del host, AADNonInteractiveUserSignInLogs no registra accesos exitosos de la IP o dispositivo malicioso durante 24 horas y el host queda sin detecciones tras el escaneo completo.',
     evidence_to_collect: [
@@ -878,6 +895,9 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'index=main sourcetype=WinEventLog:Security EventCode=4625 src="{{SOURCE_IP}}" | stats count by user | sort - count',
       'SecurityEvent | where EventID == 4740 | where TimeGenerated > ago(4h) | summarize Bloqueos = count() by TargetUserName | order by Bloqueos desc',
       'Unlock-ADAccount -Identity "{{USERNAME}}"',
+      'SigninLogs | where TimeGenerated > ago(24h) | where ResultType == 50126 | summarize Intentos = count(), Cuentas = dcount(UserPrincipalName) by IPAddress | where Cuentas > 10 | order by Cuentas desc',
+      'SigninLogs | where TimeGenerated > ago(24h) | where IPAddress == "{{SOURCE_IP}}" | summarize Exitos = countif(ResultType == 0), Fallos = countif(ResultType == 50126) by UserPrincipalName | where Exitos > 0 | order by Exitos desc',
+      'Get-ADComputer -Identity "{{HOSTNAME}}" -Properties LastLogonDate, OperatingSystem, Description | Format-List',
     ],
     verification: 'Los 4625 de la IP maliciosa caen a cero tras el bloqueo en el perímetro; no hay sesiones activas de las cuentas comprometidas (reset y revocación aplicados); las cuentas bloqueadas por el ataque quedan desbloqueadas y funcionales; la detección de umbral quedó ajustada para la siguiente rotación de IP.',
     evidence_to_collect: [
@@ -1160,6 +1180,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'index=main sourcetype=WinEventLog:Security EventCode=4728 OR EventCode=4732 | stats count by user, host',
       'Disable-ADAccount -Identity "cuenta-nueva"',
       'Remove-ADGroupMember -Identity "{{GROUP}}" -Members "cuenta-nueva" -Confirm:$false',
+      'Get-ADUser "cuenta-nueva" | Move-ADObject -TargetPath "OU=Quarantine,DC={{DOMAIN}},DC=local"',
     ],
     verification: 'La cuenta encubierta está deshabilitada y removida de {{GROUP}}; Get-ADGroupMember coincide con la línea base; no se registran nuevos eventos 4720/4728/4732 del creador comprometido en 24 horas; las credenciales de la cuenta fuente fueron rotadas.',
     evidence_to_collect: [
@@ -1254,6 +1275,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'DeviceNetworkEvents | where DeviceName == "{{HOSTNAME}}" | where InitiatingProcessFileName =~ "powershell.exe" | project Timestamp, RemoteUrl, RemoteIP, RemotePort | order by Timestamp desc',
       'Get-MpThreat | Format-List ThreatName, SeverityID, DidThreatExecute, Resources',
       'index=main sourcetype=WinEventLog:Security EventCode=4688 | stats count by host, user | sort - count',
+      'DeviceFileEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(24h) | where InitiatingProcessFileName in ("WINWORD.EXE", "EXCEL.EXE", "OUTLOOK.EXE") | project Timestamp, FileName, FolderPath, SHA256 | order by Timestamp desc',
     ],
     verification: 'No aparecen nuevos linajes ofimática-a-intérprete en SecurityEvent tras la remediación; el host no presenta conexiones del proceso sospechoso en DeviceNetworkEvents; el escaneo completo de Defender está limpio y no se encontró persistencia asociada.',
     evidence_to_collect: [
@@ -1535,6 +1557,9 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'SecurityEvent | where EventID == 4688 | where Computer == "{{HOSTNAME}}" | where TimeGenerated > ago(24h) | where CommandLine has "-enc" or CommandLine has "certutil" | project TimeGenerated, NewProcessName, ParentProcessName, CommandLine | order by TimeGenerated desc',
       'Get-FileHash .\\payload.exe -Algorithm SHA256',
       'Get-MpThreat | Format-List ThreatName, SeverityID, DidThreatExecute, Resources',
+      '[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String("CadenaBase64=="))',
+      'Get-WinEvent -FilterHashtable @{ LogName = "Microsoft-Windows-PowerShell/Operational"; Id = 4104 } -MaxEvents 20 | Select-Object TimeCreated, Message | Format-List',
+      'DeviceProcessEvents | where TimeGenerated > ago(24h) | where FileName in ("bitsadmin.exe", "msiexec.exe", "curl.exe") | where ProcessCommandLine has "http" | project Timestamp, DeviceName, ProcessCommandLine, InitiatingProcessFileName | order by Timestamp desc',
     ],
     verification: 'Sin nuevas ejecuciones de PowerShell codificado ni LOLBins con URL en el host tras la remediación; el payload descargado fue removido (Get-MpThreat vacío) y su hash bloqueado; el barrido de la flota con el hash y la URL no encuentra otros hosts afectados.',
     evidence_to_collect: [
@@ -1725,6 +1750,9 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'sc.exe stop NombreServicio; sc.exe config NombreServicio start= disabled',
       'sc.exe delete NombreServicio',
       'Remove-ItemProperty -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run" -Name "NombreValor"',
+      'Get-CimInstance Win32_Service -Filter "Name=\'NombreServicio\'" | Format-List Name, PathName, StartMode, StartName',
+      'DeviceRegistryEvents | where TimeGenerated > ago(24h) | where RegistryKey endswith "\\CurrentVersion\\Run" or RegistryKey endswith "\\CurrentVersion\\RunOnce" | project TimeGenerated, DeviceName, RegistryKey, RegistryValueName, RegistryValueData, InitiatingProcessFileName',
+      'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon" /v Shell',
     ],
     verification: 'El servicio fue eliminado (Get-Service sin él) y la run key removida; el binario de persistencia fue cuarentenado con hash bloqueado; el escaneo completo está limpio y no aparecen nuevos 7045 ni entradas de registro maliciosas en 24 horas.',
     evidence_to_collect: [
@@ -2007,6 +2035,8 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'index=main sourcetype=WinEventLog:Security EventCode=5145 | stats count by user, host | sort - count',
       'DeviceProcessEvents | where TimeGenerated > ago(24h) | where FileName in ("psexec.exe", "PsExec64.exe") | project Timestamp, DeviceName, ProcessCommandLine, AccountName | order by Timestamp desc',
       'Disable-ADAccount -Identity "{{USERNAME}}"',
+      'SecurityEvent | where EventID == 7045 | where ServiceName == "PSEXESVC" | project TimeGenerated, Computer, SubjectUserName | order by TimeGenerated desc',
+      'DeviceNetworkEvents | where TimeGenerated > ago(24h) | where DeviceName == "{{HOSTNAME}}" | where RemotePort in (5985, 5986) | summarize Destinos = dcount(RemoteIP) by InitiatingProcessFileName',
     ],
     verification: 'La cuenta comprometida queda deshabilitada con contraseña rotada y sin inicios tipo 3 posteriores; los hosts alcanzados fueron aislados, limpiados y escaneados sin hallazgos; el acceso a ADMIN$/IPC$ de la cuenta vuelve a baseline.',
     evidence_to_collect: [
@@ -2100,6 +2130,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'DeviceNetworkEvents | where DeviceName == "{{HOSTNAME}}" | where RemoteUrl == "dominio-sospechoso.com" | project Timestamp, InitiatingProcessFileName, RemoteIP, RemotePort | order by Timestamp desc',
       'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" | where FileName == "implantado.exe" | project Timestamp, ProcessCommandLine, SHA256, InitiatingProcessFileName | order by Timestamp desc',
       'Get-MpThreat | Format-List ThreatName, SeverityID, DidThreatExecute, Resources',
+      'index=main sourcetype=access_combined uri_path="*dominio-sospechoso.com*" | streamstats current=f last(_time) as prev by clientip | eval delta=_time-prev | stats count avg(delta) as promedio stdev(delta) as jitter by clientip | where count > 50 and jitter < promedio*0.2',
     ],
     verification: 'Sin conexiones al dominio o IP del C2 tras el bloqueo y la remoción del implante; el host queda limpio tras el escaneo completo; el dominio y el hash quedaron bloqueados en el perímetro y el EDR; ningún otro host de la flota presenta conexiones al mismo dominio.',
     evidence_to_collect: [
@@ -2194,6 +2225,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'DeviceNetworkEvents | where DeviceName == "{{HOSTNAME}}" | where RemoteUrl contains "dominiotunel" | project Timestamp, RemoteUrl, InitiatingProcessFileName, RemoteIP | order by Timestamp asc',
       'ipconfig /flushdns',
       'Get-MpThreat | Format-List ThreatName, SeverityID, DidThreatExecute, Resources',
+      'DnsEvents | where TimeGenerated > ago(1h) | summarize Consultas = count(), Unicos = dcount(Name) by ClientIP | where Unicos > 500 | order by Unicos desc',
     ],
     verification: 'Cero consultas DNS al dominio del tunneling tras el bloqueo en el resolver; el implante removido y el escaneo completo limpio; ningún otro host de la flota presenta el patrón de subdominios largos hacia el mismo dominio.',
     evidence_to_collect: [
@@ -2288,6 +2320,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'Get-MpThreat | Format-List ThreatName, SeverityID, DidThreatExecute, Resources',
       'Remove-MpThreat; Start-MpScan -ScanType FullScan',
       'vssadmin list shadows',
+      'DeviceProcessEvents | where TimeGenerated > ago(24h) | where FileName in ("vssadmin.exe", "wbadmin.exe", "bcdedit.exe", "wmic.exe") | where ProcessCommandLine has_any ("delete shadows", "delete catalog", "recoveryenabled no", "shadowcopy delete") | project Timestamp, DeviceName, FileName, ProcessCommandLine | order by Timestamp asc',
     ],
     verification: 'Sin ejecuciones nuevas de comandos anti-recuperación tras la contención; hosts afectados aislados, limpios y con escaneo completo sin hallazgos; restauración validada por los dueños del negocio desde backups íntegros; nota de rescate, hash del encryptor y evidencia preservados con cadena de custodia.',
     evidence_to_collect: [
@@ -2475,6 +2508,8 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       'SecurityEvent | where TimeGenerated > ago(30d) | where IpAddress == "{{SOURCE_IP}}" | summarize Eventos = count() by EventID, Computer | order by Eventos desc',
       'index=main sourcetype=WinEventLog:Security src="{{SOURCE_IP}}" | stats count by EventCode, host | sort - count',
       'DeviceProcessEvents | where TimeGenerated > ago(30d) | where ProcessCommandLine has "vssadmin" | project Timestamp, DeviceName, ProcessCommandLine | order by Timestamp asc',
+      'DeviceProcessEvents | where TimeGenerated > ago(24h) | where FileName =~ "powershell.exe" | join kind=inner (DeviceNetworkEvents | where TimeGenerated > ago(24h) | project DeviceName, RemoteIP, RemoteUrl, InitiatingProcessFileName) on DeviceName | take 50',
+      'index=main sourcetype=WinEventLog:Security | rex field=_raw "Caller Computer Name:\\s+(?<caller>[^\\r]+)"',
     ],
     verification: 'Todos los IOCs del reporte fueron barridos contra el histórico (hash, IP, dominio) con cero hits o con casos abiertos y gestionados; la hipótesis de caza quedó validada o descartada con datos; los hallazgos útiles entraron al backlog de detecciones como reglas nuevas (RB-SOC-027).',
     evidence_to_collect: [
@@ -3622,6 +3657,7 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
       '[uri]::UnescapeDataString("%27%20OR%201%3D1--%20")',
       'New-NetFirewallRule -DisplayName "SOC Contencion {{TICKET_ID}}" -Direction Inbound -Action Block -RemoteAddress 203.0.113.15',
       'CommonSecurityLog | where TimeGenerated > ago(2h) | where SourceIP == "{{SOURCE_IP}}" | summarize Intentos = count()',
+      'index=main sourcetype=access_combined | rex field=uri_query "id=(?<payload>[^&]+)" | where match(payload, "(?i)union.+select|sleep|or 1=1") | table _time, clientip, uri_path, payload, status',
     ],
     verification: 'Cero peticiones con payload que alcancen el backend tras el bloqueo (solo 403 del WAF); la regla del WAF en modo bloqueo y el rate limiting activos; el equipo de desarrollo confirma la parametrización de las consultas afectadas y la regla Sigma del patrón creada (RB-SOC-027).',
     evidence_to_collect: [
@@ -3824,6 +3860,101 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
     english_customer_response_template: 'Hello, the incident handled under ticket SOC{{TICKET_ID}} is now fully closed. We completed the post-incident review: we reconstructed the complete timeline, identified the root causes, and defined corrective actions with owners and deadlines, including detection improvements that reduce our response time for similar events. A one-page executive summary is attached. We will track every action until closure and keep you informed of progress. Thank you for your support during the response.',
     english_technical_explanation: 'Postmortem for SOC{{TICKET_ID}} completed at {{TIMESTAMP}}: timeline reconstructed from SecurityAlert (first detection to closure) and the response log; MTTD and MTTR calculated and compared with SOC targets (RB-SOC-030). Root cause analysis (5 Whys, blameless) mapped the attacker path in DeviceProcessEvents to MITRE techniques and to the detections that existed or failed at each step; primary gap: rule coverage for the initial vector. Deliverables: one-page executive summary (impact, cause, actions, investment ask), technical RCA annex with timeline export (ConvertTo-Html) and MITRE mapping, action plan with owners and due dates tracked weekly. Verification: new detection rules active and alerting in SecurityAlert; open actions reviewed until 100% closure; findings feed the next hunting cycle (RB-SOC-026).',
     keywords: ['postmortem', 'post-mortem', 'informe ejecutivo', 'executive report', 'rca', 'causa raiz', 'root cause', '5 whys', 'mttd', 'mttr', 'lecciones aprendidas', 'lessons learned', 'blameless', 'plan de accion'],
+  },
+  // ── QUICK FIXES (ex-CheatSheet SOC) — fusionados en V11 ──
+  {
+    id: 'CS-SOC-033',
+    pillar: 'SOC',
+    title: 'Carpeta Startup: el auto-start más simple del mundo (T1547.001)',
+    category: 'Persistencia',
+    ticket_example: 'SOC{{TICKET_ID}} - Malicious shortcut in Startup folder executing at logon - P2 - {{HOSTNAME}}',
+    problem_description: 'Un .lnk, .bat o .exe apareció en la carpeta de inicio del perfil del usuario o en la de todos los programas de {{HOSTNAME}}: se ejecuta solo con iniciar sesión, sin tocar el registro, sin servicios y sin tareas programadas (MITRE T1547.001 Boot or Logon Autostart Execution: Startup Folder). Es la persistencia más fácil de implantar y también la más fácil de revisar: solo un archivo en una carpeta.',
+    business_impact: 'El artefacto de Startup revive al malware en cada inicio de sesión aunque se mate el proceso y se limpie el disco: re-conecta el C2 y re-ejecuta el loader de credenciales indefinidamente. Un archivo de un kilobyte sostiene un compromiso completo de la estación y delata poco: ninguna herramienta que solo mire registro o servicios lo lista.',
+    symptoms: [
+      'Archivo nuevo (.lnk, .bat, .vbs o .exe) en la carpeta Startup del perfil o en C:\\ProgramData que el usuario no reconoce',
+      'DeviceFileEvents registra escrituras en rutas que terminan en Start Menu\\Programs\\Startup por parte de un navegador o un instalador',
+      'Procesos anómalos que reaparecen en cada reinicio del host aunque la limpieza anterior los haya removido',
+    ],
+    root_causes: [
+      'Malware que copia un acceso directo o script a la carpeta de inicio para ejecutarse en cada logon (MITRE T1547.001)',
+      'Descarga directa del navegador que dejó un binario en la carpeta de inicio con nombre casi legítimo ("OneDriveUpd")',
+      'Falso positivo frecuente: instaladores y herramientas del usuario que dejan accesos en Startup sin registrarlos en la CMDB',
+    ],
+    prerequisites: [
+      'Acceso administrativo al host para enumerar las carpetas de inicio de todos los perfiles',
+      'EDR con DeviceFileEvents del host en el SIEM (fecha, hash y proceso escritor)',
+      'Consola de Defender para cuarentena del binario apuntado y escaneo completo',
+    ],
+    step_by_step_universal: [
+      {
+        order: 1,
+        action: 'Detección: enumerar las carpetas de inicio del perfil y de todos los usuarios',
+        command: 'dir "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"; dir "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp"',
+        expected: 'Los archivos de la carpeta Startup del usuario y de ProgramData: cualquier .lnk, .bat o .exe no reconocido es el artefacto de persistencia.',
+        explanation: 'La primera carpeta ejecuta por usuario; la segunda corre para todos los perfiles del host: el malware prefiere ProgramData para sobrevivir a cambios de sesión.',
+      },
+      {
+        order: 2,
+        action: 'Investigación: buscar escrituras recientes en las carpetas de inicio con el EDR',
+        command: 'DeviceFileEvents | where TimeGenerated > ago(7d) | where FolderPath endswith "\\Start Menu\\Programs\\Startup" or FolderPath endswith "\\Start Menu\\Programs\\StartUp" | project TimeGenerated, DeviceName, FileName, FolderPath, SHA256, InitiatingProcessFileName | order by TimeGenerated asc',
+        expected: 'Los archivos escritos en las carpetas de inicio con su hash y el proceso que los creó (navegador o instalador = bandera roja).',
+        explanation: 'El InitiatingProcessFileName delata al autor de la escritura y con él el vector de entrada de la infección (descarga, adjunto o exploit).',
+      },
+      {
+        order: 3,
+        action: 'Investigación: inspeccionar el acceso directo sin ejecutarlo',
+        command: '$acceso = (New-Object -ComObject WScript.Shell).CreateShortcut("C:\\Users\\usuario\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\update.lnk"); $acceso.TargetPath; $acceso.Arguments',
+        expected: 'El TargetPath y los argumentos del .lnk: targets hacia powershell, cmd, wscript o rundll32 con argumentos largos o -enc son del atacante.',
+        explanation: 'Leer el .lnk con el COM de WScript no ejecuta nada: es la forma segura de ver qué se lanza en cada inicio de sesión.',
+      },
+      {
+        order: 4,
+        action: 'Evidencia: hashear el artefacto y barrer los perfiles restantes',
+        command: 'Get-FileHash "C:\\Users\\usuario\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\update.lnk" -Algorithm SHA256; dir C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup',
+        expected: 'Hash del artefacto para el ticket y el inventario del mismo patrón en todos los perfiles del host.',
+        explanation: 'Guarde una copia del archivo antes de removerlo: el hash permite el barrido retroactivo en el resto de la flota (RB-SOC-026).',
+      },
+      {
+        order: 5,
+        action: 'Investigación: rastrear al proceso que escribió el archivo (vector de entrada)',
+        command: 'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" | where TimeGenerated > ago(7d) | where FileName == "<proceso-escritor>" | project TimeGenerated, ProcessCommandLine, SHA256, InitiatingProcessFileName | order by TimeGenerated asc',
+        expected: 'La línea de comandos y el linaje del proceso escritor: identifican el vector (navegador, adjunto de Office o instalador drogado) y su hash.',
+        explanation: 'Use el InitiatingProcessFileName del paso 2 como valor de FileName: el autor del archivo es el punto de entrada del caso.',
+      },
+      {
+        order: 6,
+        action: 'Contención y remediación: remover el artefacto, cuarentenizar el binario y escanear',
+        command: 'Remove-Item "C:\\Users\\usuario\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\update.lnk" -Force',
+        expected: 'Artefacto removido de la carpeta de inicio; el binario apuntado por el TargetPath queda cuarentenado con su hash bloqueado.',
+        explanation: 'Remueva también el binario del TargetPath si sigue en el host, ejecute Remove-MpThreat; Start-MpScan -ScanType FullScan y revise las persistencias hermanas (RB-SOC-017, RB-SOC-018, RB-SOC-019): el malware suele dejar más de un mecanismo.',
+      },
+      {
+        order: 7,
+        action: 'Verificación: cero escrituras nuevas y logon limpio',
+        command: 'DeviceFileEvents | where TimeGenerated > ago(48h) | where DeviceName == "{{HOSTNAME}}" | where FolderPath endswith "\\Start Menu\\Programs\\Startup" or FolderPath endswith "\\Start Menu\\Programs\\StartUp" | summarize Escrituras = count()',
+        expected: 'Cero escrituras nuevas tras la limpieza; el siguiente inicio de sesión no genera procesos anómalos y el escaneo completo está limpio.',
+        explanation: 'Si el artefacto reaparece, hay un segundo mecanismo re-creándolo: escale al IR lead y revise el linaje del proceso recreador.',
+      },
+    ],
+    commands_copyable: [
+      'dir "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"; dir "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp"',
+      'DeviceFileEvents | where TimeGenerated > ago(7d) | where FolderPath endswith "\\Start Menu\\Programs\\Startup" or FolderPath endswith "\\Start Menu\\Programs\\StartUp" | project TimeGenerated, DeviceName, FileName, FolderPath, SHA256, InitiatingProcessFileName | order by TimeGenerated asc',
+      '$acceso = (New-Object -ComObject WScript.Shell).CreateShortcut("C:\\Users\\usuario\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\update.lnk"); $acceso.TargetPath; $acceso.Arguments',
+      'Get-FileHash "C:\\Users\\usuario\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\update.lnk" -Algorithm SHA256; dir C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup',
+      'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" | where TimeGenerated > ago(7d) | where FileName == "<proceso-escritor>" | project TimeGenerated, ProcessCommandLine, SHA256, InitiatingProcessFileName | order by TimeGenerated asc',
+      'Remove-Item "C:\\Users\\usuario\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\update.lnk" -Force',
+      'Remove-MpThreat; Start-MpScan -ScanType FullScan',
+    ],
+    verification: 'Las carpetas de inicio del perfil y de todos los usuarios quedan limpias en el barrido de perfiles; DeviceFileEvents no registra escrituras nuevas en las rutas Startup en 48 horas; el siguiente inicio de sesión no genera procesos anómalos y el escaneo completo de Defender está limpio.',
+    evidence_to_collect: [
+      'Copia y hash SHA256 del artefacto de Startup (.lnk, .bat o .exe) antes de removerlo',
+      'Salida del DeviceFileEvents con el proceso escritor y la línea de comandos del vector de entrada',
+      'Inspección del acceso directo (TargetPath y Arguments) y resultado del escaneo completo posterior',
+    ],
+    escalation: 'Si el proceso escritor es malware con más persistencias en el host o el mismo artefacto aparece en varias estaciones, escale al IR lead como P1 y declare campaña; un hallazgo aislado con limpieza verificada se documenta y alimenta una detección de Startup folder (RB-SOC-027).',
+    english_customer_response_template: 'Hi {{USERNAME}}, we found a malicious shortcut in your computer startup folder that relaunched malware every time you signed in. We removed the shortcut, quarantined the program it was launching, and a full scan is now clean. Your account was not compromised. Please tell us what you installed or downloaded before the alert; that helps us block the source for everyone.',
+    english_technical_explanation: 'Startup folder persistence (T1547.001) on {{HOSTNAME}} at {{TIMESTAMP}}: unauthorized .lnk in the user Startup folder enumerated with dir and confirmed via DeviceFileEvents (written by a browser process). Shortcut inspected with the WScript.Shell COM object revealing a target to rundll32 with encoded arguments; artifact hashed and preserved. Remediation: shortcut removed with Remove-Item, target binary quarantined, Remove-MpThreat plus full scan clean; sibling persistence mechanisms checked negative. Verification: zero new Startup writes in 48 hours and clean logon; fleet sweep by hash negative.',
+    keywords: ['startup folder', 'carpeta de inicio', 'carpeta startup', 't1547.001', 'lnk', 'shortcut', 'acceso directo', 'wscript.shell', 'createshortcut', 'autostart', 'auto-arranque', 'devicefileevents', 'logon', 'persistencia', 'persistence', 'programdata', 'appdata', 'remove-item'],
   },
 ];
 

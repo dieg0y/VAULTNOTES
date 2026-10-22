@@ -1,221 +1,14 @@
 import Dexie, { type Table } from 'dexie';
-import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket } from '../types';
+import { Note, GlossaryTerm, StoredImage, StoredPdf, Lab, PlatformItem, CategoryItem, ToolItem, FlashcardStat, StoredFileHandle, ReferenceItem, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket, IamTicket } from '../types';
 import { GLOSSARY_SEED_TERMS } from '../data/glossarySeed';
 import { ROADMAP_ALL_ITEM_IDS } from '../data/roadmapData';
 import { ROADMAP_HD_ALL_ITEM_IDS } from '../data/roadmapHelpDeskData';
 import { HELPDESK_TICKET_SEEDS } from '../data/helpDeskTickets';
 import { SYSADMIN_TICKET_SEEDS } from '../data/sysadminTickets';
 import { SOC_TICKET_SEEDS } from '../data/socTickets';
+import { IAM_TICKET_SEEDS } from '../data/iamTickets';
 import { ROADMAP_SA_ALL_ITEM_IDS } from '../data/roadmapSysAdminData';
 import { ROADMAP_SOC_ALL_ITEM_IDS } from '../data/roadmapSocData';
-
-/**
- * BLOQUE 6 — Online-Optional integration tables. These live in the MAIN
- * VaultLocalDB (so they ARE exported by the vault backup — they hold no API
- * keys, only cached intelligence results + activity metadata + custom Sigma
- * rules + saved CVEs). API keys live in a SEPARATE Dexie DB (VaultIntelDB,
- * see integrations/threatIntel/credentials.ts) and are NEVER exported.
- */
-export interface TiCacheEntry {
-  /** `${provider}:${iocType}:${valueLowercased}` — unique cache key. */
-  id: string;
-  provider: string;
-  iocType: string;
-  iocValue: string;
-  resultJson: string | null;
-  errorMessage: string | null;
-  retrievedAt: string;
-  expiresAt: string;
-}
-
-export interface OnlineActivityRow {
-  id: string;
-  provider: string;
-  /** IOC TYPE only — never the actual value (privacy). */
-  iocType: string;
-  timestamp: string;
-  status: 'success' | 'error' | 'cached' | 'not_configured' | 'offline';
-  note?: string;
-}
-
-export interface CustomSigmaRule {
-  /** UUID-style id, generated on import. */
-  id: string;
-  /** UUID from the yaml rule itself (if present), for dedup on re-import. */
-  ruleUuid?: string;
-  title: string;
-  status: string;
-  level: string;
-  description: string;
-  author: string;
-  date: string;
-  logsource: string;
-  detection: string;
-  tags: string[];
-  mitre: string[];
-  /** Raw yaml text — stored verbatim, NEVER executed (see sigma/validate.ts). */
-  yaml: string;
-  importedAt: string;
-  updatedAt: string;
-}
-
-export interface SavedCve {
-  /** The CVE id, e.g. "CVE-2025-12345". Acts as primary key. */
-  id: string;
-  description: string;
-  cvss: number | null;
-  severity: string | null;
-  cwe: string[];
-  affectedProducts: string[];
-  published: string;
-  modified: string;
-  references: string[];
-  /** User's personal notes — added after saving. */
-  personalNotes?: string;
-  /** User's tags. */
-  tags: string[];
-  /** User's personal assessment. */
-  personalAssessment?: string;
-  savedAt: string;
-}
-
-export interface DatasetMeta {
-  /** Single-row table — id is always 'singleton'. */
-  id: string;
-  mitreVersion: string;
-  mitreLastSync: string | null;
-  sigmaVersion: string;
-  sigmaLastSync: string | null;
-  sigmaRulesCount: number;
-  updatedAt: string;
-  // V10 (v24) — CISA KEV catalog markers (optional: old rows lack them).
-  kevVersion?: string;
-  kevLastSync?: string | null;
-  kevCount?: number;
-}
-
-// ------------------------------------------------------------------
-// V10 (v24) — ONLINE DATASET SYNC tables. All three are ADDED in schema
-// v24 (delta-only migration). They hold OFFICIAL public data explicitly
-// downloaded by the user via the Sync Center (MITRE ATT&CK techniques from
-// attack-stix-data, official SigmaHQ rules, CISA KEV catalog). They contain
-// NO user PII and NO API keys — keys stay in VaultIntelDB as always — so
-// they are exported by the vault backup like tiCache/savedCves (latest-wins
-// on import). The bundled datasets always remain the offline baseline.
-// ------------------------------------------------------------------
-
-/** One MITRE ATT&CK technique/sub-technique synced from the official STIX
- *  bundle (github.com/mitre-attack/attack-stix-data). Normalized shape —
- *  sanitized, description capped. Merged over the bundled dataset by id. */
-export interface SyncedMitreTechnique {
-  /** MITRE canonical id, e.g. "T1059" or "T1059.001". Primary key. */
-  id: string;
-  /** STIX object id ("attack-pattern--<uuid>"), kept for provenance. */
-  stixId: string;
-  name: string;
-  /** Official English description (sanitized, capped ~600 chars). */
-  description: string;
-  /** Tactic display names joined with " / " (e.g. "Execution"). */
-  tactic: string;
-  platforms: string[];
-  /** Official reference URL (attack.mitre.org/techniques/Txxxx). */
-  url: string;
-  /** ATT&CK version the row was synced from (e.g. "19.2"). */
-  version: string;
-  /** ISO timestamp of the sync. */
-  syncedAt: string;
-  revoked: boolean;
-  deprecated: boolean;
-}
-
-/** One official Sigma rule synced from github.com/SigmaHQ/sigma
- *  (rules/windows/builtin/**). Same field contract as CustomSigmaRule
- *  (logsource/detection stored as JSON strings, yaml verbatim, NEVER
- *  executed — see sigma/validate.ts) plus sync provenance. */
-export interface SyncedSigmaRule {
-  id: string;
-  ruleUuid?: string;
-  title: string;
-  status: string;
-  level: string;
-  description: string;
-  author: string;
-  date: string;
-  logsource: string;
-  detection: string;
-  tags: string[];
-  mitre: string[];
-  /** Raw yaml text — stored verbatim, NEVER executed. */
-  yaml: string;
-  /** Repo path of the source file (provenance). */
-  sourcePath: string;
-  syncedAt: string;
-}
-
-/** One entry of the CISA Known Exploited Vulnerabilities catalog
- *  (github.com/cisagov/kev-data — official mirror of cisa.gov). Trimmed to
- *  the fields the app actually uses (the full catalog keeps 1.7MB; we keep
- *  ~600KB with the official requiredAction guidance). */
-export interface KevEntry {
-  cveID: string;
-  vendorProject: string;
-  product: string;
-  vulnerabilityName: string;
-  dateAdded: string;
-  dueDate?: string;
-  knownRansomwareCampaignUse: string;
-  requiredAction: string;
-}
-
-/** Singleton row (id='singleton') with the synced KEV catalog. */
-export interface KevCatalogRow {
-  id: string;
-  title: string;
-  catalogVersion: string;
-  dateReleased: string;
-  count: number;
-  fetchedAt: string;
-  entries: KevEntry[];
-}
-
-/**
- * DATA & INTEL — dataset de trabajo (IoCs · Eventos · Reglas).
- *
- * Un único store para los tres tipos (`kind`), alimentado por las tools
- * (IoC Extractor, Sigma Explorer, Detection Query Helper, …), por alta
- * manual en DataIntelView y por import (.json). Todo el texto se guarda
- * PLANO (se renderiza como texto, jamás con dangerouslySetInnerHTML) — la
- * sanitización XSS es by-construction. Nunca se guardan API keys ni
- * resultados de enriquecimiento online (eso vive en tiCache).
- */
-export type IntelKind = 'ioc' | 'event' | 'rule';
-
-export interface IntelItem {
-  /** `intel-<ms>-<rand>` (sufijo de entropía — VN-A-001). */
-  id: string;
-  /** Discriminador: indicador (ioc) · evento de seguridad (event) · regla/query (rule). */
-  kind: IntelKind;
-  /** IoC: el valor del indicador (IP, dominio, hash, URL…). Event/Rule: título corto. */
-  title: string;
-  /** Solo IoC: tipo del indicador (ipv4/ipv6/domain/url/email/hash/cve/…). */
-  iocType?: string;
-  /** Severidad (event/rule) o confianza del extractor (ioc): low/medium/high/critical o alta/media/baja/info. */
-  severity?: string;
-  /** Confianza IoC (score del extractor): alta/media/baja/info. */
-  confidence?: string;
-  description?: string;
-  tags: string[];
-  /** De dónde viene: nombre de la tool, 'manual' o 'import'. */
-  source?: string;
-  /** Técnicas MITRE asociadas (T1059, …). */
-  mitre?: string[];
-  /** Solo rule/event: cuerpo (YAML Sigma, query KQL/SPL, detalle del evento). */
-  content?: string;
-  /** Solo rule: lenguaje del cuerpo — kql | spl | sigma | other. */
-  contentLang?: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 /**
  * RBAC Model — persistencia de escenarios RBAC creados manualmente en la herramienta
@@ -298,18 +91,6 @@ class VaultDatabase extends Dexie {
   // V6 (limpieza): la tabla `reviewItems` (cola de Revisión) se retiró del
   // schema en v20 — Dexie elimina el object store al dejar de declararlo.
   // El resto de datos del usuario NO se toca (migración no destructiva).
-  // BLOQUE 6 — Online-Optional integration tables. See interface defs above.
-  tiCache!: Table<TiCacheEntry, string>;
-  onlineActivity!: Table<OnlineActivityRow, string>;
-  customSigmaRules!: Table<CustomSigmaRule, string>;
-  savedCves!: Table<SavedCve, string>;
-  datasetMeta!: Table<DatasetMeta, string>;
-  // V10 (v24) — official dataset sync tables (see interfaces above).
-  mitreTechniques!: Table<SyncedMitreTechnique, string>;
-  sigmaRulesSynced!: Table<SyncedSigmaRule, string>;
-  kevCatalog!: Table<KevCatalogRow, string>;
-  // DATA & INTEL — dataset de trabajo (IoCs · eventos · reglas). v16.
-  intelItems!: Table<IntelItem, string>;
   // PERFIL PROFESIONAL (v17, multi-perfil desde v18) — documentos del CV:
   // skills, tools, experiencia, certs, idiomas, targetRoles. Varias filas
   // (campo `name`), exportables como Markdown AI-ready.
@@ -337,6 +118,11 @@ class VaultDatabase extends Dexie {
   sysadminTickets!: Table<SysAdminTicket, string>;
   /** v9 (SOC simulador): casos de práctica del Blue Team (SOC-3001...). */
   socTickets!: Table<SocTicket, string>;
+  //  · `iamTickets` — tickets SIMULADOS del Pilar 1 IAM (dataset
+  //    data/iamTickets.ts, Nexora S.A. — Identity & Access Management:
+  //    JML, Access, PAM, Gobernanza, Infra IAM) que el usuario trabaja
+  //    como práctica. V11: mismo contrato que helpdesk/sysadmin/soc.
+  iamTickets!: Table<IamTicket, string>;
   /** v9 (SOC): progreso del roadmap SOC (ids 'rmsoc-*'). */
   roadmapSocItems!: Table<RoadmapItem, string>;
 
@@ -746,6 +532,16 @@ class VaultDatabase extends Dexie {
       sigmaRulesSynced: 'id, syncedAt',
       kevCatalog: 'id, fetchedAt',
     });
+    // v25 (3.11.0 — retirada de Data & Intel): la feature Data & Intel y la
+    // capa de threat intel online (providers, sync MITRE/Sigma/KEV, CVEs
+    // guardados, dataset de IoCs/eventos/reglas) se ELIMINÓ por completo.
+    // Dexie borra cada object store declarándolo como `null` (mismo patrón
+    // delta-only de v15 `videos: null` y v20 `reviewItems: null`). El resto
+    // de tablas NO se toca: notas, labs, glosario, referencias, roadmaps,
+    // tickets, perfil, inbox… quedan intactos. Los backups ≤3.10.0 que
+    // traigan estos 9 .json se ignoran con gracia en la importación
+    // (zipBackup 3.11.0 es file-by-file).
+    this.version(25).stores({ tiCache: null, onlineActivity: null, customSigmaRules: null, savedCves: null, datasetMeta: null, intelItems: null, mitreTechniques: null, sigmaRulesSynced: null, kevCatalog: null, iamTickets: 'id, status, isDeleted, updatedAt, createdAt' });
   }
 }
 
@@ -753,10 +549,9 @@ class VaultDatabase extends Dexie {
  *  can refuse cross-version restores (spec #35: "On restore: must show
  *  'Incompatible backup version' NOT partial import"). Bump this when
  *  bumping `this.version(N)` above.
- *  v24 fix (auditoría V10, H1): la constante quedó rezagada en 22 mientras el
- *  schema ya declaraba v23 (socTickets) — se realinea a 24 con la migración
- *  aditiva del sync online (mitreTechniques/sigmaRulesSynced/kevCatalog). */
-export const CURRENT_SCHEMA_VERSION = 24;
+ *  v25: se realinea con la migración v25 (retirada delta-only de las 9
+ *  tablas de Data & Intel / sync online). */
+export const CURRENT_SCHEMA_VERSION = 25;
 
 export const db = new VaultDatabase();
 
@@ -887,7 +682,8 @@ export type HdSeedDomain =
   | 'sysadminTicket'
   | 'sysadminLab'
   | 'sysadminProfile'
-  | 'socTicket';
+  | 'socTicket'
+  | 'iamTicket';
 
 /** localStorage: nombres de términos del seed que el usuario borró
  * DEFINITIVAMENTE (para que el seeding no los traiga de vuelta). */
@@ -990,6 +786,28 @@ async function doInitializeDatabase() {
     }
   } catch (err) {
     console.warn('Demo cleanup skipped:', err);
+  }
+
+  // --- v25 (3.11.0): one-time cleanup of the retired Data & Intel feature ---
+  // The whole online layer (4 threat-intel providers + dataset sync + saved
+  // CVEs + the IoC/event/rule dataset) was removed. Its Dexie table set was
+  // dropped by schema v25; the API keys lived in a SEPARATE Dexie database
+  // (VaultIntelDB) which is now orphaned — delete it once, guarded by a
+  // localStorage flag, plus the two orphaned localStorage prefs of the
+  // removed enrichment flow. Intentionally NOT touched:
+  //  · 'vaultnotes-ioc-whitelist' — IoC Extractor whitelist (feature SURVIVES).
+  //  · 'vaultnotes-enrich-consent-v1' — HelpDesk [Enrich Online] (SURVIVES).
+  try {
+    if (!localStorage.getItem('vn-intel-retired-v11')) {
+      if (typeof indexedDB !== 'undefined' && typeof indexedDB.deleteDatabase === 'function') {
+        indexedDB.deleteDatabase('VaultIntelDB');
+      }
+      localStorage.removeItem('vaultnotes-online-enrichment-consent-v1');
+      localStorage.removeItem('vaultnotes-ti-cache-ttl');
+      localStorage.setItem('vn-intel-retired-v11', '1');
+    }
+  } catch (err) {
+    console.warn('Intel retirement cleanup skipped:', err);
   }
 
   // --- Data migration: lab.commands was a plain string, now a string[] ---
@@ -1279,6 +1097,38 @@ async function doInitializeDatabase() {
     }
   } catch (err) {
     console.warn('SOC tickets seed skipped:', err);
+  }
+
+  // --- IAM (V11 · PILAR 1) · TICKETS: siembra el dataset de práctica (50
+  // tickets simulados de Nexora S.A. — Identity & Access Management:
+  // 40 de cola + 10 del proyecto final "Semana de Access Review").
+  // ADITIVO por id: las filas que ya existan (incluidas soft-deleted) NO
+  // se tocan, así el trabajo del usuario (status/statusNote) sobrevive.
+  // Los ids en el dismissal set (borrado definitivo) no se reviven.
+  try {
+    const existingIamTk = await db.iamTickets.toArray();
+    const existingIamTkIds = new Set(existingIamTk.map((t) => t.id));
+    const missingIamTk = IAM_TICKET_SEEDS.filter(
+      (t) => !existingIamTkIds.has(t.id) && !isSeedIdDismissed('iamTicket', t.id)
+    );
+    if (missingIamTk.length > 0) {
+      const nowIamTk = new Date().toISOString();
+      // bulkPut (no bulkAdd): tolera restores que ya trajeran ids iam-*
+      // sin lanzar BulkError.
+      await db.iamTickets.bulkPut(
+        missingIamTk.map((t) => ({
+          ...t,
+          status: 'nuevo' as const,
+          statusNote: undefined,
+          isDeleted: false,
+          deletedAt: undefined,
+          createdAt: nowIamTk,
+          updatedAt: nowIamTk,
+        }))
+      );
+    }
+  } catch (err) {
+    console.warn('IAM tickets seed skipped:', err);
   }
 
   // --- PERFIL PROFESIONAL (v17, multi-perfil desde v18): seed inicial SOLO

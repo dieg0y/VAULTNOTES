@@ -50,9 +50,9 @@ import {
 } from 'lucide-react';
 import {
   MITRE_TACTICS,
+  MITRE_TECHNIQUES,
   type MitreTechnique, type VaultToolRef,
 } from '../../data/mitreData';
-import { useMitreTechniques } from '../../integrations/mitre/sync';
 import { findSigmaByMitre } from '../../data/sigmaData';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
@@ -103,11 +103,10 @@ interface MitreExplorerProps {
 }
 
 export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, onAutoOpenConsumed }) => {
-  // V10 — merged techniques: bundled curated base + official synced layer
-  // (db.mitreTechniques, filled by the Sync Center). Falls back to the
-  // bundled array while Dexie resolves, so the tool works exactly as before
-  // when nothing was ever synced.
-  const techniques = useMitreTechniques();
+  // Bundled curated dataset (100% offline). The former V10 official synced
+  // layer (retired together with the Data & Intel feature set) no longer
+  // exists — the bundled array covers the whole tool.
+  const techniques = MITRE_TECHNIQUES;
   const findById = (id: string): MitreTechnique | undefined =>
     techniques.find((t) => t.id.toLowerCase() === id.toLowerCase());
 

@@ -20,8 +20,8 @@
  * offline. Sin clic, la tool es 100% offline como siempre. Consentimiento
  * de primer uso persistido en localStorage.
  *
- * Exportación: [Copiar análisis] (texto plano), [Guardar en Data & Intel]
- * (kind event, markdown) y [Añadir a Notas] (buildNoteHtmlTable + escapeHtml).
+ * Exportación: [Copiar análisis] (texto plano) y [Añadir a Notas]
+ * (buildNoteHtmlTable + escapeHtml).
  *
  * Los tiempos SLA son de ejemplo educativo, configurables en la propia tool.
  */
@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 import { HELPDESK_KB_ARTICLES } from '../../../data/helpDeskKB';
 import { useNoteStore } from '../../../store/noteStore';
-import { useIntelStore } from '../../../store/intelStore';
 import { useIsOnline } from '../../../integrations/online';
 import {
   taCls, btnPrimary, btnGhost, Row, InfoBanner, ErrorBanner, Field,
@@ -620,7 +619,6 @@ export const HdTicketTriageTool: React.FC = () => {
   const [analysis, setAnalysis] = useState<TriageAnalysis | null>(null);
   const [sla, setSlaTable] = useState<SlaTable>(DEFAULT_SLA);
   const [copied, setCopied] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
   const { addedToast, showToast } = useAddToNoteToast();
 
   // V6 FASE 3 — [Enrich Online]: estado exclusivo del enriquecimiento
@@ -697,21 +695,6 @@ export const HdTicketTriageTool: React.FC = () => {
     });
   };
 
-  const saveToIntel = async (): Promise<void> => {
-    if (!analysis) return;
-    const res = await useIntelStore.getState().addIntelItems([{
-      kind: 'event',
-      title: `Triage — ${analysis.subcategory}`,
-      content: buildAnalysisText(analysis, sla),
-      contentLang: 'markdown',
-      description: `Prioridad ${analysis.priority} · ${analysis.category}`,
-      tags: [analysis.category, analysis.priority, analysis.subcategory, 'triage'],
-      source: 'HelpDesk Ticket Triage',
-    }]);
-    setFeedback(res.added > 0 ? 'Guardado en Data & Intel ✓' : 'Ya existía en Data & Intel');
-    window.setTimeout(() => setFeedback(null), 2500);
-  };
-
   const addToNote = (): void => {
     if (!analysis) return;
     const rows: Array<[string, string]> = [
@@ -770,9 +753,6 @@ export const HdTicketTriageTool: React.FC = () => {
           {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
           {copied ? 'Copiado' : 'Copiar análisis'}
         </button>
-        <button type="button" onClick={saveToIntel} disabled={!analysis} className={`${btnGhost} inline-flex items-center gap-1.5`} title="Guardar el análisis en Data e Intel">
-          <Database className="w-3.5 h-3.5" /> Guardar en Data &amp; Intel
-        </button>
         <button type="button" onClick={addToNote} disabled={!analysis} className={`${btnGhost} inline-flex items-center gap-1.5`} title="Añadir el análisis a Notas">
           <BookOpen className="w-3.5 h-3.5" /> Añadir a Notas
         </button>
@@ -811,7 +791,6 @@ export const HdTicketTriageTool: React.FC = () => {
         </button>
       </div>
 
-      {feedback && <InfoBanner>{feedback}</InfoBanner>}
       {addedToast && <InfoBanner>Añadido a Notas — crea o elige una nota para verlo.</InfoBanner>}
 
       {/* V6 FASE 3 — panel de enriquecimiento online (aparte, marcado, NUNCA

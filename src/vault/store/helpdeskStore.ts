@@ -9,8 +9,8 @@
  *  - `selectTicket(id)` + `navigateRequest` → cualquier vista (p. ej. la
  *    tarjeta del Dashboard o el roadmap HelpDesk) puede pedir "abre la
  *    sección Service Desk con el ticket X seleccionado". App.tsx consume
- *    el request (one-shot, sin loops) igual que el intelStore de Data &
- *    Intel.
+ *    el request (one-shot, sin loops), el mismo patrón que replican los
+ *    stores de navegación de los otros simuladores.
  *
  * 100% offline — nada de red, nada de contenido: solo ids de navegación.
  */

@@ -48,16 +48,14 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
   // AUDIT VN-001 / VN-006: surface conflicts + invalid rows so the user
   // knows something was skipped (and why). Old backups with malformed
   // rows are no longer silently dropped.
-  // AUDIT VN-B-012: the auxiliary upsert-by-id tables (saved CVEs, custom
-  // Sigma rules, datasetMeta, TI cache) follow the same conflict pattern.
   const totalConflicts =
     (summary.conflictNotes || 0) + (summary.conflictLabs || 0) +
     (summary.conflictTerms || 0) + (summary.conflictReferences || 0) +
-    (summary.conflictSavedCves || 0) + (summary.conflictCustomSigmaRules || 0) +
-    (summary.conflictDatasetMeta || 0) + (summary.conflictTiCache || 0) +
-    (summary.conflictIntelItems || 0) +
     (summary.conflictProfiles || 0) + (summary.conflictRoadmapItems || 0) +
-    (summary.conflictHelpdeskTickets || 0) + (summary.conflictRoadmapHdItems || 0);
+    (summary.conflictHelpdeskTickets || 0) + (summary.conflictRoadmapHdItems || 0) +
+    (summary.conflictSysadminTickets || 0) + (summary.conflictRoadmapSaItems || 0) +
+    (summary.conflictRoadmapSocItems || 0) + (summary.conflictSocTickets || 0) +
+    (summary.conflictIamTickets || 0);
   const totalInvalid =
     (summary.invalidNotes || 0) + (summary.invalidLabs || 0) +
     (summary.invalidTerms || 0) + (summary.invalidReferences || 0) +
@@ -145,21 +143,9 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
 
           {/* AUDIT VN-B-012: conflicts on the auxiliary upsert-by-id tables —
               same amber/ShieldAlert pattern as the rows above. */}
-          {(summary.conflictSavedCves || 0) + (summary.conflictCustomSigmaRules || 0) + (summary.conflictDatasetMeta || 0) + (summary.conflictTiCache || 0) + (summary.conflictProfiles || 0) + (summary.conflictRoadmapItems || 0) + (summary.conflictHelpdeskTickets || 0) + (summary.conflictRoadmapHdItems || 0) > 0 ? (
+          {(summary.conflictProfiles || 0) + (summary.conflictRoadmapItems || 0) + (summary.conflictHelpdeskTickets || 0) + (summary.conflictRoadmapHdItems || 0) + (summary.conflictSysadminTickets || 0) + (summary.conflictRoadmapSaItems || 0) + (summary.conflictRoadmapSocItems || 0) + (summary.conflictSocTickets || 0) + (summary.conflictIamTickets || 0) > 0 ? (
             <>
               <div className="h-px bg-[#262626]" />
-              {(summary.conflictSavedCves || 0) > 0 && (
-                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="CVEs guardados en conflicto (versión local más nueva)" value={summary.conflictSavedCves || 0} valueClass="font-semibold text-amber-400" />
-              )}
-              {(summary.conflictCustomSigmaRules || 0) > 0 && (
-                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Reglas Sigma propias en conflicto (versión local más nueva)" value={summary.conflictCustomSigmaRules || 0} valueClass="font-semibold text-amber-400" />
-              )}
-              {(summary.conflictDatasetMeta || 0) > 0 && (
-                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Metadatos de datasets en conflicto (versión local más nueva)" value={summary.conflictDatasetMeta || 0} valueClass="font-semibold text-amber-400" />
-              )}
-              {(summary.conflictTiCache || 0) > 0 && (
-                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Caché de Threat Intel en conflicto (versión local más nueva)" value={summary.conflictTiCache || 0} valueClass="font-semibold text-amber-400" />
-              )}
               {(summary.conflictProfiles || 0) > 0 && (
                 <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Perfiles del CV en conflicto (versión local más nueva)" value={summary.conflictProfiles || 0} valueClass="font-semibold text-amber-400" />
               )}
@@ -171,6 +157,21 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
               )}
               {(summary.conflictRoadmapHdItems || 0) > 0 && (
                 <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Ítems del roadmap HelpDesk en conflicto (progreso local más nuevo)" value={summary.conflictRoadmapHdItems || 0} valueClass="font-semibold text-amber-400" />
+              )}
+              {(summary.conflictSysadminTickets || 0) > 0 && (
+                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Tickets de SysAdmin Ops en conflicto (trabajo local más nuevo)" value={summary.conflictSysadminTickets || 0} valueClass="font-semibold text-amber-400" />
+              )}
+              {(summary.conflictRoadmapSaItems || 0) > 0 && (
+                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Ítems del roadmap SysAdmin en conflicto (progreso local más nuevo)" value={summary.conflictRoadmapSaItems || 0} valueClass="font-semibold text-amber-400" />
+              )}
+              {(summary.conflictRoadmapSocItems || 0) > 0 && (
+                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Ítems del roadmap SOC en conflicto (progreso local más nuevo)" value={summary.conflictRoadmapSocItems || 0} valueClass="font-semibold text-amber-400" />
+              )}
+              {(summary.conflictSocTickets || 0) > 0 && (
+                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Casos del SOC en conflicto (trabajo local más nuevo)" value={summary.conflictSocTickets || 0} valueClass="font-semibold text-amber-400" />
+              )}
+              {(summary.conflictIamTickets || 0) > 0 && (
+                <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Tickets del simulador IAM en conflicto (trabajo local más nuevo)" value={summary.conflictIamTickets || 0} valueClass="font-semibold text-amber-400" />
               )}
             </>
           ) : null}

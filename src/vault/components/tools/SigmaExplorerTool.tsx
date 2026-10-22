@@ -56,20 +56,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X, BookOpen, Search, Shield, Code, Crosshair, Copy, Check,
-  ExternalLink, Tag, Calendar, User, Database,
+  ExternalLink, Tag, Calendar, User,
 } from 'lucide-react';
 import {
   inputCls, btnPrimary, btnGhost, CopyBtn, CodeBlock,
 } from './_shared';
 import {
-  SIGMA_LEVELS, SIGMA_STATUSES,
+  SIGMA_LEVELS, SIGMA_STATUSES, SIGMA_RULES,
   type SigmaRule, type SigmaLevel, type SigmaStatus,
 } from '../../data/sigmaData';
-import { useSigmaRules } from '../../integrations/sigma/sync';
 import { usePendingToolStore } from '../../store/pendingToolStore';
 import { useNoteStore } from '../../store/noteStore';
-// DATA & INTEL (v16) — envío de la regla al dataset persistente.
-import { useIntelStore } from '../../store/intelStore';
 import { escapeHtml } from '../../utils/escapeHtml';
 
 /* ====================================================================
@@ -236,8 +233,8 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
   autoOpenId,
   onAutoOpenConsumed,
 }) => {
-  /* ---------- V10 — merged rules (bundled + custom + official synced) ---------- */
-  const rules = useSigmaRules();
+  /* ---------- bundled rules (100% offline; custom/synced layers retired) ---------- */
+  const rules = SIGMA_RULES;
   const findById = (id: string): SigmaRule | undefined =>
     rules.find((r) => r.id.toLowerCase() === id.toLowerCase());
 
@@ -252,8 +249,6 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<SigmaStatus | 'All'>('All');
   const [selected, setSelected] = useState<SigmaRule | null>(initialMatch || null);
   const [copied, setCopied] = useState<boolean>(false);
-  // DATA & INTEL (v16) — feedback inline del envío al dataset.
-  const [intelMsg, setIntelMsg] = useState<string | null>(null);
 
   /* ---------- deep-link follow-up (React 19 render-time adjustment) ---------- */
   const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
@@ -366,28 +361,6 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
 
     useNoteStore.getState().enqueueNote('Sigma Rule — ' + r.title, htmlTable);
     setSelected(null);
-  };
-
-  /* ---------- send to Data & Intel (v16) ---------- */
-  const handleSendToIntel = async () => {
-    if (!selected) return;
-    const r = selected;
-    const res = await useIntelStore.getState().addIntelItems([{
-      kind: 'rule',
-      title: r.title,
-      content: r.yaml,
-      contentLang: 'sigma',
-      severity: String(r.level || '').toLowerCase() || undefined,
-      description: r.description || undefined,
-      tags: r.tags.slice(0, 20),
-      mitre: r.mitre.slice(0, 20),
-      source: 'Sigma Explorer',
-    }]);
-    const msg = res.added > 0
-      ? 'Guardado en Data & Intel ✓'
-      : 'Ya existía en Data & Intel';
-    setIntelMsg(msg);
-    setTimeout(() => setIntelMsg((m) => (m === msg ? null : m)), 2500);
   };
 
   /* ---------- render ---------- */
@@ -741,18 +714,6 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
                   <BookOpen className="w-3.5 h-3.5" />
                   Add to Note
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSendToIntel()}
-                  className={`${btnGhost} inline-flex items-center gap-1.5`}
-                  title="Guardar esta regla como item del dataset de Data & Intel"
-                >
-                  <Database className="w-3.5 h-3.5" />
-                  Enviar a Data &amp; Intel
-                </button>
-                {intelMsg && (
-                  <span className="text-[10px] text-blue-300 self-center">{intelMsg}</span>
-                )}
               </div>
             </div>
           </div>

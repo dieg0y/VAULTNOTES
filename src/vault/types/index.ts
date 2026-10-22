@@ -143,26 +143,6 @@ export interface ImportSummary {
   invalidImages: number;
   invalidPdfs: number;
   invalidMisc: number;
-  /** AUDIT VN-B-012: incoming rows on the upsert-by-id auxiliary tables
-   *  (savedCves / customSigmaRules / datasetMeta / tiCache) skipped because
-   *  the local row has a more recent timestamp (updatedAt, falling back to
-   *  the row's natural savedAt/retrievedAt). Preserves the user's local
-   *  personalNotes / Sigma edits when importing an older backup. */
-  conflictSavedCves: number;
-  conflictCustomSigmaRules: number;
-  conflictDatasetMeta: number;
-  conflictTiCache: number;
-  /** DATA & INTEL (v16): incoming intelItems rows skipped because the local
-   *  row is newer (updatedAt) — same non-destructive conflict guard as the
-   *  other upsert-by-id tables. */
-  conflictIntelItems: number;
-  /** V10 (3.10.0): official synced dataset rows (mitreTechniques /
-   *  sigmaRulesSynced / kevCatalog) skipped because the local row is newer
-   *  (syncedAt / fetchedAt) — datasets are also re-downloadable from the
-   *  Sync Center at any time. */
-  conflictMitreTechniques: number;
-  conflictSigmaRulesSynced: number;
-  conflictKevCatalog: number;
   /** v18: incoming profile rows (profiles.json) skipped because the local
    * row is newer (updatedAt) — same non-destructive conflict guard. */
   conflictProfiles: number;
@@ -190,6 +170,10 @@ export interface ImportSummary {
    * skipped because the local row is newer (updatedAt) — preserves the
    * user's SOC triage practice work (status + notas de cierre). */
   conflictSocTickets: number;
+  /** v11 (SIMULADOR IAM): incoming iamTickets rows (iamTickets.json)
+   * skipped because the local row is newer (updatedAt) — preserves the
+   * user's IAM practice work (status + notas de cierre). */
+  conflictIamTickets: number;
   /** AUDIT VN-B-013: imported blobs (images/PDFs) whose noteId/labId
    *  points at an owner that doesn't exist locally after the import. The
    *  blobs are KEPT (data preservation) but reported as orphaned. */
@@ -358,21 +342,25 @@ export interface RoadmapItem {
 }
 
 /**
- * V9 — 3 PILARES AUTÓNOMOS. Cada pilar (HelpDesk / SysAdmin / SOC) tiene su
- * propia sección de Herramientas, Troubleshooting (árbol de decisión),
- * CheatSheet y Runbooks. Las antiguas secciones globales 'tools',
- * 'troubleshooting' y 'cheatsheet' se reemplazan por las variantes por pilar
- * (el roadmap SOC añade 'roadmap-soc' junto a los otros 3 roadmaps).
+ * V11 — 4 PILARES AUTÓNOMOS + SECCIÓN GLOBAL DE HERRAMIENTAS.
+ * Pilar 1 IAM (nuevo) · Pilar 2 SOC · Pilar 3 Service Desk · Pilar 4 SysAdmin.
+ * Cada pilar conserva su roadmap, Troubleshooting (árbol de decisión) y
+ * Runbooks (V11 fusiona el CheatSheet dentro de Runbooks — el usuario
+ * prefiere esa presentación). Las herramientas se unifican en UNA sola
+ * sección global 'tools' (cada tool aparece una vez, etiquetada por rol).
+ * El roadmap de IAM sigue siendo la sección 'roadmap'.
  */
 export type ActiveSection =
   | 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'references' | 'trash' | 'settings'
-  | 'inbox' | 'data-intel' | 'profile' | 'roadmap'
-  // Pilar 1 — Service Desk / HelpDesk:
-  | 'helpdesk' | 'roadmap-hd' | 'tools-hd' | 'troubleshooting-hd' | 'cheatsheet-hd' | 'runbooks-hd'
-  // Pilar 2 — SysAdmin Ops / Infra:
-  | 'sysadmin' | 'roadmap-sa' | 'tools-sa' | 'troubleshooting-sa' | 'cheatsheet-sa' | 'runbooks-sa'
-  // Pilar 3 — SOC / Blue Team:
-  | 'soc' | 'roadmap-soc' | 'tools-soc' | 'troubleshooting-soc' | 'cheatsheet-soc' | 'runbooks-soc';
+  | 'inbox' | 'profile' | 'roadmap' | 'tools'
+  // Pilar 1 — IAM / Identity & Access Management (V11):
+  | 'iam' | 'troubleshooting-iam' | 'runbooks-iam'
+  // Pilar 2 — SOC / Blue Team:
+  | 'soc' | 'roadmap-soc' | 'troubleshooting-soc' | 'runbooks-soc'
+  // Pilar 3 — Service Desk / HelpDesk:
+  | 'helpdesk' | 'roadmap-hd' | 'troubleshooting-hd' | 'runbooks-hd'
+  // Pilar 4 — SysAdmin Ops / Infra:
+  | 'sysadmin' | 'roadmap-sa' | 'troubleshooting-sa' | 'runbooks-sa';
 
 /* ------------------------------------------------------------------ */
 /* HELPDESK (v19) — tickets simulados (CRUD) + KB (dataset estático). */
@@ -664,4 +652,77 @@ export interface SocKbArticle {
   relatedTerms?: string[];
   /** Ids de casos del dataset que lo referencian. */
   relatedTickets?: string[];
+}
+
+/* ------------------------------------------------------------------ */
+/* IAM (V11 · PILAR 1) — simulador de Identity & Access Management.    */
+/* Mismo contrato que HelpDesk (v19) / SysAdmin (v21) / SOC (v9) con   */
+/* una extensión de dominio: `environment` clasifica la TORRE IAM      */
+/* (JML / Access / PAM / Gobernanza / Infra IAM / Multi) — soporta el */
+/* filtro por entorno de la cola, igual que los otros simuladores.    */
+/* Los tickets se siembran desde data/iamTickets.ts (Nexora S.A. —    */
+/* equipo IAM, empresa ficticia) y el usuario los trabaja como       */
+/* práctica: onboarding/offboarding/JML, accesos, PAM, gobernanza.    */
+/* El proyecto final es la "Semana de Access Review" (10 tickets, 2   */
+/* por día × 5 días). La KB es solo lectura (data/iamKB.ts).         */
+/* ------------------------------------------------------------------ */
+
+export type IamTicketType = 'incidente' | 'solicitud' | 'cambio';
+export type IamTicketPriority = 'P1' | 'P2' | 'P3' | 'P4';
+export type IamTicketLevel = 'alta' | 'media' | 'baja';
+export type IamTicketStatus = 'nuevo' | 'en_progreso' | 'resuelto' | 'cerrado' | 'escalado';
+export type IamEnvironment =
+  | 'JML'
+  | 'Access'
+  | 'PAM'
+  | 'Gobernanza'
+  | 'Infra IAM'
+  | 'Multi';
+
+export interface IamTicket {
+  /** Id estable del seed ('iam-001'...) o generado para tickets propios. */
+  id: string;
+  /** Número visible del ticket ('IAM-4001'...). */
+  number: string;
+  title: string;
+  /** Categoría de la lista maestra (rama IAM). */
+  category: string;
+  /** Subcategoría corta ('Onboarding', 'Break-glass', 'SoD'...). */
+  subcategory?: string;
+  type: IamTicketType;
+  priority: IamTicketPriority;
+  impact: IamTicketLevel;
+  urgency: IamTicketLevel;
+  /** Torre IAM del ticket (filtro por entorno). */
+  environment: IamEnvironment;
+  /** Usuario solicitante — ficticio: 'Paola Andrade (Talento Humano)'. */
+  requester: string;
+  /** Lo que reporta el usuario, en sus palabras. */
+  description: string;
+  /** Síntomas observables/verificables. */
+  symptoms: string;
+  /** Datos ya recolectados (IGA, logs, comandos de diagnóstico...). */
+  dataAvailable?: string;
+  /** Pasos esperados de diagnóstico (guía de estudio). */
+  troubleshooting?: string;
+  /** Resolución esperada (guía de estudio). */
+  resolution?: string;
+  /** A quién/cuándo escalar ('Seguridad IT', 'Legal', 'Vendor'...). */
+  escalation?: string;
+  /** Id del artículo de KB relacionado ('iam-kb-001'). */
+  kbRef?: string;
+  /** Habilidad práctica que entrena el ticket. */
+  skill?: string;
+  /** Evidencia sugerida a registrar. */
+  evidence?: string;
+  /** Estado de trabajo del usuario. */
+  status: IamTicketStatus;
+  /** Nota de cierre/resolución escrita por el usuario. */
+  statusNote?: string;
+  /** True = forma parte del proyecto final (10 tickets "Semana de Access Review"). */
+  isFinalProject?: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }

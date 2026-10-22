@@ -3,33 +3,15 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Network, Copy, Check, X, BookOpen, Terminal, Shield, ShieldAlert,
-  FileUp, Trash2, ExternalLink, Settings, KeyRound, Bug,
+  FileUp, Trash2, Settings, KeyRound, Bug,
   Database, Globe, FileText, Search, Cpu,
-  RefreshCw, Loader2, AlertTriangle, CheckCircle2, Wifi, WifiOff,
 } from 'lucide-react';
 import { useIocStore } from '../store/iocStore';
-// DATA & INTEL (v16) — envío de IoCs extraídos al dataset persistente.
-import { useIntelStore } from '../store/intelStore';
-// Block 6 — Online-Optional enrichment architecture (sole entry point: enrichWithProvider)
-import {
-  enrichWithProvider,
-  providersForIocType,
-  PROVIDER_META,
-  type EnrichResult,
-} from '../integrations/threatIntel/registry';
-import { toUserMessage } from '../integrations/threatIntel/errors';
-import { grantOnlineConsent } from '../integrations/threatIntel/consent';
-import { useIsOnline } from '../integrations/online';
-import type {
-  ProviderResult,
-  ProviderId,
-  EnrichableIocType,
-} from '../integrations/threatIntel/types';
 
 /* ============================================================= */
 /* IoC Extractor — SOC Tier1/2 + IAM                              */
 /* 100% offline, browser-only. Refang + validate + dedup +       */
-/* context + scoring + enrichment links + KQL/SPL/STIX/CSV/JSON  */
+/* context + scoring + KQL/SPL/STIX/CSV/JSON exports.             */
 /* + defang toggle + secret detection + editable whitelist.      */
 /* ============================================================= */
 
@@ -396,51 +378,6 @@ const scoreColor = (s: IocFinding['score']) =>
   : s === 'baja' ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
   : 'bg-[#161616] text-[#666] border-[#262626]';
 
-/* ---------- Enrichment URLs ---------- */
-const enrichmentLinks = (type: IocType, value: string): { label: string; url: string }[] => {
-  const baseIp = value.split(/[:/]/)[0];
-  const domain = type === 'url' ? value.replace(/^https?:\/\//, '').split(/[/?#]/)[0] : value;
-  const enc = encodeURIComponent(value);
-  switch (type) {
-    case 'ipv4':
-    case 'ipv6':
-      return [
-        { label: 'VT', url: `https://www.virustotal.com/gui/search/${enc}` },
-        { label: 'AbuseIPDB', url: `https://www.abuseipdb.com/check/${baseIp}` },
-        { label: 'Shodan', url: `https://www.shodan.io/host/${baseIp}` },
-        { label: 'OTX', url: `https://otx.alienvault.com/indicator/ip/${baseIp}` },
-      ];
-    case 'domain':
-    case 'url':
-      return [
-        { label: 'VT', url: `https://www.virustotal.com/gui/domain/${encodeURIComponent(domain)}` },
-        { label: 'OTX', url: `https://otx.alienvault.com/indicator/domain/${domain}` },
-        { label: 'Shodan', url: `https://www.shodan.io/search?query=hostname:${domain}` },
-      ];
-    case 'hash':
-      return [
-        { label: 'VT', url: `https://www.virustotal.com/gui/file/${enc}` },
-        { label: 'OTX', url: `https://otx.alienvault.com/indicator/file/${enc}` },
-      ];
-    case 'cve':
-      return [
-        { label: 'NVD', url: `https://nvd.nist.gov/vuln/detail/${value}` },
-        { label: 'MITRE', url: `https://cve.mitre.org/cgi-bin/cvename.cgi?name=${value}` },
-      ];
-    case 'email':
-      return [
-        { label: 'HIBP', url: `https://haveibeenpwned.com/api/v3/breachedaccount/${enc}` },
-      ];
-    case 'btc':
-      return [
-        { label: 'Blockchain', url: `https://www.blockchain.com/btc/address/${value}` },
-        { label: 'OTX', url: `https://otx.alienvault.com/indicator/bitcoin/${value}` },
-      ];
-    default:
-      return [];
-  }
-};
-
 /* ---------- Export formatters ---------- */
 const toTSV = (findings: IocFinding[]): string => {
   const header = 'Type\tValue\tCount\tClassification\tScore\tContext';
@@ -730,262 +667,6 @@ const WhitelistModal: React.FC<{ wl: Whitelist; onSave: (wl: Whitelist) => void;
   );
 };
 
-/* ---------- Online enrichment helpers (Block 6) ---------- */
-
-// IOC types that are eligible for online enrichment (mirrors EnrichableIocType).
-// Other types (email, cve, filepath, jwt, etc.) are NOT enriched — they could
-// leak sensitive data to third parties and the providers don't support them.
-const ENRICHABLE_TYPES: ReadonlySet<string> = new Set(['ipv4', 'ipv6', 'domain', 'url', 'hash']);
-const isEnrichable = (t: IocType): t is EnrichableIocType =>
-  ENRICHABLE_TYPES.has(t);
-
-// Stable key for per-(provider, ioc, value) enrichment state.
-const enrichKey = (provider: ProviderId, type: EnrichableIocType, value: string): string =>
-  `${provider}:${type}:${value}`;
-
-// Format an ISO timestamp as a short, locale-aware string. Falls back to the
-// raw string if Date can't parse it. Never throws.
-const formatTs = (iso: string): string => {
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleString();
-  } catch {
-    return iso;
-  }
-};
-
-// High-level status derived from the EnrichResult tagged union. Used by the
-// StatusBadge to render the right color/label without re-implementing the
-// discriminated-union switch at every call site.
-type EnrichStatus = 'idle' | 'loading' | 'success' | 'cached' | 'error';
-const getStatus = (result: EnrichResult | undefined, loading: boolean): EnrichStatus => {
-  if (loading) return 'loading';
-  if (!result) return 'idle';
-  if (result.ok && 'cached' in result && result.cached) return 'cached';
-  if (result.ok) return 'success';
-  // consent_missing is handled by the ConsentModal — the row stays 'idle'.
-  if (!result.ok && 'retry' in result) return 'idle';
-  return 'error';
-};
-
-const StatusBadge: React.FC<{ status: EnrichStatus }> = ({ status }) => {
-  const map: Record<EnrichStatus, { cls: string; label: string }> = {
-    idle:    { cls: 'bg-[#161616] text-[#666] border-[#262626]', label: 'idle' },
-    loading: { cls: 'bg-blue-500/15 text-blue-300 border-blue-500/30', label: 'querying…' },
-    success: { cls: 'bg-green-500/15 text-green-300 border-green-500/30', label: 'success' },
-    cached:  { cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30', label: 'cached' },
-    error:   { cls: 'bg-red-500/15 text-red-300 border-red-500/30', label: 'error' },
-  };
-  const m = map[status];
-  return <span className={`text-[9px] px-1.5 py-0.5 rounded border ${m.cls}`}>{m.label}</span>;
-};
-
-// Renders the uniform ProviderResult body: metric chips (malicious/total,
-// confidence, pulses, ports), summary text, and a compact facts definition
-// list. All values are pre-sanitized by the client layer (client.ts) — we
-// render them as text only, never as HTML.
-const ProviderResultBody: React.FC<{ r: ProviderResult }> = ({ r }) => {
-  const facts = r.facts ?? [];
-  const hasMetrics =
-    r.malicious !== undefined ||
-    r.total !== undefined ||
-    r.confidence !== undefined ||
-    r.pulses !== undefined ||
-    (r.ports !== undefined && r.ports.length > 0);
-  return (
-    <div className="space-y-1">
-      {hasMetrics && (
-        <div className="flex flex-wrap gap-1.5 text-[10px]">
-          {r.malicious !== undefined && (
-            <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/20">
-              malicious: {r.malicious}{r.total !== undefined ? `/${r.total}` : ''}
-            </span>
-          )}
-          {r.confidence !== undefined && (
-            <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-              confidence: {r.confidence}%
-            </span>
-          )}
-          {r.pulses !== undefined && (
-            <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">
-              pulses: {r.pulses}
-            </span>
-          )}
-          {r.ports !== undefined && r.ports.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-              ports: {r.ports.join(', ')}
-            </span>
-          )}
-        </div>
-      )}
-      {r.summary && (
-        <div className="text-[10px] text-[#CCC] leading-relaxed break-all">{r.summary}</div>
-      )}
-      {facts.length > 0 && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px]">
-          {facts.map((f, i) => (
-            <React.Fragment key={i}>
-              <dt className="text-[#666]">{f.label}</dt>
-              <dd className="text-[#CCC] font-mono break-all">{f.value}</dd>
-            </React.Fragment>
-          ))}
-        </dl>
-      )}
-    </div>
-  );
-};
-
-// One row per provider inside the EnrichmentSection. Renders provider label +
-// status badge + [Refresh] + (cached hit | fresh success | error message).
-// NEVER renders raw stack traces — errors are surfaced via toUserMessage.
-const ProviderResultRow: React.FC<{
-  provider: ProviderId;
-  result?: EnrichResult;
-  loading: boolean;
-  onRefresh: () => void;
-}> = ({ provider, result, loading, onRefresh }) => {
-  const meta = PROVIDER_META[provider];
-  const status = getStatus(result, loading);
-  // Defensive: parent already filters, but skip render when there's nothing to show.
-  if (!result && !loading) return null;
-  // consent_missing is handled globally by the ConsentModal — don't render a row.
-  if (result && !result.ok && 'retry' in result) return null;
-  return (
-    <div className="bg-[#0A0A0A] border border-[#1A1A1A] rounded px-2 py-1.5">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[10px] font-bold text-white">{meta.label}</span>
-        <StatusBadge status={status} />
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="ml-auto flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] text-[#888] hover:text-blue-400 hover:bg-[#161616] transition-colors cursor-pointer disabled:opacity-50"
-          title="Refresh"
-        >
-          <RefreshCw className={`w-2.5 h-2.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
-      </div>
-      {/* Cached hit — show cached result + retrievedAt + [Refresh] forces a re-fetch. */}
-      {result && result.ok && 'cached' in result && result.cached && (
-        <div className="space-y-1">
-          <div className="text-[10px] text-amber-300 flex items-center gap-1">
-            <CheckCircle2 className="w-2.5 h-2.5" /> Cached result available
-          </div>
-          <ProviderResultBody r={result.result} />
-          <div className="text-[9px] text-[#555] font-mono">retrieved: {formatTs(result.retrievedAt)}</div>
-        </div>
-      )}
-      {/* Fresh success — show the just-fetched result. */}
-      {result && result.ok && !('cached' in result) && (
-        <div className="space-y-1">
-          <ProviderResultBody r={result.result} />
-          <div className="text-[9px] text-[#555] font-mono">retrieved: {formatTs(result.result.retrievedAt)}</div>
-        </div>
-      )}
-      {/* Error — short actionable message, NEVER stack traces or raw HTTP bodies. */}
-      {result && !result.ok && !('retry' in result) && (
-        <div className="text-[10px] text-red-300">{toUserMessage(result.error)}</div>
-      )}
-    </div>
-  );
-};
-
-// The Online Enrichment sub-section. Visually distinct (border-top, indented)
-// from the local analysis above it. Per spec #9: online results are CLEARLY
-// SEPARATED from local analysis. Per spec #14: external links stay in their
-// own row ABOVE this section (handled by the parent render).
-const EnrichmentSection: React.FC<{
-  finding: { type: EnrichableIocType; value: string };
-  results: Record<string, EnrichResult>;
-  loading: Record<string, boolean>;
-  online: boolean;
-  onEnrich: (provider: ProviderId, type: EnrichableIocType, value: string, forceRefresh?: boolean) => void;
-}> = ({ finding, results, loading, online, onEnrich }) => {
-  const providers = providersForIocType(finding.type);
-  return (
-    <div className="border-t border-[#1a1a1a] mt-2 pt-2 ml-6">
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400">Online Enrichment</span>
-        {online ? (
-          <span className="flex items-center gap-1 text-[9px] text-green-400">
-            <Wifi className="w-2.5 h-2.5" /> Online
-          </span>
-        ) : (
-          <span className="flex items-center gap-1 text-[9px] text-red-400">
-            <WifiOff className="w-2.5 h-2.5" /> Offline — enrichment disabled
-          </span>
-        )}
-      </div>
-      <div className="flex gap-1 flex-wrap mb-1.5">
-        {providers.map((p) => {
-          const key = enrichKey(p, finding.type, finding.value);
-          const isLoading = !!loading[key];
-          return (
-            <button
-              key={p}
-              onClick={() => onEnrich(p, finding.type, finding.value)}
-              disabled={!online || isLoading}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-[#161616] border border-[#262626] text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {isLoading ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Search className="w-2.5 h-2.5" />}
-              Enrich {PROVIDER_META[p].label}
-            </button>
-          );
-        })}
-      </div>
-      {providers.map((p) => {
-        const key = enrichKey(p, finding.type, finding.value);
-        const result = results[key];
-        const isLoading = !!loading[key];
-        if (!result && !isLoading) return null;
-        return (
-          <ProviderResultRow
-            key={p}
-            provider={p}
-            result={result}
-            loading={isLoading}
-            onRefresh={() => onEnrich(p, finding.type, finding.value, true)}
-          />
-        );
-      })}
-    </div>
-  );
-};
-
-// First-run privacy warning modal (spec #13). Shown when enrichWithProvider
-// returns ConsentMissingOutcome. Single shared instance at the top level —
-// not per finding. Same z-index + backdrop pattern as WhitelistModal.
-const ConsentModal: React.FC<{
-  onContinue: () => void;
-  onCancel: () => void;
-}> = ({ onContinue, onCancel }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onCancel}>
-    <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
-      <div className="px-5 py-3 border-b border-[#262626] flex items-center gap-2">
-        <AlertTriangle className="w-4 h-4 text-amber-400" />
-        <div className="font-bold text-white text-sm">Online enrichment</div>
-      </div>
-      <div className="p-5 space-y-3 text-xs text-[#E5E5E5]">
-        <p className="text-[11px] text-[#BBB] leading-relaxed">
-          Online enrichment sends the selected IOC to the configured third-party provider.
-          Results are cached locally so you don&apos;t re-query the same IOC.
-          API keys are stored locally on this device. No backend is involved.
-        </p>
-      </div>
-      <div className="px-5 py-3 border-t border-[#262626] flex items-center justify-end gap-2">
-        <button
-          onClick={onCancel}
-          className="px-3 py-1.5 rounded text-[#888] hover:text-white text-xs cursor-pointer"
-        >Cancel</button>
-        <button
-          onClick={onContinue}
-          className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold cursor-pointer"
-        >Continue</button>
-      </div>
-    </div>
-  </div>
-);
-
 /* ---------- Main component ---------- */
 export const IocExtractorView: React.FC = () => {
   const [text, setText] = useState('');
@@ -998,96 +679,6 @@ export const IocExtractorView: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-
-  // ---- Block 6 — online enrichment state ----
-  // Per-(provider, ioc, value) enrichment outcomes (EnrichResult tagged union).
-  // Keyed by `enrichKey()` so the same IOC enriched via two providers tracks
-  // two independent outcomes. Persists across re-renders; cleared on unmount.
-  const [enrichResults, setEnrichResults] = useState<Record<string, EnrichResult>>({});
-  // Per-key in-flight flag — drives the per-button spinner + disables the button.
-  const [enrichLoading, setEnrichLoading] = useState<Record<string, boolean>>({});
-  // First-run consent gate — when set, ConsentModal renders. Carries the
-  // retry() fn from ConsentMissingOutcome plus the key to file the eventual
-  // outcome under. Single shared instance (not per finding).
-  const [pendingConsent, setPendingConsent] = useState<{
-    retry: () => Promise<EnrichResult>;
-    key: string;
-  } | null>(null);
-  const isOnline = useIsOnline();
-
-  // ---- Online enrichment handlers ----
-  // Sole entry point: enrichWithProvider. NEVER calls fetch directly, never
-  // bypasses consent / cache / rate-limit / activity-log. All async wrapped
-  // in try/catch — failures are non-fatal (stored as a synthetic error outcome
-  // so the per-provider row still renders instead of crashing the view).
-  const handleEnrich = useCallback(async (
-    provider: ProviderId,
-    type: EnrichableIocType,
-    value: string,
-    forceRefresh = false,
-  ) => {
-    const key = enrichKey(provider, type, value);
-    setEnrichLoading((prev) => ({ ...prev, [key]: true }));
-    try {
-      const result = await enrichWithProvider(provider, type, value, { forceRefresh });
-      // Consent gate: don't store a row outcome — show the modal + stash retry.
-      if (!result.ok && 'retry' in result) {
-        setPendingConsent({ retry: result.retry, key });
-        return;
-      }
-      setEnrichResults((prev) => ({ ...prev, [key]: result }));
-    } catch (e) {
-      // Non-fatal: surface a synthetic error outcome so the row renders.
-      console.error('enrichment failed', e);
-      setEnrichResults((prev) => ({
-        ...prev,
-        [key]: { ok: false, error: { kind: 'unknown', detail: String(e) } },
-      }));
-    } finally {
-      setEnrichLoading((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    }
-  }, []);
-
-  // User clicked [Continue] on the ConsentModal — grant consent, then run the
-  // stashed retry() (which re-issues the exact same enrichWithProvider call,
-  // now with consent granted so it goes through the full flow).
-  const handleConsentContinue = useCallback(async () => {
-    const pending = pendingConsent;
-    setPendingConsent(null);
-    if (!pending) return;
-    grantOnlineConsent();
-    setEnrichLoading((prev) => ({ ...prev, [pending.key]: true }));
-    try {
-      const outcome = await pending.retry();
-      // Edge case: consent grant failed silently (e.g. localStorage blocked) —
-      // re-trigger the modal so the user can try again or cancel.
-      if (!outcome.ok && 'retry' in outcome) {
-        setPendingConsent({ retry: outcome.retry, key: pending.key });
-        return;
-      }
-      setEnrichResults((prev) => ({ ...prev, [pending.key]: outcome }));
-    } catch (e) {
-      console.error('consent retry failed', e);
-      setEnrichResults((prev) => ({
-        ...prev,
-        [pending.key]: { ok: false, error: { kind: 'unknown', detail: String(e) } },
-      }));
-    } finally {
-      setEnrichLoading((prev) => {
-        const next = { ...prev };
-        delete next[pending.key];
-        return next;
-      });
-    }
-  }, [pendingConsent]);
-
-  const handleConsentCancel = useCallback(() => {
-    setPendingConsent(null);
-  }, []);
 
   // Cross-tool hand-off: when another tool (Log Parser, PowerShell Analyzer,
   // Command Line Analyzer, …) calls `useIocStore.getState().setPendingText(...)`,
@@ -1153,11 +744,6 @@ export const IocExtractorView: React.FC = () => {
     }
   }, []);
 
-  // DATA & INTEL (v16) — envío de los findings (respeta el filtro activo) al
-  // dataset persistente. Dedup automático por valor+tipo en intelStore.
-  const addIntelItems = useIntelStore((s) => s.addIntelItems);
-  const [intelMsg, setIntelMsg] = useState<string | null>(null);
-
   const filtered = useMemo(() => {
     if (!filter.trim()) return findings;
     const t = filter.toLowerCase();
@@ -1171,26 +757,6 @@ export const IocExtractorView: React.FC = () => {
   }, [findings]);
 
   const displayValue = (v: string) => defangOn ? defang(v) : v;
-
-  const sendToIntel = async () => {
-    if (filtered.length === 0) return;
-    const res = await addIntelItems(filtered.map((f) => ({
-      kind: 'ioc' as const,
-      title: f.value,
-      iocType: f.type,
-      confidence: f.score,
-      description: [f.classification, f.context ? `…${f.context}…` : '']
-        .filter(Boolean)
-        .join(' — ') || undefined,
-      tags: [],
-      source: 'IoC Extractor',
-    })));
-    const parts = [`${res.added} guardado(s) en Data & Intel`];
-    if (res.skipped > 0) parts.push(`${res.skipped} ya existía(n)`);
-    const msg = parts.join(' · ');
-    setIntelMsg(msg);
-    setTimeout(() => setIntelMsg((m) => (m === msg ? null : m)), 4000);
-  };
 
   const copyAll = (fmt: 'tsv' | 'csv' | 'json' | 'stix' | 'kql' | 'spl') => {
     let out = '';
@@ -1228,7 +794,6 @@ export const IocExtractorView: React.FC = () => {
             <li><b className="text-white">Validación agresiva.</b> Descarta IPs privadas (10.x, 192.168.x, 172.16-31.x, 127.x, 169.254.x, 0.0.0.0, 255.255.255.255), dominios sin TLD válido, hashes con charset no hexadecimal, y todo lo que esté en la whitelist editable (microsoft.com, login.microsoftonline.com, *.sharepoint.com, *.okta.com…).</li>
             <li><b className="text-white">Dedup + contador + contexto.</b> Si <code className="text-green-300">malware.com</code> aparece 20 veces, se muestra 1 vez con <code className="text-white">×20</code> y 40 caracteres de contexto a cada lado — oro para Tier 1.</li>
             <li><b className="text-white">Clasificación + scoring automático.</b> Etiqueta cada IoC: <span className="text-red-300">IP Pública — investigar</span>, <span className="text-blue-300">IP Privada — Ignorar</span>, <span className="text-blue-300">Whitelist — dominio legítimo</span>, <span className="text-red-300">URL con binario — alta sospecha</span>, <span className="text-red-300">CREDENTIAL LEAK P1</span> (AWS keys, private keys, bearer, secretos en claro), <span className="text-red-300">Punycode — sospechoso (phishing)</span>.</li>
-            <li><b className="text-white">Enriquecimiento 1-clic.</b> Botones al lado de cada IoC abren la búsqueda en <b>VirusTotal</b>, <b>AbuseIPDB</b>, <b>Shodan</b>, <b>OTX</b>, <b>NVD/MITRE</b>, <b>HaveIBeenPwned</b>. No se consulta automáticamente — tú decides, así no quemas API keys.</li>
             <li><b className="text-white">Output listo para trabajar.</b> Botón <b>Exports</b> genera: tabla TSV/CSV para Excel, JSON, <b>STIX 2.1</b> para tu TIP, y <b>KQL</b> y <b>SPL</b> listos para pegar en Sentinel/Splunk — te ahorra 10 min por alerta.</li>
             <li><b className="text-white">Defang ON/OFF.</b> Toggle para copiar <code className="text-green-300">hxxp://malware[.]com</code> al compartir el reporte sin que nadie haga clic.</li>
           </ol>
@@ -1271,16 +836,7 @@ export const IocExtractorView: React.FC = () => {
       {findings.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] text-green-400">{findings.length} IoC(s) único(s) — {findings.reduce((a, b) => a + b.count, 0)} ocurrencias totales</span>
-          {intelMsg && <span className="text-[10px] text-blue-300">{intelMsg}</span>}
           <div className="ml-auto flex items-center gap-1">
-            <button
-              onClick={() => void sendToIntel()}
-              disabled={filtered.length === 0}
-              title="Guarda los IoC(s) visibles (respeta el filtro) en el dataset de Data & Intel"
-              className="px-2 py-1 rounded text-[10px] text-blue-300 hover:bg-blue-500/10 cursor-pointer flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Database className="w-3 h-3" /> Guardar en Data &amp; Intel ({filtered.length})
-            </button>
             <button onClick={() => setShowExports(!showExports)} className="px-2 py-1 rounded text-[10px] text-blue-400 hover:bg-blue-500/10 cursor-pointer flex items-center gap-1">
               <Database className="w-3 h-3" /> {showExports ? 'Ocultar exports' : 'Mostrar exports'}
             </button>
@@ -1312,7 +868,6 @@ export const IocExtractorView: React.FC = () => {
       {filtered.length > 0 && (
         <div className="space-y-1.5 max-h-[520px] overflow-y-auto">
           {filtered.map((f, i) => {
-            const links = enrichmentLinks(f.type, f.value);
             const icon = typeIcon(f.type);
             return (
               <div key={f.type + i + f.value} className="bg-[#0D0D0D] border border-[#262626] rounded p-2.5 hover:border-[#333] transition-colors">
@@ -1335,30 +890,6 @@ export const IocExtractorView: React.FC = () => {
                     {f.context}
                   </div>
                 )}
-                {links.length > 0 && (
-                  <div className="flex gap-1 mt-1.5 ml-6 flex-wrap">
-                    {links.map((l) => (
-                      <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] bg-[#161616] border border-[#262626] text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/10 transition-colors">
-                        {l.label} <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {/* Online Enrichment sub-section (Block 6).
-                    Per spec #9: CLEARLY SEPARATED from the local analysis above
-                    (border-top + indented + own subheader).
-                    Per spec #14: external links row stays ABOVE this section as
-                    the always-available, no-API-key fallback. */}
-                {isEnrichable(f.type) && (
-                  <EnrichmentSection
-                    finding={{ type: f.type, value: f.value }}
-                    results={enrichResults}
-                    loading={enrichLoading}
-                    online={isOnline}
-                    onEnrich={handleEnrich}
-                  />
-                )}
               </div>
             );
           })}
@@ -1380,9 +911,6 @@ export const IocExtractorView: React.FC = () => {
 
       {showWhitelist && (
         <WhitelistModal wl={whitelist} onSave={setWhitelist} onClose={() => setShowWhitelist(false)} />
-      )}
-      {pendingConsent && (
-        <ConsentModal onContinue={handleConsentContinue} onCancel={handleConsentCancel} />
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import { type PillarRunbook, type RunbookStep } from '../data/runbooksCore';
 import { RUNBOOKS_HD, RUNBOOKS_HD_COUNT, RUNBOOKS_HD_CATEGORIES } from '../data/runbooksHelpDesk';
 import { RUNBOOKS_SA, RUNBOOKS_SA_COUNT, RUNBOOKS_SA_CATEGORIES } from '../data/runbooksSysAdmin';
 import { RUNBOOKS_SOC, RUNBOOKS_SOC_COUNT, RUNBOOKS_SOC_CATEGORIES } from '../data/runbooksSoc';
+import { RUNBOOKS_IAM, RUNBOOKS_IAM_COUNT, RUNBOOKS_IAM_CATEGORIES } from '../data/runbooksIam';
 
 /**
  * RunbooksView (V9) — base de datos consultable de runbooks por pilar.
@@ -21,7 +22,7 @@ import { RUNBOOKS_SOC, RUNBOOKS_SOC_COUNT, RUNBOOKS_SOC_CATEGORIES } from '../da
  * 100% offline, dataset estático, sin input del usuario.
  */
 
-export type RunbookViewPillar = 'hd' | 'sa' | 'soc';
+export type RunbookViewPillar = 'hd' | 'sa' | 'soc' | 'iam';
 
 interface RunbooksViewProps {
   /** Qué pilar renderiza. */
@@ -99,9 +100,26 @@ const PILLAR_CONFIG: Record<RunbookViewPillar, PillarConfig> = {
     accentRing: 'focus:border-emerald-500/40',
     englishBorder: 'border-emerald-500/20',
   },
+  iam: {
+    label: 'Runbooks — IAM / Identity & Access',
+    subtitle: 'JML · Access · PAM · Gobernanza — cada problema como ticket real con paso a paso universal y respuesta en inglés copiable',
+    icon: <IdCardIcon />,
+    entries: RUNBOOKS_IAM,
+    count: RUNBOOKS_IAM_COUNT,
+    categories: RUNBOOKS_IAM_CATEGORIES,
+    accentText: 'text-violet-400',
+    accentBg: 'bg-violet-500/10',
+    accentBorder: 'border-violet-500/20',
+    accentRing: 'focus:border-violet-500/40',
+    englishBorder: 'border-violet-500/20',
+  },
 };
 
 function ShieldIcon() {
+  return <LifeBuoy className="w-5 h-5" />;
+}
+
+function IdCardIcon() {
   return <LifeBuoy className="w-5 h-5" />;
 }
 

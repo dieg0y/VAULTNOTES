@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket } from '../types';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket, IamTicket } from '../types';
 import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
@@ -12,9 +12,7 @@ import {
   imageMetaSchema, videoMetaSchema, pdfMetaSchema,
   masterEntrySchema, toolFavoriteSchema, toolRecentSchema,
   inboxItemSchema, rbacModelSchema, flashcardStatSchema,
-  tiCacheSchema, onlineActivitySchema, customSigmaRuleSchema,
-  savedCveSchema, datasetMetaSchema, intelItemSchema, profileSchema, roadmapItemSchema, helpdeskTicketSchema, sysadminTicketSchema, socTicketSchema, validateArray,
-  syncedMitreTechniqueSchema, syncedSigmaRuleSchema, kevCatalogSchema,
+  profileSchema, roadmapItemSchema, helpdeskTicketSchema, sysadminTicketSchema, socTicketSchema, iamTicketSchema, validateArray,
 } from './backupSchemas';
 // V6 (3.6.0) — datasets de referencia estáticos: se exportan como snapshot
 // (portabilidad USB). La importación NO los aplica: el bundle de la app es
@@ -25,9 +23,8 @@ import { RUNBOOKS_SOC } from '../data/runbooksSoc';
 import { TROUBLESHOOTING_HD } from '../data/troubleshootingHelpDesk';
 import { TROUBLESHOOTING_SA } from '../data/troubleshootingSysAdmin';
 import { TROUBLESHOOTING_SOC } from '../data/troubleshootingSoc';
-import { SERVICE_DESK_CHEATSHEET } from '../data/serviceDeskCheatSheet';
-import { SYSADMIN_CHEATSHEET } from '../data/sysadminCheatSheet';
-import { SOC_CHEATSHEET } from '../data/socCheatSheet';
+import { RUNBOOKS_IAM } from '../data/runbooksIam';
+import { TROUBLESHOOTING_IAM } from '../data/troubleshootingIam';
 
 // ------------------------------------------------------------------
 // Backup manifest versioning (spec #35)
@@ -83,8 +80,17 @@ import { SOC_CHEATSHEET } from '../data/socCheatSheet';
  *  re-exportar → se rechaza up-front (misma regla spec #35). NOTA: ningún
  *  build pierde DATOS DE USUARIO — los datasets son re-descargables con un
  *  click en el Sync Center.
+ *  3.11.0 — v25: RETIRA los 9 archivos de la feature Data & Intel / sync
+ *  online (`tiCache.json`, `onlineActivity.json`, `customSigmaRules.json`,
+ *  `savedCves.json`, `datasetMeta.json`, `intelItems.json`,
+ *  `mitreTechniques.json`, `sigmaRulesSynced.json`, `kevCatalog.json`):
+ *  la feature se eliminó por completo (esquema Dexie v25 los borra como
+ *  tablas). Los backups ≤3.10.0 que los traigan se IGNORAN con gracia
+ *  (import file-by-file: quitar los bloques basta). Ningún dato de usuario
+ *  de las features que SIGUEN se pierde → un build 3.10.0 puede importar
+ *  un backup 3.11.0 sin pérdida.
  */
-const BACKUP_FORMAT_VERSION = '3.10.0';
+const BACKUP_FORMAT_VERSION = '3.11.0';
 
 /** Thrown by `importVaultBackup` when the ZIP's manifest declares a
  *  `schemaVersion` higher than the running app's `CURRENT_SCHEMA_VERSION`.
@@ -311,18 +317,6 @@ function emptySummary(): ImportSummary {
     invalidImages: 0,
     invalidPdfs: 0,
     invalidMisc: 0,
-    // AUDIT VN-B-012: conflict counters for the upsert-by-id auxiliary
-    // tables (an older backup row must not overwrite a newer local row).
-    conflictSavedCves: 0,
-    conflictCustomSigmaRules: 0,
-    conflictDatasetMeta: 0,
-    conflictTiCache: 0,
-    conflictIntelItems: 0,
-    // V10 (3.10.0): datasets oficiales sincronizados (upsert por id con el
-    // mismo guard latest-wins por syncedAt/fetchedAt).
-    conflictMitreTechniques: 0,
-    conflictSigmaRulesSynced: 0,
-    conflictKevCatalog: 0,
     // v18 (VN-B-012): perfiles y roadmap del checklist (upsert por id con
     // guard latest-wins — un backup viejo no pisa ediciones nuevas).
     conflictProfiles: 0,
@@ -340,6 +334,9 @@ function emptySummary(): ImportSummary {
     // v9 (SIMULADOR SOC): práctica de triage del Blue Team (casos con
     // status/notas de cierre) — mismo guard latest-wins.
     conflictSocTickets: 0,
+    // v11 (SIMULADOR IAM): práctica del Pilar 1 IAM (tickets con status/
+    // notas de cierre) — mismo guard latest-wins.
+    conflictIamTickets: 0,
     // AUDIT VN-B-013: imported blobs whose owner note/lab does not exist
     // locally (kept — non-destructive — but reported as orphaned).
     orphanedImages: 0,
@@ -503,24 +500,6 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   const toolFavorites = await db.toolFavorites.toArray();
   const toolRecents = await db.toolRecents.toArray();
   const inboxItems = await db.inboxItems.toArray();
-  // BLOQUE 6 — Online-Optional. ALL of these are exportable: cached threat
-  // intel (the user explicitly asked for those results), online activity
-  // metadata (IOC TYPE only — never the value), custom Sigma rules
-  // (user-imported YAML, treated as data), saved CVEs (user explicitly saved),
-  // dataset metadata. API KEYS are NOT here — they live in a separate
-  // Dexie DB (VaultIntelDB) and are never serialized to this backup.
-  const tiCache = await db.tiCache.toArray();
-  const onlineActivity = await db.onlineActivity.toArray();
-  const customSigmaRules = await db.customSigmaRules.toArray();
-  const savedCves = await db.savedCves.toArray();
-  const datasetMeta = await db.datasetMeta.toArray();
-  // V10 (v24) — official synced datasets (no user PII, no API keys).
-  const mitreTechniques = await db.mitreTechniques.toArray();
-  const sigmaRulesSynced = await db.sigmaRulesSynced.toArray();
-  const kevCatalog = await db.kevCatalog.toArray();
-  // DATA & INTEL (v16) — dataset de trabajo (IoCs · eventos · reglas).
-  // Texto plano escrito por el usuario o generado por tools; nada sensible.
-  const intelItems = await db.intelItems.toArray();
   // PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18) — documentos del CV
   // (una fila por perfil: skills/tools/experiencia/certs/idiomas/títulos
   // objetivo). Texto escrito por el usuario: nada sensible y viaja en el
@@ -547,6 +526,10 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // status/statusNote del usuario — su evidencia de triage). Viajan en el
   // ZIP con el mismo convenio root-level que HelpDesk/SysAdmin.
   const socTicketRows = await db.socTickets.toArray();
+  // IAM (V11 · PILAR 1) — práctica de Identity & Access: tickets COMPLETOS
+  // (dataset + status/statusNote del usuario — su evidencia). Mismo convenio
+  // root-level que los otros simuladores.
+  const iamTicketRows = await db.iamTickets.toArray();
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -574,15 +557,6 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       toolFavoritesCount: toolFavorites.length,
       toolRecentsCount: toolRecents.length,
       inboxItemsCount: inboxItems.length,
-      tiCacheCount: tiCache.length,
-      onlineActivityCount: onlineActivity.length,
-      customSigmaRulesCount: customSigmaRules.length,
-      savedCvesCount: savedCves.length,
-      // V10 (v24) — official synced datasets (re-downloadable, no user data).
-      mitreTechniquesCount: mitreTechniques.length,
-      sigmaRulesSyncedCount: sigmaRulesSynced.length,
-      kevCatalogCount: kevCatalog.length,
-      intelItemsCount: intelItems.length,
       profileCount: profileRows.length,
       roadmapItemsCount: roadmapRows.length,
       helpdeskTicketsCount: helpdeskTicketRows.length,
@@ -591,13 +565,12 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       roadmapSaItemsCount: roadmapSaRows.length,
       roadmapSocItemsCount: roadmapSocRows.length,
       socTicketsCount: socTicketRows.length,
+      iamTicketsCount: iamTicketRows.length,
       // v9 (3.8.0) — snapshots de referencia por pilar (informativo, no se restauran).
       runbooksHdCount: RUNBOOKS_HD.length,
       runbooksSaCount: RUNBOOKS_SA.length,
       runbooksSocCount: RUNBOOKS_SOC.length,
-      cheatsheetHdCount: SERVICE_DESK_CHEATSHEET.length,
-      cheatsheetSaCount: SYSADMIN_CHEATSHEET.length,
-      cheatsheetSocCount: SOC_CHEATSHEET.length,
+      runbooksIamCount: RUNBOOKS_IAM.length,
       troubleshootingHdCount: TROUBLESHOOTING_HD.length,
       troubleshootingSaCount: TROUBLESHOOTING_SA.length,
       troubleshootingSocCount: TROUBLESHOOTING_SOC.length,
@@ -618,21 +591,11 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   zip.file('toolFavorites.json', JSON.stringify(toolFavorites, null, 2));
   zip.file('toolRecents.json', JSON.stringify(toolRecents, null, 2));
   zip.file('inboxItems.json', JSON.stringify(inboxItems, null, 2));
-  // BLOQUE 6 — Online-Optional integrations (NO API KEYS, ever)
-  zip.file('tiCache.json', JSON.stringify(tiCache, null, 2));
-  zip.file('onlineActivity.json', JSON.stringify(onlineActivity, null, 2));
-  zip.file('customSigmaRules.json', JSON.stringify(customSigmaRules, null, 2));
-  zip.file('savedCves.json', JSON.stringify(savedCves, null, 2));
-  zip.file('datasetMeta.json', JSON.stringify(datasetMeta, null, 2));
-  // V10 (3.10.0) — official synced datasets from the Sync Center. They hold
-  // public official content (MITRE/SigmaHQ/CISA), never API keys or user
-  // PII. Import policy: latest-wins by syncedAt/fetchedAt (like tiCache).
-  zip.file('mitreTechniques.json', JSON.stringify(mitreTechniques, null, 2));
-  zip.file('sigmaRulesSynced.json', JSON.stringify(sigmaRulesSynced, null, 2));
-  zip.file('kevCatalog.json', JSON.stringify(kevCatalog, null, 2));
-  // DATA & INTEL (v16) — IoCs · eventos · reglas (formato flat root-level,
-  // mismo convenio que el resto de tablas auxiliares).
-  zip.file('intelItems.json', JSON.stringify(intelItems, null, 2));
+  // V25 (3.11.0) — la feature Data & Intel se retiró: tiCache.json,
+  // onlineActivity.json, customSigmaRules.json, savedCves.json,
+  // datasetMeta.json, mitreTechniques.json, sigmaRulesSynced.json,
+  // kevCatalog.json e intelItems.json ya no se exportan (los backups
+  // ≤3.10.0 que los traigan se ignoran con gracia al importar).
   // PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18) — documentos del CV
   // (root-level, mismo convenio). v3.4.0: `profiles.json` con TODAS las
   // filas (el `profile.json` legacy de una fila ya no se escribe).
@@ -652,6 +615,9 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // v9 (SIMULADOR SOC) — casos de práctica del Blue Team (root-level,
   // mismo convenio que los otros dos simuladores).
   zip.file('socTickets.json', JSON.stringify(socTicketRows, null, 2));
+  // IAM (V11 · PILAR 1) — tickets de práctica del simulador IAM (root-level,
+  // mismo convenio que los otros simuladores).
+  zip.file('iamTickets.json', JSON.stringify(iamTicketRows, null, 2));
   // V6 (3.6.0) — datasets de REFERENCIA estáticos: se exportan como
   // snapshot para portabilidad/archivo del USB. En la importación NO se
   // aplican sobre la app (el bundle de la app SIEMPRE es la versión
@@ -661,12 +627,16 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   zip.file('troubleshootingRunbooks.json', JSON.stringify(RUNBOOKS_HD, null, 2));
   zip.file('runbooksSysAdmin.json', JSON.stringify(RUNBOOKS_SA, null, 2));
   zip.file('runbooksSoc.json', JSON.stringify(RUNBOOKS_SOC, null, 2));
-  zip.file('serviceDeskCheatSheet.json', JSON.stringify(SERVICE_DESK_CHEATSHEET, null, 2));
-  zip.file('cheatsheetSysAdmin.json', JSON.stringify(SYSADMIN_CHEATSHEET, null, 2));
-  zip.file('cheatsheetSoc.json', JSON.stringify(SOC_CHEATSHEET, null, 2));
+  // V11 — el CheatSheet se fusionó dentro de los runbooks (los quick-fixes
+  // viven en los datasets RB-*): los snapshots de cheatsheet se retiran y el
+  // snapshot del pilar IAM se añade. Un backup viejo que traiga
+  // serviceDeskCheatSheet.json / cheatsheetSysAdmin.json / cheatsheetSoc.json
+  // se ignora con gracia en la importación (más abajo).
+  zip.file('runbooksIam.json', JSON.stringify(RUNBOOKS_IAM, null, 2));
   zip.file('troubleshootingHelpDesk.json', JSON.stringify(TROUBLESHOOTING_HD, null, 2));
   zip.file('troubleshootingSysAdmin.json', JSON.stringify(TROUBLESHOOTING_SA, null, 2));
   zip.file('troubleshootingSoc.json', JSON.stringify(TROUBLESHOOTING_SOC, null, 2));
+  zip.file('troubleshootingIam.json', JSON.stringify(TROUBLESHOOTING_IAM, null, 2));
 
   // 2. /glosario/terminos.json
   const glossaryFolder = zip.folder('glosario');
@@ -1680,318 +1650,12 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   // V6: reviewItems.json (backups ≤3.5.0) — la feature Review se eliminó:
   // el archivo, si existe, se ignora con gracia (nada que importar).
 
-  // BLOQUE 6 — Online-Optional integration tables. All best-effort,
-  //  non-destructive. API KEYS are NEVER imported — they don't exist in the
-  //  backup at all (they live in the separate VaultIntelDB).
-  //  AUDIT VN-006: validate each row via Zod before inserting.
-  // V10 (3.10.0) — official synced datasets (Sync Center). Same policy as
-  //  tiCache: latest-wins by sync timestamp; a newer local dataset is never
-  //  replaced by a staler backup row. Datasets are public official content
-  //  (no user data) and are always re-downloadable with one click.
-  // mitreTechniques — upsert by id (official ATT&CK techniques).
-  try {
-    const mtFile = contents.file('mitreTechniques.json');
-    if (mtFile) {
-      const rawRows: unknown = JSON.parse(await mtFile.async('text'));
-      const { valid: rows, invalid } = validateArray(syncedMitreTechniqueSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        const existing = await db.mitreTechniques.get(r.id);
-        if (existing && rowTs(existing, 'syncedAt') > rowTs(r, 'syncedAt')) {
-          summary.conflictMitreTechniques++;
-          continue;
-        }
-        await db.mitreTechniques.put({
-          id: r.id,
-          stixId: String(r.stixId || ''),
-          name: String(r.name || ''),
-          description: String(r.description || ''),
-          tactic: String(r.tactic || ''),
-          platforms: Array.isArray(r.platforms) ? r.platforms.map(String) : [],
-          url: String(r.url || ''),
-          version: String(r.version || ''),
-          syncedAt: r.syncedAt || new Date().toISOString(),
-          revoked: r.revoked === true,
-          deprecated: r.deprecated === true,
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing mitreTechniques:', e);
-  }
-
-  // sigmaRulesSynced — upsert by id (official SigmaHQ rules).
-  try {
-    const srFile = contents.file('sigmaRulesSynced.json');
-    if (srFile) {
-      const rawRows: unknown = JSON.parse(await srFile.async('text'));
-      const { valid: rows, invalid } = validateArray(syncedSigmaRuleSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        const existing = await db.sigmaRulesSynced.get(r.id);
-        if (existing && rowTs(existing, 'syncedAt') > rowTs(r, 'syncedAt')) {
-          summary.conflictSigmaRulesSynced++;
-          continue;
-        }
-        await db.sigmaRulesSynced.put({
-          id: r.id,
-          ruleUuid: r.ruleUuid ?? undefined,
-          title: String(r.title || ''),
-          status: String(r.status || ''),
-          level: String(r.level || ''),
-          description: String(r.description || ''),
-          author: String(r.author || ''),
-          date: String(r.date || ''),
-          logsource: String(r.logsource || ''),
-          detection: String(r.detection || ''),
-          tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
-          mitre: Array.isArray(r.mitre) ? r.mitre.map(String) : [],
-          yaml: String(r.yaml || ''),
-          sourcePath: String(r.sourcePath || ''),
-          syncedAt: r.syncedAt || new Date().toISOString(),
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing sigmaRulesSynced:', e);
-  }
-
-  // kevCatalog — singleton row, fresher fetch wins.
-  try {
-    const kevFile = contents.file('kevCatalog.json');
-    if (kevFile) {
-      const rawRows: unknown = JSON.parse(await kevFile.async('text'));
-      const { valid: rows, invalid } = validateArray(kevCatalogSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        const existing = await db.kevCatalog.get(r.id);
-        if (existing && rowTs(existing, 'fetchedAt') > rowTs(r, 'fetchedAt')) {
-          summary.conflictKevCatalog++;
-          continue;
-        }
-        await db.kevCatalog.put({
-          id: r.id,
-          title: String(r.title || ''),
-          catalogVersion: String(r.catalogVersion || ''),
-          dateReleased: String(r.dateReleased || ''),
-          count: typeof r.count === 'number' ? r.count : (r.entries || []).length,
-          fetchedAt: r.fetchedAt || new Date().toISOString(),
-          entries: Array.isArray(r.entries)
-            ? r.entries.map((e: Record<string, unknown>) => ({
-                cveID: String(e.cveID || ''),
-                vendorProject: String(e.vendorProject || ''),
-                product: String(e.product || ''),
-                vulnerabilityName: String(e.vulnerabilityName || ''),
-                dateAdded: String(e.dateAdded || ''),
-                dueDate: e.dueDate ? String(e.dueDate) : undefined,
-                knownRansomwareCampaignUse: String(e.knownRansomwareCampaignUse || ''),
-                requiredAction: String(e.requiredAction || ''),
-              }))
-            : [],
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing kevCatalog:', e);
-  }
-
-  // tiCache — upsert by id (cache can be overwritten; it's just a cache).
-  try {
-    const tiCacheFile = contents.file('tiCache.json');
-    if (tiCacheFile) {
-      const rawRows: unknown = JSON.parse(await tiCacheFile.async('text'));
-      const { valid: rows, invalid } = validateArray(tiCacheSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        // AUDIT VN-B-012: mirror the references conflict pattern — a fresher
-        // local cache entry (retrievedAt) is never replaced by a staler
-        // backup row.
-        const existing = await db.tiCache.get(r.id);
-        if (existing && rowTs(existing, 'retrievedAt') > rowTs(r, 'retrievedAt')) {
-          summary.conflictTiCache++;
-          continue;
-        }
-        await db.tiCache.put({
-          id: r.id,
-          provider: String(r.provider || ''),
-          iocType: String(r.iocType || ''),
-          iocValue: String(r.iocValue || ''),
-          resultJson: r.resultJson ?? null,
-          errorMessage: r.errorMessage ?? null,
-          retrievedAt: r.retrievedAt || new Date().toISOString(),
-          expiresAt: r.expiresAt || new Date().toISOString(),
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing tiCache:', e);
-  }
-
-  // onlineActivity — insert-only by id (history append semantics).
-  try {
-    const oaFile = contents.file('onlineActivity.json');
-    if (oaFile) {
-      const rawRows: unknown = JSON.parse(await oaFile.async('text'));
-      const { valid: rows, invalid } = validateArray(onlineActivitySchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        const existing = await db.onlineActivity.get(r.id);
-        if (!existing) {
-          await db.onlineActivity.add({
-            id: r.id,
-            provider: String(r.provider || ''),
-            iocType: String(r.iocType || ''),
-            timestamp: r.timestamp || new Date().toISOString(),
-            status: (r.status || 'success') as 'success' | 'error' | 'cached' | 'not_configured' | 'offline',
-            note: r.note ?? undefined,
-          });
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Error importing onlineActivity:', e);
-  }
-
-  // customSigmaRules — upsert by id (user-authored; latest wins).
-  try {
-    const csrFile = contents.file('customSigmaRules.json');
-    if (csrFile) {
-      const rawRows: unknown = JSON.parse(await csrFile.async('text'));
-      const { valid: rows, invalid } = validateArray(customSigmaRuleSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        // AUDIT VN-B-012: an older backup row must not overwrite a newer
-        // local edit of a user-authored Sigma rule.
-        const existing = await db.customSigmaRules.get(r.id);
-        if (existing && rowTs(existing) > rowTs(r)) {
-          summary.conflictCustomSigmaRules++;
-          continue;
-        }
-        await db.customSigmaRules.put({
-          id: r.id,
-          ruleUuid: r.ruleUuid ?? undefined,
-          title: String(r.title || ''),
-          status: String(r.status || ''),
-          level: String(r.level || ''),
-          description: String(r.description || ''),
-          author: String(r.author || ''),
-          date: String(r.date || ''),
-          logsource: String(r.logsource || ''),
-          detection: String(r.detection || ''),
-          tags: Array.isArray(r.tags) ? r.tags : [],
-          mitre: Array.isArray(r.mitre) ? r.mitre : [],
-          yaml: String(r.yaml || ''),
-          importedAt: r.importedAt || new Date().toISOString(),
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing customSigmaRules:', e);
-  }
-
-  // savedCves — upsert by id (CVE ids are stable; user may edit personalNotes).
-  try {
-    const scFile = contents.file('savedCves.json');
-    if (scFile) {
-      const rawRows: unknown = JSON.parse(await scFile.async('text'));
-      const { valid: rows, invalid } = validateArray(savedCveSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        // AUDIT VN-B-012: importing an old backup must not silently wipe the
-        // user's hand-written personalNotes / personalAssessment on a saved
-        // CVE. `savedAt` is the row's recency timestamp (no updatedAt field).
-        const existing = await db.savedCves.get(r.id);
-        if (existing && rowTs(existing, 'savedAt') > rowTs(r, 'savedAt')) {
-          summary.conflictSavedCves++;
-          continue;
-        }
-        await db.savedCves.put({
-          id: r.id,
-          description: String(r.description || ''),
-          cvss: r.cvss ?? null,
-          severity: r.severity ?? null,
-          cwe: Array.isArray(r.cwe) ? r.cwe : [],
-          affectedProducts: Array.isArray(r.affectedProducts) ? r.affectedProducts : [],
-          published: String(r.published || ''),
-          modified: String(r.modified || ''),
-          references: Array.isArray(r.references) ? r.references : [],
-          personalNotes: r.personalNotes ?? '',
-          tags: Array.isArray(r.tags) ? r.tags : [],
-          personalAssessment: r.personalAssessment ?? '',
-          savedAt: r.savedAt || new Date().toISOString(),
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing savedCves:', e);
-  }
-
-  // datasetMeta — upsert the singleton row.
-  try {
-    const dmFile = contents.file('datasetMeta.json');
-    if (dmFile) {
-      const rawRows: unknown = JSON.parse(await dmFile.async('text'));
-      const { valid: rows, invalid } = validateArray(datasetMetaSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        // AUDIT VN-B-012: same conflict pattern for the dataset singleton —
-        // a newer local sync timestamp wins over the backup row.
-        const existing = await db.datasetMeta.get(r.id);
-        if (existing && rowTs(existing) > rowTs(r)) {
-          summary.conflictDatasetMeta++;
-          continue;
-        }
-        await db.datasetMeta.put({
-          id: r.id,
-          mitreVersion: String(r.mitreVersion || ''),
-          mitreLastSync: r.mitreLastSync ?? null,
-          sigmaVersion: String(r.sigmaVersion || ''),
-          sigmaLastSync: r.sigmaLastSync ?? null,
-          sigmaRulesCount: Number(r.sigmaRulesCount) || 0,
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing datasetMeta:', e);
-  }
-
-  // intelItems — DATA & INTEL (v16) — upsert by id (user-authored IoCs /
-  // eventos / reglas; latest wins, with the VN-B-012 conflict guard).
-  try {
-    const iiFile = contents.file('intelItems.json');
-    if (iiFile) {
-      const rawRows: unknown = JSON.parse(await iiFile.async('text'));
-      const { valid: rows, invalid } = validateArray(intelItemSchema, rawRows);
-      summary.invalidMisc += invalid;
-      for (const r of rows) {
-        const existing = await db.intelItems.get(r.id);
-        if (existing && rowTs(existing) > rowTs(r)) {
-          summary.conflictIntelItems++;
-          continue;
-        }
-        await db.intelItems.put({
-          id: r.id,
-          kind: (r.kind === 'event' || r.kind === 'rule') ? r.kind : 'ioc',
-          title: String(r.title || ''),
-          iocType: r.iocType ? String(r.iocType) : undefined,
-          severity: r.severity ? String(r.severity) : undefined,
-          confidence: r.confidence ? String(r.confidence) : undefined,
-          description: r.description ? String(r.description) : undefined,
-          tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
-          source: r.source ? String(r.source) : undefined,
-          mitre: Array.isArray(r.mitre) ? r.mitre.map(String) : undefined,
-          content: r.content ? String(r.content) : undefined,
-          contentLang: r.contentLang ? String(r.contentLang) : undefined,
-          createdAt: r.createdAt || new Date().toISOString(),
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        });
-      }
-    }
-  } catch (e) {
-    console.error('Error importing intelItems:', e);
-  }
+  // V25 (3.11.0) — la feature Data & Intel / sync online se retiró por
+  // completo (esquema Dexie v25). Los 9 archivos legacy (tiCache.json,
+  // onlineActivity.json, customSigmaRules.json, savedCves.json,
+  // datasetMeta.json, mitreTechniques.json, sigmaRulesSynced.json,
+  // kevCatalog.json, intelItems.json), si vienen en backups ≤3.10.0, se
+  // IGNORAN con gracia (import file-by-file: nada que importar).
 
   // profiles — PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18). Upsert
   // por id "latest wins" con el guard VN-B-012 (un backup MÁS VIEJO jamás
@@ -2295,6 +1959,64 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     console.error('Error importing socTickets:', e);
   }
 
+  // iamTickets — v11 (SIMULADOR IAM · PILAR 1): tickets de práctica del
+  // equipo IAM de Nexora. Upsert por id con guard latest-wins: un backup
+  // viejo jamás revierte el trabajo local (status, notas de cierre,
+  // soft-delete). La fila se reconstruye campo a campo (enums validados,
+  // incluido environment = torre IAM) para que un iamTickets.json
+  // malformado nunca corrompa la tabla local.
+  try {
+    const iamtFile = contents.file('iamTickets.json');
+    if (iamtFile) {
+      const rawIamt: unknown = JSON.parse(await iamtFile.async('text'));
+      const { valid: iamtRows, invalid } = validateArray(iamTicketSchema, rawIamt);
+      summary.invalidMisc += invalid;
+      for (const r of iamtRows) {
+        const local = await db.iamTickets.get(r.id);
+        if (local && rowTs(local) > rowTs(r)) {
+          summary.conflictIamTickets++;
+          continue;
+        }
+        const status: IamTicket['status'] =
+          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
+            ? r.status
+            : 'nuevo';
+        const row: IamTicket = {
+          id: r.id,
+          number: r.number,
+          title: r.title,
+          category: r.category,
+          subcategory: r.subcategory ?? undefined,
+          type: r.type,
+          priority: r.priority,
+          impact: r.impact,
+          urgency: r.urgency,
+          environment: r.environment,
+          requester: r.requester,
+          description: r.description,
+          symptoms: r.symptoms,
+          dataAvailable: r.dataAvailable ?? undefined,
+          troubleshooting: r.troubleshooting ?? undefined,
+          resolution: r.resolution ?? undefined,
+          escalation: r.escalation ?? undefined,
+          kbRef: r.kbRef ?? undefined,
+          skill: r.skill ?? undefined,
+          evidence: r.evidence ?? undefined,
+          status,
+          statusNote: r.statusNote ?? undefined,
+          isFinalProject: r.isFinalProject === true ? true : undefined,
+          isDeleted: r.isDeleted === true,
+          deletedAt: r.isDeleted === true ? (r.deletedAt ?? undefined) : undefined,
+          createdAt: r.createdAt || new Date().toISOString(),
+          updatedAt: r.updatedAt || new Date().toISOString(),
+        };
+        await db.iamTickets.put(row);
+      }
+    }
+  } catch (e) {
+    console.error('Error importing iamTickets:', e);
+  }
+
   // V6 (3.6.0) — snapshots de datasets de referencia (runbooks + cheatsheet).
   // POLÍTICA latest-wins SIN PÉRDIDA: el contenido es estático y viaja con la
   // app (bundle), por lo que la importación NO lo aplica sobre la app — el
@@ -2323,14 +2045,16 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       }
     }
     // v9 (3.8.0) — snapshots por pilar: mismo chequeo informativo.
+    // V11 — los snapshots de cheatsheet se retiraron (los quick-fixes viven
+    // en los runbooks); si un backup viejo los trae, se ignoran con gracia.
     const PILLAR_SNAPSHOT_FILES = [
       'runbooksSysAdmin.json',
       'runbooksSoc.json',
-      'cheatsheetSysAdmin.json',
-      'cheatsheetSoc.json',
+      'runbooksIam.json',
       'troubleshootingHelpDesk.json',
       'troubleshootingSysAdmin.json',
       'troubleshootingSoc.json',
+      'troubleshootingIam.json',
     ] as const;
     for (const fname of PILLAR_SNAPSHOT_FILES) {
       const f = contents.file(fname);

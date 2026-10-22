@@ -3,9 +3,8 @@
  *
  * The backup ZIP contains JSON files for many tables (notes, labs, glossary,
  * references, images/videos/PDFs metadata, platforms/categories/tools,
- * toolFavorites, toolRecents, inboxItems, rbacModels,
- * flashcardStats, tiCache, onlineActivity, customSigmaRules, savedCves,
- * datasetMeta, manifest). Before this audit, the importer did a raw
+ * toolFavorites, toolRecents, inboxItems, rbacModels, flashcardStats,
+ * manifest). Before this audit, the importer did a raw
  * `JSON.parse(...)` and inserted the result (typed as `any[]`) directly into
  * Dexie. A malformed backup (or a hand-crafted malicious one) could push
  * rows with the wrong shape into the local vault, leaving it in an
@@ -205,161 +204,6 @@ export const flashcardStatSchema = z.object({
 }).passthrough();
 
 // ---------------------------------------------------------------------------
-// BLOQUE 6 — Online-Optional integration tables
-// ---------------------------------------------------------------------------
-
-export const tiCacheSchema = z.object({
-  id: z.string().min(1),
-  provider: z.string().optional(),
-  iocType: z.string().optional(),
-  iocValue: z.string().optional(),
-  resultJson: z.union([z.string(), z.null()]).optional(),
-  errorMessage: z.union([z.string(), z.null()]).optional(),
-  retrievedAt: z.string().optional(),
-  expiresAt: z.string().optional(),
-}).passthrough();
-
-export const onlineActivitySchema = z.object({
-  id: z.string().min(1),
-  provider: z.string().optional(),
-  iocType: z.string().optional(),
-  timestamp: z.string().optional(),
-  status: z.string().optional(),
-  note: z.union([z.string(), z.null()]).optional(),
-}).passthrough();
-
-export const customSigmaRuleSchema = z.object({
-  id: z.string().min(1),
-  ruleUuid: z.union([z.string(), z.null()]).optional(),
-  title: z.string().optional(),
-  status: z.string().optional(),
-  level: z.string().optional(),
-  description: z.string().optional(),
-  author: z.string().optional(),
-  date: z.string().optional(),
-  logsource: z.string().optional(),
-  detection: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  mitre: z.array(z.string()).optional(),
-  yaml: z.string().optional(),
-  importedAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-}).passthrough();
-
-export const savedCveSchema = z.object({
-  id: z.string().min(1),
-  description: z.string().optional(),
-  cvss: z.union([z.number(), z.null()]).optional(),
-  severity: z.union([z.string(), z.null()]).optional(),
-  cwe: z.array(z.string()).optional(),
-  affectedProducts: z.array(z.string()).optional(),
-  published: z.string().optional(),
-  modified: z.string().optional(),
-  // Deliberately permissive: legacy backups may hold raw NVD reference
-  // objects ({url: '…'}) instead of normalized strings (older builds stored
-  // them un-normalized). The importer passes elements through unchanged, so
-  // tightening this to z.string() would reject old backups.
-  references: z.array(z.any()).optional(),
-  personalNotes: z.union([z.string(), z.null()]).optional(),
-  tags: z.array(z.string()).optional(),
-  personalAssessment: z.union([z.string(), z.null()]).optional(),
-  savedAt: z.string().optional(),
-}).passthrough();
-
-export const datasetMetaSchema = z.object({
-  id: z.string().min(1),
-  mitreVersion: z.string().optional(),
-  mitreLastSync: z.union([z.string(), z.null()]).optional(),
-  sigmaVersion: z.string().optional(),
-  sigmaLastSync: z.union([z.string(), z.null()]).optional(),
-  sigmaRulesCount: z.number().optional(),
-  updatedAt: z.string().optional(),
-  // V10 (v24) — KEV catalog markers (optional: older rows lack them).
-  kevVersion: z.string().optional(),
-  kevLastSync: z.union([z.string(), z.null()]).optional(),
-  kevCount: z.number().optional(),
-}).passthrough();
-
-/** V10 (v24) — MITRE ATT&CK techniques synced from the official STIX bundle.
- *  Tolerant-import contract: id required, everything else optional (old
- *  backups / partial hand-written .json keep working). */
-export const syncedMitreTechniqueSchema = z.object({
-  id: z.string().min(1),
-  stixId: z.string().optional(),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  tactic: z.string().optional(),
-  platforms: z.array(z.string()).optional(),
-  url: z.string().optional(),
-  version: z.string().optional(),
-  syncedAt: z.string().optional(),
-  revoked: z.boolean().optional(),
-  deprecated: z.boolean().optional(),
-}).passthrough();
-
-/** V10 (v24) — official SigmaHQ rules synced from the repo (same field
- *  contract as customSigmaRuleSchema plus sync provenance). */
-export const syncedSigmaRuleSchema = z.object({
-  id: z.string().min(1),
-  ruleUuid: z.union([z.string(), z.null()]).optional(),
-  title: z.string().optional(),
-  status: z.string().optional(),
-  level: z.string().optional(),
-  description: z.string().optional(),
-  author: z.string().optional(),
-  date: z.string().optional(),
-  logsource: z.string().optional(),
-  detection: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  mitre: z.array(z.string()).optional(),
-  yaml: z.string().optional(),
-  sourcePath: z.string().optional(),
-  syncedAt: z.string().optional(),
-}).passthrough();
-
-/** V10 (v24) — CISA KEV catalog singleton row (entries trimmed). */
-export const kevEntrySchema = z.object({
-  cveID: z.string().optional(),
-  vendorProject: z.string().optional(),
-  product: z.string().optional(),
-  vulnerabilityName: z.string().optional(),
-  dateAdded: z.string().optional(),
-  dueDate: z.union([z.string(), z.null()]).optional(),
-  knownRansomwareCampaignUse: z.string().optional(),
-  requiredAction: z.string().optional(),
-}).passthrough();
-
-export const kevCatalogSchema = z.object({
-  id: z.string().min(1),
-  title: z.string().optional(),
-  catalogVersion: z.string().optional(),
-  dateReleased: z.string().optional(),
-  count: z.number().optional(),
-  fetchedAt: z.string().optional(),
-  entries: z.array(kevEntrySchema).optional(),
-}).passthrough();
-
-/** DATA & INTEL (v16) — IoCs · eventos · reglas. All fields optional except
- *  id (same tolerant-import contract as every other table: old backups and
- *  partial hand-written .json imports keep working). */
-export const intelItemSchema = z.object({
-  id: z.string().min(1),
-  kind: z.enum(['ioc', 'event', 'rule']).optional(),
-  title: z.string().optional(),
-  iocType: z.string().optional(),
-  severity: z.string().optional(),
-  confidence: z.string().optional(),
-  description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  source: z.string().optional(),
-  mitre: z.array(z.string()).optional(),
-  content: z.string().optional(),
-  contentLang: z.string().optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-}).passthrough();
-
-// ---------------------------------------------------------------------------
 // PERFIL PROFESIONAL (v17) — sub-esquemas tolerantes (mismo contrato de
 // importación que el resto: solo id obligatorio, todo lo demás opcional).
 // ---------------------------------------------------------------------------
@@ -505,6 +349,41 @@ export const sysadminTicketSchema = z.object({
   impact: z.enum(['alta', 'media', 'baja']),
   urgency: z.enum(['alta', 'media', 'baja']),
   environment: z.enum(['Linux', 'Windows Server', 'Red', 'Storage / Backup', 'Virtualización', 'Cloud / Contenedores', 'Multi']),
+  requester: z.string(),
+  description: z.string(),
+  symptoms: z.string(),
+  dataAvailable: z.string().optional().nullable(),
+  troubleshooting: z.string().optional().nullable(),
+  resolution: z.string().optional().nullable(),
+  escalation: z.string().optional().nullable(),
+  kbRef: z.string().optional().nullable(),
+  skill: z.string().optional().nullable(),
+  evidence: z.string().optional().nullable(),
+  status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
+  statusNote: z.string().optional().nullable(),
+  isFinalProject: z.boolean().optional().nullable(),
+  isDeleted: z.boolean().optional(),
+  deletedAt: z.string().optional().nullable(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+}).passthrough();
+
+/** IAM (V11 · PILAR 1) — tickets de práctica del simulador IAM. La fila
+ * completa (contenido del dataset + trabajo del usuario: status/statusNote)
+ * viaja en iamTickets.json. Mismo contrato que sysadminTicketSchema con la
+ * extensión de dominio: environment = torre IAM (JML/Access/PAM/
+ * Gobernanza/Infra IAM/Multi) y type incluye 'cambio'. */
+export const iamTicketSchema = z.object({
+  id: z.string().min(1),
+  number: z.string().min(1),
+  title: z.string().min(1),
+  category: z.string().min(1),
+  subcategory: z.string().optional().nullable(),
+  type: z.enum(['incidente', 'solicitud', 'cambio']),
+  priority: z.enum(['P1', 'P2', 'P3', 'P4']),
+  impact: z.enum(['alta', 'media', 'baja']),
+  urgency: z.enum(['alta', 'media', 'baja']),
+  environment: z.enum(['JML', 'Access', 'PAM', 'Gobernanza', 'Infra IAM', 'Multi']),
   requester: z.string(),
   description: z.string(),
   symptoms: z.string(),

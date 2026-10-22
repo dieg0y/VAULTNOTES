@@ -30,11 +30,10 @@ import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
 import { findToolById } from '../data/toolsCatalog';
-import { Map as RoadmapIcon, Headset, Server, Shield } from 'lucide-react';
+import { Map as RoadmapIcon, Headset, Server, Shield, Fingerprint } from 'lucide-react';
 // V9 — conteos estáticos del pilar SOC (tarjeta del dashboard).
 import { ROADMAP_SOC_ALL_ITEM_IDS } from '../data/roadmapSocData';
 import { RUNBOOKS_SOC_COUNT } from '../data/runbooksSoc';
-import { SOC_CHEATSHEET_COUNT } from '../data/socCheatSheet';
 import { TROUBLESHOOTING_SOC_COUNT } from '../data/troubleshootingSoc';
 import confetti from 'canvas-confetti';
 
@@ -140,6 +139,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const saTotal = saTicketRows.length;
   const saFinalDone = saTicketRows.filter((t) => t.isFinalProject && hdWorkedStatuses.has(t.status)).length;
   const saPct = saTotal > 0 ? Math.round((saWorked / saTotal) * 100) : 0;
+
+  // IAM (V11 · PILAR 1) — progreso del simulador IAM: tickets trabajados
+  // (resueltos/escalados/cerrados) + proyecto final "Semana de Access
+  // Review" (10). Misma filosofía: solo contar filas, sin joins.
+  const iamTicketRows = useLiveQuery(() => db.iamTickets.filter((t) => !t.isDeleted).toArray(), [], []);
+  const iamWorked = iamTicketRows.filter((t) => hdWorkedStatuses.has(t.status)).length;
+  const iamOpen = iamTicketRows.filter((t) => hdOpenStatuses.has(t.status)).length;
+  const iamTotal = iamTicketRows.length;
+  const iamFinalDone = iamTicketRows.filter((t) => t.isFinalProject && hdWorkedStatuses.has(t.status)).length;
+  const iamPct = iamTotal > 0 ? Math.round((iamWorked / iamTotal) * 100) : 0;
   const statsLoaded = flashcardStats !== undefined;
   const weakConcepts = useMemo(() => {
     const stats = flashcardStats || [];
@@ -406,11 +415,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (onOpenTool) {
       onOpenTool('ioc');
     } else if (onSelectSection) {
-      onSelectSection('tools-soc');
+      onSelectSection('tools');
     }
   };
   const handleOpenTools = () => {
-    if (onSelectSection) onSelectSection('tools-soc');
+    if (onSelectSection) onSelectSection('tools');
   };
   const handleOpenGlossary = () => {
     if (onSelectSection) onSelectSection('glossary');
@@ -558,6 +567,80 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </p>
           </div>
 
+          {/* IAM (V11 · PILAR 1) — simulador de Identity & Access Management
+              (cola de tickets + Semana de Access Review + KB). */}
+          <div
+            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-violet-500/40 transition-colors"
+            onClick={() => onSelectSection?.('iam')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSection?.('iam'); }}
+            title="Abrir el simulador IAM: cola de tickets (JML · Access · PAM · Gobernanza), Semana de Access Review y Base de Conocimiento"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Simulador IAM</span>
+              <Fingerprint className="w-3.5 h-3.5 text-violet-400" />
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <span className="text-2xl font-bold text-white font-mono">
+                {iamWorked}<span className="text-sm text-[#666]">/{iamTotal}</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#666] shrink-0">
+                {iamOpen} abiert{iamOpen === 1 ? 'o' : 'os'} · AR {iamFinalDone}/10
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden mt-2" role="progressbar" aria-valuenow={iamPct} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${iamPct === 100 ? 'bg-emerald-500' : 'bg-violet-500'}`}
+                style={{ width: `${iamPct}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+              {iamPct === 100
+                ? '¡Simulador IAM completado! Exporta tus tickets como evidencia de práctica.'
+                : iamWorked > 0
+                  ? 'Vas avanzando en la cola del equipo IAM — clic para seguir trabajando tickets.'
+                  : 'Simulador IAM: 50 tickets de Nexora (JML, Access, PAM, Gobernanza) + Semana de Access Review.'}
+            </p>
+          </div>
+
+          {/* SOC (v9 · V11: pilar 2) — roadmap SOC + runbooks/troubleshooting
+              estáticos (knowledge base consultable). */}
+          <div
+            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-emerald-500/40 transition-colors"
+            onClick={() => onSelectSection?.('roadmap-soc')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSection?.('roadmap-soc'); }}
+            title="Abrir el pilar SOC: roadmap Blue Team, runbooks de detección y respuesta y troubleshooting"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">SOC / Blue Team</span>
+              <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <span className="text-2xl font-bold text-white font-mono">
+                {socRoadmapDone}<span className="text-sm text-[#666]">/{ROADMAP_SOC_ALL_ITEM_IDS.length}</span>
+              </span>
+              <span className="text-[10px] font-mono text-[#666] shrink-0">
+                RB {RUNBOOKS_SOC_COUNT} · TS {TROUBLESHOOTING_SOC_COUNT}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden mt-2" role="progressbar" aria-valuenow={socRoadmapPct} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${socRoadmapPct === 100 ? 'bg-emerald-500' : 'bg-emerald-500/70'}`}
+                style={{ width: `${socRoadmapPct}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+              {socRoadmapPct === 100
+                ? '¡Roadmap SOC completado! Exporta el checklist como evidencia.'
+                : socRoadmapDone > 0
+                  ? 'Pilar SOC: roadmap Blue Team + {0} runbooks con respuesta en inglés — clic para seguir.'.replace('{0}', String(RUNBOOKS_SOC_COUNT))
+                  : 'Pilar 2 listo: runbooks y troubleshooting de detección — 100% offline.'}
+            </p>
+          </div>
+
           {/* HELPDESK (v19) — simulador Service Desk (cola de tickets de
               Nexora + proyecto final + KB). Misma forma de tarjeta que el
               roadmap para mantener la retícula del Learning. */}
@@ -631,43 +714,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 : saWorked > 0
                   ? 'Vas avanzando en la guardia de Infra — clic para seguir.'
                   : 'Simulador SysAdmin: 56 tickets de guardia (Linux, Windows Server, red, storage, VM) — empieza por el día 1.'}
-            </p>
-          </div>
-
-          {/* SOC (v9) — pilar 3: roadmap SOC + runbooks/cheatsheet/
-              troubleshooting estáticos (knowledge base consultable). */}
-          <div
-            className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col cursor-pointer hover:border-emerald-500/40 transition-colors"
-            onClick={() => onSelectSection?.('roadmap-soc')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSection?.('roadmap-soc'); }}
-            title="Abrir el pilar SOC: roadmap Blue Team, runbooks de detección y respuesta, cheatsheets y troubleshooting"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">SOC / Blue Team</span>
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
-            <div className="flex items-end justify-between gap-2">
-              <span className="text-2xl font-bold text-white font-mono">
-                {socRoadmapDone}<span className="text-sm text-[#666]">/{ROADMAP_SOC_ALL_ITEM_IDS.length}</span>
-              </span>
-              <span className="text-[10px] font-mono text-[#666] shrink-0">
-                RB {RUNBOOKS_SOC_COUNT} · CS {SOC_CHEATSHEET_COUNT} · TS {TROUBLESHOOTING_SOC_COUNT}
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-[#1d1d1d] overflow-hidden mt-2" role="progressbar" aria-valuenow={socRoadmapPct} aria-valuemin={0} aria-valuemax={100}>
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${socRoadmapPct === 100 ? 'bg-emerald-500' : 'bg-emerald-500/70'}`}
-                style={{ width: `${socRoadmapPct}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
-              {socRoadmapPct === 100
-                ? '¡Roadmap SOC completado! Exporta el checklist como evidencia.'
-                : socRoadmapDone > 0
-                  ? 'Pilar SOC: roadmap Blue Team + {0} runbooks con respuesta en inglés — clic para seguir.'.replace('{0}', String(RUNBOOKS_SOC_COUNT))
-                  : 'Pilar 3 listo: runbooks, cheatsheets y troubleshooting de detección — 100% offline.'}
             </p>
           </div>
 
