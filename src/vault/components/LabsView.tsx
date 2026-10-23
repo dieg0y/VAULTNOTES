@@ -36,7 +36,7 @@ import { useDebouncedAutoSave } from '../hooks/useDebouncedAutoSave';
 import { insertHtmlInEditable } from '../utils/domInsert';
 import {
   useVaultVideoEmbeds, useImageInsert, runSanitizedPaste, runFileDrop,
-  VideoAccessBanner, VideoHiddenInputs, stripBlobUrls,
+  VideoAccessBanner, VideoHiddenInputs, ImageAccessBanner, ImageHiddenInputs, stripBlobUrls,
 } from './Editor/editorMedia';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 
@@ -1316,8 +1316,18 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
     videoInputRef, relinkInputRef,
   } = useVaultVideoEmbeds({ editorRef, onContentChange: handleInput });
 
-  // Image insert: data-URL image stored in db.images owned by this lab.
-  const { handleImageFile } = useImageInsert({
+  // Image insert: REGLA DE ORO imágenes — carpeta GITHUBVAULT si está
+  // configurada; data-URL legacy en db.images (propietario de este lab) si no.
+  const {
+    handleImageFile,
+    attachImageSources,
+    handleRelinkImageFiles,
+    grantImageAccess,
+    missingImageCount,
+    fsNeedsImagePermission,
+    noImagesDir,
+    relinkImageInputRef,
+  } = useImageInsert({
     editorRef,
     onContentChange: handleInput,
     owner: { labId },
@@ -1340,9 +1350,9 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       // untrusted (may come from imported backup). Sanitize before
       // innerHTML to prevent stored XSS. Pure & offline.
       editorRef.current.innerHTML = sanitizeHtml(initialHtml);
-      void Promise.resolve().then(() => void attachVideoSources());
+      void Promise.resolve().then(() => Promise.all([attachVideoSources(), attachImageSources()]));
     }
-  }, [initialHtml, attachVideoSources]);
+  }, [initialHtml, attachVideoSources, attachImageSources]);
 
   const execCmd = (cmd: string, val: string | undefined = undefined) => {
     document.execCommand(cmd, false, val);
@@ -1422,6 +1432,15 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         onRelinkFolder={() => void relinkFolder()}
         onFindFiles={() => relinkInputRef.current?.click()}
       />
+      {/* REGLA DE ORO (imágenes) — banner espejo para embeds de carpeta. */}
+      <ImageAccessBanner
+        variant="card" noun="parte"
+        fsNeedsPermission={fsNeedsImagePermission}
+        noImagesDir={noImagesDir}
+        missingImageCount={missingImageCount}
+        onGrantAccess={() => void grantImageAccess()}
+        onFindFiles={() => relinkImageInputRef.current?.click()}
+      />
       <input
         ref={fileInputRef}
         type="file"
@@ -1437,6 +1456,10 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
         relinkInputRef={relinkInputRef}
         onVideoFile={handleVideoFile}
         onRelinkFiles={handleRelinkFiles}
+      />
+      <ImageHiddenInputs
+        relinkImageInputRef={relinkImageInputRef}
+        onRelinkImageFiles={handleRelinkImageFiles}
       />
 
       {/* Formatting Toolbar */}

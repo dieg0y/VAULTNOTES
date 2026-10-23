@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, Trash2, Plus, Tag, Wrench, AlertTriangle, FolderOpen, HardDrive, RefreshCw, FolderX, CheckCircle2, ShieldCheck, RotateCcw, Video, Usb } from 'lucide-react';
+import { Settings, Trash2, Plus, Tag, Wrench, AlertTriangle, FolderOpen, HardDrive, RefreshCw, FolderX, CheckCircle2, ShieldCheck, RotateCcw, Video, Usb, FolderGit2 } from 'lucide-react';
 import { CategoryItem, ToolItem } from '../types';
 import { db, countCategoryUsage, countToolUsage } from '../db';
 import {
@@ -15,6 +15,16 @@ import {
   pickAppFolder,
   forgetAppFolder,
 } from '../utils/videoStorage';
+import {
+  isImagesPermissionGranted,
+  ensureImagesPermission,
+} from '../utils/imageStorage';
+import {
+  setupMediaVault,
+  getMediaVaultStatus,
+  getMediaVaultDisplayPath,
+  forgetMediaVault,
+} from '../utils/mediaVault';
 import {
   INTERVAL_OPTIONS,
   RETENTION_OPTIONS,
@@ -38,6 +48,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
   const [hasVideosDir, setHasVideosDir] = useState(false);
   const [videosDirName, setVideosDirName] = useState<string | null>(null);
   const [videosPermOk, setVideosPermOk] = useState(false);
+  // --- REGLA DE ORO (imágenes/GITHUBVAULT): media vault panel state ---
+  const [mediaConfigured, setMediaConfigured] = useState(false);
+  const [mediaDisplay, setMediaDisplay] = useState<{ videos: string; images: string } | null>(null);
+  const [imagesPermOk, setImagesPermOk] = useState(false);
   // --- App folder (backup target) panel state ---
   const [hasApp, setHasApp] = useState(false);
   const [appName, setAppName] = useState<string | null>(null);
@@ -46,6 +60,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
     setHasVideosDir(await hasVideosDirectory());
     setVideosDirName(await getVideosDirectoryName());
     setVideosPermOk(await isVideosPermissionGranted());
+    const vault = await getMediaVaultStatus();
+    setMediaConfigured(vault.configured);
+    setMediaDisplay(await getMediaVaultDisplayPath());
+    setImagesPermOk(await isImagesPermissionGranted());
     setHasApp(await hasAppFolder());
     setAppName(await getAppFolderName());
   }, []);
@@ -67,6 +85,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
   const handleForgetVideosDir = async () => {
     if (window.confirm('¿Dejar de usar la carpeta de videos? Los archivos NO se borran (siguen en tu disco), pero los apuntes con videos mostrarán el placeholder hasta que vuelvas a elegir una carpeta.')) {
       await forgetVideosDirectory();
+      await refreshVideoStorage();
+    }
+  };
+
+  /* --- GITHUBVAULT: ubicación por defecto de videos + imágenes --- */
+
+  const handleSetupMediaDefault = async () => {
+    // El picker abre en Documentos: el usuario elige la base y la app crea
+    // GITHUBVAULT/videos y GITHUBVAULT/imagenes automáticamente.
+    const info = await setupMediaVault('default');
+    if (info) {
+      await refreshVideoStorage();
+    }
+  };
+
+  const handleSetupMediaCustom = async () => {
+    const info = await setupMediaVault('custom');
+    if (info) {
+      await refreshVideoStorage();
+    }
+  };
+
+  const handleGrantMediaPerm = async () => {
+    const okV = await ensureVideosPermission();
+    const okI = await ensureImagesPermission();
+    if (okV || okI) await refreshVideoStorage();
+  };
+
+  const handleForgetMediaVault = async () => {
+    if (
+      window.confirm(
+        '¿Dejar de usar la carpeta GITHUBVAULT?\n\n' +
+          'Los archivos de video e imagen NO se borran (siguen en tu disco), pero los apuntes que los referencian mostrarán el aviso de archivo faltante hasta que vuelvas a configurar una carpeta.',
+      )
+    ) {
+      await forgetMediaVault();
       await refreshVideoStorage();
     }
   };
@@ -233,31 +287,103 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
         </div>
       </div>
 
-      {/* REGLA DE ORO — Videos folder (disk files, references only) */}
+      {/* REGLA DE ORO — GITHUBVAULT: videos + imágenes como archivos reales
+          en tu disco (por defecto Documentos/GITHUBVAULT/{videos,imagenes}) */}
       <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 space-y-3">
         <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
-          <Video className="w-4 h-4 text-amber-400" /> Carpeta de Videos — archivos reales en tu disco
+          <FolderGit2 className="w-4 h-4 text-amber-400" /> GITHUBVAULT — Videos e Imágenes en tu disco
         </h2>
         <p className="text-[11px] text-[#888] leading-relaxed">
-          Los videos <strong>nunca</strong> se guardan en la base de datos del navegador ni viajan en los backups.
-          Viven únicamente como archivos en <strong>esta carpeta</strong> de tu PC, y los apuntes guardan solo el
-          nombre del archivo. Al cambiar de PC, copia la carpeta tal cual y <em>Re-linkeala</em> aquí.
+          Los videos y las imágenes <strong>nunca</strong> se guardan en la base de datos del navegador ni viajan
+          en los backups: viven como archivos reales en tu PC y los apuntes guardan solo el nombre del archivo.
+          Ubicación por defecto: <span className="font-mono text-amber-300">Documentos/GITHUBVAULT</span> con las
+          subcarpetas <span className="font-mono text-amber-300">videos</span> y{' '}
+          <span className="font-mono text-amber-300">imagenes</span> (se crean automáticamente).
         </p>
 
         {!fsSupported ? (
           <div className="flex items-start gap-2 text-[11px] text-[#999] bg-[#161616] border border-[#262626] rounded p-2.5">
             <HardDrive className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <span>Abre la app en <strong>Microsoft Edge</strong> o Chrome para usar la carpeta de videos (File System Access API).</span>
+            <span>Abre la app en <strong>Microsoft Edge</strong> o Chrome para usar las carpetas de videos e imágenes (File System Access API).</span>
+          </div>
+        ) : mediaConfigured ? (
+          <div className="space-y-2.5">
+            <div className={`flex items-start gap-2 text-[11px] rounded p-2.5 border ${videosPermOk && imagesPermOk ? 'bg-green-500/5 border-green-500/30 text-green-300' : 'bg-amber-500/5 border-amber-500/30 text-amber-300'}`}>
+              <FolderOpen className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <div className="font-mono break-all">
+                {mediaDisplay ? (
+                  <>
+                    {mediaDisplay.videos}
+                    <br />
+                    {mediaDisplay.images}
+                  </>
+                ) : (
+                  `${videosDirName || 'videos'} · ${'imagenes'}`
+                )}{' '}
+                {videosPermOk && imagesPermOk ? '— activa ✓' : '— el navegador pedirá acceso al reproducir/mostrar'}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(!videosPermOk || !imagesPermOk) && (
+                <button
+                  onClick={handleGrantMediaPerm}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Conceder acceso ahora
+                </button>
+              )}
+              <button
+                onClick={handleSetupMediaDefault}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
+                title="Vuelve a configurar desde Documentos: el selector abre ahí"
+              >
+                <FolderOpen className="w-3 h-3" />
+                Volver a la ubicación por defecto (Documentos)
+              </button>
+              <button
+                onClick={handleSetupMediaCustom}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
+                title="Crea GITHUBVAULT/videos e imagenes dentro de la carpeta que elijas"
+              >
+                <FolderOpen className="w-3 h-3" />
+                Elegir otra carpeta base
+              </button>
+              <button
+                onClick={handleForgetMediaVault}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-red-500/10 hover:text-red-300 text-[#999] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
+                title="Dejar de usar la carpeta GITHUBVAULT (no borra los archivos)"
+              >
+                <FolderX className="w-3 h-3" />
+                Dejar de usar carpeta
+              </button>
+            </div>
+            <p className="text-[10px] text-[#666]">
+              Al cambiar de PC: copia la carpeta GITHUBVAULT tal cual y vuelve a configurarla aquí para que los
+              apuntes re-encuentren los archivos por nombre.
+            </p>
           </div>
         ) : hasVideosDir ? (
           <div className="space-y-2.5">
-            <div className={`flex items-center gap-2 text-[11px] rounded p-2.5 border ${videosPermOk ? 'bg-green-500/5 border-green-500/30 text-green-300' : 'bg-amber-500/5 border-amber-500/30 text-amber-300'}`}>
-              <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+            <div className="flex items-center gap-2 text-[11px] bg-[#161616] border border-[#262626] rounded p-2.5 text-[#BBB]">
+              <Video className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span className="font-mono truncate">
-                {videosDirName} {videosPermOk ? '— activa ✓' : '— el navegador pedirá acceso al abrir un video'}
+                Carpeta de videos personalizada: {videosDirName} {videosPermOk ? '— activa ✓' : '— sin permiso ahora'}
               </span>
             </div>
+            <p className="text-[11px] text-[#999]">
+              Tienes una carpeta de videos elegida manualmente. Puedes seguir con ella, o migrar a la
+              GITHUBVAULT recomendada (se crearán videos/ e imagenes/ y esta carpeta dejará de usarse —
+              los archivos no se tocan).
+            </p>
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleSetupMediaDefault}
+                className="flex items-center justify-center gap-2 px-2.5 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+              >
+                <FolderGit2 className="w-3.5 h-3.5" />
+                Migrar a GITHUBVAULT (Documentos)
+              </button>
               {!videosPermOk && (
                 <button
                   onClick={handleGrantVideosPerm}
@@ -272,7 +398,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-[11px] font-semibold transition-colors cursor-pointer"
               >
                 <FolderOpen className="w-3 h-3" />
-                Cambiar carpeta
+                Cambiar carpeta de videos
               </button>
               <button
                 onClick={handleForgetVideosDir}
@@ -287,13 +413,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
         ) : (
           <div className="space-y-2.5">
             <button
-              onClick={handlePickVideosDir}
+              onClick={handleSetupMediaDefault}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
-              <FolderOpen className="w-4 h-4" />
-              Elegir carpeta de videos
+              <FolderGit2 className="w-4 h-4" />
+              Usar la ubicación por defecto — Documentos/GITHUBVAULT
             </button>
-            <p className="text-[10px] text-[#666] text-center">También se te pedirá automáticamente la primera vez que insertes un video en un apunte o lab.</p>
+            <button
+              onClick={handleSetupMediaCustom}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded bg-[#161616] hover:bg-[#202020] text-[#DDD] border border-[#262626] text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Elegir otra carpeta base
+            </button>
+            <p className="text-[10px] text-[#666] text-center">
+              El selector abrirá <strong>Documentos</strong>: elige esa carpeta (o la que quieras) y la app creará
+              <span className="font-mono"> GITHUBVAULT/videos</span> y <span className="font-mono">GITHUBVAULT/imagenes</span> automáticamente.
+              Sin carpeta de imágenes configurada, las imágenes insertadas se guardan embebidas en el apunte (con límite de 25 MB).
+            </p>
           </div>
         )}
       </div>

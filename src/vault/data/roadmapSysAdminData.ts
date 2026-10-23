@@ -115,6 +115,16 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia',
             text: 'Servidor Linux del lab operando: servicio propio con unit de systemd, logs persistentes en journal, acceso por SSH con llave desde tu equipo y un incidente simulado (servicio caído) resuelto y documentado.',
           },
+          {
+            id: 'rmsa-f2-9',
+            label: 'Práctica',
+            text: 'Depurar units de systemd como oficio: anatomía del unit file ([Unit]/[Service]/[Install]: Description, After/Requires/Wants, Restart=on-failure, User), systemctl cat/edit con drop-ins y daemon-reload después de cada cambio, y systemd-analyze blame/critical-chain para arranques lentos. Ejercicio del lab: un servicio que muere sin decir nada se revive con Restart=, se explica con journalctl -u y queda documentado el porqué del fallo original.',
+          },
+          {
+            id: 'rmsa-f2-10',
+            label: 'Práctica',
+            text: 'journalctl para todo: -g patrón (grep integrado), -k para kernel, --since "1 hour ago" con --until, -o verbose cuando necesitas los campos crudos, -f para seguir en vivo, y --disk-usage con --vacuum-size=500M para que el disco no se llene; activa Storage=persistent si tu distro no trae persistencia. Ejercicio: reconstruye en una sola línea de tiempo la caída de un servicio cruzando sus logs con los de systemd y el kernel.',
+          },
         ],
       },
       {
@@ -153,6 +163,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia',
             text: 'Lab AD documentado: dominio con DC y cliente unidos, más un script PowerShell que cree 5 usuarios con New-ADUser en OU propia (grupo y descripción incluidos) y demuestre el login de uno de ellos.',
           },
+          {
+            id: 'rmsa-f3-7',
+            label: 'Práctica',
+            text: 'Administra el servidor sin GUI: RSAT en tu equipo de trabajo (Usuarios y equipos de AD, DNS, DHCP como si fueran locales) y Windows Admin Center como gateway web (instalación en el servidor, conexión desde el navegador, certificado y usuarios del gateway). Meta del lab: opera el Windows Server Core completo — usuarios, discos, servicios, certificados — sin abrir ni una sesión de escritorio en el servidor.',
+          },
         ],
       },
       {
@@ -190,6 +205,16 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             id: 'rmsa-f4-6',
             label: 'Evidencia',
             text: 'Diagrama de red del laboratorio (VLANs, IPs, gateway, DNS, firewall) y un caso documentado de "no hay conectividad" resuelto capa por capa (cable → IP → gateway → DNS → puerto) con comandos y conclusiones.',
+          },
+          {
+            id: 'rmsa-f4-7',
+            label: 'Práctica',
+            text: 'Red moderna de Linux desde consola: nmcli (device status, con show/mod/up, IP fija y DNS por conexión) en RHEL/Rocky, netplan (YAML + netplan try/apply) en Ubuntu y systemd-resolved con resolvectl status para saber quién resuelve el DNS HOY. Diagnostica el clásico "la configuración se perdió tras el reboot": netplan sin apply, autoconnect en false o dos perfiles peleándose por la misma interfaz.',
+          },
+          {
+            id: 'rmsa-f4-8',
+            label: 'Práctica',
+            text: 'ss e ip hasta el fondo: ss -tulpn (quiénes escuchan y en qué interfaz), ss -tnp state established (conexiones vivas con su proceso dueño), ip -br addr (resumen legible), ip route get 8.8.8.8 (por dónde saldría ese paquete), ip neigh y mtr 8.8.8.8 para latencia salto a salto. Con estas cinco salidas resuelves el 80% de los "no hay conectividad" en Linux sin abrir un solo archivo de configuración.',
           },
         ],
       },
@@ -270,6 +295,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia',
             text: 'Post-incidente de laboratorio: servidor "lento" simulado (disco lleno en /var, swap o proceso desbocado): métricas antes/después, causa raíz, corrección y artículo de KB con la verificación final.',
           },
+          {
+            id: 'rmsa-f6-8',
+            label: 'Práctica',
+            text: 'Mantenimiento LVM con el servicio arriba: agregar un disco (pvcreate → vgextend → lvextend -r y el filesystem crece solo), vaciar un disco que vas a retirar con pvmove y luego vgreduce + pvremove, y las reglas del filesystem: XFS crece en caliente con xfs_growfs pero NO se encoge; ext4 sí se encoge (con umount y fsck). Practica en el lab el retiro limpio de un disco del VG sin romper el LV: es el cambio que te pedirán en producción.',
+          },
         ],
       },
       {
@@ -307,6 +337,16 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             id: 'rmsa-f7-6',
             label: 'Evidencia',
             text: 'Informe de operación generado con PowerShell remoto: estado de servicios y parcheo de tus VMs Windows exportado a CSV/HTML — el reporte que un jefe no técnico entiende y por el que te recuerdan.',
+          },
+          {
+            id: 'rmsa-f7-7',
+            label: 'Práctica',
+            text: 'Roles y features por consola: Get-WindowsFeature/Install-WindowsFeature con -IncludeManagementTools para DHCP, DNS, AD CS, File Server, Web Server; sconfig como navaja suiza del Core (red, parches, reinicio, teclado); y el hábito de exportar lo instalado (Get-WindowsFeature | Where Installed | Export-Csv) para que el rol sea reconstruible. Instala dos roles en el lab y documenta los servicios que cada uno crea y cómo se verifican.',
+          },
+          {
+            id: 'rmsa-f7-8',
+            label: 'Práctica',
+            text: 'Salud del servidor Windows: los eventos del canal System que anticipan la falla: 41 Kernel-Power (apagón sin dump), 55 NTFS (corrupción), 153/129 disco (storahci/stornvme), 7000/7031/7034 (servicio que no arranca o muere), WHEA-Logger 17/18 (hardware: CPU/memoria/buses). Monta un data collector set de Performance Monitor y haz la revisión semanal con Get-WinEvent -FilterHashtable @{LogName="System"; Level=1,2} sobre el DC del lab: la salud se revisa antes de que sea incidente.',
           },
         ],
       },
@@ -346,6 +386,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia',
             text: 'Política de backup escrita para tu lab: qué se respalda, cada cuánto, dónde vive cada copia y la retención, más la evidencia fechada de un restore probado con el tiempo medido.',
           },
+          {
+            id: 'rmsa-f8-7',
+            label: 'Práctica',
+            text: 'Verificación automatizada de backups: restic check (o borg verify) como paso del job, un manifiesto con hashes de cada respaldo, alerta cuando el job no termina (el monitoreo de la fase 10 ya la tiene) y el drill trimestral de restauración agendado en el calendario con el RTO medido. La prueba de fuego es simple: el día que tengas que restaurar de verdad, la diferencia entre pánico y rutina es si alguna vez lo hiciste con calma.',
+          },
         ],
       },
       {
@@ -378,6 +423,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             id: 'rmsa-f9-5',
             label: 'Evidencia',
             text: 'Informe de capacidad del clúster del lab: consumo por VM (CPU/RAM/disco), tendencia a 30 días, una recomendación de ajuste concreta y el plan de acción para cuando el datastore se agote.',
+          },
+          {
+            id: 'rmsa-f9-6',
+            label: 'Práctica',
+            text: 'Backup a nivel hipervisor: vzdump en Proxmox (modos snapshot/stop, compresión y un storage destino DISTINTO del datastore) con un restore completo de VM (qmrestore); o export/import de VHDX en Hyper-V. Aprende la regla de consistencia: la VM se restaura, pero la base de datos que vive dentro necesita SU dump para no quedar corrupta — un snapshot de hipervisor no es un backup de aplicación.',
           },
         ],
       },
@@ -412,6 +462,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia',
             text: 'Dashboard del laboratorio + tabla con 3 alertas de umbral JUSTIFICADO y su runbook: qué mirar, qué decidir y a quién escalar. Toda alerta sin acción asociada es ruido que terminarás apagando.',
           },
+          {
+            id: 'rmsa-f10-6',
+            label: 'Práctica',
+            text: 'Logging centralizado: rsyslog reenviando de todos los hosts del lab a un punto único (o Loki + Promtail con Grafana si prefieres el stack moderno), logrotate con retención definida por política y la búsqueda multi-host como rutina: ¿a qué hora empezó esto en TODOS los servidores a la vez? Sin logs centralizados, cada incidente grande empieza abriendo SSH en seis máquinas para después preguntar lo que una query responde en segundos.',
+          },
         ],
       },
     ],
@@ -420,7 +475,7 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
     id: 'rmsa-t3',
     title: 'TIER 3 — SYSADMIN → SRE',
     subtitle:
-      'El salto de calidad: dejar de hacer lo mismo dos veces. Automatización, contenedores, una nube e IaC, con las prácticas SRE que hacen sostenible la operación a largo plazo.',
+      'El salto de calidad: dejar de hacer lo mismo dos veces. Automatización, contenedores, una nube e IaC, hardening del servidor y PKI/TLS para los servicios internos, con las prácticas SRE que hacen sostenible la operación a largo plazo.',
     phases: [
       {
         id: 'rmsa-f11',
@@ -457,6 +512,16 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             id: 'rmsa-f11-6',
             label: 'Evidencia',
             text: 'Repo de automatización: playbooks y roles con README, y un cambio aplicado en 5+ hosts del lab con diff del --check, ejecución y verificación documentada. Ese repositorio es portfolio de entrevista.',
+          },
+          {
+            id: 'rmsa-f11-7',
+            label: 'Práctica',
+            text: 'Inventario Ansible en serio: ansible.cfg, inventario INI/YAML con grupos y grupos de grupos, host_vars/group_vars en jerarquía, ansible-inventory --graph para verlo como árbol y --limit para cirugía fina. El ad-hoc como herramienta diaria (ansible all -m ping, -m command -a "uptime" con -b) y ansible-doc ANTES de escribir el playbook, no después del error. Un inventario limpio es la mitad del playbook.',
+          },
+          {
+            id: 'rmsa-f11-8',
+            label: 'Práctica',
+            text: 'Playbooks que no fallan a las 3 AM: handlers con notify (la acción corre solo si algo cambió), blocks con rescue/always, variables y su precedencia (extra-vars gana sobre todo), plantillas Jinja2 con template, when para condicionales, tags para ejecutar pedazos y ansible-lint en pre-commit. La prueba de idempotencia es ejecutable: corre dos veces seguidas y el segundo run debe reportar changed=0.',
           },
         ],
       },
@@ -500,6 +565,16 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             id: 'rmsa-f12-7',
             label: 'Certificación',
             text: 'AZ-900 (Azure) o AWS Cloud Practitioner como mapa del territorio: vocabulario, modelos de responsabilidad y cálculo básico de costos (tamaño de instancia, discos, snapshots, IP pública) con presupuesto y alarmas de gasto.',
+          },
+          {
+            id: 'rmsa-f12-8',
+            label: 'Práctica',
+            text: 'Docker por consola: docker run -d --name web --restart=unless-stopped -p 8080:80 -v datos:/usr/share/nginx/html:ro --memory=512m --cpus="0.5" nginx; la diferencia entre volumen administrado (-v nombre) y bind mount (-v /ruta); docker exec -it para entrar en vivo y docker inspect/stats/top/logs --tail 50 para diagnóstico; docker system df y prune para reclamar lo que nadie usa. Lo que ejecutes a mano hoy debe terminar reproducible en un compose file mañana.',
+          },
+          {
+            id: 'rmsa-f12-9',
+            label: 'Práctica',
+            text: 'Compose operacional: compose.yaml con healthcheck (test, interval, retries) y depends_on con condition: service_healthy; up -d --wait como despliegue estándar; logs -f --tail=50 para el diagnóstico; pull && up -d como rutina de actualización con rollback de tag; y respeto por down -v (se lleva los volúmenes y sus datos). Monta app + base de datos + proxy y rompe el healthcheck a propósito para ver el apagado en orden.',
           },
         ],
       },
@@ -572,6 +647,87 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Conceptos Clave',
             text: 'On-call sano: turnos con descanso real, solo páginas accionables, handoff escrito y límites de carga. El burnout del SysAdmin es un defecto del sistema de guardia, no una medalla.',
           },
+          {
+            id: 'rmsa-f14-6',
+            label: 'Práctica',
+            text: 'Incidente mayor con roles asignados: incident commander (decide y prioriza), comms lead (informa al negocio cada 30 minutos) y scribe (cronología en vivo); canal dedicado al incidente, cada decisión con hora y dueño, y el handoff al postmortem con la cronología ya escrita. Simula el día 5 del proyecto final así y compara con una corrida sin roles: sin estructura, el incidente mayor es cinco personas tecleando a ciegas y un chat que nadie puede leer después.',
+          },
+        ],
+      },
+      {
+        id: 'rmsa-f16',
+        number: 15,
+        title: 'Hardening y Seguridad del Servidor',
+        note: 'Seguridad del SysAdmin no es paranoia: es parcheo ordenado, superficie mínima y evidencia del antes/después. Sin hardening documentado, cada incidente es culpa del servidor.',
+        items: [
+          {
+            id: 'rmsa-f16-1',
+            label: 'Conceptos Clave',
+            text: 'Hardening como proceso, no como evento: baseline (CIS Benchmark por plataforma: Ubuntu, RHEL, Windows Server), medición (Lynis con score, OpenSCAP como alternativa), priorización (exposición de red, autenticación y logging primero) y cambios de a uno, revertibles y documentados. "Endurecí el servidor" sin evidencia de antes/después no existe: pide la medición de cierre.',
+          },
+          {
+            id: 'rmsa-f16-2',
+            label: 'Práctica',
+            text: 'Parcheo sin drama: unattended-upgrades (Debian/Ubuntu) y dnf-automatic (RHEL/Rocky) con notificación por correo, exclusiones razonadas (el kernel se reinicia en SU ventana, no cuando el paquete quiera), live patching del kernel como concepto (kpatch/livepatch) y un reporte mensual de parcheo como KPI que presentas al negocio. El servidor sin parchear es la deuda técnica más barata de pagar y la más cara de ignorar.',
+          },
+          {
+            id: 'rmsa-f16-3',
+            label: 'Práctica',
+            text: 'auditd y MAC en la práctica: reglas base (-a always,exit -F arch=b64 -S execve para ejecuciones; -w /etc/sudoers -p wa y -w /etc/passwd -p wa para cambios), lectura con ausearch -i y resumen con aureport; SELinux en enforcing traduciendo denegaciones con setroubleshoot (o AppArmor con aa-status en Ubuntu). Regla de la casa: setenforce 0 solo como último recurso, con ticket, justificación y fecha de reversión.',
+          },
+          {
+            id: 'rmsa-f16-4',
+            label: 'Conceptos Clave',
+            text: 'Secretos de infraestructura: nada en texto plano (scripts, variables de entorno, .bash_history, unit files), ansible-vault como práctica diaria con rotación de lo que ya se ha filtrado por costumbre, y el salto conceptual a bóvedas (HashiCorp Vault, SOPS) para cuando el entorno crezca. Un secreto que vive en Git es un secreto público: escanea tu propio repositorio del lab y limpia lo que encuentres.',
+          },
+          {
+            id: 'rmsa-f16-5',
+            label: 'Conceptos Clave',
+            text: 'Cifrado en reposo y en tránsito: LUKS para el disco de backups y datos sensibles (con el header respaldado fuera: sin header no hay datos), swap cifrado, TLS en TODOS los servicios que cruzan la red plana y la regla mínima del oficio: lo que sale del rack o se copia a una laptop viaja cifrado, siempre. El backup sin cifrar es la puerta trasera más cómoda del ransomware.',
+          },
+          {
+            id: 'rmsa-f16-6',
+            label: 'Evidencia',
+            text: 'Informe de hardening del lab: Lynis antes (score y hallazgos) → cambios priorizados aplicados con su rollback documentado → Lynis después, y la verificación de que los servicios siguen operando (las alertas del monitoreo en verde durante la ventana). Ese antes/después con evidencia es portfolio de entrevista y la plantilla exacta que usarás en producción.',
+          },
+        ],
+      },
+      {
+        id: 'rmsa-f17',
+        number: 16,
+        title: 'PKI, TLS y Servicios Web',
+        note: 'Todo servicio interno termina necesitando TLS y un proxy: la PKI es de los pocos temas que separan al que administra del que apaga y enciende.',
+        items: [
+          {
+            id: 'rmsa-f17-1',
+            label: 'Conceptos Clave',
+            text: 'PKI esencial: CA raíz e intermedia, cadena de confianza, CSR y por qué el Common Name ya no basta (el navegador valida los SAN); autofirmado vs público; y el motivo real del "certificado no confiable" en equipos internos: tu CA no está en el trust store del cliente — despliégala por GPO/Intune y el error desaparece. Entender la cadena es entender el 90% de los errores de certificado de tu carrera.',
+          },
+          {
+            id: 'rmsa-f17-2',
+            label: 'Práctica',
+            text: 'OpenSSL de bolsillo: monta la CA del lab (openssl req -x509 -newkey rsa:4096 -nodes -keyout ca.key -out ca.crt -days 1825), firma un CSR (openssl x509 -req con -extfile y los SAN), inspecciona lo firmado (openssl x509 -text -noout) y prueba contra un servicio (openssl s_client -connect host:443 -servername host). Cierra con el script de alerta de expiración: -enddate de todos los certificados del lab, días restantes y umbral a 30 días.',
+          },
+          {
+            id: 'rmsa-f17-3',
+            label: 'Práctica',
+            text: 'nginx como proxy inverso: server blocks por nombre, proxy_pass contra un upstream, TLS termination con tu certificado, cabeceras (HSTS, X-Forwarded-For, X-Forwarded-Proto) y el diagnóstico de los 502/504 leyendo access y error log (¿el upstream está muerto o solo lento?). Publica dos apps del lab detrás de un solo nginx con dos nombres de servidor y un solo 443: esa es la topología interna más común de la empresa real.',
+          },
+          {
+            id: 'rmsa-f17-4',
+            label: 'Práctica',
+            text: 'certbot (Let\'s Encrypt) y renovación: challenge HTTP-01 con el plugin --nginx, el timer de renovación que el paquete instala, certbot renew --dry-run como prueba mensual y el monitoreo de expiración que dispara 30 días antes. Escribe el runbook "certificado expirado a las 3 AM" con el orden exacto: regenerar → recargar el nginx → verificar la cadena con s_client → cerrar el falso positivo del monitoreo y preguntarse por qué no avisó.',
+          },
+          {
+            id: 'rmsa-f17-5',
+            label: 'Conceptos Clave',
+            text: 'Diagnóstico TLS de extremo a extremo: curl -v para la negociación completa (TLS, SNI, certificado y respuesta), openssl s_client -showcerts para ver QUÉ cadena entrega realmente el servidor, SNI (una IP, varios certificados por nombre), el mixed content del navegador cuando solo la mitad del sitio es HTTPS, y upstream_response_time en el access log de nginx para encontrar al backend lento. Con esas cinco herramientas explicas cualquier "no me abre" que tenga un certificado en medio.',
+          },
+          {
+            id: 'rmsa-f17-6',
+            label: 'Evidencia',
+            text: 'Sitio interno del lab con TLS de verdad: CA propia desplegada al trust store del cliente (o certbot con un dominio de práctica), renovación automática probada con --dry-run, y el runbook de certificado expirado escrito para OTRO (síntoma → verificación → pasos → rollback). El día que caduque un certificado en tu empresa real, ese runbook — y no tu memoria — es lo que te hace quedar como profesional.',
+          },
         ],
       },
     ],
@@ -584,7 +740,7 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
     phases: [
       {
         id: 'rmsa-f15',
-        number: 15,
+        number: 17,
         title: 'Semana de Guardia en Nexora (30 tickets)',
         note: 'Trabaja los tickets del simulador SysAdmin como si te pagaran por ello: triage, método, KB y evidencia en cada cierre.',
         items: [

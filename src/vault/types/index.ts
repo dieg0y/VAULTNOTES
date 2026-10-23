@@ -199,6 +199,9 @@ export interface FlashcardStat {
 export interface StoredFileHandle {
   id: string;
   handle: FileSystemFileHandle;
+  /** Solo para el registro 'vault-media-meta': nombre de la carpeta base
+   *  elegida por el usuario (p. ej. "Documentos") de la bóveda GITHUBVAULT. */
+  baseName?: string;
 }
 
 /** Reference / external resource (links, cheatsheets, repos, tools, articles). */

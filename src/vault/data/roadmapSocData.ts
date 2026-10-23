@@ -62,6 +62,16 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Bitácora Windows en VaultNotes: 10 eventos de distinto tipo exportados, cada campo explicado con tus palabras y el comando exacto que extrajo cada uno. Con esto demuestras que lees la fuente, no que copias conclusiones.',
           },
+          {
+            id: 'rmsoc-f1-5',
+            label: 'Práctica',
+            text: 'Auditoría de creación de procesos: habilita el EventID 4688 con línea de comandos (política "Audit process creation" más "Include command line in process creation events" por GPO) y compáralo con Sysmon ID 1, que aporta ProcessGuid, ParentImage y Hashes SHA256. Verifica con Get-WinEvent -FilterHashtable @{LogName="Security"; Id=4688} que el campo CommandLine llega completo: sin esa política, la mitad del triage es adivinar cómo se lanzó el proceso.',
+          },
+          {
+            id: 'rmsoc-f1-6',
+            label: 'Conceptos Clave',
+            text: 'Canon de Sysmon para triage: 1 creación de proceso (con hash y padre), 3 conexión de red, 7 imagen cargada, 8 remote thread (inyección), 10 acceso a proceso (LSASS), 11 archivo creado, 13 valor de registro modificado, 22 consulta DNS y 25 proceso finalizado. Aprende el porqué de cada uno: un EventID 10 sobre lsass.exe firmado por un proceso raro es casi siempre un dump de credenciales en curso, y el 13 es la firma de la persistencia por Run Key.',
+          },
         ],
       },
       {
@@ -89,6 +99,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             id: 'rmsoc-f2-4',
             label: 'Evidencia (Exit Criteria)',
             text: 'Mapa de "quién habla con quién" de un equipo del lab: todas las conexiones con su proceso dueño, destino y propósito declarado por ti. Esa tabla de lo normal es la que te permitirá señalar lo raro el día del incidente.',
+          },
+          {
+            id: 'rmsoc-f2-5',
+            label: 'Conceptos Clave',
+            text: 'Puertos y protocolos que usa el atacante: 53 DNS (túnel y exfiltración), 443 HTTPS (C2 cifrado que el firewall de perímetro no inspecciona), 445 SMB y 3389 RDP para movimiento lateral, 5985/5986 WinRM, 8080/8443 para paneles y servidores de comando. Segunda fuente que el host no te da: los logs del proxy y del firewall (regla, acción, usuario, categoría). Hay campañas que solo se ven desde la perspectiva de la red.',
           },
         ],
       },
@@ -118,6 +133,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Lab SIEM vivo: dos fuentes ingiriendo (Security de Windows + Sysmon), cinco búsquedas guardadas con nombre y una alerta disparada a propósito para validar el pipeline completo. Captura del mismo evento en origen y en el SIEM, lado a lado.',
           },
+          {
+            id: 'rmsoc-f3-5',
+            label: 'Práctica',
+            text: 'Salud de la ingesta antes que reglas nuevas: query de heartbeat por host (summarize con bin(TimeGenerated, 1h) por Computer) para encontrar agentes caídos y ventanas sin eventos, y medición de la latencia entre el TimeGenerated del evento y su hora de ingesta. Regla del analista: un descarte por ausencia de eventos SOLO vale si antes demostraste que el host estaba reportando — un SIEM con fuentes mudas produce falsos "no pasó nada".',
+          },
         ],
       },
       {
@@ -141,6 +161,16 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Informe de identidad: tres hallazgos del tenant con tabla de evidencia (usuario, IP, ubicación, resultado, timestamp) y una recomendación concreta por hallazgo: forzar MFA, bloquear IP o revisar una política de Conditional Access. Nada de conclusiones sin fila que las respalde.',
           },
+          {
+            id: 'rmsoc-f4-4',
+            label: 'Práctica',
+            text: 'KQL de sign-ins de práctica: SigninLogs | where TimeGenerated > ago(24h) filtrando por ResultType: 50126 (contraseña inválida), 50053 (smart lockout), 50074/50076 (MFA fallado/requerido), 500121 (fallo del paso de MFA) y 53003 (Conditional Access bloqueó). Practica el patrón del password spraying (muchos UserPrincipalName, pocas fallas por cuenta) y el país/IP nunca visto con summarize por usuario: esa tabla es el 90% del triage de identidad.',
+          },
+          {
+            id: 'rmsoc-f4-5',
+            label: 'Conceptos Clave',
+            text: 'Los códigos que separan al L1 del copy-paste: 50126 concentrado en UNA cuenta es un usuario despistado; 50126 repartido entre muchas cuentas es T1110; una ráfaga de 500121 sobre un solo usuario es MFA bombing (incidente, no ruido); 50056 delata una cuenta sin credencial asignada; 53003 te dice qué política bloqueó. Antes de escalar un error de login identifica el ResultType exacto: cada uno tiene un dueño distinto en la respuesta.',
+          },
         ],
       },
       {
@@ -163,6 +193,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             id: 'rmsoc-f5-3',
             label: 'Certificación',
             text: 'SC-900 (Microsoft Security, Compliance, and Identity Fundamentals): el mapa del territorio con el que entras a la entrevista. Apréndela rápido y sigue avanzando — es de fundamentos, no de prestigio. La combinación real es SC-900 ahora y SC-200 en el Tier 3, cuando ya tengas manos calientes.',
+          },
+          {
+            id: 'rmsoc-f5-4',
+            label: 'Práctica',
+            text: 'Handoff y matriz de escalamiento como entregable: cierra cada turno simulado con nota de relevo (casos abiertos, evidencia pendiente, con quién queda la bola) y arma la matriz del lab: quién es L2, quién es el dueño de cada activo, quién autoriza aislar producción y con qué SLA se contacta a cada uno. En un turno real, la mitad del valor de un L1 es que quien te releva no empiece de cero.',
           },
         ],
       },
@@ -205,6 +240,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Portfolio de triage: 15 alertas simuladas con nota completa, veredicto y la evidencia exacta citada (EventID y campos relevantes). Es exactamente lo que te piden en la entrevista de L1: "cuéntame un caso que hayas triajeado de principio a fin".',
           },
+          {
+            id: 'rmsoc-f6-6',
+            label: 'Conceptos Clave',
+            text: 'Canon del movimiento lateral para triage: 4624 Tipo 3 (inicio de sesión de red), 4648 (credenciales explícitas: runas/PsExec), 4672 (inicio con privilegios de administrador), 4776 (NTLM), 5140/5145 (conexión y enumeración de compartidos) y 1149 en Microsoft-Windows-TerminalServices (sesión RDP iniciada). Firma compuesta de PsExec: 7045 instalando PSEXESVC + 4624 Tipo 3 desde el host origen. Aprende a leerlas juntas: el lateral nunca es UN evento, es una cadena.',
+          },
         ],
       },
       {
@@ -232,6 +272,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             id: 'rmsoc-f7-4',
             label: 'Evidencia (Exit Criteria)',
             text: 'Libro de queries propias: 10 consultas KQL documentadas (con su equivalente SPL si tienes Splunk en el lab) con objetivo, tablas fuente, resultado esperado y la ejecución real capturada. Ese documento es tu cartilla de entrevista técnica.',
+          },
+          {
+            id: 'rmsoc-f7-5',
+            label: 'Práctica',
+            text: 'KQL intermedio de verdad: let para derivar tablas, case() y iif() para clasificar severidad, coalesce() para columnas con nombre distinto por tabla, parse_json() con mv-expand para arrays (RecipientEmail en EmailEvents) y render timechart para graficar tendencias. Y las equivalencias SPL para poder trabajar en ambos: eval=extend, rex=parse, stats=summarize, timechart=bin+summarize+render. Ejercicio: reescribe tus tres queries de la fase 6 en los dos lenguajes y compara resultados.',
           },
         ],
       },
@@ -261,6 +306,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Caso EDR documentado: detección disparada, veredicto, acción tomada con el comando exacto, verificación posterior y lección aprendida. Formato de nota de caso completo, como si el ticket fuera a parar a auditoría.',
           },
+          {
+            id: 'rmsoc-f8-5',
+            label: 'Conceptos Clave',
+            text: 'Defender for Endpoint desde el analista: cola de incidentes con alertas de dispositivo y línea de tiempo de la máquina; Advanced Hunting con DeviceProcessEvents, DeviceNetworkEvents, DeviceFileEvents, DeviceRegistryEvents y DeviceImageLoadEvents (columnas de siempre: Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessFileName); acciones de respuesta por host (aislar, AV scan, restringir archivo) y Live Response con GetFile/PutFile. Practica cruzar DeviceProcessEvents con EmailEvents por AccountName: del correo al proceso en el endpoint en una sola query.',
+          },
         ],
       },
       {
@@ -288,6 +338,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             id: 'rmsoc-f9-4',
             label: 'Evidencia (Exit Criteria)',
             text: 'Caso de phishing completo: desde el reporte del usuario hasta la purga en todos los buzones, reset de credenciales de quien hizo clic y bloqueo de indicadores (IP, dominio, hash). Cierra con la nota de BEC: qué hubiera cambiado si era un fraude de transferencia y no un link falso.',
+          },
+          {
+            id: 'rmsoc-f9-5',
+            label: 'Práctica',
+            text: 'Defanging y detonación segura para reportar sin riesgo: en toda nota y ticket escribe URLs como hXXps://pago-ejemplo[.]com/ruta y direcciones como 203.0.113[.]7; los adjuntos van en ZIP con contraseña y la clave por otro canal. Detona solo en VM aislada fuera de la red del lab (o sandbox online como concepto: Any.Run, Hybrid Analysis), anotando descargas, persistencia y conexiones salientes. Nunca abras el adjunto en tu equipo de trabajo: "tengo antivirus" no es un control, es una esperanza.',
           },
         ],
       },
@@ -317,6 +372,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Un caso completo del lab con custodia real: 3 o más artefactos hasheados, empaquetados y listados con su hash correspondiente, más el informe del caso completo. Guárdalo junto a los runbooks SOC del vault: será tu referencia de formato para el proyecto final.',
           },
+          {
+            id: 'rmsoc-f10-5',
+            label: 'Práctica',
+            text: 'Memoria y triage rápido: captura la RAM en vivo (winpmem, DumpIt de Comae o equivalente) ANTES de aislar o reiniciar, y analiza con volatility3: pslist, cmdline, netscan, malfind y dump-files. Para el resto usa un paquete de triage tipo KAPE o el mínimo forense (Prefetch, SRUM, Amcache, event logs, MFT). Escribe el orden de captura como runbook: la evidencia volátil es la primera en morir y la última de la que se acuerdan.',
+          },
         ],
       },
     ],
@@ -325,7 +385,7 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
     id: 'rmsoc-t3',
     title: 'TIER 3 — SOC L2 → DETECTION ENGINEER',
     subtitle:
-      'El salto de nivel: dejar de consumir alertas para empezar a producirlas. MITRE ATT&CK y caza por hipótesis, respuesta a incidentes como proceso, SOAR y métricas, y detección as code. Aquí te conviertes en el que los L1 llaman cuando la cosa se pone fea.',
+      'El salto de nivel: dejar de consumir alertas para empezar a producirlas. MITRE ATT&CK y caza por hipótesis, respuesta a incidentes como proceso, SOAR y métricas, detección as code, y la capa cloud (M365/Entra) con hunting de frecuencia y rareza. Aquí te conviertes en el que los L1 llaman cuando la cosa se pone fea.',
     phases: [
       {
         id: 'rmsoc-f11',
@@ -358,6 +418,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Reporte de caza: tres hipótesis, la query de cada una, hallazgo o descarte con evidencia citada y las reglas Sigma que salieron de lo hallado. Una caza que no termina en detección nueva o en descarte documentado se repite infinito sin aportar nada.',
           },
+          {
+            id: 'rmsoc-f11-6',
+            label: 'Práctica',
+            text: 'Mapa de cobertura ATT&CK del lab: cruza las técnicas que ya trabajaste (T1566, T1110, T1078, T1059.001, T1136, T1021) contra las fuentes de datos que tienes (Security, Sysmon, SigninLogs, EmailEvents) y marca cada una: cubierta, parcial o ciega. Elige dos puntos ciegos (ejemplo: T1003 dump de LSASS sin Sysmon ID 10; T1547.001 persistencia por Run Key sin Sysmon ID 13) y propón la fuente o la regla que los cierra, con el evento de control que valida la cobertura.',
+          },
         ],
       },
       {
@@ -385,6 +450,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             id: 'rmsoc-f12-4',
             label: 'Certificación',
             text: 'SC-200 (Microsoft Security Operations Analyst): el sello de que sabes operar Sentinel y Defender para detectar, triagear y responder. Estúdiala DESPUÉS del simulacro completo: con las manos calientes la mitad del contenido te sonará a casos que ya viviste, y se fija el doble.',
+          },
+          {
+            id: 'rmsoc-f12-5',
+            label: 'Práctica',
+            text: 'Clasificación y comunicación del incidente: define umbrales P1-P4 (P1: producción cifrada, datos saliendo o propagación activa) y qué convierte un caso en incidente mayor (por ejemplo: dos hosts comprometidos + credenciales de dominio). Al cruzar el umbral asigna roles: quién manda, quién comunica al negocio y quién escribe la cronología — con actualizaciones de estado cada 30 minutos. El timeline se redacta MIENTRAS ocurre: reconstruirlo de memoria el viernes es la receta para perderlo.',
           },
         ],
       },
@@ -414,6 +484,16 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'El loop de FP documentado: toma una regla ruidosa, documenta sus falsos positivos, propón el tuning (exclusión, umbral o lógica) y mide el antes y el después. Reducir el ruido de una regla vale tanto como crearla: el SOC que no tunea se ahoga en sus propias detecciones.',
           },
+          {
+            id: 'rmsoc-f13-5',
+            label: 'Práctica',
+            text: 'Enriquecimiento automático del triage: monta el playbook (Logic Apps o diagrama ejecutable) que al dispararse la alerta consulta dueño del activo (CMDB en CSV), clasificación de la IP (tabla estática del lab), último login del usuario y si el host tiene datos sensibles, y deja todo escrito en el ticket antes de que un humano lo abra. Meta de diseño: el analista abre el ticket y la mitad del contexto ya está; eso convierte minutos de triage en segundos.',
+          },
+          {
+            id: 'rmsoc-f13-6',
+            label: 'Conceptos Clave',
+            text: 'Gestión de falsos positivos como disciplina: cada FP se registra con causa raíz (proceso legítimo, log mal parseado, umbral mal calibrado) y la decisión se documenta: tuning de la regla, exclusión con EXPIRACIÓN o lógica adicional. Audita las supresiones cada trimestre: la exclusión que calmó un ruido el año pasado es la brecha de hoy. Reducir ruido vale tanto como crear detecciones nuevas: la cola intocable es la que quema a los L1.',
+          },
         ],
       },
       {
@@ -442,6 +522,82 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia (Exit Criteria)',
             text: 'Tuning con historia: una regla con su histórico de alertas (antes y después), el cambio aplicado vía pull request y la métrica de FP reducida. Muestra el diff y el gráfico en la entrevista: eso es detection engineering demostrado, no declarado.',
           },
+          {
+            id: 'rmsoc-f14-5',
+            label: 'Práctica',
+            text: 'Validación de detecciones con Atomic Red Team: instala Invoke-AtomicRedTeam, lanza pruebas atómicas contra el host de control (por ejemplo T1003.001 para LSASS o T1059.001 con encodings) y verifica tres cosas: la regla dispara, dispara dentro del tiempo esperado y el pipeline no la pierde en el camino. El resultado se registra junto a la regla en el repo como test ejecutado: una detección que nunca ha visto un ataque simulado es una hipótesis, no una detección.',
+          },
+        ],
+      },
+      {
+        id: 'rmsoc-f16',
+        number: 15,
+        title: 'Cloud Detection para SOC',
+        note: 'El incidente moderno nace en el tenant: identidad y correo primero, endpoint después. Sin detección cloud solo ves el final de la historia.',
+        items: [
+          {
+            id: 'rmsoc-f16-1',
+            label: 'Conceptos Clave',
+            text: 'La telemetría del tenant M365/Entra: Unified Audit Log (UAL) para operaciones de Exchange/SharePoint/Teams, SigninLogs y AuditLogs de Entra, detecciones de riesgo de Entra ID Protection y alertas de Defender for Cloud Apps. Lección de licenciamiento primero: lo que ves depende de lo que el tenant paga (E3 vs E5 cambia eventos como MailItemsAccessed y la retención del UAL). Mapea qué fuentes existen en TU tenant de práctica antes de escribir una sola detección.',
+          },
+          {
+            id: 'rmsoc-f16-2',
+            label: 'Práctica',
+            text: 'Caza en el UAL: Search-UnifiedAuditLog con -RecordType ExchangeItemGroup y rango -StartDate/-EndDate en Exchange Online PowerShell (o la búsqueda de auditoría de Purview), tras los dos IOAs de BEC que todo analista debe conocer: New-InboxRule/Set-InboxRule que mueve o borra mensajes (ocultamiento) y Add-MailboxPermission/Set-Mailbox concediendo acceso desde fuera. Practica reconstruir con el UAL la cronología completa de un buzón comprometido: acceso, regla creada, lecturas y qué más tocó la cuenta.',
+          },
+          {
+            id: 'rmsoc-f16-3',
+            label: 'Práctica',
+            text: 'Entra ID Protection en operación: tipos de detección de riesgo (unfamiliar sign-in properties, atypical travel, anomalous token usage, leaked credentials), usuarios de riesgo con Get-MgRiskyUser y detecciones con Get-MgRiskDetection; el flujo de remediación (confirm compromised vs dismiss) con evidencia y el handshake con IAM para el reset. Fila uno de tu informe: usuarios con credenciales filtradas detectadas por Entra que aún no tienen MFA.',
+          },
+          {
+            id: 'rmsoc-f16-4',
+            label: 'Práctica',
+            text: 'Correlación XDR de punta a punta: una sola historia cruzando correo, identidad y endpoint — EmailEvents (quién recibió y clickeó) → SigninLogs (la misma cuenta iniciando sesión desde dónde y con qué cliente) → DeviceProcessEvents (qué proceso corrió en el equipo de ese usuario). En Defender XDR/365 Defender el incidente ya une esas señales: aprende a leer el gráfico y a VERIFICAR cada arista con la query por debajo, no a confiarte del resumen automático.',
+          },
+          {
+            id: 'rmsoc-f16-5',
+            label: 'Conceptos Clave',
+            text: 'Los límites de la nube que te muerden: latencia de aparición (el UAL puede tardar de minutos a horas en exponer un evento), retención corta si no exportas (SigninLogs por defecto ~30 días; UAL 90-180 según licencia) y la arquitectura que lo resuelve: forwarding a SIEM (Azure Monitor Agent hacia Sentinel o ingesta continua a tu propio almacén). Regla: antes de descartar por ausencia de eventos, confirma la latencia esperada de esa fuente.',
+          },
+          {
+            id: 'rmsoc-f16-6',
+            label: 'Evidencia (Exit Criteria)',
+            text: 'Caso cloud de punta a punta: detecta una regla de inbox maliciosa en el UAL, identifica el acceso inicial en SigninLogs (misma IP y user agent), coordina con el flujo de IAM la revocación de sesiones y el reset, elimina la regla y cuantifica el alcance (otros buzones, otras cuentas tocadas). El informe final con IOAs (comportamientos, no solo indicadores) y la evidencia del tenant tabulada es el cierre demostrable de la fase.',
+          },
+        ],
+      },
+      {
+        id: 'rmsoc-f17',
+        number: 16,
+        title: 'Threat Hunting: Baseline, Frecuencia y Rareza',
+        note: 'La caza madura no busca "cosas raras": busca desviaciones de una línea base escrita. Frecuencia y rareza son las dos patas del mismo oficio.',
+        items: [
+          {
+            id: 'rmsoc-f17-1',
+            label: 'Conceptos Clave',
+            text: 'Las dos heurísticas del hunter: lo FRECUENTE (comportamiento que se repite con precisión de reloj: beaconing, tareas del atacante) y lo RARO (lo que casi nunca pasa y apareció una vez). Ambas exigen baseline: sin saber qué es normal en TUS hosts, ni freq ni rare significan nada. La madurez se mide en el arranque: alert-driven espera a que la regla dispare; hypothesis-driven escribe la pregunta ANTES de la query — esa diferencia de nivel es la que se nota en una entrevista.',
+          },
+          {
+            id: 'rmsoc-f17-2',
+            label: 'Práctica',
+            text: 'Construye la baseline con KQL: procesos normales por host (DeviceProcessEvents | summarize count() by ProcessCommandLine | top 100), sesiones por estación (EventID 4624 con summarize dcount() por TargetUserName y Computer) y horarios de actividad por área con bin(TimeGenerated, 1h). Publícala como tabla viva del lab (CSV + nota en VaultNotes): el hunting del mes siguiente la consulta como diccionario y la corrige con lo aprendido.',
+          },
+          {
+            id: 'rmsoc-f17-3',
+            label: 'Práctica',
+            text: 'Caza de lo frecuente — beaconing: agrupa conexiones (Sysmon ID 3 o DeviceNetworkEvents) por destino con bin(TimeGenerated, 5m) y cuenta por RemoteIP; un destino presente en casi todos los intervalos con desviación baja del intervalo es candidato. Filtra lo legítimo (updates del antivirus, telemetría de Windows, NTP) contra tu baseline y persigue lo que queda mirando el proceso dueño (InitiatingProcessFileName): ahí está el C2 o el software no autorizado.',
+          },
+          {
+            id: 'rmsoc-f17-4',
+            label: 'Práctica',
+            text: 'Caza de lo raro — rare hunting: procesos con una sola ocurrencia en 30 días lanzados desde rutas raras (C:\Users\Public\, C:\Windows\Temp\, %APPDATA%), usuarios que aparecen desde una IP vista por primera vez (join contra tu baseline de IPs por usuario), servidores con un puerto escuchando que ningún otro tiene (compara ss -tulpn entre hosts del mismo rol). Patrón mental del comando rare de Splunk: ordena por conteo ascendente y lee los primeros 20 CON contexto antes de descartar.',
+          },
+          {
+            id: 'rmsoc-f17-5',
+            label: 'Evidencia (Exit Criteria)',
+            text: 'Hunt pack del lab: tres hipótesis nuevas (una de frecuencia, una de rareza y una guiada por ATT&CK) con la baseline citada, la query, el veredicto (hallazgo o descarte) con evidencia y el resultado derivado: detección nueva, tuning pendiente o entrada corregida en la baseline. Una caza sin output es un paseo: este paquete es el artefacto con el que demuestras nivel de hunting en una entrevista de L2.',
+          },
         ],
       },
     ],
@@ -454,7 +610,7 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
     phases: [
       {
         id: 'rmsoc-f15',
-        number: 15,
+        number: 17,
         title: 'Semana de SOC Simulado: 8 Casos con Runbooks',
         note: 'Trabaja los casos como si te pagaran por ello: hipótesis, evidencia, veredicto, respuesta y nota de caso en cada cierre. El runbook guía; tú decides.',
         items: [

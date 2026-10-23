@@ -563,7 +563,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 ? '¡Roadmap completado! Exporta el checklist como evidencia.'
                 : roadmapDone > 0
                   ? 'Vas avanzando — clic para seguir con la siguiente fase.'
-                  : 'Junior IAM / Identity Security Analyst — 14 fases por conquistar.'}
+                  : 'Junior IAM / Identity Security Analyst — 23 fases por conquistar.'}
             </p>
           </div>
 

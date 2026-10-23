@@ -69,7 +69,10 @@ export class VideoRejectedError extends Error {
   }
 }
 
-const VIDEOS_DIR_KEY = 'vault-videos-dir';
+/** Key pública: mediaVault.ts (bóveda GITHUBVAULT) escribe aquí su handle
+ *  de videos para que TODO el machinery existente de videos funcione sin
+ *  cambios con la carpeta por defecto Documents/GITHUBVAULT/videos. */
+export const VIDEOS_DIR_KEY = 'vault-videos-dir';
 const APP_DIR_KEY = 'vault-app-dir'; // app folder (backups target) — NOT videos
 
 export function isFsSupported(): boolean {

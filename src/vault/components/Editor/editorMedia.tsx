@@ -20,6 +20,15 @@
  *   • Playback resolves to an ephemeral ObjectURL, revoked on unmount.
  *   • `stripBlobUrls` MUST run on every serialization path (both editors).
  * ─────────────────────────────────────────────────────────────────────────
+ * REGLA DE ORO (imágenes, carpeta GITHUBVAULT) — mismo contrato que los
+ * videos cuando hay carpeta de imágenes configurada (por defecto
+ * Documents/GITHUBVAULT/imagenes):
+ *   • La imagen se COPIA a la carpeta del disco y el HTML persiste SOLO
+ *     <figure data-vault-img="captura.png"> (sin data:, sin blob:).
+ *   • El <img> recibe su src en runtime como ObjectURL efímero.
+ *   • Sin carpeta configurada, se usa el flujo LEGACY: data-URL en
+ *     db.images (sigue soportado para compatibilidad).
+ * ─────────────────────────────────────────────────────────────────────────
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '../../db';
@@ -32,6 +41,11 @@ import {
   setVideosDirectory, hasVideosDirectory, isFsSupported, ensureVideosPermission,
   NoVideosDirectoryError, VideosPermissionError, VideoRejectedError,
 } from '../../utils/videoStorage';
+import {
+  saveImageToDirectory, getImageObjectURL, hasImagesDirectory,
+  ensureImagesPermission,
+  NoImagesDirectoryError, ImagesPermissionError, ImageRejectedError,
+} from '../../utils/imageStorage';
 
 /* ------------------------------------------------------------------ */
 /* Pure helpers                                                        */
@@ -267,13 +281,14 @@ export function useVaultVideoEmbeds(opts: VaultVideoEmbedsOpts) {
 }
 
 /* ------------------------------------------------------------------ */
-/* useImageInsert — shared image flow (data-URL images into db.images)  */
+/* useImageInsert — shared image flow (carpeta GITHUBVAULT si está       */
+/* configurada; data-URL legacy en db.images como fallback).             */
 /* ------------------------------------------------------------------ */
 
 interface ImageInsertOpts {
   editorRef: React.RefObject<HTMLDivElement | null>;
   onContentChange: () => void;
-  /** Owner of the stored image: { noteId } or { labId }. */
+  /** Owner of the stored image: { noteId } or { labId } (legacy flow only). */
   owner: { noteId: string } | { labId: string };
   /** StoredImage.caption for this editor ('Diagrama / Captura' vs file.name). */
   captionFor: (fileName: string) => string;
@@ -284,6 +299,23 @@ interface ImageInsertOpts {
   captionPrefix: string;
 }
 
+/** HTML for a FOLDER image embed (REGLA DE ORO imágenes): only the escaped
+ *  filename reference is persisted — src is attached at runtime. */
+function folderImageEmbedHtml(
+  safeFilename: string,
+  figureClass: string,
+  figcaptionClass: string,
+  captionPrefix: string,
+): string {
+  return `
+      <figure class="${figureClass} vault-image-embed" contenteditable="false" data-vault-img="${safeFilename}">
+        <img alt="${safeFilename}" style="max-width: 100%; height: auto; display: block;" />
+        <figcaption class="${figcaptionClass}" contenteditable="true">
+          ${captionPrefix}: ${safeFilename.replace(/\.[^/.]+$/, '')}
+        </figcaption>
+      </figure><p><br></p>`;
+}
+
 export function useImageInsert(opts: ImageInsertOpts) {
   const { editorRef, owner, captionFor, captionPrefix, figureClass, figcaptionClass } = opts;
   const onContentChangeRef = useRef(opts.onContentChange);
@@ -291,13 +323,112 @@ export function useImageInsert(opts: ImageInsertOpts) {
     onContentChangeRef.current = opts.onContentChange;
   });
 
+  // ── REGLA DE ORO (imágenes): runtime state for folder-based embeds ──
+  const imageUrlsRef = useRef<string[]>([]);
+  const relinkImageInputRef = useRef<HTMLInputElement>(null);
+  const missingImagesRef = useRef<string[]>([]);
+  const [missingImageCount, setMissingImageCount] = useState(0);
+  const [fsNeedsImagePermission, setFsNeedsImagePermission] = useState(false);
+  const [noImagesDir, setNoImagesDir] = useState(false);
+
+  // Revoke object URLs when the editor unmounts (note switch / view change).
+  useEffect(() => {
+    return () => {
+      imageUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      imageUrlsRef.current = [];
+    };
+  }, []);
+
+  /** Attach displayable ObjectURLs to every folder-image embed in the
+   *  editor. REGLA DE ORO: images resolve from the user's disk folder only
+   *  (data-vault-img="archivo.png"). Missing files / lost permission
+   *  surface as a CSS placeholder + banner. */
+  const attachImageSources = useCallback(async () => {
+    if (!editorRef.current) return;
+    const figures = editorRef.current.querySelectorAll<HTMLElement>('.vault-image-embed[data-vault-img]');
+    if (figures.length === 0) {
+      // Fast path: legacy notes (data-URL images) cost nothing.
+      missingImagesRef.current = [];
+      setMissingImageCount(0);
+      setFsNeedsImagePermission(false);
+      setNoImagesDir(false);
+      return;
+    }
+    let permIssue = false;
+    let noDir = false;
+    const missing: string[] = [];
+    for (const fig of Array.from(figures)) {
+      const img = fig.querySelector('img');
+      const filename = fig.getAttribute('data-vault-img');
+      if (!filename || !img) continue;
+      if (img.getAttribute('src')) continue; // already attached
+      try {
+        const url = await getImageObjectURL(filename);
+        if (url) {
+          fig.classList.remove('vault-image-missing');
+          imageUrlsRef.current.push(url);
+          img.src = url;
+        } else {
+          fig.classList.add('vault-image-missing');
+          missing.push(filename);
+        }
+      } catch (err) {
+        if (err instanceof ImagesPermissionError) permIssue = true;
+        if (err instanceof NoImagesDirectoryError) noDir = true;
+        fig.classList.add('vault-image-missing');
+        missing.push(filename);
+      }
+    }
+    missingImagesRef.current = missing;
+    setMissingImageCount(missing.length);
+    setFsNeedsImagePermission(permIssue);
+    setNoImagesDir(noDir);
+  }, [editorRef]);
+
   const handleImageFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) return;
+
+    // ── REGLA DE ORO (imágenes): folder flow when configured ────────────
+    // The file is COPIED into the user's images folder (raw file on disk)
+    // and the content stores only a clean reference. No IDB, no ZIP, no
+    // size cap (the disk is the limit, not the browser quota).
+    if (await hasImagesDirectory()) {
+      let filename: string;
+      try {
+        filename = await saveImageToDirectory(file, {
+          onConflict: (existing) =>
+            window.confirm(
+              `Ya existe "${existing}" en la carpeta de imágenes.\n\nAceptar = Sobrescribir el archivo existente\nCancelar = Guardar con un nombre único`
+            )
+              ? 'overwrite'
+              : 'rename',
+        });
+      } catch (err) {
+        if (err instanceof ImageRejectedError) return; // user declined the advisory sniff — silent abort
+        if (err instanceof ImagesPermissionError) {
+          alert('El navegador necesita permiso sobre la carpeta de imágenes.\nPulsa "Conceder acceso" en el aviso de arriba y vuelve a intentarlo.');
+          return;
+        }
+        console.error('No se pudo copiar la imagen a la carpeta:', err);
+        alert('No se pudo copiar la imagen a la carpeta de imágenes.');
+        return;
+      }
+      const safeName = escapeHtml(filename);
+      const imageHtml = folderImageEmbedHtml(safeName, figureClass, figcaptionClass, captionPrefix);
+      if (editorRef.current) {
+        insertHtmlInEditable(editorRef.current, imageHtml);
+        void attachImageSources();
+        onContentChangeRef.current();
+      }
+      return;
+    }
+
+    // ── LEGACY flow (no folder configured): data-URL into db.images ────
     // SECURITY (Task 2-b): cap upload size to 25 MB. data: URLs are ~33%
     // larger than the raw bytes, and IDB blobs count against the browser
     // quota. A multi-hundred-MB image would crash the tab on most machines.
     if (file.size > 25 * 1024 * 1024) {
-      alert('La imagen es demasiado grande (máximo 25 MB). Redúcela antes de insertarla.');
+      alert('La imagen es demasiado grande (máximo 25 MB sin carpeta configurada).\nConfigura la carpeta de imágenes (Configuración → Media GITHUBVAULT) o reduce la imagen antes de insertarla.');
       return;
     }
     const reader = new FileReader();
@@ -337,9 +468,59 @@ export function useImageInsert(opts: ImageInsertOpts) {
       }
     };
     reader.readAsDataURL(file);
-  }, [editorRef, owner, captionFor, captionPrefix, figureClass, figcaptionClass]);
+  }, [editorRef, owner, captionFor, captionPrefix, figureClass, figcaptionClass, attachImageSources]);
 
-  return { handleImageFile };
+  /** REGLA DE ORO — "Buscar archivo" for images: re-link missing files by
+   *  picking them from anywhere on disk; each one is COPIED into the
+   *  images folder under the exact filename the reference expects. */
+  const handleRelinkImageFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    const missing = [...missingImagesRef.current];
+    for (let i = 0; i < files.length; i++) {
+      const forceName = i < missing.length ? missing[i] : undefined;
+      try {
+        await saveImageToDirectory(files[i], { forceName });
+      } catch (err) {
+        if (err instanceof ImageRejectedError) return; // user declined — stop quietly
+        if (err instanceof ImagesPermissionError) {
+          const ok = await ensureImagesPermission();
+          if (!ok) {
+            alert('No se pudo obtener permiso sobre la carpeta de imágenes.');
+            return;
+          }
+          try {
+            await saveImageToDirectory(files[i], { forceName });
+          } catch {
+            return;
+          }
+        } else {
+          console.error('Re-link de imagen falló:', err);
+          return;
+        }
+      }
+    }
+    void attachImageSources();
+  }, [attachImageSources]);
+
+  /** Banner action: re-grant permission on the stored images folder. */
+  const grantImageAccess = useCallback(async () => {
+    const ok = await ensureImagesPermission();
+    if (ok) {
+      setFsNeedsImagePermission(false);
+      void attachImageSources();
+    }
+  }, [attachImageSources]);
+
+  return {
+    handleImageFile,
+    attachImageSources,
+    handleRelinkImageFiles,
+    grantImageAccess,
+    missingImageCount,
+    fsNeedsImagePermission,
+    noImagesDir,
+    relinkImageInputRef,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -499,5 +680,78 @@ export function VideoHiddenInputs({
       <input ref={relinkInputRef} type="file" accept="video/*" multiple className="hidden"
         onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length > 0) void onRelinkFiles(fs); e.target.value = ''; }} />
     </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* ImageAccessBanner — REGLA DE ORO (imágenes) shared UI                */
+/* ------------------------------------------------------------------ */
+
+interface ImageAccessBannerProps {
+  /** 'bar' (RichEditor) | 'card' (LabsView part). */
+  variant: 'bar' | 'card';
+  /** Wording: imágenes "de esta nota" vs "de esta parte". */
+  noun: 'nota' | 'parte';
+  fsNeedsPermission: boolean;
+  /** Folder record exists but the folder is gone/locked. */
+  noImagesDir: boolean;
+  missingImageCount: number;
+  onGrantAccess: () => void;
+  onFindFiles: () => void;
+}
+
+/** REGLA DE ORO (imágenes) — banner: permission lost AND/OR missing files.
+ *  Mirrors the video banner: "Conceder acceso" re-grants the stored folder;
+ *  "Buscar archivo" copies the missing file(s) back into the folder under
+ *  the name each reference expects. */
+export function ImageAccessBanner({
+  variant, noun, fsNeedsPermission, noImagesDir, missingImageCount, onGrantAccess, onFindFiles,
+}: ImageAccessBannerProps) {
+  if (!fsNeedsPermission && !noImagesDir && missingImageCount === 0) return null;
+  const containerCls = variant === 'bar'
+    ? 'px-6 py-2 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 shrink-0 flex-wrap'
+    : 'px-3 py-2 bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 rounded flex-wrap';
+  return (
+    <div className={containerCls}>
+      <p className="text-[11px] text-amber-300">
+        {noImagesDir
+          ? `🖼️ Hay imágenes de esta ${noun} que viven en la carpeta de imágenes, pero no hay carpeta configurada en este navegador. Configúrala en Configuración → Media (GITHUBVAULT).`
+          : fsNeedsPermission && missingImageCount === 0 && `🖼️ La carpeta de imágenes necesita acceso para mostrar las imágenes de esta ${noun}.`
+        }
+        {fsNeedsPermission && missingImageCount > 0 && `🖼️ La carpeta de imágenes necesita acceso y ${missingImageCount} imagen(es) no se encontraron en ella.`}
+        {!fsNeedsPermission && missingImageCount > 0 && `🖼️ ${missingImageCount} imagen(es) de esta ${noun} no están en la carpeta de imágenes (quizá cambiaste de PC o moviste los archivos).`}
+      </p>
+      <div className="flex items-center gap-2 shrink-0">
+        {fsNeedsPermission && !noImagesDir && (
+          <button
+            onClick={onGrantAccess}
+            className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold cursor-pointer transition-colors"
+          >
+            Conceder acceso
+          </button>
+        )}
+        {missingImageCount > 0 && (
+          <button
+            onClick={onFindFiles}
+            className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold cursor-pointer transition-colors"
+          >
+            Buscar archivo
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Hidden file input for the image re-link flow (identical in both editors). */
+export function ImageHiddenInputs({
+  relinkImageInputRef, onRelinkImageFiles,
+}: {
+  relinkImageInputRef: React.RefObject<HTMLInputElement | null>;
+  onRelinkImageFiles: (files: File[]) => void;
+}) {
+  return (
+    <input ref={relinkImageInputRef} type="file" accept="image/*" multiple className="hidden"
+      onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length > 0) void onRelinkImageFiles(fs); e.target.value = ''; }} />
   );
 }

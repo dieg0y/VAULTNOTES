@@ -245,3 +245,21 @@
   font-family: var(--font-jetbrains-mono), var(--font-geist-mono), monospace;
   background: rgba(185, 28, 28, 0.08);
 }
+
+/* Embedded folder images (both editors) — REGLA DE ORO imágenes */
+.vault-image-embed {
+  margin: 1.25rem 0;
+}
+.vault-image-missing img {
+  display: none;
+}
+.vault-image-missing::after {
+  content: '⚠️ Imagen no encontrada en la carpeta de imágenes — usa "Buscar archivo" en el banner';
+  display: block;
+  padding: 0.75rem;
+  text-align: center;
+  color: #b91c1c;
+  font-size: 0.75rem;
+  font-family: var(--font-jetbrains-mono), var(--font-geist-mono), monospace;
+  background: rgba(185, 28, 28, 0.08);
+}

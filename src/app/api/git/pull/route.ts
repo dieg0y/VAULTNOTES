@@ -5,28 +5,39 @@ import { promisify } from 'util';
 /**
  * POST /api/git/pull — Pull de actualizaciones de código desde GitHub.
  *
- * Estrategia "sin afectar nada más" (NUNCA toca IndexedDB — los datos del
- * usuario viven en el navegador):
- *  1. `git fetch origin --prune` — solo actualiza referencias remotas.
- *  2. Compara HEAD local vs remoto (1 sola llamada: rev-list --left-right).
- *     · Al día → no hace nada. · Commits locales sin push → ABORTA.
- *  3. Repo sucio (archivos tracked modificados) → ABORTA con instrucciones
- *     humanas (git nunca perderá cambios sin confirmar por diseño propio).
- *  4. `git merge --ff-only` — fast-forward puro: aplica añadidos, cambios y
- *     BORRADOS del remoto. Cero commits de merge, cero conflictos posibles.
- *  5. Si package.json / bun.lock cambiaron → `bun install` automático.
- *  6. Servidor de PRODUCCIÓN: regenera el build standalone (`bun run build`)
- *     si el diff tocó código real (*.ts/tsx, src/, public/, deps, config) y
- *     responde `needsRestart: true` — la UI pide reiniciar (cerrar ventana
- *     del servidor + reabrir IniciarVaultNotes.bat) en vez de auto-recargar.
- *     Pulls solo-*.md saltan el rebuild. En dev, Turbopack recompila solo.
+ * DOS MODOS (body opcional `{ "mode": "safe" | "mirror" }`):
+ *
+ *  1. SAFE (por defecto) — estrategia "sin afectar nada más":
+ *     · `git fetch origin --prune` — solo actualiza referencias remotas.
+ *     · Compara HEAD local vs remoto (rev-list --left-right).
+ *       · Al día → no hace nada. · Commits locales sin push → ABORTA.
+ *     · Repo sucio (archivos tracked modificados) → ABORTA con
+ *       instrucciones humanas (git nunca perderá cambios sin confirmar).
+ *     · `git merge --ff-only` — fast-forward puro: aplica añadidos, cambios
+ *       y BORRADOS del remoto. Cero commits de merge, cero conflictos.
+ *
+ *  2. MIRROR — "que el disco quede EXACTAMENTE igual al GitHub":
+ *     · Descarta TODO cambio local sin confirmar (reset --hard al SHA del
+ *       remoto) y elimina archivos untracked no ignorados (clean -fd).
+ *       · Commits locales sin push → se DESCARTAN (la rama vuelve al SHA
+ *         del remoto). · Archivos tracked modificados → se restauran.
+ *       · Archivos nuevos que no existen en GitHub → se BORRAN.
+ *     · Archivos IGNORED (node_modules, .next, db/*.db, .env, backups,
+ *       logs) NUNCA se tocan — git clean sin -x respeta el .gitignore.
+ *     · NUNCA toca IndexedDB — los datos del usuario viven en el
+ *       navegador y no forman parte del repo.
+ *     · La UI pide confirmación explícita antes de llamar a este modo.
+ *
+ * Ambos modos, tras aplicar cambios:
+ *  · Si package.json / bun.lock cambiaron → `bun install` automático.
+ *  · Servidor de PRODUCCIÓN: regenera el build standalone si el diff tocó
+ *    código real y responde `needsRestart: true` (la UI pide reiniciar).
  *
  * UX de errores: `needsToken` (auth GitHub rechazada → comando exacto),
  * git ausente (ENOENT), red caída y timeouts devuelven mensajes humanos.
  *
  * Economía de comandos git (happy path sin cambios: 3 llamadas):
  *   fetch → rev-parse "HEAD origin/main" → rev-list --left-right --count.
- * Con actualización: + status --porcelain → merge → diff → log = 7.
  */
 
 export const runtime = 'nodejs';
@@ -149,10 +160,21 @@ const fail = (status: number, body: Record<string, unknown>) =>
 
 /* ─────────────────────────── endpoint ─────────────────────────── */
 
-export async function POST() {
+export async function POST(req: Request) {
   if (inFlight) {
     return fail(429, { error: 'Ya hay un pull en curso — espera a que termine.' });
   }
+
+  // Modo: 'safe' (por defecto, retrocompatible con clientes sin body) o
+  // 'mirror' (espejo exacto con GitHub — la UI SIEMPRE confirma antes).
+  let mode: 'safe' | 'mirror' = 'safe';
+  try {
+    const body = (await req.json()) as { mode?: unknown } | null;
+    if (body && body.mode === 'mirror') mode = 'mirror';
+  } catch {
+    /* sin body o JSON inválido → safe */
+  }
+
   inFlight = true;
 
   try {
@@ -188,11 +210,93 @@ export async function POST() {
     const { localHead, remoteRef, remoteSha } = await resolveRefs();
     const { ahead, behind } = await countDivergence(localHead, remoteRef);
 
+    if (mode === 'mirror') {
+      // ── MODO ESPEJO: el disco queda EXACTAMENTE igual al GitHub ─────────
+      // Descarta: commits locales sin push (reset --hard al SHA remoto),
+      // archivos tracked modificados (los restaura) y archivos untracked
+      // NO ignorados (clean -fd). Los datos del usuario (IndexedDB) y los
+      // archivos .gitignored (db/, node_modules, .env…) NUNCA se tocan.
+      const dirty = await dirtyTrackedFiles();
+      const untracked = (await git(['status', '--porcelain']))
+        .split('\n')
+        .filter((line) => line.trimStart().startsWith('??'))
+        .map((line) => line.replace(/^\s*\?\?\s*/, ''));
+
+      if (behind === 0 && ahead === 0 && dirty.length === 0 && untracked.length === 0) {
+        return NextResponse.json({
+          ok: true,
+          updated: false,
+          mode,
+          head: localHead.slice(0, 7),
+          message: 'Espejo verificado: ya estás EXACTAMENTE igual que GitHub.',
+        });
+      }
+
+      // reset --hard <remoteSha> — también cuando behind===0 (descarta los
+      // commits locales ahead) y restaura los tracked modificados.
+      await git(['reset', '--hard', remoteSha]);
+      // clean -fd — borra archivos untracked no ignorados. SIN -x: los
+      // archivos del .gitignore (node_modules, db/*.db, backups, logs)
+      // sobreviven SIEMPRE.
+      await git(['clean', '-fd']);
+
+      // Diff para el resumen: localHead → remoteSha (aplicados o repuestos).
+      const changedFiles = (await git(['diff', '--name-status', localHead, remoteSha]))
+        .split('\n')
+        .filter(Boolean);
+      const needsInstall = changedFiles.some((line) =>
+        /(?:^|\/)(package\.json|bun\.lock|bun\.lockb)$/.test(line.split('\t').pop() || ''),
+      );
+      let installRan = false;
+      if (needsInstall) {
+        await runBun(['install'], 180_000);
+        installRan = true;
+      }
+      const codeChanged = touchedCode(changedFiles, needsInstall);
+      let needsRestart = false;
+      let rebuildError: string | null = null;
+      if (process.env.NODE_ENV === 'production' && codeChanged) {
+        needsRestart = true;
+        try {
+          await runBun(['run', 'build'], 360_000);
+        } catch {
+          try {
+            await runBun(['run', 'build:webpack'], 360_000);
+          } catch (err2) {
+            rebuildError = describeError(err2);
+          }
+        }
+      }
+
+      const discarded: string[] = [];
+      if (ahead > 0) discarded.push(`${ahead} commit(s) locales descartado(s)`);
+      if (dirty.length > 0) discarded.push(`${dirty.length} archivo(s) modificado(s) restaurado(s)`);
+      if (untracked.length > 0) discarded.push(`${untracked.length} archivo(s) local(es) no presentes en GitHub eliminado(s)`);
+
+      return NextResponse.json({
+        ok: true,
+        updated: true,
+        mode,
+        commits: behind,
+        head: remoteSha.slice(0, 7),
+        changedFiles,
+        discarded,
+        needsInstall: installRan,
+        needsRestart,
+        rebuildError,
+        message:
+          `Espejo exacto aplicado: el código quedó IGUAL que GitHub.` +
+          (discarded.length > 0 ? ` (${discarded.join(' · ')})` : '') +
+          (needsRestart ? ' — reinicia la app: cierra la ventana del servidor y vuelve a abrir IniciarVaultNotes.bat.' : ''),
+      });
+    }
+
     if (behind === 0) {
       return NextResponse.json({
         ok: true,
         updated: false,
         ahead,
+        mode,
         head: localHead.slice(0, 7),
         message:
           ahead > 0

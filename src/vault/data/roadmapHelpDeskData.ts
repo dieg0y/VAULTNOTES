@@ -103,6 +103,16 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia',
             text: 'Un caso documentado de BSOD: extraer stop code, leer minidump (concepto), aplicar la primera respuesta WinRE/Modo seguro y cerrarlo con causa raiz.',
           },
+          {
+            id: 'rmhd-f3-4',
+            label: 'Práctica',
+            text: 'Monitor de confiabilidad (perfmon /rel) como herramienta de L1: linea de tiempo de crashes y fallas de apps y hardware, cruzado con Event Viewer (Application Error 1000, Windows Error Reporting) para responder con accion concreta: driver, parche o reinstalacion limpia. Es la respuesta profesional al clasico "se me apaga solo y no se por que".',
+          },
+          {
+            id: 'rmhd-f3-5',
+            label: 'Conceptos Clave',
+            text: 'Usuario estandar vs admin local: UAC y el prompt "necesita permiso de administrador", instalaciones que quedan en HKLM vs HKCU y el sintoma tipico de la app que solo falla con el usuario estandar. Regla de soporte: no le das admin al usuario para "resolver rapido" — encuentras el permiso real que la aplicacion necesita y lo documentas en el ticket.',
+          },
         ],
       },
       {
@@ -166,6 +176,16 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             label: 'Evidencia',
             text: 'Trabajar 10 tickets del dataset Nexora de punta a punta: triage correcto, prioridad justificada, resolucion o escalado con contexto completo.',
           },
+          {
+            id: 'rmhd-f6-4',
+            label: 'Práctica',
+            text: 'SLA en vivo: revisa el aging report (tickets por vencer, los mas viejos, los sin actualizar), toca cada ticket cada 24-48h aunque sea para registrar "sigo esperando al proveedor" y conoce tus numeros personales: FCR, tickets escalados y CSAT de tus cierres. El SLA no es letra pequena: es lo que respalda tu prioridad cuando para el usuario todo es "urgente".',
+          },
+          {
+            id: 'rmhd-f6-5',
+            label: 'Práctica',
+            text: 'El paquete de escalamiento como plantilla fija: sintoma verificable, datos del equipo/usuario, pasos hechos con su resultado, hipotesis actual, impacto y usuario avisado. Llenala ANTES de escalar: "te paso el caso" sin paquete no es escalar, es botar la pelota — y el L2 te lo devuelve con menos contexto del que salio.',
+          },
         ],
       },
       {
@@ -182,6 +202,16 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             id: 'rmhd-f7-2',
             label: 'Práctica',
             text: 'Confirmar antes de cerrar (closure confirmation), follow-up proactivo y saber decir "lo escalo, me quedo de dueño hasta que L2 te atienda".',
+          },
+          {
+            id: 'rmhd-f7-3',
+            label: 'Práctica',
+            text: 'Tono en chat y correo: saludo con nombre, parrafos cortos, cero jerga, plantillas reutilizables para apertura, actualizacion y cierre, y plazos prometidos que el SLA respalda. En chat no escribas la tesis: escribe la accion, el tiempo estimado y cuando sera la siguiente actualizacion. Guarda tus 3 plantillas maestras en VaultNotes: son tu respaldo en el dia ocupado.',
+          },
+          {
+            id: 'rmhd-f7-4',
+            label: 'Práctica',
+            text: 'Decir no sin quemar la relacion: "no puedo darte la clave sin verificar identidad, pero puedo hacer X ahora mismo". Ofrece siempre la alternativa (fluirlo por el canal correcto, escalar con el dueño, agendar), registra el rechazo y la razon en el ticket y explica la politica en una frase — no la discutas: aplicala y ofrece el siguiente paso.',
           },
         ],
       },
@@ -204,6 +234,16 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             id: 'rmhd-f8-3',
             label: 'Evidencia',
             text: 'Escribir 2 articulos de KB siguiendo el formato Nexora (sintoma → causa → pasos → verificacion) a partir de tickets repetitivos.',
+          },
+          {
+            id: 'rmhd-f8-4',
+            label: 'Práctica',
+            text: 'KB que la gente use: titulo = el sintoma del usuario (no "problema de OST" sino "Outlook no abre y dice que no encuentra el archivo de datos"), cuerpo sintoma → causa → pasos → verificacion, capturas solo las necesarias, dueño y fecha de revision al pie. Y la parte que nadie hace: retirar la KB obsoleta, que cuesta mas tickets de los que ahorra.',
+          },
+          {
+            id: 'rmhd-f8-5',
+            label: 'Práctica',
+            text: 'KB como pipeline desde tickets: detecta el sintoma que se repite 3+ veces en el mes, conviertelo en articulo, enlazalo en los cierres siguientes (self-service) y mide su uso. El feedback de otros L1 ("me falto el paso X") es lo que convierte una nota personal en un activo real del service desk — responde ese feedback editando, no defendiendo.',
           },
         ],
       },
@@ -228,6 +268,11 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             label: 'Conceptos Clave',
             text: 'Preservacion de evidencia: no formatear, no "probar cosas" en un equipo con sospecha de compromiso — aislar y escalar al SOC.',
           },
+          {
+            id: 'rmhd-f9-4',
+            label: 'Práctica',
+            text: 'Protocolo de reset verificado en 4 pasos: verificar identidad (canal alternativo o dato que solo el usuario sabe) → resetear → forzar cambio en el proximo login → confirmar que entro. Simulacro de vishing: un companero te llama pidiendo el reset con datos "robados" y tu documentas que pediste y que rechazaste. Ese drill con la transcripcion sanitizada es historia de entrevista.',
+          },
         ],
       },
     ],
@@ -236,7 +281,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
     id: 'rmhd-t2',
     title: 'TIER 2 — L2 / INFRAESTRUCTURA',
     subtitle:
-      'Lo que convierte un L1 en L2: dominio de dominio corporativo, Microsoft 365, endpoints gestionados y PowerShell. Tambien es la moneda de cambio para entrar a IAM.',
+      'Lo que convierte un L1 en L2: dominio de dominio corporativo, Microsoft 365, endpoints gestionados, despliegue de estaciones y activos, y PowerShell. Tambien es la moneda de cambio para entrar a IAM.',
     phases: [
       {
         id: 'rmhd-f10',
@@ -257,6 +302,16 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             id: 'rmhd-f10-3',
             label: 'Diagnóstico',
             text: 'Diferenciar con evidencia: contrasena caducada vs cuenta bloqueada vs cuenta deshabilitada vs grupo equivocado (los 4 fallos de login mas comunes).',
+          },
+          {
+            id: 'rmhd-f10-4',
+            label: 'Diagnóstico',
+            text: 'Rastrear el origen del bloqueo con el 4740: el evento trae la maquina desde donde vinieron los intentos que agotaron el lockout (caller computer name). Causas clasicas: movil con la contrasena vieja, unidad mapeada con credencial guardada, tarea programada o servicio viejo. Lee el 4740 en el DC con Get-WinEvent -FilterHashtable @{LogName="Security"; Id=4740} y cierra el ticket con la nota al usuario para que no se repita cada lunes.',
+          },
+          {
+            id: 'rmhd-f10-5',
+            label: 'Práctica',
+            text: 'Grupos en la operativa diaria: Get-ADPrincipalGroupMembership para ver de donde viene el acceso efectivo, Add-ADGroupMember/Remove-ADGroupMember SOLO con ticket y aprobacion del dueño del recurso, y como auditar un grupo anidado hasta la pertenencia final. Nunca "agregalo a Administradores para que avance": el atajo de hoy es el hallazgo de auditoria del ano proximo.',
           },
         ],
       },
@@ -319,6 +374,21 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'Operativa M365 de L1: licencias (SKU sin asignar = activacion fallida), Service Health antes de debuguear, perfil de Outlook y OST, buzones llenos y shared mailboxes. Los tickets del dataset (dia 2 del proyecto final) cierran con la comprobacion de estado del servicio documentada.',
           },
+          {
+            id: 'rmhd-f13-3',
+            label: 'Práctica',
+            text: 'Licencias paso a paso: el diagnostico de "no activa Office / Teams bloqueado / OneDrive sin sitio" es casi siempre licencia sin asignar; asignar y quitar desde el admin center, revisar que servicios trae el plan y consultar el reporte de licencias disponibles antes de un alta. Secuencia de alta real: crear usuario → licencia → esperar el provisioning → probar con el usuario antes de cerrar el ticket.',
+          },
+          {
+            id: 'rmhd-f13-4',
+            label: 'Práctica',
+            text: 'Shared mailboxes y grupos: crear shared mailbox (no consume licencia) y dar Full Access + Send As, quitar automapping cuando el buzon pesa en el Outlook del equipo; y elegir bien el vehiculo: DL clasica para difusion, grupo M365 para colaborar (Teams/Planner/SharePoint), shared mailbox para buzon de equipo. El ticket "que el correo del equipo me llegue a mi Outlook" se responde con esto.',
+          },
+          {
+            id: 'rmhd-f13-5',
+            label: 'Práctica',
+            text: 'Teams para soporte: agregar y quitar miembros y dueños de equipo, invitado externo (guest) con su aprobacion, y el diagnostico del "Teams no me entra": web vs cliente de escritorio → limpiar cache (%appdata%\\Microsoft\\Teams) → perfil → Service Health antes de culpar al equipo. Cierre estandar documentado: entra en web = problema de cliente; no entra en web = escalado con la pantalla del error exacto.',
+          },
         ],
       },
       {
@@ -341,6 +411,21 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             id: 'rmhd-f14-3',
             label: 'Diagnóstico',
             text: 'Saber leer un error de login (AADSTS 5xxxx) y un dsregcmd /status para decidir: lo resuelvo, lo re-registro o escalo a IAM/Cloud.',
+          },
+          {
+            id: 'rmhd-f14-4',
+            label: 'Práctica',
+            text: 'Acciones remotas de Intune desde el admin center: Sync, Restart, Remote Lock, Fresh Start/Autopilot Reset y Wipe — y lo que significa cada una (Wipe = disco limpio para reasignar; Retire = borra solo lo corporativo). Criterio: equipo perdido = Remote Lock con mensaje; equipo que se reasigna = Wipe. Documenta en el ticket la accion, la hora y lo que el usuario vera en pantalla.',
+          },
+          {
+            id: 'rmhd-f14-5',
+            label: 'Práctica',
+            text: 'Politicas de cumplimiento leidas como soporte: que chequean (BitLocker, antivirus/EDR activo, parches al dia, version de SO), el periodo de gracia y los estados Compliant / Non-compliant / In Grace / Not evaluated. Y la consecuencia real: con Conditional Access, el equipo no conforme se queda sin correo ni Teams. Diagnostico del "no me sincroniza el correo": compliance del dispositivo ANTES de culpar a la app.',
+          },
+          {
+            id: 'rmhd-f14-6',
+            label: 'Práctica',
+            text: 'BitLocker desde Intune/Entra: donde viven las recovery keys (dispositivo del usuario → BitLocker recovery keys), verificacion de identidad antes de leerla en voz alta, rotacion de la clave tras el uso y el flujo cuando NO existe (la clave nunca subio al tenant: escalar al admin de Intune con hostname y serial). Monta el caso del TPM que pidio clave tras un cambio de hardware y cronometra tu respuesta con el protocolo bien aplicado.',
           },
         ],
       },
@@ -376,6 +461,11 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             label: 'Conceptos Clave',
             text: 'Soporte remoto SEGURO: grabar/ registrar sesiones, nunca pedir la contrasena del usuario (compartir pantalla, no credenciales) y el acceso temporal revocable. Incluye la VPN del usuario: cliente → credenciales/MFA → tunel → recurso, con el error documentado antes de escalar a Redes.',
           },
+          {
+            id: 'rmhd-f16-3',
+            label: 'Conceptos Clave',
+            text: 'Etiqueta del soporte remoto: pedir permiso antes de tomar control, anunciar cada accion ("voy a abrir el panel de control"), no cerrar la sesion del usuario sin avisar, grabar la sesion si el usuario acepta (y decirle donde queda guardada), no abrir buzones ni archivos personales y bloquear la pantalla al terminar con resumen de lo hecho. La sesion remota es el unico momento en que el usuario VE como trabajas: es tu entrevista en vivo.',
+          },
         ],
       },
       {
@@ -401,6 +491,72 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
           },
         ],
       },
+      {
+        id: 'rmhd-f24',
+        number: 18,
+        title: 'Despliegue y Provisioning de Estaciones',
+        note: 'El L2 de verdad prepara puestos, no solo los repara: alta de equipo nuevo, migracion de usuario y retiro, de punta a punta y con checklist.',
+        items: [
+          {
+            id: 'rmhd-f24-1',
+            label: 'Conceptos Clave',
+            text: 'Ciclo de vida del puesto de trabajo: compra/recepcion → preparacion (imagen o enrollment, inventario, etiqueta, nombre) → entrega con checklist → soporte → retiro. Convenciones que te ahorran tickets: hostname por norma (ej. LAP-FIN-0142, nunca "PC-Nuevo"), serial en cada ticket de hardware y estado del activo siempre visible (en uso, prestamo, bodega, reparacion, retirado).',
+          },
+          {
+            id: 'rmhd-f24-2',
+            label: 'Práctica',
+            text: 'Preparar un equipo nuevo con checklist: SO parcheado, unido al dominio o enrolado en Intune, Office/365 activado, antivirus/EDR instalado y reportando, BitLocker activo con la clave en el tenant, drivers y perifericos probados (dock, monitores, audio, camara) y login de PRUEBA con el usuario real antes de entregar. La checklist firmada en la entrega evita el clasico "me lo entregaron incompleto".',
+          },
+          {
+            id: 'rmhd-f24-3',
+            label: 'Conceptos Clave',
+            text: 'Autopilot como estandar moderno vs imagen manual: perfil de despliegue + ESP (Enrollment Status Page) → el usuario enciende el equipo y espera, sin que soporte lo toque fisicamente; el proveedor puede precargar el hash del equipo. La imagen maestra con sysprep + MDT sigue viva en empresas medianas y aparece en entrevistas: conoce ambos modelos y sus equivalencias.',
+          },
+          {
+            id: 'rmhd-f24-4',
+            label: 'Práctica',
+            text: 'Migracion de usuario a equipo nuevo: perfil y datos (USMT/ForensiT como concepto, OneDrive KFM como via moderna), reconfigurar Outlook, OneDrive, impresoras y Wi-Fi, y verificar en el equipo VIEJO que no queda nada (busqueda final + limpieza de credenciales guardadas) antes del retiro. La migracion se entrega en una sesion con el usuario delante, no "en la semana que pueda".',
+          },
+          {
+            id: 'rmhd-f24-5',
+            label: 'Evidencia',
+            text: 'Runbook de alta de puesto de trabajo en VaultNotes: checklist de preparacion, checklist de entrega firmada (accesos, correo, impresion, perifericos), checklist de migracion y flujo de retiro — con los tiempos reales medidos de una preparacion completa hecha por ti. Ese runbook es el artefacto que un jefe de soporte reconoce al instante.',
+          },
+        ],
+      },
+      {
+        id: 'rmhd-f25',
+        number: 19,
+        title: 'Activos, Licencias y Garantias',
+        note: 'Lo invisible del service desk hasta que falta: donde esta cada equipo, que licencia tiene y si todavia tiene garantia. Quien lo domina cierra casos que otros dejan abiertos.',
+        items: [
+          {
+            id: 'rmhd-f25-1',
+            label: 'Conceptos Clave',
+            text: 'Gestion de activos para soporte: CMDB/inventario (GLPI, Snipe-IT, ServiceNow Assets), la relacion ticket ↔ activo (hostname y serial en todo ticket de hardware) y el estado del activo siempre actualizado. "No se donde esta ese equipo" es un ticket reabierto esperando pasar, y el activo sin inventario no existe para soporte.',
+          },
+          {
+            id: 'rmhd-f25-2',
+            label: 'Práctica',
+            text: 'Licencias de software en el puesto: inventario de instalado vs comprado (base de toda auditoria de software), activaciones y claves administradas en la baula de credenciales (no en el Excel compartido), que hacer con el software sin licencia que instala el usuario (riesgo + alternativa legal) y la transferencia de licencia cuando un equipo se retira. En el lab: inventaria tu propio equipo y clasifica cada entrada.',
+          },
+          {
+            id: 'rmhd-f25-3',
+            label: 'Práctica',
+            text: 'Garantias y RMA: consultar cobertura por serial en el portal del fabricante (Dell, Lenovo, HP), abrir el caso RMA con el diagnostico documentado y evidencia (SMART, test de memoria, capturas), y prestar equipo del pool mientras llega el repuesto. El L2 que sabe abrir un RMA bien resuelve en 5 dias lo que otros cierran a medias como "falla de hardware".',
+          },
+          {
+            id: 'rmhd-f25-4',
+            label: 'Conceptos Clave',
+            text: 'El contrato en el que vives: SLA del proveedor de hardware (tiempo de respuesta, on-site vs llevar a servicio), soporte del fabricante (ProSupport y equivalentes) y cuando el caso es del proveedor y no tuyo (pieza cubierta, umbral de costo, repuesto en camino). Guarda esa matriz junto al runbook de RMA: es la diferencia entre escalar bien y escalar a ciegas.',
+          },
+          {
+            id: 'rmhd-f25-5',
+            label: 'Evidencia',
+            text: 'Inventario vivo del lab en VaultNotes: 10 activos con hostname, serial, usuario asignado, estado, garantia con fecha de vencimiento y ultima revision; mas el flujo documentado alta → prestamo → retiro con sus responsables. Ese artefacto es tu mini-CMDB demostrable en entrevista.',
+          },
+        ],
+      },
     ],
   },
   {
@@ -411,7 +567,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
     phases: [
       {
         id: 'rmhd-f18',
-        number: 18,
+        number: 20,
         title: 'Ciclo de Vida de Cuentas (JML desde Soporte)',
         items: [
           {
@@ -433,7 +589,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f19',
-        number: 19,
+        number: 21,
         title: 'Grupos & RBAC Operativo',
         items: [
           {
@@ -455,7 +611,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f20',
-        number: 20,
+        number: 22,
         title: 'Puente a la Gobernanza de Identidad',
         note: 'Vocabulario y reflejos de IAM — la profundidad (reviews, PIM, IGA) vive en el roadmap principal.',
         items: [
@@ -478,7 +634,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f21',
-        number: 21,
+        number: 23,
         title: 'Auditoría, Evidencia & Trazabilidad',
         items: [
           {
@@ -500,7 +656,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f22',
-        number: 22,
+        number: 24,
         title: 'Escalamiento a SOC & Security Handoff',
         items: [
           {
@@ -530,7 +686,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
     phases: [
       {
         id: 'rmhd-f23',
-        number: 23,
+        number: 25,
         title: 'Primera Semana en Nexora (30 tickets)',
         items: [
           {

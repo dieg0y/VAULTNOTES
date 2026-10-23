@@ -2,7 +2,11 @@
  * troubleshootingIam.ts — ESCALERAS DE DECISIÓN del PILAR 1 (IAM · Identity &
  * Access Management).
  *
- * Reestructuración Pilar IAM: 18 guías TS-IAM-001..TS-IAM-018. NO es una copia
+ * Reestructuración Pilar IAM: 30 guías TS-IAM-001..TS-IAM-030. Núcleo Entra
+ * ID/AD (001..018) más el ecosistema enterprise IAM: Okta (019..020), SailPoint
+ * (021..022), One Identity Safeguard (023), PingFederate (024), ForgeRock AM
+ * (025), IBM Verify/ISAM/OAM (026), modelo de roles RBAC (027), LDAP/directory
+ * services (028), FIDO2/passkeys (029) y access reviews (030). NO es una copia
  * de los runbooks: el runbook describe el procedimiento completo de
  * remediación; aquí lo que importa es DIAGNOSTICAR (¿dónde está el problema?)
  * con la escalera
@@ -11,7 +15,7 @@
  *
  * Cada check arranca por lo más barato (mirar el estado, un comando copiable)
  * y el campo next RAMIFICA: si X → peldaño A, si Y → peldaño B. La remediación
- * final vive en el runbook correspondiente del pilar.
+ * final vive en el runbook correspondiente del pilar (RB-IAM-001..036).
  */
 
 import { type PillarTroubleshooting } from './troubleshootingCore';
@@ -926,6 +930,641 @@ export const TROUBLESHOOTING_IAM: PillarTroubleshooting[] = [
     remediation: '35% membresías manuales del rol anterior que nadie retiró (el "mover" fue un "añadir"), 25% el atributo de departamento o cargo no se actualizó y los grupos dinámicos siguen dándole el paquete viejo, 15% permisos directos por fuera de grupos (shares, delegaciones, NTFS), 15% sin checklist de transferencia (el proceso no existe), 10% fecha efectiva de la transferencia sin acordar entre RRHH e IT.',
     verification: 'Get-MgUserMemberOf muestra solo los grupos del rol vigente, un recurso del rol anterior deniega y uno del rol nuevo funciona, y la access review trimestral lo mantiene así.',
     tags: ['mover', 'transferencia', 'accesos antiguos', 'grupos dinamicos', 'department', 'access review', 'least privilege', 'membresias', 'limpieza', 'rrhh'],
+  },
+  {
+    id: 'TS-IAM-019',
+    pillar: 'IAM',
+    title: 'SSO con Okta: bucle de redirección o Invalid Signature',
+    problem: 'Una app SAML de Okta rebota sin dejar entrar o el SP rechaza la aserción ("Invalid Signature") y la escalera separa la falla del lado Okta (IdP) de la falla del lado de la app (SP): ACS, certificado de firma, audience y NameID.',
+    symptoms: [
+      'El navegador rebota entre la app y el dominio de Okta sin sesión, o la app muestra "Invalid Signature" o "SAML response is invalid".',
+      'Solo falla esa app (o el fallo empezó tras un cambio del proveedor: dominio nuevo, renovación de certificado, portal migrado).',
+      'En el dashboard de Okta el sign-in del usuario aparece como exitoso: la queja viene de la app.',
+    ],
+    level: 'Lado Okta (IdP) vs Lado SP (ACS/certificado) vs Audience vs NameID',
+    checks: [
+      {
+        check: 'Quién se queja: el evento de SSO en el System Log de Okta',
+        command: 'curl -s -H "Authorization: SSWS {{OKTA_API_TOKEN}}" "https://{{OKTA_ORG}}.okta.com/api/v1/logs?q={{APP_NAME}}&limit=100" | jq -r ".[] | [.publishedTime, .eventType, .outcome.result] | @tsv"',
+        result: 'Eventos user.authentication.sso con SUCCESS: Okta emitió la aserción y la entregó al SP.',
+        next: 'Si Okta registra SUCCESS y la app rechaza: la aserción nace bien y muere en el SP (ACS, firma, audience, NameID o reloj: checks 3 a 7). Si el evento es FAILURE o no existe: el problema es del lado Okta o de la asignación (check 2).',
+      },
+      {
+        check: 'Asignación de la app para este usuario (lo más barato)',
+        command: 'curl -s -o /dev/null -w "%{http_code}" -H "Authorization: SSWS {{OKTA_API_TOKEN}}" "https://{{OKTA_ORG}}.okta.com/api/v1/apps/{{APP_ID}}/users/{{USER_ID}}"',
+        result: '200 con la asignación (individual o heredada por grupo) o 404 si el usuario no está asignado.',
+        next: 'Si 404: el usuario no tiene la app asignada y el fallo no es de SAML sino de aprovisionamiento: asignarla y seguir por TS-IAM-020. Si 200: la falla sí es de la aserción (checks 3 a 7).',
+      },
+      {
+        check: 'ACS: la URL donde el SP consume la aserción',
+        command: 'curl -s "https://{{OKTA_ORG}}.okta.com/app/{{APP_INSTANCE}}/sso/saml/metadata" | grep -o "Location=[^ ]*" | head -1',
+        result: 'La Location (ACS) declarada en los metadatos SAML de la app en Okta.',
+        next: 'Si el error del SP dice "received at X instead of Y": el proveedor cambió su ACS (dominio o portal nuevo) y Okta quedó apuntando a la vieja: corregirla en Admin → Applications → {{APP_NAME}} → Sign On → Edit SAML settings (RB-IAM-025). Si coinciden: certificado (check 4).',
+      },
+      {
+        check: 'Certificado de firma (rotación dinámica de llaves)',
+        command: 'curl -s "https://{{OKTA_ORG}}.okta.com/app/{{APP_INSTANCE}}/sso/saml/metadata" | grep -c "X509Certificate"',
+        result: '1 certificado de firma en los metadatos, o 2 si Okta está en plena rotación (solapamiento).',
+        next: 'Si hay 2: la rotación dinámica está en curso y el SP que solo confía en el certificado anterior empieza a rechazar firmas ("Invalid Signature"): entregarle el certificado nuevo o desactivar la rotación si el SP no la soporta (RB-IAM-025). Si hay 1 y el SP rechaza: comparar la huella con la que el SP tiene cargada: alguien renovó de un lado y no del otro.',
+      },
+      {
+        check: 'Audience URI (entity ID del SP)',
+        command: 'curl -s "{{SP_METADATA_URL}}" | grep -o "entityID=[^ ]*" | head -1',
+        result: 'El entityID que el SP declara en sus metadatos: el valor exacto que espera como audience en la aserción.',
+        next: 'Si difiere del "Audience URI (SP Entity ID)" configurado en Okta (Sign On → SAML settings): ajustar al que el SP declara (error típico tras migrar el SP de dominio, o por haber puesto la ACS en vez del entity ID). Si coincide: NameID (check 6).',
+      },
+      {
+        check: 'NameID: formato y valor',
+        result: 'En Sign On → SAML settings: el Name ID format (emailAddress, unspecified, persistent) y el atributo de origen que el SP exige.',
+        next: 'Si el SP pide emailAddress y Okta envía el login (o el formato es otro): el SP no matchea al usuario y responde "user not found" o "NameID policy invalid": corregir formato y valor (RB-IAM-025). Si el NameID está bien pero el usuario no existe en la app: el fondo es de provisión (TS-IAM-020).',
+      },
+      {
+        check: 'Condiciones temporales: NotBefore y NotOnOrAfter',
+        result: 'Los relojes de Okta y del SP alineados y la aserción dentro de su ventana de validez (5 minutos por defecto).',
+        next: 'Si el SP responde "assertion is not yet valid" o "expired" con certificado y audience correctos: desviación de reloj del SP (NTP caído): arreglar el reloj, que es la causa, no ampliar la ventana. Si el reloj está bien: volver al error literal del SP y abrir caso con el proveedor llevando la aserción capturada.',
+      },
+    ],
+    remediation: '30% ACS desactualizada en Okta tras un cambio de URL del proveedor, 25% rotación del certificado de firma que el SP aún no reconoce (Invalid Signature), 15% audience URI que no coincide con el entity ID del SP, 10% NameID con formato o valor equivocado, 10% desviación de reloj del SP (NotBefore/NotOnOrAfter), 10% el usuario nunca estuvo provisionado en la app (parece fallo SAML pero es de asignación: TS-IAM-020).',
+    verification: 'La app abre de extremo a extremo desde el navegador normal del usuario (sin ventana privada), el System Log de Okta registra el user.authentication.sso con SUCCESS y la app reconoce al usuario correcto con el NameID esperado.',
+    tags: ['okta', 'sso', 'saml', 'invalid signature', 'acs', 'audience uri', 'entity id', 'nameid', 'key rotation', 'metadata', 'system log', 'clock skew'],
+  },
+  {
+    id: 'TS-IAM-020',
+    pillar: 'IAM',
+    title: 'Okta no provisiona al usuario en la app',
+    problem: 'El usuario está (o debería estar) asignado a una app de Okta pero nunca llega a la app: la escalera separa la asignación, el job de provisioning SCIM, el lifecycle del usuario y el mapeo de atributos.',
+    symptoms: [
+      'El usuario entra por SSO y la app responde "user not found" o directamente no tiene cuenta.',
+      'La consola de Okta lo muestra asignado, pero la app no lo lista (o lo lista con datos viejos).',
+      'El caso saltó en un alta reciente o tras un cambio del conector SCIM de la app.',
+    ],
+    level: 'Asignación en Okta vs Job de provisioning SCIM vs Lifecycle del usuario vs Mapeo de atributos',
+    checks: [
+      {
+        check: 'Asignación de la app para el usuario',
+        command: 'curl -s -o /dev/null -w "%{http_code}" -H "Authorization: SSWS {{OKTA_API_TOKEN}}" "https://{{OKTA_ORG}}.okta.com/api/v1/apps/{{APP_ID}}/users/{{USER_ID}}"',
+        result: '200 (asignado) o 404 (no asignado): la asignación es la puerta de entrada del provisioning.',
+        next: 'Si 404: nadie lo asignó (ni directo ni por grupo): asignarlo individual o vía el grupo correcto (RB-IAM-021) y volver a probar. Si 200: el problema es del push (checks 3 a 7).',
+      },
+      {
+        check: 'El grupo que gobierna la app',
+        command: 'curl -s -H "Authorization: SSWS {{OKTA_API_TOKEN}}" "https://{{OKTA_ORG}}.okta.com/api/v1/apps/{{APP_ID}}/groups" | jq -r ".[] | .profile.name"',
+        result: 'Los grupos asignados a la app: el usuario debería pertenecer a uno de ellos.',
+        next: 'Si la app se asigna solo por grupos y el usuario no está en ninguno: añadirlo al grupo correcto (la asignación individual en apps de grupo rompe la gobernanza). Si ya pertenece: lifecycle del usuario (check 3).',
+      },
+      {
+        check: 'Lifecycle del usuario en Okta',
+        command: 'curl -s -H "Authorization: SSWS {{OKTA_API_TOKEN}}" "https://{{OKTA_ORG}}.okta.com/api/v1/users/{{USER_ID}}" | jq -r ".status"',
+        result: 'ACTIVE: el job de provisioning solo procesa usuarios activos (no STAGED ni SUSPENDED ni DEPROVISIONED).',
+        next: 'Si STAGED: el usuario nunca se activó (correo de activación perdido): activarlo primero. Si SUSPENDED o DEPROVISIONED: alguien lo trató como leaver: validar con RRHH antes de rehabilitar (RB-IAM-026 para el flujo inverso). Si ACTIVE: configuración del job (check 4).',
+      },
+      {
+        check: 'Configuración de provisioning de la app',
+        result: 'En Admin → Applications → {{APP_NAME}} → Provisioning → To App: Create Users habilitado, y en Integration el conector SCIM conectado con token vigente.',
+        next: 'Si el tab de Provisioning no existe: la app no tiene integración SCIM: el usuario se crea por JIT en el primer SSO solo si la app lo soporta, o requiere cuenta previa (RB-IAM-021, provisión manual). Si existe pero Create Users está apagado: el job jamás creará a nadie: habilitarlo con el dueño de la app.',
+      },
+      {
+        check: 'Errores SCIM del usuario en el System Log',
+        command: 'curl -s -H "Authorization: SSWS {{OKTA_API_TOKEN}}" "https://{{OKTA_ORG}}.okta.com/api/v1/logs?q={{USERNAME}}&limit=100" | jq -r ".[] | [.publishedTime, .eventType, .outcome.result, .outcome.reason] | @tsv"',
+        result: 'Los eventos de provisioning del usuario: SUCCESS o FAILURE con el reason literal (HTTP 400/401/404 del endpoint SCIM).',
+        next: 'Si el reason es 401: el token SCIM que Okta presenta está vencido o lo revocaron en la app: renovarlo en Integration (check 6 para confirmar). Si es 400: el payload no pasa la validación de la app (mapeo o formato: check 7). Si es 409 o "already exists": el usuario ya vive en la app con otro userName: alinear la clave (check 7).',
+      },
+      {
+        check: 'Salud del endpoint SCIM directamente',
+        command: 'curl -s -G -H "Authorization: Bearer {{SCIM_TOKEN}}" --data-urlencode "filter=userName eq \\"{{USERNAME}}\\"" "{{SCIM_ENDPOINT}}/Users"',
+        result: '200 con el usuario (existe en la app) o con lista vacía (aún no llega), usando el MISMO token que Okta tiene configurado.',
+        next: 'Si responde 401 o 403: el token de Integration está muerto: renovarlo en los DOS lados (Okta Integration y la app). Si responde 200 y el usuario existe: la app ya lo tiene y el fallo es de login o NameID, no de provisión (TS-IAM-019 check 6). Si 200 vacío: forzar el push (check 7).',
+      },
+      {
+        check: 'Mapeo de atributos y push manual',
+        result: 'En Provisioning → To App → Attribute Mappings: el userName de la app mapeado al atributo correcto (email, login o employeeID según la clave de la app).',
+        next: 'Si el mapeo envía un atributo que la app no usa como clave (o el usuario no lo tiene): corregir el mapping y forzar con Provision on demand (Applications → {{APP_NAME}} → Users → usuario → Provision on demand) para no esperar el ciclo. Si el push manual también falla: el error literal del System Log (check 5) manda: abrir caso con el proveedor de la app con ese payload.',
+      },
+    ],
+    remediation: '30% el usuario nunca fue asignado (ni directo ni por grupo), 25% provisioning deshabilitado o incompleto en To App (Create Users apagado), 15% token SCIM vencido o revocado en la app (401 del conector), 10% usuario STAGED o SUSPENDED (el job solo provisiona ACTIVE), 10% mapeo de atributos equivocado (userName con la clave que la app no matchea), 10% la app no tiene integración SCIM y exigía cuenta previa (provisión manual).',
+    verification: 'El usuario queda asignado y ACTIVE, la app lo lista con el userName mapeado, el System Log de Okta registra las operaciones SCIM con SUCCESS y el SSO de punta a punta entra sin "user not found".',
+    tags: ['okta', 'provisioning', 'scim', 'asignacion', 'lifecycle', 'staged', 'suspended', 'active', 'create users', 'attribute mapping', 'provision on demand', 'system log'],
+  },
+  {
+    id: 'TS-IAM-021',
+    pillar: 'IAM',
+    title: 'SailPoint: entitlements viejos en la certificación',
+    problem: 'La certificación o el catálogo de SailPoint muestra entitlements revocados hace tiempo y hay que separar la agregación de las fuentes, el refresh de la identity cube, el snapshot de la campaña y una revocación que en realidad nunca ocurrió.',
+    symptoms: [
+      'El certificador ve accesos que el negocio revocó hace semanas y pregunta si hay que volver a revocarlos.',
+      'El catálogo de entitlements no muestra roles o permisos nuevos de la aplicación.',
+      'La campaña arrancó y los datos no cuadran con lo que los admins ven en los sistemas fuente.',
+    ],
+    level: 'Agregación de fuentes vs Identity cube vs Snapshot de campaña vs Revocación en la fuente',
+    checks: [
+      {
+        check: 'Edad real de los datos del source',
+        command: 'curl -s -H "Authorization: Bearer {{SP_TOKEN}}" "https://{{SP_TENANT}}.api.identitynow.com/v3/sources/{{SOURCE_ID}}/entitlements?limit=10" | jq -r ".[] | [.name, .modified] | @tsv"',
+        result: 'Los entitlements del source con su fecha modified: la edad real de los datos del catálogo.',
+        next: 'Si el modified del entitlement en cuestión es ANTERIOR al cambio que debía verse: el catálogo está atrasado: revisar la última agregación del source (Admin → Connections → {{SOURCE}}) y re-agregar (RB-IAM-028). Si modified es reciente: el dato del catálogo está al día y lo viejo vive en la identidad o la campaña (checks 3 a 5).',
+      },
+      {
+        check: 'La fuente de verdad, fuera de SailPoint',
+        command: 'Get-ADGroupMember {{GROUP}} | Where-Object SamAccountName -eq "{{SAM}}"',
+        result: 'El usuario SIN membresía en el grupo fuente: la revocación sí llegó al sistema de origen.',
+        next: 'Si SIGUE en la fuente: no son datos viejos: la revocación nunca se ejecutó o falló (TS-IAM-030 y RB-IAM-027). Si ya no está: el estado correcto existe en la fuente y hay que perseguirlo hacia arriba en la cadena de SailPoint (checks 3 y 4).',
+      },
+      {
+        check: 'La identity cube y sus cuentas',
+        command: 'curl -s -X POST "https://{{SP_TENANT}}.api.identitynow.com/v3/search" -H "Authorization: Bearer {{SP_TOKEN}}" -H "Content-Type: application/json" -d "{\\"indices\\":[\\"identities\\"],\\"query\\":{\\"query\\":\\"email:{{EMAIL}}\\"}}" | jq -r ".[] | [.name, (.accounts | length)] | @tsv"',
+        result: 'La identidad del usuario con TODAS sus cuentas enlazadas (la cuenta del source incluida).',
+        next: 'Si la cuenta no aparece entre las de la identidad: correlación rota o cuenta sin identidad (TS-IAM-022): el entitlement es invisible para la certificación. Si la cuenta está enlazada: el problema es de frescura del cube (check 4).',
+      },
+      {
+        check: 'Refresh de la cube tras la agregación',
+        result: 'La identity cube actualizada DESPUÉS de la agregación: la agregación trae cuentas y entitlements, el refresh los asienta en la identidad.',
+        next: 'Si la agregación corrió pero el refresh de la identidad no (cola atascada o tarea programada apagada): forzar el refresh de la identidad y re-verificar (check 6). Si el refresh corrió y la cube ya está limpia: el rezago era solo de la campaña (check 5).',
+      },
+      {
+        check: 'Snapshot de la campaña vs fecha del cambio',
+        result: 'La fecha de generación de la campaña comparada con la fecha en que el negocio revocó el acceso.',
+        next: 'Si el cambio ocurrió DESPUÉS de generarse la campaña: el certificador verá el estado viejo hasta la próxima campaña por diseño: documentarlo y re-certificar ese ítem en el siguiente ciclo (RB-IAM-027), no culpar a la plataforma. Si el cambio es anterior a la campaña: la cadena agregación-refresh quedó corta (checks 1 y 4).',
+      },
+      {
+        check: 'Prueba final: re-agregar y ver desaparecer el entitlement',
+        command: 'curl -s -H "Authorization: Bearer {{SP_TOKEN}}" "https://{{SP_TENANT}}.api.identitynow.com/v3/accounts/{{ACCOUNT_ID}}/entitlements" | jq -r ".[] | .name"',
+        result: 'La lista fresca de entitlements de la cuenta del usuario, sin el ítem revocado.',
+        next: 'Si tras re-agregar y refrescar el entitlement desaparece: cierre confirmado: era rezago de la cadena (calibrar la periodicidad de agregación). Si persiste: el acceso sigue vivo en la fuente o el conector lo lee de otro sistema: TS-IAM-030 y RB-IAM-028.',
+      },
+    ],
+    remediation: '35% el source no había agregado desde antes del cambio (periodicidad demasiado espaciada), 20% la campaña se generó del snapshot previo al cambio (el certificador ve el estado viejo por diseño), 15% la agregación corrió pero el refresh de la identity cube no, 10% la revocación en realidad falló en la fuente (parecía dato viejo y era acceso vivo), 10% cuenta sin correlacionar: el entitlement vive en una cuenta que la identidad no ve (TS-IAM-022), 10% discovery de entitlements desactualizado (roles nuevos de la app sin agregar al catálogo).',
+    verification: 'Tras re-agregar y refrescar, un entitlement revocado conocido desaparece de la vista de la identidad, el catálogo muestra el estado de la fuente y la próxima campaña (o el preview del certificador) coincide con los sistemas fuente.',
+    tags: ['sailpoint', 'identitynow', 'agregacion', 'entitlements', 'identity cube', 'certificacion', 'campaign', 'snapshot', 'correlacion', 'refresh', 'iiq', 'datos viejos'],
+  },
+  {
+    id: 'TS-IAM-022',
+    pillar: 'IAM',
+    title: 'SailPoint: identity cube incompleta o cuentas huérfanas',
+    problem: 'La identity cube de un usuario no muestra todas sus cuentas (o hay cuentas huérfanas sin identidad) y la escalera recorre la fuente HR, la regla de correlación por employeeID, las cuentas secundarias y las identidades duplicadas.',
+    symptoms: [
+      'La certificación o el cube muestra menos aplicaciones de las que el usuario realmente tiene.',
+      'El reporte de cuentas sin correlación (uncorrelated) crece con cuentas de AD o de apps.',
+      'Auditoría encuentra cuentas activas que ninguna identidad reclama (el hallazgo clásico).',
+    ],
+    level: 'Fuente HR vs Regla de correlación vs Cuentas secundarias (multaccounts) vs Identidades duplicadas',
+    checks: [
+      {
+        check: 'Existe la identidad y con qué cuentas queda',
+        command: 'curl -s -X POST "https://{{SP_TENANT}}.api.identitynow.com/v3/search" -H "Authorization: Bearer {{SP_TOKEN}}" -H "Content-Type: application/json" -d "{\\"indices\\":[\\"identities\\"],\\"query\\":{\\"query\\":\\"email:{{EMAIL}}\\"}}" | jq -r ".[] | [.name, (.accounts | length)] | @tsv"',
+        result: 'UNA identidad para la persona con TODAS sus cuentas (la normal y las de administración).',
+        next: 'Si NO existe la identidad: el joiner nunca llegó a la fuente de autoridad (HR atrasado) o el feed está roto (check 4): sin identidad no hay nada que correlacionar. Si existen DOS: identidad duplicada (check 5). Si existe pero con cuentas de menos: correlación (checks 2 y 3).',
+      },
+      {
+        check: 'El atributo de correlación en la cuenta (employeeID)',
+        command: 'Get-ADUser {{SAM}} -Properties EmployeeID, DistinguishedName | fl SamAccountName, EmployeeID, DistinguishedName',
+        result: 'EmployeeID poblado en la cuenta de AD y coincidente con el registro de RRHH (la clave que la regla de correlación usa).',
+        next: 'Si viene vacío o distinto: la regla de correlación jamás va a matchear: llenar el atributo en la cuenta (o corregir el de RRHH) y re-agregar (TS-IAM-021 check 1). Si coincide: la regla o el refresh (check 3).',
+      },
+      {
+        check: 'La regla de correlación y las cuentas que no cubre',
+        result: 'La regla del conector (por employeeID, por email o por patrón de naming) documentada con los tipos de cuenta que matchea.',
+        next: 'Si la regla solo matchea cuentas normales y las de administración usan otro naming (usuario-adm) u otro atributo: esas cuentas quedan huérfanas por diseño de la regla: extenderla al patrón o poblar el atributo de correlación en las cuentas admin (multaccounts). Si la regla cubre el caso: el problema es que no volvió a evaluar (check 6).',
+      },
+      {
+        check: 'El feed de RRHH y las cuentas que deberían enlazar',
+        command: 'curl -s -X POST "https://{{SP_TENANT}}.api.identitynow.com/v3/search" -H "Authorization: Bearer {{SP_TOKEN}}" -H "Content-Type: application/json" -d "{\\"indices\\":[\\"accounts\\"],\\"query\\":{\\"query\\":\\"name:{{SAM}}\\"}}" | jq -r ".[] | .name"',
+        result: 'Todas las cuentas con ese nombre a través de los sources: las que la identidad debería reclamar.',
+        next: 'Si las cuentas existen en los sources pero ninguna quedó en la identidad: correlación rota (checks 2 y 3). Si la persona no existe en el source de RRHH con su employeeID: el joiner se cayó del feed: corregir con RRHH ANTES de tocar SailPoint (RB-IAM-001).',
+      },
+      {
+        check: 'Identidades duplicadas (recontratación o conversión)',
+        result: 'Una sola identidad por persona natural, sin cubes paralelas repartiéndose cuentas.',
+        next: 'Si hay dos identities para la misma persona (rehire con employeeID nuevo, contratista convertido a empleado): las cuentas quedan repartidas y la certificación ve mitades: unificar (merge) o corregir el join de la fuente de autoridad y re-correlacionar (RB-IAM-001 y RB-IAM-003 para el patrón JML).',
+      },
+      {
+        check: 'Re-correlación y reporte de cuentas sin identidad',
+        result: 'Tras el fix de atributos o regla: la re-agregación y re-correlación enlazan las cuentas y el reporte de uncorrelated deja de listarlas.',
+        next: 'Si tras re-agregar siguen huérfanas: la regla sigue sin matchear: revisar el check 3 con un ejemplo concreto (una cuenta admin) en la mano. Si enlazan: cerrar y dejar la cuenta admin de ejemplo en el checklist del próximo onboarding (RB-IAM-001).',
+      },
+    ],
+    remediation: '30% el atributo de correlación (employeeID) vacío o distinto en las cuentas (la regla no puede matchear), 25% cuentas de administración o secundarias con otro naming no cubierto por la regla, 15% el joiner nunca llegó a la fuente de autoridad (HR atrasado: la identidad no existe), 15% identidades duplicadas por recontratación o conversión de contratista, 15% la agregación corrió pero sin refresh de correlación después.',
+    verification: 'La identity cube lista todas las cuentas de la persona (incluidas las de administración), el reporte de cuentas sin correlación deja de listar el caso y la próxima certificación incluye las cuentas que antes eran invisibles.',
+    tags: ['sailpoint', 'identity cube', 'correlacion', 'employeeid', 'uncorrelated', 'cuentas huerfanas', 'hr feed', 'joiner', 'identidades duplicadas', 'merge', 'cuentas admin', 'multaccounts'],
+  },
+  {
+    id: 'TS-IAM-023',
+    pillar: 'IAM',
+    title: 'Safeguard/PAM: checkout denegado o sesión sin grabación',
+    problem: 'El checkout de un acceso privilegiado en One Identity Safeguard se deniega o la sesión no queda grabada y la escalera separa la membership de la entitlement, la ventana de acceso, la ruta de la conexión (si pasó por el appliance) y el storage.',
+    symptoms: [
+      'El checkout responde "not entitled", queda pendiente o fuera de ventana y el admin no puede trabajar.',
+      'La sesión abre pero no aparece en la lista de grabaciones (o el auditor la pide y no existe).',
+      'La cuenta privilegiada sí funciona conectando directo: alguien tomó atajos.',
+    ],
+    level: 'Entitlement y membership vs Ventana y aprobación vs Ruta de la sesión vs Storage del appliance',
+    checks: [
+      {
+        check: 'El motivo exacto del rechazo y la entitlement',
+        command: 'curl -sk -H "Authorization: Bearer {{SG_TOKEN}}" "https://{{SG_APPLIANCE}}/service/core/v3/Entitlements" | jq -r ".[] | .Name"',
+        result: 'Las entitlements del appliance y, en la consola (Policy → Entitlements → {{ENTITLEMENT}} → Members), el grupo del usuario como accesser y el asset en su grupo.',
+        next: 'Si el grupo del usuario no figura como accesser de ninguna entitlement que cubra ESE asset: es un caso de permisos, no de plataforma: completar la membership (RB-IAM-029). Si ya está: ventana o aprobación (check 2).',
+      },
+      {
+        check: 'Ventana de acceso y flujo de aprobación',
+        result: 'La solicitud con su estado (aprobada, pendiente o denegada) y la ventana vigente de la entitlement.',
+        next: 'Si queda pendiente: el flujo exige aprobador y el titular está ausente: activar el alterno o escalar por el conducto definido. Si la ventana no cubre el momento: pedir dentro de la ventana o tramitar la excepción documentada (nunca una membresía ad hoc sin expiración: TS-IAM-012). Si ni siquiera deja solicitar: elegibilidad (check 1 de nuevo).',
+      },
+      {
+        check: '¿La conexión pasó por el appliance?',
+        command: 'Get-WinEvent -FilterHashtable @{LogName="Security"; Id=4624} -MaxEvents 200 | Where-Object Message -match "{{TARGET_ADMIN}}" | Select-Object -First 5 | fl TimeCreated, Message',
+        result: 'Los inicios de sesión del objetivo con su Source Network Address: la IP del appliance (no la del puesto del usuario).',
+        next: 'Si la IP de origen es el puesto del usuario: conectó DIRECTO al objetivo sin pasar por Safeguard: por eso no hay grabación, y además violó la política: revocar el acceso directo y revisar el access request (RB-IAM-029). Si la IP es del appliance: la sesión sí pasó y la grabación vive en el appliance (checks 4 y 5).',
+      },
+      {
+        check: 'Tipo de acceso de la entitlement: contraseña vs sesión',
+        result: 'La entitlement otorga sesión (grabada por el appliance) o solo password checkout (la contraseña sale y la conexión es responsabilidad de quien la toma).',
+        next: 'Si el diseño de esa entitlement es solo password checkout: el "sin grabación" es consecuencia esperada cuando la conexión se hace por fuera: el camino correcto es migrar el acceso a sesión por el appliance (RB-IAM-029). Si la entitlement sí da sesión y no abre: conectividad (check 6).',
+      },
+      {
+        check: 'Storage y retención del appliance',
+        result: 'El uso de storage del appliance (grabaciones y audit) por debajo del tope y la retención vigente.',
+        next: 'Si el storage llegó al tope: la retención purga grabaciones viejas y puede perder sesiones recientes: liberar o ampliar y documentar para auditoría qué quedó sin video. Si hay espacio: la sesión puntual debe existir: revisar en la consola de sesiones del appliance y escalar con soporte del producto si el ítem falta (check 6 primero).',
+      },
+      {
+        check: 'Credencial administrada y conectividad appliance → asset',
+        command: 'Test-NetConnection {{ASSET_HOST}} -Port 3389',
+        result: 'TcpTestSucceeded True desde el appliance (o su segmento), y la cuenta administrativa habilitada con la contraseña que el appliance rotó.',
+        next: 'Si el appliance no llega al puerto (3389 o 22): firewall tras un cambio de segmento o la ficha del asset con host o IP viejos (el mismo patrón de TS-IAM-016 check 5): corregir la regla o la ficha. Si llega pero el checkout entrega una credencial que no sirve: la rotación de la cuenta falló (la almacenada no coincide con la real): forzar la rotación desde el appliance (RB-IAM-029) y reintentar.',
+      },
+    ],
+    remediation: '30% el usuario no está en el grupo de la entitlement que cubre ese asset (permisos, no plataforma), 20% la conexión fue directa al objetivo sin pasar por el appliance (sin grabación y violación de política), 15% ventana de acceso o aprobación pendiente (denegado por diseño), 15% storage del appliance al tope o retención purgando grabaciones, 10% rotación de la credencial fallida (el checkout entrega una contraseña inservible), 10% conectividad appliance-asset cerrada tras un cambio de red.',
+    verification: 'El admin habilitado hace checkout dentro de su ventana, la sesión abre POR el appliance, figura en la consola de sesiones como grabada, la grabación se reproduce y el check-in libera la credencial con rotación.',
+    tags: ['safeguard', 'one identity', 'pam', 'checkout', 'entitlement', 'asset', 'session recording', 'grabacion', 'appliance', 'ventana', 'rotacion', '4624', 'password checkout'],
+  },
+  {
+    id: 'TS-IAM-024',
+    pillar: 'IAM',
+    title: 'PingFederate: el SP rechaza la aserción SAML',
+    problem: 'PingFederate emite la aserción pero el SP la rechaza (firma, audience, NameID o condiciones) y la escalera separa el certificado de firma, los entity IDs, el NameID, la política de firma y el reloj.',
+    symptoms: [
+      'El SP muestra "Signature validation failed", "Audience URI mismatch" o "NameID format invalid" tras el redirect.',
+      'El fallo empezó tras una renovación de certificado, una migración del SP o un endurecimiento de su configuración.',
+      'Afecta a todos los usuarios de esa conexión (no es un problema de una cuenta).',
+    ],
+    level: 'Firma y certificado vs Audience y Entity ID vs NameID vs Condiciones temporales (clock skew)',
+    checks: [
+      {
+        check: 'Runtime vivo y clasificación del rechazo del SP',
+        command: 'curl -sk "https://{{PF_HOST}}:9031/pf/heartbeat.ping"',
+        result: 'OK del runtime (puerto 9031) y en pantalla el rechazo textual del SP.',
+        next: 'Si el heartbeat NO responde: el problema es del runtime de PingFederate (nodo o balanceador), no de la aserción. Si responde OK: clasificar el error del SP: "Signature validation failed" → check 2; "Audience/Entity ID mismatch" → check 3; "NameID format/value" → check 4; "not yet valid" o "expired" → check 5; "Signature is missing" → check 6.',
+      },
+      {
+        check: 'El certificado con el que se firma HOY',
+        command: 'curl -sk "https://{{PF_HOST}}:9031/idp/metadata?entityId={{IDP_ENTITY_ID}}" -o idp-metadata.xml',
+        result: 'El XML de metadatos del IdP con el certificado vigente de firma.',
+        next: 'Comparar la huella (thumbprint) del certificado del XML con la registrada en el SP: si difieren, alguien renovó de un lado y no del otro: entregar el certificado nuevo al SP (o reimportar los metadatos) con solapamiento (RB-IAM-030). Si coinciden y aún falla la firma: política o algoritmo (check 6).',
+      },
+      {
+        check: 'Audience y entity ID de la conexión',
+        result: 'En la consola de administración (https://{{PF_ADMIN}}:9999/pingfederate/app) → SP Connections → {{CONNECTION}}: el entity ID igual al que el SP declara.',
+        next: 'Si el SP migró de dominio o cambió su entity ID (el error suele decir "expected X, received Y"): actualizar la conexión en PingFederate (RB-IAM-030). Si el entity ID coincide: NameID (check 4).',
+      },
+      {
+        check: 'NameID: formato y valor',
+        result: 'En SP Connections → {{CONNECTION}} → Browser SSO → Assertion Creation: el NameID format y el atributo de origen que el SP exige.',
+        next: 'Si el SP exige emailAddress (o persistent) y la conexión envía otro formato u otro atributo (login en vez de mail): ajustar el formato y el mapping en Assertion Creation (RB-IAM-030). Si el formato está bien pero el SP responde "user not found": el NameID no matchea ningún usuario del SP: es provisión del lado del SP, no de Ping.',
+      },
+      {
+        check: 'Relojes y condiciones temporales',
+        command: 'date -u',
+        result: 'La hora UTC del servidor PingFederate alineada (menos de un minuto) con la del SP.',
+        next: 'Si difieren: NTP caído en alguno de los dos: arreglar el reloj (el fix real; ampliar la vigencia de la aserción solo esconde el problema). Si los relojes están bien y persiste el "not yet valid" o "expired": revisar la vigencia de la aserción configurada en la conexión frente a retardos de proxies intermedios.',
+      },
+      {
+        check: 'Qué se firma: política de firma de la conexión',
+        result: 'En SP Connections → {{CONNECTION}} → Browser SSO → Signing Settings: Sign Assertion y Sign Response alineados con lo que el SP exige.',
+        next: 'Si el SP endureció y ahora exige la AserCIÓN firmada pero PingFederate solo firma la respuesta (error "Signature is missing" con certificado correcto): marcar Sign Assertion (RB-IAM-030). Si ya firma la aserción y el SP reclama lo contrario: el SP está leyendo otra aserción (proxy o replay): capturar con SAML tracer y escalar con la traza.',
+      },
+    ],
+    remediation: '30% certificado de firma renovado y el SP (o PingFederate) quedó confiando en el anterior, 25% entity ID o audience del SP cambió tras una migración y la conexión quedó con el viejo, 15% NameID con formato o valor distinto al exigido, 15% política de firma desalineada (el SP exige aserción firmada y Ping solo firma la respuesta), 10% desviación de reloj (NotBefore/NotOnOrAfter) por NTP caído, 5% algoritmo endurecido (SHA-1 a SHA-256) sin avisar.',
+    verification: 'Una prueba SSO de punta a punta pasa sin error, el SAML tracer muestra firma válida con el certificado vigente, audience y NameID correctos, y en la consola 9999 (System → Stats) la tasa de transacciones SSO exitosas vuelve a la línea base.',
+    tags: ['pingfederate', 'ping', 'saml', 'asercion', 'audience', 'entity id', 'nameid', 'signature', 'signing settings', 'clock skew', '9999', '9031', 'heartbeat'],
+  },
+  {
+    id: 'TS-IAM-025',
+    pillar: 'IAM',
+    title: 'ForgeRock AM: sesión o token inválido tras el login',
+    problem: 'El usuario autentica en ForgeRock AM pero la sesión muere al instante (o a los pocos minutos) o el token OAuth es inválido y la escalera separa el timeout de sesión, el realm, la cookie de SSO, el token OAuth y el almacén de tokens (CTS/DS).',
+    symptoms: [
+      'El login parece completarse pero el primer clic regresa al formulario de autenticación.',
+      'El OAuth client recibe token pero la API responde 401 "invalid token" (o solo tras X minutos exactos).',
+      'A algunos usuarios les funciona y a otros no (o funciona directo a un nodo y por el balanceador no).',
+    ],
+    level: 'Sesión AM (idle/timeout) vs Realm vs Token OAuth (scopes/vida) vs Cookie e infraestructura (CTS/DS)',
+    checks: [
+      {
+        check: 'Cuándo muere la sesión',
+        command: 'curl -s -X POST "https://{{AM_HOST}}:8443/openam/json/sessions?_action=idFromSession" -H "iPlanetDirectoryPro: {{USER_SSO_TOKEN}}" -H "Accept-API-Version: protocol=1.0,resource=1.1"',
+        result: 'Las propiedades de la sesión: maxIdleExpirationTime y maxSessionExpirationTime (o "Session is not valid" si ya murió).',
+        next: 'Si la sesión existe y muere exactamente al cumplir el maxIdle: timeout de inactividad configurado (check 2). Si responde not valid apenas autenticó: la sesión no se sostiene: cookie, realm o CTS (checks 3, 4 y 6). Si solo falla una app o API concreta: el token OAuth (check 5).',
+      },
+      {
+        check: 'Timeouts configurados del realm',
+        result: 'En la configuración de Session (consola de AM 6.5: Configure → Global Services → Session, o Realms → {{REALM}} → Services → Session; en AM 7+ por configuración REST): Maximum Idle Time y Maximum Session Time coherentes con la política de Nexora.',
+        next: 'Si el idle quedó por debajo del patrón de uso real (aplicaciones que se dejan abiertas): ajustarlo a la política y documentar: el valor por defecto sin ajustar es la causa clásica. Si los timeouts están bien: la sesión se pierde antes de tiempo por infraestructura (check 6) o la cookie (check 4).',
+      },
+      {
+        check: 'El realm del login vs el realm de la validación',
+        command: 'curl -s -X POST "https://{{AM_HOST}}:8443/openam/json/realms/root/realms/{{REALM}}/authenticate" -H "Accept-API-Version: protocol=1.0,resource=2.1" -H "Content-Type: application/json" -d "{}"',
+        result: '200 con los callbacks de autenticación: el realm existe y AM responde en esa ruta.',
+        next: 'Si devuelve 404 o "Realm not found": la app autentica contra un realm inexistente (typo, renombrado o mayúsculas: la ruta es case-sensitive): corregir la URL o el agent profile de la app. Si el realm existe: verificar que la app y la validación usan el MISMO realm: un token del realm A no valida en el B (unificar en el perfil del agente o del OAuth client).',
+      },
+      {
+        check: 'La cookie de SSO (iPlanetDirectoryPro)',
+        result: 'La cookie con el dominio correcto en el navegador, presente en cada redirect de vuelta a la app.',
+        next: 'Si el dominio de la cookie no coincide con el de la app (proxy que reescribe Host o dominio mal configurado): el navegador la descarta y el usuario rebota al login: corregir el dominio de cookie detrás del proxy. Si la cookie viaja bien: balanceador o CTS (check 6).',
+      },
+      {
+        check: 'El token OAuth: vida, scope y audiencia',
+        command: 'curl -s -X POST "https://{{AM_HOST}}:8443/openam/oauth2/realms/root/realms/{{REALM}}/introspect" -u "{{CLIENT_ID}}:{{CLIENT_SECRET}}" -d "token={{ACCESS_TOKEN}}"',
+        result: 'active true con el scope y la audiencia esperados, o active false (expirado o revocado).',
+        next: 'Si active false: el access token murió y la app no refresca: revisar el Access Token Lifetime del OAuth client y el refresh flow de la app (RB-IAM-031). Si active true pero la API da 401: el recurso exige un scope que el token no trae: ampliar los scopes concedidos al client o el grant del usuario.',
+      },
+      {
+        check: 'Salud del nodo y del almacén de tokens',
+        command: 'curl -s "https://{{AM_HOST}}:8443/openam/health/ready"',
+        result: 'HTTP 200 (AM 7.1+): DS y CTS accesibles y el nodo listo para servir sesiones.',
+        next: 'Si el health responde 503 o errores de CTS/DS: el almacén de tokens no está disponible y las sesiones mueren al azar: reparar DS/CTS primero (TS-SA-004 si es storage de fondo). Si el health está OK pero la sesión se pierde solo vía balanceador: falta afinidad (sticky) del LB para el clúster AM: configurarla.',
+      },
+    ],
+    remediation: '30% idle timeout por defecto más corto que el patrón de uso real (nadie lo ajustó tras instalar), 20% balanceador sin afinidad o CTS/DS degradado (la sesión se pierde entre nodos), 15% realm distinto entre autenticación y validación (typo o renombrado), 15% token OAuth expirado o sin el scope exigido (la app no refresca), 10% cookie iPlanetDirectoryPro con dominio errado detrás de proxy, 10% access token lifetime demasiado corto para el patrón de la app.',
+    verification: 'El usuario entra y su sesión sobrevive al idle configurado (y muere exactamente a los X minutos solo si la política lo dice), introspect devuelve active true con el scope esperado y la sesión no cambia de comportamiento al pasar por otro nodo del clúster.',
+    tags: ['forgerock', 'am', 'openam', 'iplanetdirectorypro', 'idle timeout', 'realm', 'oauth2', 'introspect', 'cts', 'ds', 'cookie', 'session', 'sspr'],
+  },
+  {
+    id: 'TS-IAM-026',
+    pillar: 'IAM',
+    title: 'Bloqueo masivo por política (IBM Verify/ISAM/OAM)',
+    problem: 'Tras un cambio de política o de red, una ola de usuarios queda bloqueada a la vez en el access manager (IBM Security Verify, ISAM/ISVA u Oracle Access Manager) y la escalera separa política demasiado estricta, rangos de IP, session store y despliegue sin piloto.',
+    symptoms: [
+      'Tickets masivos con "access denied by policy" o rebotes al login a la misma hora.',
+      'El pico arranca justo tras un despliegue de política, un cambio de VPN o sede, o un upgrade de plataforma.',
+      'Los afectados comparten perfil: misma sede, mismos remotos o el mismo grupo.',
+    ],
+    level: 'Alcance y contención vs Política (auth/IP) vs Session store vs Despliegue y drift',
+    checks: [
+      {
+        check: 'Alcance de la ola y vitalidad de la plataforma',
+        command: 'curl -s -o /dev/null -w "%{http_code}" "https://{{VERIFY_TENANT}}.verify.ibm.com/oidc/endpoint/default/.well-known/openid-configuration"',
+        result: '200: el tenant de IBM Verify responde; para ISAM u OAM on-prem el equivalente es el estado del clúster en la consola (LMI o EM): la ola no es un apagón de plataforma.',
+        next: 'Si el tenant NO responde (timeout o 5xx): la ola es un incidente de la plataforma de identidad, no de política: tratarla como caída del access manager. Si responde 200: si el pico coincide con un cambio conocido (política nueva, IP de sede o VPN, upgrade): checks 2 a 4. Si no hay cambio conocido: descartar el session store (check 5) antes de culpar a una política.',
+      },
+      {
+        check: 'El objeto protegido y su política (ISAM)',
+        command: 'pdadmin -a sec_master -p {{SEC_MASTER_PWD}}',
+        result: 'El prompt pdadmin> contra el policy server de ISAM.',
+        next: 'Ejecutar acl find /WebSEAL/{{WSEAL_INSTANCE}}/{{JUNCTION}} y luego acl show <ACL>: si el ACL pegado al junction cambió o no incluye al grupo de los afectados: esa es la denegación (RB-IAM-032). Si el ACL está intacto: nivel de autenticación o IP de la política (checks 3 y 4).',
+      },
+      {
+        check: 'Lo que la política exige vs lo que la base puede presentar',
+        result: 'El nivel de autenticación exigido (step-up, segundo factor) contrastado con los métodos que los usuarios tienen registrados.',
+        next: 'Si la política subió el nivel (p. ej. OTP) y los usuarios no tienen el factor registrado: la política llegó antes que la campaña de registro: desplegar por grupos o aplazar el step-up (RB-IAM-032; TS-IAM-011 es el mismo patrón en Entra). Si todos PUEDEN cumplir: rango de IP (check 4).',
+      },
+      {
+        check: 'Rangos de IP de la política vs egress real',
+        result: 'Las IPs o rangos de confianza de la política (sedes, VPN) contra el egress REAL de los afectados.',
+        next: 'Si la sede o la VPN cambió de IP (rotación del proveedor, migración a cloud) y la política quedó con el rango viejo: actualizar la condición de IP (RB-IAM-032). Si los afectados son remotos que la política nunca contempló: exclusión quirúrgica y temporal con caducidad, nunca desactivar la política entera (TS-IAM-011 aplica el patrón).',
+      },
+      {
+        check: 'Session store del access manager (OAM)',
+        result: 'Los usuarios autentican pero la sesión no persiste y rebotan al login: parece bloqueo masivo pero es sesión.',
+        next: 'En OAM 12c: revisar oamconsole (http://{{OAM_HOST}}:7001/oamconsole) → System Configuration → Session (duración e idle) y el estado del session store en EM (http://{{OAM_HOST}}:7001/em): un store degradado revienta sesiones masivamente: repararlo primero (RB-IAM-033). Si las sesiones se sostienen y el bloqueo es de autenticación pura: checks 2 a 4.',
+      },
+      {
+        check: 'Drift de política entre nodos del clúster',
+        result: 'Todos los nodos o appliances con la misma versión de política desplegada (mismo comportamiento para la misma condición).',
+        next: 'Si a unos les deniega y a otros no con la misma condición: la política no replicó pareja: en ISAM forzar el despliegue pendiente en el LMI (https://{{ISAM_LMI}}:9943 → Deploy Changes) y revisar el clúster; en OAM verificar el despliegue del cluster en EM. Si están parejos: la causa era de datos (checks 2 a 5).',
+      },
+    ],
+    remediation: '30% política desplegada a todos sin piloto (nivel de autenticación o condición que la base no puede cumplir), 25% rango de IPs de la política desactualizado (VPN o sede cambió de egress), 20% session store degradado (autentican pero la sesión muere y parece bloqueo masivo), 15% step-up exigido sin campaña de registro del factor, 10% drift de política entre nodos del clúster (replicación a medias).',
+    verification: 'Un grupo piloto autentica y MANTIENE la sesión, la tasa de éxito de login de la plataforma vuelve a la línea base (stats del access manager), y el cambio queda registrado en el historial con despliegue escalonado por grupos.',
+    tags: ['ibm verify', 'isam', 'isva', 'oam', 'pdadmin', 'webseal', 'acl', 'lmi', 'oamconsole', 'session store', 'politica', 'bloqueo masivo', 'step-up', 'deploy changes'],
+  },
+  {
+    id: 'TS-IAM-027',
+    pillar: 'IAM',
+    title: 'RBAC: los permisos del rol no aplican al usuario',
+    problem: 'El usuario tiene (o debería tener) un rol RBAC pero los permisos efectivos no aparecen y la escalera separa la definición del rol (matriz), la membresía real, el modo de evaluación (token o runtime), el anidamiento y las denegaciones.',
+    symptoms: [
+      'El usuario es miembro del rol pero la app muestra "acceso denegado" o la opción no aparece.',
+      'La matriz del taller dice que el rol incluye ese permiso y la app no lo otorga.',
+      'Los miembros antiguos del rol funcionan y las altas nuevas no (o al revés).',
+    ],
+    level: 'Definición del rol (matriz) vs Membresía real vs Evaluación (token/runtime) vs Reglas y denegaciones',
+    checks: [
+      {
+        check: 'Membresía real del rol (directa y anidada)',
+        command: 'Get-ADPrincipalGroupMembership {{SAM}} -Recursive | ft Name',
+        result: 'El grupo del rol en la lista, con la membresía directa y la anidada resueltas.',
+        next: 'Si el grupo del rol NO aparece: el usuario no tiene el rol: el alta quedó a medias o es un rol homónimo (Ventas-Carpetas-R vs Ventas-Carpetas-RW): asignar el correcto por el proceso (RB-IAM-011). Si aparece: el problema es de evaluación o de definición (checks 2 a 5).',
+      },
+      {
+        check: 'Cómo evalúa la app el rol',
+        result: 'La app resuelve los roles al login (claims del token) o en tiempo real contra el directorio.',
+        next: 'Si los resuelve al login: los tokens o la sesión del usuario aún llevan los grupos viejos: re-login completo o revocar sesión (TS-IAM-005 checks 3 y 6). Si los consulta en runtime: la membresía ya debería verse: pasar a la definición (check 3).',
+      },
+      {
+        check: 'La matriz del rol vs la implementación en la app',
+        result: 'El rol R configurado en la app con el permiso P sobre el recurso X, tal como dice la matriz del taller (RB-IAM-034).',
+        next: 'Si la matriz promete el permiso pero el rol de la app nunca lo tuvo configurado (matrix drift): implementar el permiso en el rol de la app con firma del dueño y realinear la matriz (RB-IAM-034). Si la app sí lo tiene y el usuario no lo recibe: denegación o anidamiento (checks 4 y 5).',
+      },
+      {
+        check: 'Denegaciones y roles en conflicto',
+        result: 'El inventario de TODOS los roles del usuario: ninguno con una denegación que pise el permiso.',
+        next: 'Si el usuario tiene además un rol denegatorio o un permiso que colisiona (el modelo aplica el más restrictivo o el deny gana): retirar el conflicto o documentar la decisión con el dueño del rol. Si no hay conflicto: anidamiento (check 5).',
+      },
+      {
+        check: 'Anidamiento real del grupo del rol',
+        command: 'Get-ADGroupMember {{ROLE_GROUP}} -Recursive | ft Name, ObjectClass',
+        result: 'La cadena completa: usuario → grupo del rol → grupo que la app lee.',
+        next: 'Si el grupo del rol está anidado DENTRO del grupo que la app lee y la app solo resuelve un nivel (aplana al primer nivel): la membresía indirecta es invisible: mover al usuario al grupo plano que la app lee o aplanar la estructura (TS-IAM-005 check 2 es el mismo patrón). Si el anidamiento resuelve bien: dinámicas (check 6).',
+      },
+      {
+        check: 'Reglas dinámicas del rol',
+        command: 'Get-MgUser -UserId {{USERNAME}} -Property Department, JobTitle | fl Department, JobTitle',
+        result: 'Los atributos que la regla dinámica del rol evalúa (departamento, cargo) al día.',
+        next: 'Si el rol es dinámico y el atributo no cumple la regla (departamento viejo tras una transferencia): la membresía jamás llegará: corregir el atributo o la regla (TS-IAM-018 check 2). Si el rol es asignado y todo cuadra: prueba efectiva (check 7).',
+      },
+      {
+        check: 'Prueba efectiva con el log de la app',
+        result: 'La app deniega una acción concreta y su log nombra el permiso o el rol exacto que faltó.',
+        next: 'Si el log dice "missing permission X" o "requires role Y": contrastar ESA cadena con la matriz (check 3): casi siempre el permiso existe con otro nombre o vive en otro rol. Si la app ni siquiera evalúa el rol (no aparece en su log): su integración con el directorio o IdP está rota: revisar el conector (TS-IAM-028 si consulta LDAP).',
+      },
+    ],
+    remediation: '30% matrix drift: la matriz del taller promete un permiso que el rol de la app nunca tuvo configurado, 20% tokens o sesión con los grupos viejos (falta re-login: TS-IAM-005), 15% anidamiento que la app no resuelve (membresía indirecta invisible), 15% rol dinámico cuyo atributo no cumple la regla, 10% rol denegatorio o conflicto donde el deny gana, 10% el usuario está en otro rol homónimo (naming parecido).',
+    verification: 'Tras un login nuevo el usuario ejecuta de punta a punta la acción del rol, la matriz y la configuración del rol en la app quedan idénticas (con firma del dueño) y la próxima access review confirma los permisos efectivos del rol.',
+    tags: ['rbac', 'roles', 'matriz', 'role engineering', 'membership', 'nested groups', 'grupo dinamico', 'deny', 'matrix drift', 'permisos efectivos', 're-login'],
+  },
+  {
+    id: 'TS-IAM-028',
+    pillar: 'IAM',
+    title: 'LDAP: bind falla o consultas lentas',
+    problem: 'Una app no logra enlazar contra el directorio (o sus consultas tardan decenas de segundos) y la escalera separa credenciales y bind DN, puerto 389 vs 636/LDAPS y firma, el filtro e índice de las consultas y los límites del servidor.',
+    symptoms: [
+      'La app reporta error 49 (invalid credentials), "stronger auth required" o no contacta el DC.',
+      'Las búsquedas tardan 30 segundos o más, o devuelven siempre los mismos mil resultados.',
+      'Empezó tras reorganizar OUs, endurecer el DC o cambiar la contraseña de la cuenta de servicio.',
+    ],
+    level: 'Credenciales y bind DN vs Puerto y TLS (389/636) vs Consulta (base/filtro/índice) vs Límites y referencias',
+    checks: [
+      {
+        check: 'Reproducir el bind fuera de la app',
+        command: 'ldp.exe',
+        result: 'ldp.exe conecta al DC (Connection → Connect: {{DC}}, puerto 636 con SSL) y enlaza (Connection → Bind: Simple, DN completo y contraseña) con error 0x00.',
+        next: 'Si ldp enlaza con las MISMAS credenciales y DN: la app tiene mal su configuración (host, DN o puerto): corregir su config, no el directorio. Si ldp falla igual que la app: credenciales o infraestructura (checks 2 a 4).',
+      },
+      {
+        check: 'La cuenta de bind y su DN real',
+        command: 'Get-ADUser -LDAPFilter "(sAMAccountName={{SVC_LDAP}})" -Properties DistinguishedName, Enabled | fl SamAccountName, DistinguishedName, Enabled',
+        result: 'El DN real de la cuenta de servicio y la cuenta habilitada.',
+        next: 'Si el DN configurado en la app difiere del real (OU reorganizada, objeto movido): actualizar la configuración de la app: es el clásico tras una reorganización. Si el DN coincide pero Enabled False o la contraseña venció: seguir por TS-IAM-008 (cuenta de servicio). Si todo cuadra: puerto y TLS (check 3).',
+      },
+      {
+        check: 'Puerto 389 vs 636 y firma LDAP',
+        command: 'Test-NetConnection {{DC}} -Port 636',
+        result: 'TcpTestSucceeded True al LDAPS (636) desde el servidor de la app.',
+        next: 'Si la app enlaza por 389 sin firmar y el DC exige firma (política Domain controller: LDAP server signing requirements): el bind muere con "stronger auth required" (código 8): pasar la app a LDAPS o firmar el bind (RB-IAM-035). Si va por 636 pero el TLS falla: certificado del DC (check 4).',
+      },
+      {
+        check: 'El certificado LDAPS del DC',
+        command: 'openssl s_client -connect {{DC}}:636 -showcerts < /dev/null | openssl x509 -noout -subject -dates',
+        result: 'El certificado que el DC presenta en 636: vigente y con el FQDN del DC en el SAN.',
+        next: 'Si está vencido, no existe o no cubre el FQDN con el que la app lo llama: renovar o reinscribir el certificado del DC (plantilla Kerberos Authentication con autoinscripción): el TLS de 636 muere antes del bind. Si el certificado está sano: firma o puerto (check 3) o el bind mismo (check 2).',
+      },
+      {
+        check: 'El filtro y la base DN de las consultas lentas',
+        result: 'El filtro de la app sobre un atributo indexado y la base DN lo más estrecha posible.',
+        next: 'Si el filtro usa un atributo sin índice (employeeID, description) sobre la raíz del dominio: cada consulta recorre la partición completa: reestructurar el filtro sobre atributos indexados (sAMAccountName, objectCategory, member) o acotar la base (check 6 antes de tocar el schema).',
+      },
+      {
+        check: 'Índice del atributo en el esquema',
+        command: 'Get-ADObject -SearchBase "CN=Schema,CN=Configuration,DC={{DOMAIN}},DC=local" -LDAPFilter "(lDAPDisplayName={{ATTR}})" -Properties searchFlags | fl Name, searchFlags',
+        result: 'searchFlags con el bit 1 activo: el atributo del filtro está indexado.',
+        next: 'Si el bit 1 no está: el atributo no está indexado: priorizar cambiar el filtro (check 5); indexar exige cambio de schema en el maestro y ventana nocturna: decidirlo con el dueño del AD, no en medio del incidente. Si ya está indexado y sigue lenta: límites o referencias (check 7).',
+      },
+      {
+        check: 'Límites del servidor y referencias entre dominios',
+        command: 'ntdsutil "ldap policies" "connections" "connect to server {{DC}}" "q" "show values" "q" "q"',
+        result: 'MaxPageSize 1000 y demás límites LDAP vigentes del DC.',
+        next: 'Si la app trunca en exactamente 1000 resultados: hace consultas sin paginación: implementar paged results en la app (no subir MaxPageSize a ciegas). Si el problema es que "no encuentra" objetos de OTRO dominio: no sigue las referencias o debería consultar al catálogo global (3268/3269): ajustar la app o su base DN.',
+      },
+    ],
+    remediation: '30% bind DN desactualizado tras reorganizar OUs (o formato equivocado: DN completo vs dominio\\usuario vs UPN), 25% bind simple sin firmar rechazado por la política de firma LDAP (debe ir por 636 o firmado: RB-IAM-035), 15% certificado LDAPS del DC vencido o sin el FQDN en el SAN, 15% consulta lenta por filtro en atributo sin índice con base DN demasiado ancha, 10% referencias entre dominios sin seguir (o consultar al GC 3268 en vez del DC), 5% truncado en MaxPageSize 1000 por queries sin paginación.',
+    verification: 'Bind desde el servidor de la app con ldp.exe por 636 usando el DN configurado: error 0x00; una consulta con el filtro real de la app responde en menos de un segundo; sin eventos 2888/2889 nuevos en el DC para la IP de la app.',
+    tags: ['ldap', 'ldaps', 'bind', 'bind dn', '389', '636', 'signing', 'ldp.exe', 'searchflags', 'indice', 'maxpagesize', 'referral', 'gc', 'consulta lenta'],
+  },
+  {
+    id: 'TS-IAM-029',
+    pillar: 'IAM',
+    title: 'FIDO2/passkey: registro o verificación falla',
+    problem: 'El registro de una passkey (o su verificación en el login) falla y la escalera separa los requisitos del navegador y el origen, la política de métodos de autenticación, la clave por tenant y el fallback para no dejar al usuario fuera.',
+    symptoms: [
+      'El navegador muestra NotAllowedError, NotSupportedError o SecurityError al registrar la llave.',
+      'El usuario registra la passkey pero el login no la acepta (o solo falla en algunos equipos).',
+      'Tras una migración o recreación de usuarios, nadie puede usar sus llaves.',
+    ],
+    level: 'Navegador (WebAuthn) vs Origen y relying party vs Política de métodos (AAGUID) vs Clave por tenant y fallback',
+    checks: [
+      {
+        check: 'El error exacto del navegador',
+        command: 'if (window.PublicKeyCredential) { console.log("WebAuthn soportado") } else { console.log("WebAuthn NO soportado") }',
+        result: 'En DevTools (F12 → Console): WebAuthn soportado, y el DOMException exacto del intento fallido.',
+        next: 'NotAllowedError: el usuario canceló, el origen no es HTTPS o el navegador no está habilitado (checks 2 y 3). NotSupportedError: el navegador o el SO no soportan WebAuthn o no ven autenticador (check 2). InvalidStateError: la credencial ya estaba registrada en ese equipo (check 6). SecurityError: el dominio no coincide con el relying party (check 3).',
+      },
+      {
+        check: 'Navegador y sistema operativo soportados',
+        result: 'Navegador actualizado (Chrome, Edge, Firefox o Safari recientes) sobre Windows 10 1809+ (o macOS o Android al día).',
+        next: 'Si el equipo tiene un navegador gestionado desactualizado o una política corporativa que bloquea la llave (USB restringido, quiosco): actualizar o exceptuar según la política: es un requisito de plataforma, no un fallo de Entra ni de la llave. Si el navegador está al día: origen (check 3).',
+      },
+      {
+        check: 'Origen del registro: HTTPS y relying party',
+        result: 'El registro corre sobre https y el relying party es el dominio del servicio (en las passkeys de Entra: login.microsoft.com).',
+        next: 'Si el intento es sobre http interno (o un subdominio distinto al rp.id): WebAuthn se niega por diseño (SecurityError o NotAllowedError): registrar desde el dominio correcto (aka.ms/mysecurityinfo o el prompt del login). Si el origen está bien: política (check 4).',
+      },
+      {
+        check: 'Política de métodos de autenticación (passkey/FIDO2)',
+        command: 'Get-MgPolicyAuthenticationMethodPolicy | Select-Object -ExpandProperty AuthenticationMethodConfigurations | Where-Object { $_.AdditionalProperties."@odata.type" -eq "#microsoft.graph.fido2AuthenticationMethodConfiguration" } | fl Id, State',
+        result: 'State enabled y los grupos incluidos en la política de passkey (FIDO2).',
+        next: 'Si State disabled o el grupo del usuario no está incluido (despliegue piloteado): activar o incluir con el dueño (RB-IAM-036). Si está habilitada con key restrictions: el AAGUID de la llave del usuario debe figurar en la lista (check 5). Si una política de Conditional Access exige fuerza phishing-resistant y el usuario autentica con TOTP: el login cae aunque el método exista (hermano de TS-IAM-011).',
+      },
+      {
+        check: 'El AAGUID de la llave contra la lista permitida',
+        result: 'En Protection → Authentication methods → Passkey (FIDO2) → Key restrictions: la lista de AAGUID permitidos con el modelo de la llave del usuario dentro.',
+        next: 'Si el modelo del usuario no está (compraron llaves de otra marca): el registro falla por política: extender la lista con aprobación de seguridad o entregar llaves del modelo aprobado (RB-IAM-036). Si la llave está permitida y el registro aún falla: clave huérfana o equipo (check 6).',
+      },
+      {
+        check: 'La clave vive: por tenant y por objeto de usuario',
+        command: 'Get-MgUserAuthenticationMethod -UserId {{USERNAME}} | fl Id, AdditionalProperties',
+        result: 'Los fido2Methods del usuario listados (o vacíos si ya no existen).',
+        next: 'Si el usuario "ya tenía" passkey pero fido2Methods viene vacío: el objeto de usuario fue recreado o el tenant migró (las credenciales FIDO2 se atan al usuario y al tenant y no viajan): campaña de re-registro (RB-IAM-036, y TS-IAM-003 para el TAP). Si los métodos existen pero el usuario intenta con OTRA llave nueva sin registrar: registrarla: cada llave es una credencial aparte. Si el registro funciona pero falla el inicio de WINDOWS: check 7.',
+      },
+      {
+        check: 'El fallback mientras se corrige',
+        command: 'New-MgUserAuthenticationTemporaryAccessPassMethod -UserId {{USERNAME}} -LifetimeInMinutes 60 -IsUsableOnce $true',
+        result: 'Un Access Pass temporal de un solo uso para que el usuario entre y registre la passkey en la misma sesión.',
+        next: 'Entregar el Access Pass por canal verificado (como en TS-IAM-002 y TS-IAM-003) y re-registrar todo en la MISMA sesión. Si el objetivo era firmar el inicio de Windows con la llave: requiere hybrid join y el credential provider habilitado (no basta con la web): eso es alcance del despliegue (RB-IAM-036), no un defecto del registro.',
+      },
+    ],
+    remediation: '25% navegador u OS sin soporte (o equipo gestionado que bloquea la llave), 20% la política de passkeys deshabilitada o el grupo no incluido (piloteo), 20% el AAGUID de la llave fuera de la lista permitida, 15% las credenciales quedaron huérfanas por recreación del usuario o migración de tenant (re-registro), 10% intento sobre http o dominio distinto al relying party, 10% se esperaba la llave en el login de Windows sin hybrid join ni credential provider habilitado.',
+    verification: 'El usuario registra la passkey en su navegador habitual sobre HTTPS, Get-MgUserAuthenticationMethod la lista entre sus métodos, un login nuevo la ofrece y la acepta, y un compañero bloqueado recupera el acceso con TAP y re-registra.',
+    tags: ['fido2', 'passkey', 'webauthn', 'aaguid', 'security key', 'passwordless', 'authentication methods', 'notallowederror', 'relying party', 'tap', 'fido2methods', 'phishing-resistant'],
+  },
+  {
+    id: 'TS-IAM-030',
+    pillar: 'IAM',
+    title: 'Access review: la revocación no surte efecto',
+    problem: 'La review o certificación revocó un acceso pero el usuario sigue entrando y la escalera separa el estado real de la revocación (pendiente o fallida), los tokens y tickets que aún viven, la caché de la app y las segundas vías de acceso.',
+    symptoms: [
+      'El revisor revocó hace semanas y el usuario sigue abriendo el recurso.',
+      'El dashboard de la review muestra el ítem como revocado y el sistema fuente lo contradice.',
+      'El re-test de auditoría encuentra el acceso vivo que la campaña dice cerrado.',
+    ],
+    level: 'Estado de la revocación vs Sesiones y tokens vigentes vs Caché de la app vs Segunda vía de acceso',
+    checks: [
+      {
+        check: 'El estado real del ítem en la herramienta de review',
+        command: 'Get-MgIdentityGovernanceAccessReviewDefinition -AccessReviewDefinitionId {{DEF_ID}} | Select-Object -ExpandProperty Settings | fl AutoApplyDecisionsEnabled',
+        result: 'En Entra: AutoApplyDecisionsEnabled True (los resultados se aplican solos al terminar); en SailPoint: el ítem con remediation completada (no Pending ni Failed).',
+        next: 'Si Entra tiene auto-apply apagado y la instancia terminó: la decisión del revisor existe pero NADIE la ejecutó: aplicar los resultados de la instancia (Identity Governance → Access reviews) y encender auto-apply para la próxima (RB-IAM-015). Si SailPoint muestra Remediation Failed: el error del ítem (check 6). Si el ítem está aplicado y el acceso sigue: fuente (check 2).',
+      },
+      {
+        check: 'La fuente de verdad directamente',
+        command: 'Get-ADGroupMember {{GROUP}} | Where-Object SamAccountName -eq "{{SAM}}"',
+        result: 'El usuario SIN membresía en el grupo fuente: la revocación llegó al sistema de origen.',
+        next: 'Si SIGUE en la fuente: la revocación nunca se ejecutó o falló el conector (RB-IAM-028), o se revocó en el sistema equivocado: un grupo sincronizado de AD editado en la nube se revierte en el próximo ciclo (TS-IAM-006). Si ya no está: tokens o caché (checks 3 y 4).',
+      },
+      {
+        check: 'Tokens, sesiones y tickets vigentes',
+        command: 'Revoke-MgUserSignInSession -UserId {{USERNAME}}',
+        result: 'Sesiones y refresh tokens de Entra invalidados; en el equipo, klist purge y cierre de sesión completo de Windows (el ticket Kerberos lleva los grupos del momento en que se emitió).',
+        next: 'Si tras un login NUEVO el acceso cae: eran los tokens o sesiones viejas (esperar 60-90 minutos o revocar SIEMPRE al revocar: política). Si tras re-login sigue con acceso: caché de la app o segunda vía (checks 4 y 5).',
+      },
+      {
+        check: 'La caché de la aplicación',
+        result: 'La app re-evalúa los permisos en el próximo login o provisión SCIM, no en tiempo real.',
+        next: 'Si la app lee los grupos al login y cachea: cerrar sesión COMPLETA y reabrir (TS-IAM-005 check 4). Si se aprovisiona por SCIM (Okta incluido) y el job no bajó el cambio: forzar el provisioning on demand y leer el error de ESE usuario (RB-IAM-026).',
+      },
+      {
+        check: 'La segunda vía de acceso',
+        command: 'Get-MgUserMemberOf -UserId {{USERNAME}} -All | ForEach-Object { $_.DisplayName } | Sort-Object -Unique',
+        result: 'La lista completa de grupos y roles del usuario: ninguna otra membresía otorga el mismo recurso.',
+        next: 'Si hay una segunda membresía (o un permiso directo) que también da acceso y quedó FUERA del alcance de la review: revocarla también y ampliar el alcance de la próxima campaña (RB-IAM-027 y la matriz de TS-IAM-027): la review cerró una puerta y el usuario entró por la otra. Si no hay segunda vía: remediación en la fuente correcta (check 6).',
+      },
+      {
+        check: 'La remediación en la fuente correcta (SailPoint)',
+        result: 'El ítem de certificación con el target source y el error exacto de la remediación (p. ej. cuenta no encontrada tras un rename: 404 del conector).',
+        next: 'Si la remediación fue al conector equivocado o la cuenta cambió de nombre y el revoke no la encontró: corregir el matching y re-ejecutar la remediación (RB-IAM-028, con el rename documentado como en TS-IAM-022). Si la remediación está completada y validada en la fuente: cerrar con la verificación del check 3 y registrar el re-test para el auditor.',
+      },
+    ],
+    remediation: '30% la revocación quedó pendiente o falló en la fuente (conector o queue: nunca se ejecutó), 25% sesiones y tokens vivos con los grupos viejos (faltó revocar sesión o re-login), 20% la review terminó pero los resultados no se aplicaron (auto-apply apagado o apply manual olvidado), 15% el acceso llegaba por una segunda vía fuera del alcance de la review, 10% se revocó en el sistema equivocado (grupo sincronizado editado en la nube y revertido por el sync).',
+    verification: 'Un login nuevo del usuario recibe denegación del recurso, la fuente (AD o la app) muestra la membresía retirada, el ítem de la review queda en estado aplicado o remediado y el re-test del auditor o de la próxima campaña ya no lo encuentra.',
+    tags: ['access review', 'certificacion', 'revocacion', 'auto apply', 'apply results', 'revoke', 'tokens', 'klist', 'kerberos', 'cache', 'scope', 'sailpoint', 'entra'],
   },
 ];
 

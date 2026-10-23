@@ -10,7 +10,7 @@ import { insertHtmlInEditable } from '../../utils/domInsert';
 import { savePdfBlob, getPdfBlobById } from '../../utils/pdfStorage';
 import {
   useVaultVideoEmbeds, useImageInsert, runSanitizedPaste, runFileDrop,
-  VideoAccessBanner, VideoHiddenInputs, stripBlobUrls,
+  VideoAccessBanner, VideoHiddenInputs, ImageAccessBanner, ImageHiddenInputs, stripBlobUrls,
 } from './editorMedia';
 import { AutoToc } from './AutoToc';
 import { sanitizeHtml } from '../../utils/sanitizeHtml';
@@ -173,8 +173,19 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     videoInputRef, relinkInputRef,
   } = useVaultVideoEmbeds({ editorRef, onContentChange: handleContentInput, figureShadow: true });
 
-  // Image insert: data-URL image stored in db.images owned by this note.
-  const { handleImageFile } = useImageInsert({
+  // Image insert: REGLA DE ORO imágenes — si hay carpeta GITHUBVAULT configurada
+  // el archivo se copia al disco (data-vault-img="…"); si no, data-URL legacy
+  // en db.images (propietario de esta nota).
+  const {
+    handleImageFile,
+    attachImageSources,
+    handleRelinkImageFiles,
+    grantImageAccess,
+    missingImageCount,
+    fsNeedsImagePermission,
+    noImagesDir,
+    relinkImageInputRef,
+  } = useImageInsert({
     editorRef,
     onContentChange: handleContentInput,
     owner: { noteId: note.id },
@@ -206,15 +217,15 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       // older Dexie record. Sanitize before innerHTML to prevent stored
       // XSS (<script>, <img onerror>, javascript: URLs). Pure & offline.
       editorRef.current.innerHTML = sanitizeHtml(contentRef.current);
-      // Deferred: attachVideoSources/attachPdfSources resolve asynchronously
-      // from IndexedDB and update state afterwards (never during the effect
-      // body).
-      void Promise.resolve().then(() => Promise.all([attachVideoSources(), attachPdfSources()]));
+      // Deferred: attachVideoSources/attachImageSources/attachPdfSources resolve
+      // asynchronously from IndexedDB/the disk folder and update state
+      // afterwards (never during the effect body).
+      void Promise.resolve().then(() => Promise.all([attachVideoSources(), attachImageSources(), attachPdfSources()]));
       // Keep latestHtmlRef in sync on load so a rapid switch before any
       // keystroke still has the loaded content (not just the prop).
       latestHtmlRef.current = editorRef.current.innerHTML;
     }
-  }, [note.id, attachVideoSources, attachPdfSources]);
+  }, [note.id, attachVideoSources, attachImageSources, attachPdfSources]);
 
   const execCmd = (command: string, value: string | undefined = undefined) => {
     document.execCommand(command, false, value);
@@ -443,6 +454,22 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         relinkInputRef={relinkInputRef}
         onVideoFile={handleVideoFile}
         onRelinkFiles={handleRelinkFiles}
+      />
+
+      {/* REGLA DE ORO (imágenes) — banner espejo del de videos para los
+          embeds de carpeta (data-vault-img="…"): permiso perdido y/o
+          archivos que no están en la carpeta. */}
+      <ImageAccessBanner
+        variant="bar" noun="nota"
+        fsNeedsPermission={fsNeedsImagePermission}
+        noImagesDir={noImagesDir}
+        missingImageCount={missingImageCount}
+        onGrantAccess={() => void grantImageAccess()}
+        onFindFiles={() => relinkImageInputRef.current?.click()}
+      />
+      <ImageHiddenInputs
+        relinkImageInputRef={relinkImageInputRef}
+        onRelinkImageFiles={handleRelinkImageFiles}
       />
 
       {/* Breadcrumb */}
