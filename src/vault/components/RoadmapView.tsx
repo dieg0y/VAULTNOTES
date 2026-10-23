@@ -23,9 +23,9 @@ import { downloadBlob } from '../utils/downloadBlob';
 /**
  * RoadmapView — checklist interactivo del ROADMAP DEFINITIVO:
  * Junior IAM / Identity Security Analyst (3 tiers + proyecto final,
- * 23 fases). El contenido vive en data/roadmapData.ts; el estado (done)
- * persiste en la tabla Dexie `roadmapItems` → viaja en los backups ZIP
- * → sobrevive en el USB.
+ * 30 fases, 315 ítems). El contenido vive en data/roadmapData.ts; el
+ * estado (done) persiste en la tabla Dexie `roadmapItems` → viaja en
+ * los backups ZIP → sobrevive en el USB.
  *
  * v19 — GENERALIZADO: la misma vista renderiza los DOS roadmaps vía la
  * prop `variant`:

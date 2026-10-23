@@ -1249,7 +1249,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El agente de AD importa usuarios y grupos del piloto, cada atributo del perfil tiene origen documentado, los roles admin quedaron repartidos con Super Admin restringido, y un usuario de prueba entra al Dashboard con la app del piloto asignada por grupo.',
     escalation: 'Líder de IAM + Arquitectura (decisiones de fuente de autoridad por atributo, dominios personalizados o write-back hacia AD: son cambios de arquitectura del piloto, no ajustes de consola)',
-    relatedTerms: ['Okta Workforce', 'Universal Directory', 'Identity Provider (IdP)', 'Mapeo de atributos (attribute mapping)', 'Grupos de seguridad de AD'],
+    relatedTerms: ['Okta Workforce', 'Universal Directory (Okta)', 'Identity Provider (IdP)', 'Mapeo de atributos (attribute mapping)', 'Grupos de seguridad de AD'],
     relatedTickets: ['iam-036', 'iam-033']
   },
   {
@@ -1763,7 +1763,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El analista distingue ISAM (appliance, WebSEAL/junctions, pdadmin) de Verify (SaaS, cloud directory, sign-on policies), la demo publicó una app legacy con junction y probó una sign-on policy con FIDO2, y la matriz del landscape tiene la posición de ambos con costos visibles.',
     escalation: 'Líder de IAM + Arquitectura (appliance on-prem vs. SaaS es decisión de plataforma y de costo de operación a multi-año)',
-    relatedTerms: ['IBM Security Verify', 'ISAM (IBM Security Access Manager)', 'Federación (identidad federada)', 'Directivas de acceso condicional', 'PDP y PEP (decisión y aplicación de política)'],
+    relatedTerms: ['IBM Security Verify', 'IBM Security Access Manager (ISAM)', 'Federación (identidad federada)', 'Directivas de acceso condicional', 'PDP y PEP (decisión y aplicación de política)'],
     relatedTickets: ['iam-038', 'iam-034']
   },
   {
@@ -1810,7 +1810,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El equipo explica el flujo WebGate → OAM Server → backend con un diagrama propio, ubica la oamconsole y los jobs de recon de OIG, y la matriz de evaluación registra ventajas (integración Oracle nativa) y costos (middleware, know-how) con evidencia del PoC.',
     escalation: 'Líder de IAM + dueño del ERP (la integración con el ecosistema Oracle del negocio la valida el dueño del sistema: el equipo IAM evalúa la plataforma, no la funcionalidad del ERP)',
-    relatedTerms: ['Oracle Access Manager (OAM)', 'Oracle Identity Governance (OIG)', 'WebGate', 'Identity Governance & Administration (IGA)', 'Flujo de aprobación'],
+    relatedTerms: ['Oracle Access Manager (OAM)', 'Oracle Identity Governance (OIG)', 'WebGate (OAM)', 'Identity Governance & Administration (IGA)', 'Flujo de aprobación'],
     relatedTickets: ['iam-027', 'iam-029']
   },
   {
@@ -1996,7 +1996,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El bind y el filtro de cada app crítica se reproducen exitosamente en ldp.exe contra 389 y 636, el certificado LDAPS del DC está vigente con el nombre correcto, y el inventario documenta bind DN, SearchBase y filtro de cada app que consulta el directorio.',
     escalation: 'Infra y Ops (salud del directorio: índices, carga de consultas, certificados de los DC) / Dueño de la aplicación (bind y filtros del lado de la app)',
-    relatedTerms: ['LDAP', 'LDAPS', 'Bind DN', 'Distinguished Name (DN)', 'Catálogo global (Global Catalog)', 'Filtro LDAP (LDAP filter)'],
+    relatedTerms: ['LDAP', 'LDAPS', 'Bind DN', 'Distinguished Name (DN)', 'Catálogo global (Global Catalog)', 'Filtro de búsqueda LDAP'],
     relatedTickets: ['iam-016', 'iam-012']
   },
   {
@@ -2274,7 +2274,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'Cada app del inventario tiene su modelo documentado (protocolo, iniciación, vencimientos con dueño), la prueba de los tres casos pasó con evidencia en el sign-in log, y ninguna app quedó con certificado o secret sin fecha de vencimiento registrada.',
     escalation: 'Líder de IAM + Dueño de la aplicación (decisiones de protocolo y modelo en apps críticas, y el alta de apps legacy: el modelo se firma con el dueño del sistema)',
-    relatedTerms: ['Federación (identidad federada)', 'SAML 2.0', 'OpenID Connect (OIDC)', 'Home realm discovery (HRD)', 'Kerberos (TGT / ST)', 'SP-initiated SSO'],
+    relatedTerms: ['Federación (identidad federada)', 'SAML 2.0', 'OpenID Connect (OIDC)', 'Home Realm Discovery (HRD)', 'Kerberos (TGT / ST)', 'SP-initiated SSO'],
     relatedTickets: ['iam-033', 'iam-036']
   },
   {

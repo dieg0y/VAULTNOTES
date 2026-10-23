@@ -132,6 +132,9 @@ const ENVIRONMENTS: IamEnvironment[] = [
 const WORKED_STATUSES: IamTicketStatus[] = ['resuelto', 'escalado', 'cerrado'];
 /** Estados abiertos (trabajo pendiente). */
 const OPEN_STATUSES: IamTicketStatus[] = ['nuevo', 'en_progreso'];
+/** Default estable del useLiveQuery de tickets (patrón EMPTY_* del módulo —
+ * evita un [] inline nuevo en cada render). */
+const EMPTY_IAM_TICKETS: IamTicket[] = [];
 
 const DAY_LABELS: Array<{ day: number; title: string; theme: string }> = [
   { day: 1, title: 'Día 1', theme: 'Atestación de roles: kickoff de la campaña y el primer bloque de certificación' },
@@ -635,11 +638,11 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
 
           {/* Nota de cierre */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor={`sa-note-${ticket.id}`} className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <label htmlFor={`iam-note-${ticket.id}`} className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
               {isWorked || ticket.statusNote ? 'Nota de cierre (tu evidencia)' : 'Nota de cierre — requerida para resolver o escalar'}
             </label>
             <textarea
-              id={`sa-note-${ticket.id}`}
+              id={`iam-note-${ticket.id}`}
               value={noteDraft}
               onChange={(e) => {
                 setNoteDraft(e.target.value);
@@ -939,9 +942,10 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
   const selectTicket = useIamStore((s) => s.selectTicket);
   const clearSelectedTicket = useIamStore((s) => s.clearSelectedTicket);
 
-  const tickets = useLiveQuery(() => db.iamTickets.filter((t) => !t.isDeleted).toArray(), [], []);
+  const tickets = useLiveQuery(() => db.iamTickets.filter((t) => !t.isDeleted).toArray(), [], EMPTY_IAM_TICKETS);
 
-  const activeTickets = useMemo(() => tickets.filter((t) => !t.isDeleted), [tickets]);
+  // La query ya excluye isDeleted — no hace falta re-filtrar aquí.
+  const activeTickets = tickets;
 
   // Dos modos de orden: por número (histórico) o por prioridad (P1 → P4, y
   // dentro de cada prioridad por número — útil para trabajar la cola como

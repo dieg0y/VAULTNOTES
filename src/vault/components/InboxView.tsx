@@ -78,7 +78,9 @@ export const InboxView: React.FC<InboxViewProps> = ({
     const content = (item.content || '').trim();
     const now = new Date().toISOString();
     const ref: ReferenceItem = {
-      id: 'ref-' + Date.now(),
+      // AUDIT (V13): entropía extra — dos conversiones en el mismo ms
+      // colisionarían la clave primaria de references (VN-A-001 pattern).
+      id: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       type: 'link',
       title: content,
       url: '',

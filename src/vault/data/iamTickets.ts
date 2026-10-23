@@ -1125,5 +1125,3 @@ export const IAM_TICKET_SEEDS: IamTicketSeed[] = [
     "isFinalProject": true
   }
 ];
-
-export const IAM_TICKETS_COUNT = IAM_TICKET_SEEDS.length;

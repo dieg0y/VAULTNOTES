@@ -6,8 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -215,7 +215,7 @@
   outline: none;
 }
 .vault-editor-content pre {
-  font-family: var(--font-jetbrains-mono), var(--font-geist-mono), monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 .vault-editor-content:empty::before,
 .vault-editor-content > p:only-child:empty::before {
@@ -242,7 +242,7 @@
   text-align: center;
   color: #b91c1c;
   font-size: 0.75rem;
-  font-family: var(--font-jetbrains-mono), var(--font-geist-mono), monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   background: rgba(185, 28, 28, 0.08);
 }
 
@@ -260,6 +260,6 @@
   text-align: center;
   color: #b91c1c;
   font-size: 0.75rem;
-  font-family: var(--font-jetbrains-mono), var(--font-geist-mono), monospace;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
   background: rgba(185, 28, 28, 0.08);
 }

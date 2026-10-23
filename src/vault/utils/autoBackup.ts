@@ -190,40 +190,46 @@ async function writeOneAutoBackup(): Promise<string> {
 
 async function runBackupCycle(): Promise<void> {
   if (inFlight) return;
-
-  // Folder health (silent query only — NEVER requestPermission from here:
-  // that requires a user gesture and would throw).
-  const permOk = await isAppFolderPermissionGranted();
-  if (state.permOk !== permOk) {
-    state = { ...state, permOk };
-    notify();
-  }
-
-  if (!state.enabled) return;
-  if (!state.dirty || state.running) return;
-  if (Date.now() < nextAttemptAt) return;
-  const sinceLast = Date.now() - (state.lastOkAt ?? 0);
-  if (state.lastOkAt !== null && sinceLast < state.intervalMin * 60_000) return;
-  if (!permOk) return; // waits silently until a gesture refreshes permission
-
+  // AUDIT (V13): el guard se setea SINCRÓNICAMENTE antes del primer await —
+  // antes se evaluaba al inicio pero solo se asignaba tras el await de
+  // isAppFolderPermissionGranted(), así que dos ticks solapados pasaban
+  // ambos el check y duplicaban la escritura del ZIP en un mismo ciclo.
   inFlight = true;
-  state = { ...state, running: true, lastError: null };
-  notify();
   try {
-    await writeOneAutoBackup();
-    state = { ...state, dirty: false, lastOkAt: Date.now(), lastError: null };
-    persist();
-  } catch (err) {
-    state = {
-      ...state,
-      lastError: err instanceof Error ? err.message : 'Error desconocido durante el respaldo',
-    };
-    nextAttemptAt = Date.now() + ERROR_COOLDOWN_MS;
-    persist();
+    // Folder health (silent query only — NEVER requestPermission from here:
+    // that requires a user gesture and would throw).
+    const permOk = await isAppFolderPermissionGranted();
+    if (state.permOk !== permOk) {
+      state = { ...state, permOk };
+      notify();
+    }
+
+    if (!state.enabled) return;
+    if (!state.dirty || state.running) return;
+    if (Date.now() < nextAttemptAt) return;
+    const sinceLast = Date.now() - (state.lastOkAt ?? 0);
+    if (state.lastOkAt !== null && sinceLast < state.intervalMin * 60_000) return;
+    if (!permOk) return; // waits silently until a gesture refreshes permission
+
+    state = { ...state, running: true, lastError: null };
+    notify();
+    try {
+      await writeOneAutoBackup();
+      state = { ...state, dirty: false, lastOkAt: Date.now(), lastError: null };
+      persist();
+    } catch (err) {
+      state = {
+        ...state,
+        lastError: err instanceof Error ? err.message : 'Error desconocido durante el respaldo',
+      };
+      nextAttemptAt = Date.now() + ERROR_COOLDOWN_MS;
+      persist();
+    } finally {
+      state = { ...state, running: false };
+      notify();
+    }
   } finally {
     inFlight = false;
-    state = { ...state, running: false };
-    notify();
   }
 }
 

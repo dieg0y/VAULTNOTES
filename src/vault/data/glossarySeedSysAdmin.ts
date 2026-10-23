@@ -754,7 +754,10 @@ export const GLOSSARY_SEED_SYSADMIN_TERMS: SeedTerm[] = [
   },
   {
     id: "seed-sa-snapshot",
-    term: "Snapshot",
+    // LIMPIEZA V13: renombrado con sufijo de dominio — antes duplicaba por
+    // nombre al término base y el seed (dedupe por nombre normalizado)
+    // jamás lo sembraba: su definición SysAdmin era dato muerto.
+    term: "Snapshot (VM)",
     acronym: undefined,
     category: "SysAdmin - Virtualización",
     shortDefinition: "Punto en el tiempo de una VM o volumen: congela el estado para revertir en segundos; NO es un respaldo (comparte el mismo almacenamiento).",
@@ -1132,7 +1135,9 @@ export const GLOSSARY_SEED_SYSADMIN_TERMS: SeedTerm[] = [
   },
   {
     id: "seed-sa-playbook",
-    term: "Playbook",
+    // LIMPIEZA V13: sufijo de dominio (Ansible) — antes duplicaba al término
+    // base y nunca se sembraba.
+    term: "Playbook (Ansible)",
     acronym: undefined,
     category: "SysAdmin - Automatización",
     shortDefinition: "Archivo YAML de Ansible que declara el estado deseado: tareas con módulos, handlers y variables aplicadas a los hosts del inventario.",
@@ -1159,7 +1164,9 @@ export const GLOSSARY_SEED_SYSADMIN_TERMS: SeedTerm[] = [
   },
   {
     id: "seed-sa-runbook",
-    term: "Runbook",
+    // LIMPIEZA V13: sufijo de dominio — antes duplicaba al término base y
+    // nunca se sembraba.
+    term: "Runbook (operaciones)",
     acronym: undefined,
     category: "SysAdmin - Automatización",
     shortDefinition: "Procedimiento documentado paso a paso para una operación o incidente recurrente: diagnóstico con comandos, criterios de decisión y punto de escala.",

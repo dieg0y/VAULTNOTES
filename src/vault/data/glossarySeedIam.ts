@@ -2,7 +2,7 @@ import type { SeedTerm } from './glossarySeedBase';
 
 /**
  * glossarySeedIam — capa de plataformas y vendors IAM/PAM del seed del glosario
- * (77 términos, ids iam-seed-101..).
+ * (80 términos, ids iam-seed-101..180).
  *
  * Cuarto bloque del seed aditivo, alineado con la expansión masiva del pilar
  * IAM (KB de Okta, SailPoint, Ping, ForgeRock, IBM, Oracle, PAM, roles y LDAP).
@@ -729,5 +729,32 @@ export const GLOSSARY_SEED_IAM_TERMS: SeedTerm[] = [
     shortDefinition: "El mecanismo por el que navegador y servidor negocian la identidad Kerberos sobre HTTP, sin que el usuario teclee nada.",
     longDefinition: "SPNEGO (Simple and Protected GSSAPI Negotiation Mechanism) es el envoltorio que permite a una app web pedir el ticket del usuario: el servidor responde con WWW-Authenticate: Negotiate y el navegador envía la credencial GSSAPI en la cabecera Authorization. Es el login integrado de IIS/Apache en dominios Windows, donde dentro de la red corporativa no se ve el formulario. El pitfall clásico: la negociación cae a NTLM cuando Kerberos falla y la app parece funcionar igual — viaja NTLM sin que nadie lo note, así que el hardening exige rechazar NTLM en los endpoints que deben ser solo Kerberos. El analyst lo depura con el SPN HTTP de la cuenta del app pool, la delegación y klist del cliente.",
     example: "El portal interno abre sin pedir contraseña porque el navegador negoció Kerberos por SPNEGO; en la filial sí pide login y la causa es un SPN HTTP faltante en la cuenta del app pool.",
+  },
+  {
+    id: "iam-seed-178",
+    term: "Política de autenticación",
+    acronym: undefined,
+    category: "IAM - Auth / MFA",
+    shortDefinition: "El conjunto de reglas del IdP que decide QUÉ factores exige cada intento de login: por app, por red, por dispositivo y por riesgo.",
+    longDefinition: "La política de autenticación es la capa de decisión que convierte el MFA de un checkbox en un control diferencial: qué factor se exige (password, OTP, push, FIDO2), para qué app, desde qué red (trusted IP vs. acceso público), con qué postura de dispositivo (managed, compliant, desconocido) y con qué nivel de riesgo del intento. En Okta se materializa como autenticación por app con grupos de factors; en Entra como Conditional Access; en Ping como políticas de PingFederate + PingID; en ISAM como policies por junta de WebSEAL. La política bien diseñada es un abanico: la app de nómina desde una red no confiable exige phishing-resistant MFA, la wiki interna desde la red corporativa pasa con SSO del contexto. El pitfall del analista: una sola política global con un solo factor para todo — o peor, excepciones permanentes 'por urgencia' que nadie revisita; la política es un artefacto vivo con dueño, revisión periódica y excepciones con caducidad.",
+    example: "La app de nómina se configura con política estricta (FIDO2 + dispositivo compliance desde fuera de la red corporativa) y la wiki con SSO simple; el reporte de sign-ins muestra que el abanico funciona: los accesos sensibles pasan por el factor fuerte y el resto no genera fricción.",
+  },
+  {
+    id: "iam-seed-179",
+    term: "Role model (modelo de roles)",
+    acronym: undefined,
+    category: "IAM - IGA",
+    shortDefinition: "El diseño formal de roles de acceso: nombre, propósito, permisos incluidos, dueño y reglas de membresía, alineado a la estructura del negocio.",
+    longDefinition: "El role model es la arquitectura que traduce la organización al lenguaje de accesos: cada rol (agente de soporte N2, analista de nómina, administrador de ERP) tiene definición de negocio, entitlements exactos, dueño que responde por él, reglas de asignación (birthright por puesto, por atributo, solicitable con aprobación) y relaciones entre roles (jerarquías, exclusiones por SoD, roles base + roles específicos). Se diseña en tres pasos: top-down (definiciones del negocio), bottom-up (role mining sobre permisos reales) y la reconciliación de ambos con criterios (¿el rol refleja el puesto real o el histórico acumulado?). Un role model sano es lo que hace escalable el JML: el nuevo de un puesto recibe SU rol, no una lista ad-hoc de grupos. El pitfall: roles-basura que replican el pasado ('Rol de Juan Pérez'), roles huérfanos sin dueño y la explosión de roles (más roles que personas); la métrica de salud es cuántos accesos se explican por rol vs. cuántos quedan como excepción.",
+    example: "El nuevo analista de nómina entra y su onboarding es una sola acción: asignar el rol 'Analista de nómina N1' que arrastra 6 grupos de AD, 2 licencias y el acceso al ERP con perfil de consulta; el modelo de roles reemplazó la checklist manual de 15 líneas.",
+  },
+  {
+    id: "iam-seed-180",
+    term: "Build vs. buy",
+    acronym: undefined,
+    category: "IAM - IGA",
+    shortDefinition: "La decisión de construir el IAM interno (scripts/herramientas propias) frente a comprar una plataforma (IGA/PAM/IdP comercial o SaaS).",
+    longDefinition: "Es la decisión de arquitectura que atraviesa toda la madurez IAM: automatizar el ciclo de vida con scripts PowerShell contra AD y listas de RR. HH. (build) o desplegar una plataforma IGA que trae conectores, aprobaciones y certificaciones listas (buy). A favor de build: costo de licencia cero, control total, aprendizaje profundo del dominio; en contra: cada conector, cada reporte de auditoría y cada campaña de certificación se construye a mano, el conocimiento vive en personas y la deuda crece. A favor de buy: conectores probados, gobernanza empacada (SoD, campañas, evidencia para auditores), roadmap del fabricante; en contra: costo, dependencia del vendor y proyectos de despliegue que toman meses. La respuesta madura casi nunca es 100/0: las plataformas cubren el ciclo de vida y la gobernanza core, y el equipo construye la capa de integración propia (scripts de higiene, reportes internos, automatización de esquinas raras). El analyst debe saber argumentar el trade-off con criterios: nº de sistemas, volumen de JML, exigencias de auditoría y capacidad real del equipo.",
+    example: "La auditoría exige certificaciones trimestrales y el equipo evalúa: los scripts internos no dejan evidencia firmable; se compra IGA para el ciclo de vida y campañas, y los scripts propios quedan solo para la higiene diaria del AD — el balance que sostiene el presupuesto y la gobernanza.",
   },
 ];

@@ -32,18 +32,11 @@ import type { ToolDeepLink } from './components/ToolsView';
 // (mismo módulo cacheado ⇒ instanceof de las clases de error sigue válido).
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
-// HELPDESK (v19) — navigation bridge: el Dashboard/la KB pueden pedir abrir
-// la sección Service Desk (con ticket seleccionado vía helpdeskStore).
-import { useHelpdeskStore } from './store/helpdeskStore';
-// SYSADMIN (v21) — navigation bridge: espejo del helpdeskStore para el
-// simulador SysAdmin Ops (sección sysadmin).
-import { useSysadminStore } from './store/sysadminStore';
-// SOC (v9 simulador) — navigation bridge: espejo de los stores de los
-// otros dos simuladores (sección soc).
-import { useSocStore } from './store/socStore';
-// IAM (V11 · PILAR 1) — navigation bridge: espejo de los stores de los
-// otros simuladores (sección iam).
-import { useIamStore } from './store/iamStore';
+// LIMPIEZA V13: retirados los imports de los stores de navegación de los 4
+// simuladores (useHelpdeskStore/useSysadminStore/useSocStore/useIamStore) —
+// su única consumer en el shell era la cadena navigateRequest muerta. Los
+// stores siguen vivos: los consumen sus vistas (HelpDeskView, SysAdminView,
+// SocView, IamView) para la selección de tickets.
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -346,49 +339,11 @@ export default function App() {
   // V9 — deep-links de guías de troubleshooting por pilar (TS-XX-NNN).
   const [pendingTroubleshootingId, setPendingTroubleshootingId] = useState<string | null>(null);
 
-  // HELPDESK (v19) — one-shot navigation request al Service Desk (deep-link
-  // de ticket desde el helpdeskStore).
-  const hdNavigateRequest = useHelpdeskStore((s) => s.navigateRequest);
-  const consumeHdNavigate = useHelpdeskStore((s) => s.consumeNavigate);
-  useEffect(() => {
-    if (hdNavigateRequest > 0) {
-      setActiveSection('helpdesk');
-      consumeHdNavigate();
-    }
-  }, [hdNavigateRequest, consumeHdNavigate]);
-
-  // SYSADMIN (v21) — one-shot navigation request a SysAdmin Ops (deep-link
-  // de ticket desde el sysadminStore). Espejo del patrón HelpDesk.
-  const saNavigateRequest = useSysadminStore((s) => s.navigateRequest);
-  const consumeSaNavigate = useSysadminStore((s) => s.consumeNavigate);
-  useEffect(() => {
-    if (saNavigateRequest > 0) {
-      setActiveSection('sysadmin');
-      consumeSaNavigate();
-    }
-  }, [saNavigateRequest, consumeSaNavigate]);
-
-  // SOC (v9 simulador) — one-shot navigation request al SOC (deep-link de
-  // caso desde el socStore). Espejo del patrón HelpDesk/SysAdmin.
-  const socNavigateRequest = useSocStore((s) => s.navigateRequest);
-  const consumeSocNavigate = useSocStore((s) => s.consumeNavigate);
-  useEffect(() => {
-    if (socNavigateRequest > 0) {
-      setActiveSection('soc');
-      consumeSocNavigate();
-    }
-  }, [socNavigateRequest, consumeSocNavigate]);
-
-  // IAM (V11 · PILAR 1) — one-shot navigation request al simulador IAM
-  // (deep-link de ticket desde el iamStore). Espejo del patrón de los otros.
-  const iamNavigateRequest = useIamStore((s) => s.navigateRequest);
-  const consumeIamNavigate = useIamStore((s) => s.consumeNavigate);
-  useEffect(() => {
-    if (iamNavigateRequest > 0) {
-      setActiveSection('iam');
-      consumeIamNavigate();
-    }
-  }, [iamNavigateRequest, consumeIamNavigate]);
+  // LIMPIEZA V13: retirada la cadena `navigateRequest` de los 4 stores de
+  // simuladores (requestNavigate jamás tenía callers y sus efectos aquí
+  // nunca disparaban — código muerto documentado en falso). La navegación
+  // sigue siendo onSelectSection; selectTicket sigue vivo para la
+  // selección del ticket dentro de cada vista.
 
   // Set initial selected note if none selected (prefer a top-level note)
   useEffect(() => {
@@ -962,7 +917,9 @@ export default function App() {
 
   // Export ZIP Backup handler (real "Save": overwrites the same file every time)
   const [backupSavedMessage, setBackupSavedMessage] = useState<string | null>(null);
-  const handleExportBackup = async () => {
+  // PERF V13: useCallback — sin él cada re-render de App (cada flush del
+  // autoguardado) recrea el handler y derrota el React.memo del Header.
+  const handleExportBackup = useCallback(async () => {
     try {
       setIsExporting(true);
       const { exportVaultZip } = await import('./utils/zipBackup');
@@ -984,10 +941,10 @@ export default function App() {
     } finally {
       setIsExporting(false);
     }
-  };
+  }, []);
 
   // Import Incremental Backup handler
-  const handleImportFile = async (file: File) => {
+  const handleImportFile = useCallback(async (file: File) => {
     // El módulo se carga ANTES del try/catch de importación para que las
     // clases de error usadas en los instanceof vengan del MISMO módulo
     // cacheado. Los callers lo invocan fire-and-forget desde inputs de
@@ -1026,7 +983,7 @@ export default function App() {
       console.error('Import error:', err);
       alert('Error al leer el archivo de backup. Asegúrate de que sea un .zip o .json válido.');
     }
-  };
+  }, []);
 
   // BLOQUE 5 — Command palette dispatch (Ctrl+K command entries).
   // Resolves a `commandId` produced by fuzzySearch.getCommandEntries() into
