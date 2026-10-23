@@ -6,7 +6,7 @@
  * agregan una sola vez (dedupe por nombre normalizado, incluidos los
  * soft-deleted). NUNCA sobrescribe ediciones del usuario.
  *
- * Contenido: 194 términos base (IAM ~75% + GRC + SOC),
+ * Contenido: 180 términos base auditados (IAM ~75% + GRC + SOC):
  * generado desde los packs curados originales + ampliado en
  * glossarySeedMore.ts. Definiciones en español, orientadas al rol
  * (IAM Analyst: JML, access reviews, SoD, Entra ID, AD, Okta).
@@ -123,15 +123,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     example: "Query guardada en ADUC de habilitados sin login en 90 días para el barrido trimestral: clic derecho, exportar lista y sin abrir PowerShell.",
   },
   {
-    id: "seed-alerta",
-    term: "Alerta",
-    acronym: undefined,
-    category: "SOC Tier 1 - Triage",
-    shortDefinition: "Notificación generada por una regla de detección al cumplirse sus condiciones sobre eventos.",
-    longDefinition: "La unidad mínima de trabajo del SOC, distinta del evento (un log crudo) y del incidente (un caso confirmado que requiere respuesta). Una alerta llega enriquecida con contexto y se clasifica en falso o verdadero positivo tras revisarla. El enemigo número uno del SOC es el exceso de alertas: la fatiga del analista degrada el triage, por eso se mide y se tunea la precisión de cada regla.",
-    example: "La alerta 4412 llega con usuario, IP y recuento: 30 bloqueos smart lockout en una hora elevan lo que era una alerta suelta a incidente de password spraying.",
-  },
-  {
     id: "seed-analisis-de-cabeceras-de-correo",
     term: "Análisis de cabeceras de correo",
     acronym: undefined,
@@ -157,15 +148,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     shortDefinition: "Documento XML firmado por el IdP que afirma la identidad del usuario ante el SP.",
     longDefinition: "Contiene el sujeto (NameID), las condiciones (ventana de validez NotBefore/NotOnOrAfter y audience) y las declaraciones de atributos y de autenticación. Es el artefacto que se inspecciona cuando el SSO falla: se captura con SAML Tracer, se revisa el claim que falta o sobra y se ajusta el mapeo. La firma del IdP sobre la assertion es lo que evita que un atacante la falsifique.",
     example: "El usuario no ve su rol en la app: revisas la AttributeStatement de la assertion, falta el atributo de departamento y lo añades al mapeo de claims de la Enterprise App.",
-  },
-  {
-    id: "seed-attestation",
-    term: "Attestation",
-    acronym: undefined,
-    category: "IAM - IGA",
-    shortDefinition: "Declaración formal de un responsable de que los accesos revisados son correctos.",
-    longDefinition: "Es el componente formal de la certificación: convierte una revisión en evidencia con firma, fecha, alcance y responsable identificado. Auditores y reguladores no piden solo que se haya revisado, sino que alguien con autoridad lo ateste. En la práctica se materializa como la firma del informe de campaña o del PDF de revisión; su ausencia es hallazgo típico de auditoría.",
-    example: "El CIO firma la attestation anual de accesos privilegiados: ese documento con firma y fecha es la primera evidencia que pide el auditor de SOX.",
   },
   {
     id: "seed-attribute-based-access-control-abac",
@@ -202,15 +184,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     shortDefinition: "Interna (mejora continua, reporta al comité) vs externa (independiente: regulador o firma).",
     longDefinition: "La interna es función de la organización: da assurance y consultoría, reporta al comité de auditoría y suele ser tu aliada para empujar mejoras. La externa llega con mandato: auditor statutory (SOX), organismo de certificación (ISO 27001) o cliente (SOC 2, due diligence). Ambas piden evidencia de IAM, pero la externa muestrea con criterio más estricto y sus hallazgos tienen consecuencias contractuales o legales.",
     example: "La interna sugiere ampliar la cobertura de reviews al 100 por ciento; la externa de SOX emite hallazgo material directamente por el 12 por ciento de bajas sin evidencia.",
-  },
-  {
-    id: "seed-autenticacion-passwordless",
-    term: "Autenticación passwordless",
-    acronym: undefined,
-    category: "IAM - Auth / MFA",
-    shortDefinition: "Login sin contraseña dentro del flujo de acceso: el control lo ejercen dispositivos y directivas.",
-    longDefinition: "Desde la óptica de access management, el passwordless cambia la operación: las directivas pueden exigir authentication strengths (mínimo resistente a phishing, que solo passkeys y WHfB cumplen), el helpdesk reduce resets al eliminarse la contraseña y las métricas de adopción por método de autenticación pasan a ser el tablero del programa. La migración es por olas: piloto, usuarios sin fricción, usuarios con fricción, admins.",
-    example: "Directiva con authentication strength que exige método resistente a phishing para las apps sensibles: passkeys y WHfB pasan, el OTP de SMS queda fuera.",
   },
   /* ---- B ---- */
   {
@@ -386,15 +359,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     example: "El usuario Oracle compartido por 6 técnicos se sube al PAM con checkout nominal y grabación de sesión: cada acción vuelve a tener responsable identificable.",
   },
   {
-    id: "seed-cuentas-con-riesgo",
-    term: "Cuentas con riesgo",
-    acronym: undefined,
-    category: "IAM - Access Management",
-    shortDefinition: "Cuentas con user risk elevado que requieren acción: confirmar, descartar o remediar.",
-    longDefinition: "La lista operativa del analyst: cuentas marcadas por filtraciones, malware o confirmaciones previas. Acciones posibles desde Identity Protection: confirm user compromised (fuerza protección), dismiss risk (falso positivo documentado) y reset de contraseña. Cada decisión debe quedar justificada porque es el sample que el auditor revisará: el riesgo no se descarta sin argumento.",
-    example: "Informe semanal: 9 cuentas en riesgo; confirmas 1, descartas 4 por viajes conocidos y fuerzas reset en las 4 restantes, todo documentado en el ticket del caso.",
-  },
-  {
     id: "seed-cumplimiento-compliance",
     term: "Cumplimiento (compliance)",
     acronym: undefined,
@@ -423,15 +387,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     example: "El discovery de Delinea localiza 900 service accounts con contraseñas de más de un año en AD y las agenda para rotación automática en el Secret Server.",
   },
   {
-    id: "seed-deteccion-de-riesgo-en-tiempo-real",
-    term: "Detección de riesgo en tiempo real",
-    acronym: undefined,
-    category: "IAM - Access Management",
-    shortDefinition: "Evaluación del riesgo durante el propio login para decidir en el momento: bloquear o retar.",
-    longDefinition: "Las detecciones real-time se evalúan durante la autenticación (IP anónima, propiedades de login desconocidas, malware en la conexión), a diferencia de las offline, que llegan después con inteligencia de amenazas. La contrapartida es la latencia: más señales en caliente, login más lento. Ajustar la sensibilidad para no castigar a los usuarios legítimos (viajeros, VPN) es parte del tuning.",
-    example: "El login desde TOR se evalúa en el momento y se bloquea con reto de MFA: eso es detección en tiempo real, no un reporte que llega el lunes.",
-  },
-  {
     id: "seed-device-compliance",
     term: "Device compliance",
     acronym: undefined,
@@ -448,15 +403,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     shortDefinition: "Regla que pone fecha de caducidad a una asignación: al llegar, se retira salvo renovación.",
     longDefinition: "Es el antídoto estructural contra el entitlement creep: las asignaciones temporales se vuelven la norma (365 días por defecto en los paquetes de acceso, 90 para externos). Antes de vencer, el sistema avisa al usuario y al aprobador; si nadie renueva, la asignación se elimina sola. Se aplica a paquetes, invitaciones B2B y asignaciones PIM.",
     example: "Los accesos del proveedor caducan cada 90 días con recordatorio al sponsor 14 días antes: si nadie renueva, la asignación desaparece y el reporte lo confirma.",
-  },
-  {
-    id: "seed-directivas-de-acceso-condicional",
-    term: "Directivas de acceso condicional",
-    acronym: undefined,
-    category: "IAM - Access Management",
-    shortDefinition: "Cada política individual del motor de CA: asignaciones (quién, apps, condiciones) y controles.",
-    longDefinition: "El set mínimo recomendado: baseline (bloquear legacy auth y exigir MFA), directiva para invitados, para admins y por geografía. Operación sana: convención de nombres, exclusiones solo para cuentas break-glass documentadas, y revisión periódica porque las directivas se solapan y contradicen. Las plantillas y el modo report-only son tus amigos al desplegar cambios.",
-    example: "Revisión mensual de directivas: detectas dos solapadas que se contradicen (una exige MFA y otra excluye al mismo grupo) y las consolidas en una baseline única.",
   },
   {
     id: "seed-directorio-directory-service",
@@ -575,15 +521,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     shortDefinition: "Consola de Entra para el riesgo de identidades: detecta, informa y remedia cuentas comprometidas.",
     longDefinition: "Herramienta concreta (dentro de Entra) donde se operan las detecciones de riesgo: informes de risky users y risky sign-ins, detalle de cada detección y acciones (confirmar compromiso, descartar, forzar reset), además de las políticas de riesgo. Exporta todo vía Graph API hacia el SIEM para correlacionar. Es la primera pantalla de respuesta cuando el SOC escala un caso de identidad.",
     example: "Abres Entra ID Protection tras el aviso del SOC: 3 usuarios en riesgo alto; confirmas uno, descartas dos con justificación y adjuntas el informe exportado al caso.",
-  },
-  {
-    id: "seed-escalamiento",
-    term: "Escalamiento",
-    acronym: undefined,
-    category: "SOC Tier 1 - Triage",
-    shortDefinition: "Transferir un caso a nivel superior u otro equipo (IR, IAM, red) por gravedad o especialidad.",
-    longDefinition: "El escalamiento no es soltar el caso: viaja con notas de handover (qué se vio, qué se probó, qué falta) hacia T2, IR o los dueños del sistema afectado. Los criterios y umbrales (severidad, activos, propagación) están definidos en la matriz del SOC, y el SLA de escalamiento se mide. El objetivo: el caso correcto en las manos correctas en minutos.",
-    example: "T1 escala a T2 con el handover completo: spraying confirmado y el 20 por ciento de usuarios sin MFA; incluye IOCs, acciones ya tomadas y la pregunta abierta.",
   },
   {
     id: "seed-evidencia-evidence",
@@ -786,15 +723,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     shortDefinition: "Gestión de la identidad desde el alta hasta la baja, incluyendo sus estados intermedios.",
     longDefinition: "Ciclo completo de una identidad: creación, activación, modificación de atributos, suspensión temporal (baja o excedencia), deshabilitación y borrado con retención. Cada estado debe tener dueño, SLA y evidencia. Una buena gestión del lifecycle responde preguntas de auditoría como: cuándo se deshabilitó, quién lo autorizó y qué accesos conservaba al momento de la baja.",
     example: "Para la fusión de dos empresas, mapeas los estados del lifecycle (activo, suspendido, archivado) de 2.000 identidades antes de consolidarlas en un único directorio.",
-  },
-  {
-    id: "seed-identity-protection",
-    term: "Identity Protection",
-    acronym: undefined,
-    category: "IAM - Access Management",
-    shortDefinition: "Capa de detección y respuesta del riesgo de identidades: señales, niveles y remediación.",
-    longDefinition: "El motor de riesgo de Entra: produce detecciones que alimentan el sign-in risk y el user risk, permite políticas automáticas de respuesta y cola de investigación. Sus informes diarios (risky users, risky sign-ins, detecciones) son la primera pantalla de la mañana del analyst. Las detecciones llegan también al SIEM vía Graph API para correlacionar con el resto de telemetría.",
-    example: "Abres Identity Protection a primera hora: 3 usuarios en riesgo alto; confirmas el del servicio de compras, descartas dos por viajes conocidos y generas el informe para el SOC.",
   },
   {
     id: "seed-identity-provider-idp",
@@ -1163,15 +1091,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     example: "Revisas las asignaciones del grupo Contractors en Okta: 3 apps que el contrato ya no cubre; quitas asignaciones, documentas en el ticket y la regla de grupo evita que vuelvan.",
   },
   {
-    id: "seed-onboarding-offboarding-de-accesos",
-    term: "Onboarding / Offboarding de accesos",
-    acronym: undefined,
-    category: "IAM - IGA",
-    shortDefinition: "Secuencias de concesión inicial y retirada total de accesos ligadas a entrada y salida.",
-    longDefinition: "Onboarding: birthright, rol y peticiones específicas, idealmente listas el día 1 (el primer día sin acceso es productividad perdida). Offboarding: checklist multissistema (cuentas, grupos, tokens, correo con reenvío, datos, hardware) con SLA corto y evidencia completa. Ambos deben dispararse desde el HR de forma automática; el manual es el estado intermedio que se audita y se corrige.",
-    example: "El offboarding en ServiceNow lanza 14 tareas automáticas (AD, Entra, Okta, VPN, apps certificadas, badge) y el ticket no cierra hasta adjuntar la evidencia de cada una.",
-  },
-  {
     id: "seed-one-time-password-otp",
     term: "One-Time Password (OTP)",
     acronym: "OTP",
@@ -1372,15 +1291,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     example: "El VPN pide contraseña y luego un OTP: es el RADIUS server (NPS) reenviando la autenticación al proveedor de MFA; al modernizar el VPN pasas a SAML con acceso condicional.",
   },
   {
-    id: "seed-recertificacion",
-    term: "Recertificación",
-    acronym: undefined,
-    category: "IAM - IGA",
-    shortDefinition: "Nueva ronda de certificación de accesos ya aprobados para confirmar que siguen justificados.",
-    longDefinition: "La periodicidad se ajusta a la criticidad del acceso (90, 180 o 365 días) y el alcance puede ser total (recertificar todo) o incremental (solo lo que cambió). Sin recertificación, una aprobación de hace tres años sigue vigente aunque el contexto haya cambiado: cambio de puesto, reorganización o nueva regulación. La recertificación vence los accesos que nadie defendió.",
-    example: "El acceso a la aplicación de RRHH se recertifica cada seis meses; en la última ronda se revocó el 8 por ciento porque los revisores no encontraron justificación vigente.",
-  },
-  {
     id: "seed-refresh-token",
     term: "Refresh token",
     acronym: undefined,
@@ -1397,15 +1307,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     shortDefinition: "Estado de un usuario respecto a los métodos exigidos para poder resetear por sí mismo.",
     longDefinition: "Sin registro no hay SSPR: el usuario cae en llamada al helpdesk, que es justo lo que se quería evitar. El combined registration registra a la vez MFA y SSPR, y las registration campaigns (nudge) empujan al usuario a registrarse al entrar en los portales. El reporte de cobertura de registro por grupo es el insumo para decidir si puedes endurecer las directivas sin romper el acceso.",
     example: "Reporte de cobertura: 88 por ciento registrado; lanzas la nudge campaign en el portal para llegar al 95 por ciento y cortar las llamadas de reset nocturnas.",
-  },
-  {
-    id: "seed-reglamento-interno",
-    term: "Reglamento interno",
-    acronym: undefined,
-    category: "GRC - Riesgo y Marco Normativo",
-    shortDefinition: "Normativa propia aprobada por la dirección que obliga dentro de la organización.",
-    longDefinition: "La capa regulatoria interna: reglamento de uso de sistemas, política de clasificación de datos, normas de acceso. Se aplica con consecuencias disciplinarias y su enforcement técnico es trabajo IAM: la directiva que bloquea el acceso desde países no aprobados materializa el reglamento en la práctica. Sin enforcement medible, un reglamento es literatura.",
-    example: "El reglamento prohíbe compartir cuentas: al detectar el mismo usuario con sesiones simultáneas desde dos países se activa el procedimiento disciplinario documentado.",
   },
   {
     id: "seed-remediacion",
@@ -1506,15 +1407,6 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     shortDefinition: "Estándar REST/JSON para gestionar identidades y grupos en aplicaciones de forma estándar.",
     longDefinition: "System for Cross-domain Identity Management: operaciones CRUD sobre /Users y /Groups con filtrado estandarizado. Es el lenguaje común del provisioning entre IdP y SaaS: cada app que soporta SCIM 2.0 se puede provisionar sin conector a medida. Como analyst, configuras el endpoint, el token y el mapeo de atributos cada vez que se integra una app nueva.",
     example: "Al cambiar el correo del usuario en el directorio, el update SCIM corrige su cuenta en la SaaS en minutos: sin ticket, sin script, sin intervención manual.",
-  },
-  {
-    id: "seed-scim-provisioning",
-    term: "SCIM Provisioning",
-    acronym: undefined,
-    category: "IAM - IGA",
-    shortDefinition: "Aprovisionamiento automático de cuentas vía SCIM: altas, cambios y bajas sincronizadas.",
-    longDefinition: "El IdP (o IGA) escribe en las apps vía SCIM: crea, actualiza y desactiva usuarios según las asignaciones y el mapeo. Puntos que vigila el analyst: el join criteria (evitar duplicados), si la baja es soft (active: false) o delete, y los provisioning logs, donde aparecen los errores de sincronización que hay que corregir caso a caso.",
-    example: "Revisas los provisioning logs: 12 usuarios con error de conflicto por correo duplicado; corriges el join criteria del mapeo y re-sincronizas hasta que la cola queda en cero.",
   },
   {
     id: "seed-scope",
@@ -1742,25 +1634,7 @@ export const GLOSSARY_SEED_BASE_TERMS: SeedTerm[] = [
     longDefinition: "La táctica es el objetivo (acceder a credenciales), la técnica el cómo (password spraying) y el procedimiento la variante concreta (spraying nocturno con diccionario en español). A diferencia del IOC, el TTP no rota: el actor cambia de IP pero repite comportamiento. La detección de TTPs es más durable y es el criterio de madurez de la ingeniería de detecciones.",
     example: "El actor rota IPs en cada oleada, pero su TTP de spraying nocturno con user agents viejos se repite: detectas el patrón, no la dirección.",
   },
-  {
-    id: "seed-two-factor-authentication-2fa",
-    term: "Two-Factor Authentication (2FA)",
-    acronym: "2FA",
-    category: "IAM - Auth / MFA",
-    shortDefinition: "Caso particular de MFA con exactamente dos factores de tipos distintos.",
-    longDefinition: "Dos pasos no son automáticamente dos factores: contraseña más PIN son dos cosas que sabes, no 2FA. El 2FA correcto combina tipos distintos (contraseña + OTP, contraseña + llave). En la práctica el término se usa mal en marketing y documentación; como analyst, el matiz importa al definir requisitos de seguridad y estándares tipo NIST AAL.",
-    example: "El portal clásico pide contraseña y OTP por SMS: es 2FA; al migrar a passkey + llave FIDO2 pasas a MFA resistente a phishing, el objetivo del estándar interno.",
-  },
   /* ---- U ---- */
-  {
-    id: "seed-user-provisioning",
-    term: "User provisioning",
-    acronym: undefined,
-    category: "IAM - IGA",
-    shortDefinition: "Creación y actualización de cuentas en los sistemas destino a partir de la identidad fuente.",
-    longDefinition: "El proceso que materializa la identidad en cada aplicación: conectores (SCIM, LDAP, API), mapeo de atributos (cómo se llaman los campos en origen y destino) y criterios de emparejamiento (join criteria, p. ej. employeeId o correo). Los fallos de provisioning (atributos que no llegan, cuentas duplicadas) son tickets diarios del analyst. Se complementa con el deprovisioning para cerrar el ciclo.",
-    example: "Mapeo en Okta: el userPrincipalName de AD alimenta el login de Okta, y este a su vez provisiona Slack y Workday según las asignaciones: una sola fuente, varios destinos.",
-  },
   {
     id: "seed-user-risk-riesgo-de-usuario",
     term: "User risk (riesgo de usuario)",

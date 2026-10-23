@@ -3,9 +3,11 @@
  * (checklist con estado) para guardarlo, pegarlo en una IA o
  * compartirlo. Mismo patrón que profileExport.
  *
- * v19: se generalizó el builder para soportar los DOS roadmaps:
+ * v19: se generalizó el builder para soportar los CUATRO roadmaps
  *  - IAM (roadmapData.ts — Junior IAM / Identity Security Analyst)
  *  - HelpDesk (roadmapHelpDeskData.ts — HelpDesk / IT Support → IAM)
+ *  - SOC (roadmapSocData.ts — SOC Analyst L1/P2)
+ *  - SysAdmin (roadmapSysAdminData.ts — SysAdmin L1/L2)
  * Las firmas públicas originales se mantienen intactas.
  */
 

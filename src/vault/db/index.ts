@@ -675,7 +675,7 @@ const DEMO_CLEANUP_FLAG = 'vault-demo-content-removed';
  * Mismo patrón que SEED_DISMISSED_KEY del glosario, pero por id (no por
  * nombre). */
 const SEED_DISMISSED_IDS_KEY = 'vn-seed-dismissed-ids';
-export type HdSeedDomain =
+type HdSeedDomain =
   | 'helpdeskTicket'
   | 'helpdeskLab'
   | 'helpdeskProfile'

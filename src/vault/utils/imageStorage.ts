@@ -26,7 +26,7 @@ interface FSWritableLike {
   write: (data: Blob) => Promise<void>;
   close: () => Promise<void>;
 }
-export interface FSFileHandleLike {
+interface FSFileHandleLike {
   createWritable?: (opts?: unknown) => Promise<FSWritableLike>;
   getFile?: () => Promise<File>;
 }
@@ -67,10 +67,6 @@ export class ImageRejectedError extends Error {
 
 export const IMAGES_DIR_KEY = 'vault-images-dir';
 
-export function isImageFsSupported(): boolean {
-  return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
-}
-
 /* ------------------------- Directory management ------------------------- */
 
 /** Stored handle for the images folder, or null when never picked. */
@@ -86,12 +82,6 @@ export async function getImagesDirectory(): Promise<FSDirHandleLike | null> {
 /** True when the user picked an images folder at some point. */
 export async function hasImagesDirectory(): Promise<boolean> {
   return (await getImagesDirectory()) !== null;
-}
-
-/** Display name of the images folder (e.g. "imagenes"), or null. */
-export async function getImagesDirectoryName(): Promise<string | null> {
-  const dir = await getImagesDirectory();
-  return dir ? dir.name : null;
 }
 
 /** True when the stored folder is usable right now (permission granted). */
@@ -128,11 +118,6 @@ export async function ensureImagesPermission(): Promise<boolean> {
   }
 }
 
-/** Stop using the images folder (files on disk are never deleted by us). */
-export async function forgetImagesDirectory(): Promise<void> {
-  await db.fileHandles.delete(IMAGES_DIR_KEY);
-}
-
 /* ----------------------------- Filenames ------------------------------ */
 
 /**
@@ -140,7 +125,7 @@ export async function forgetImagesDirectory(): Promise<void> {
  * separators / control chars, collapse whitespace, cap the length and keep
  * (or derive from the mime type) a sensible extension.
  */
-export function sanitizeImageFilename(name: string, mimeType?: string): string {
+function sanitizeImageFilename(name: string, mimeType?: string): string {
   let base = (name || 'imagen')
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
     .replace(/\s+/g, ' ')
@@ -220,7 +205,7 @@ async function looksLikeImageFile(file: File): Promise<boolean> {
   }
 }
 
-export interface SaveImageOpts {
+interface SaveImageOpts {
   /** What to do when the target filename already exists (UI dialog). */
   onConflict?: (existingName: string) => Promise<'overwrite' | 'rename'> | 'overwrite' | 'rename';
   /** Force the stored filename (re-link flow). */

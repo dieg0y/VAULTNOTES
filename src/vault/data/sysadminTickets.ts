@@ -8,7 +8,7 @@
  */
 import type { SaTicketLevel, SaTicketPriority, SaTicketType, SaEnvironment } from '../types';
 
-export interface SysAdminTicketSeed {
+interface SysAdminTicketSeed {
   id: string;
   number: string;
   title: string;

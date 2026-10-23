@@ -7,7 +7,7 @@
  * de métrica y la fórmula de cálculo están en `cvssData.ts`.
  *
  * CVSS 4.0 (cuando se implemente) debería vivir en un archivo separado
- * (Cvss4CalculatorTool.tsx) y no mezclar métricas con esta versión.
+ * y no mezclar métricas con esta versión.
  *
  * Exporta el componente nombrado `CvssCalculatorTool` + default export.
  */

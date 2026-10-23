@@ -27,7 +27,7 @@
  * DEEP-LINK (autoOpenId)
  * ----------------------
  * If `autoOpenId` is passed (e.g. "sigma-failed-logon-4625"), the tool finds
- * the rule via `findSigmaById`, opens its detail modal, and seeds the search
+ * the rule by ID (local finder), opens its detail modal, and seeds the search
  * box with the id so the user sees the match. Uses the React 19 render-time
  * state adjustment pattern (same as MitreExplorerTool / WinEventTool) for
  * follow-up prop changes after mount.

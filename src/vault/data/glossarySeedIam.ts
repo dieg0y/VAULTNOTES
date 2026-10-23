@@ -2,7 +2,7 @@ import type { SeedTerm } from './glossarySeedBase';
 
 /**
  * glossarySeedIam — capa de plataformas y vendors IAM/PAM del seed del glosario
- * (80 términos, ids iam-seed-101..180).
+ * (77 términos tras la auditoría v2, ids iam-seed-101..180).
  *
  * Cuarto bloque del seed aditivo, alineado con la expansión masiva del pilar
  * IAM (KB de Okta, SailPoint, Ping, ForgeRock, IBM, Oracle, PAM, roles y LDAP).
@@ -311,15 +311,6 @@ export const GLOSSARY_SEED_IAM_TERMS: SeedTerm[] = [
     example: "El registro de passkeys falla en toda la flota: la política de endpoints bloquea los HID USB del puerto de las llaves — CTAP nunca llega al autenticador y el registro se cae sin mensaje útil.",
   },
   {
-    id: "iam-seed-132",
-    term: "SPML (Service Provisioning Markup Language)",
-    acronym: "SPML",
-    category: "IAM - IGA",
-    shortDefinition: "Estándar OASIS de aprovisionamiento (hoy legado): el predecesor XML/SOAP de SCIM para intercambio de ciclo de vida.",
-    longDefinition: "SPML fue el intento de los 2000 de estandarizar el aprovisionamiento entre sistemas: operaciones add/modify/delete sobre objetos XML/SOAP entre una autoridad solicitante y los targets de provisioning. Está descontinuado y SCIM lo reemplazó de forma práctica, pero sigue apareciendo en IGA viejos, mainframes y apps de RH legadas que solo exponen ese servicio. El analyst lo encuentra cuando el conector del IGA no habla SCIM sino el servicio SPML de la app: se documenta igual que cualquier integración — quién llama, con qué cuenta, con qué autoridad y con qué proceso de cambio.",
-    example: "La app de nómina legada solo expone SPML: el IGA la conecta con la cuenta svc-identity, y el servicio queda en la lista de dependencias críticas para la futura migración a SCIM.",
-  },
-  {
     id: "iam-seed-133",
     term: "AP-REQ / AP-REP (Kerberos)",
     acronym: undefined,
@@ -363,15 +354,6 @@ export const GLOSSARY_SEED_IAM_TERMS: SeedTerm[] = [
     shortDefinition: "La familia de flujos basados en OAuth 2.0/OIDC/SAML con tokens, MFA y acceso condicional, opuesta a la autenticación heredada.",
     longDefinition: "Autenticación moderna es el término (popularizado en el mundo Microsoft/Exchange) para los flujos basados en librerías OAuth 2.0/OIDC (ADAL/MSAL) y SAML: emiten tokens con refresh, permiten MFA, acceso condicional y señales de dispositivo. Su opuesto, la autenticación heredada (basic auth HTTP, POP/IMAP/SMTP con contraseña, protocolos que no saben expresar un segundo factor), es la base práctica del password spraying. La política del analyst: bloquear heredada por protocolo en el tenant, migrar las apps y service accounts que la usan a flujos modernos, y documentar las excepciones con vencimiento. Pitfall: los reportes de uso siempre muestran una cola de dispositivos viejos que nadie reclamó.",
     example: "El reporte de Exchange muestra 40 buboxes con IMAP activo: bloqueas la autenticación básica por protocolo y solo quedan las service accounts documentadas, con excepción vencida a 90 días.",
-  },
-  {
-    id: "iam-seed-138",
-    term: "Claims-based identity",
-    acronym: undefined,
-    category: "IAM - Federation / SSO",
-    shortDefinition: "Modelo donde el token del IdP trae afirmaciones firmadas sobre el usuario y la app autoriza según ellas, sin cuentas propias.",
-    longDefinition: "Es el modelo de AD FS/WIF y de todo OIDC moderno: la identidad se representa como un conjunto de claims (nombre, rol, departamento, ID de empleado) firmados por un emisor en quien la app confía; la app valida la firma y mapea claims a decisiones de acceso, sin replicar contraseñas ni directorios. Ventaja operativa: una fuente de identidad para miles de apps. Costo de gobernanza: hay que definir qué claims viajan, con qué exactitud y quién es dueño de cada uno. Pitfall clásico de integración: la app que mapea el rol por nombre literal de claim — cuando el IdP renombra el claim o el valor, la autorización de tres apps se rompe en silencio.",
-    example: "La app interna no tiene usuarios propios: autoriza con el claim de grupo FIN-APROBADOR firmado por el IdP; un cambio de nombre de ese claim en el IdP rompe la autorización y se detecta en el primer login del día.",
   },
   {
     id: "iam-seed-139",
@@ -747,14 +729,5 @@ export const GLOSSARY_SEED_IAM_TERMS: SeedTerm[] = [
     shortDefinition: "El diseño formal de roles de acceso: nombre, propósito, permisos incluidos, dueño y reglas de membresía, alineado a la estructura del negocio.",
     longDefinition: "El role model es la arquitectura que traduce la organización al lenguaje de accesos: cada rol (agente de soporte N2, analista de nómina, administrador de ERP) tiene definición de negocio, entitlements exactos, dueño que responde por él, reglas de asignación (birthright por puesto, por atributo, solicitable con aprobación) y relaciones entre roles (jerarquías, exclusiones por SoD, roles base + roles específicos). Se diseña en tres pasos: top-down (definiciones del negocio), bottom-up (role mining sobre permisos reales) y la reconciliación de ambos con criterios (¿el rol refleja el puesto real o el histórico acumulado?). Un role model sano es lo que hace escalable el JML: el nuevo de un puesto recibe SU rol, no una lista ad-hoc de grupos. El pitfall: roles-basura que replican el pasado ('Rol de Juan Pérez'), roles huérfanos sin dueño y la explosión de roles (más roles que personas); la métrica de salud es cuántos accesos se explican por rol vs. cuántos quedan como excepción.",
     example: "El nuevo analista de nómina entra y su onboarding es una sola acción: asignar el rol 'Analista de nómina N1' que arrastra 6 grupos de AD, 2 licencias y el acceso al ERP con perfil de consulta; el modelo de roles reemplazó la checklist manual de 15 líneas.",
-  },
-  {
-    id: "iam-seed-180",
-    term: "Build vs. buy",
-    acronym: undefined,
-    category: "IAM - IGA",
-    shortDefinition: "La decisión de construir el IAM interno (scripts/herramientas propias) frente a comprar una plataforma (IGA/PAM/IdP comercial o SaaS).",
-    longDefinition: "Es la decisión de arquitectura que atraviesa toda la madurez IAM: automatizar el ciclo de vida con scripts PowerShell contra AD y listas de RR. HH. (build) o desplegar una plataforma IGA que trae conectores, aprobaciones y certificaciones listas (buy). A favor de build: costo de licencia cero, control total, aprendizaje profundo del dominio; en contra: cada conector, cada reporte de auditoría y cada campaña de certificación se construye a mano, el conocimiento vive en personas y la deuda crece. A favor de buy: conectores probados, gobernanza empacada (SoD, campañas, evidencia para auditores), roadmap del fabricante; en contra: costo, dependencia del vendor y proyectos de despliegue que toman meses. La respuesta madura casi nunca es 100/0: las plataformas cubren el ciclo de vida y la gobernanza core, y el equipo construye la capa de integración propia (scripts de higiene, reportes internos, automatización de esquinas raras). El analyst debe saber argumentar el trade-off con criterios: nº de sistemas, volumen de JML, exigencias de auditoría y capacidad real del equipo.",
-    example: "La auditoría exige certificaciones trimestrales y el equipo evalúa: los scripts internos no dejan evidencia firmable; se compra IGA para el ciclo de vida y campañas, y los scripts propios quedan solo para la higiene diaria del AD — el balance que sostiene el presupuesto y la gobernanza.",
   },
 ];

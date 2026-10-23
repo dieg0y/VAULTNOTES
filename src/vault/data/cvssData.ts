@@ -6,7 +6,7 @@
  * (https://www.first.org/cvss/v3.1/spec).
  *
  * CVSS 4.0 (cuando se implemente) debería vivir en un archivo separado
- * (cvss4Data.ts) y no mezclar métricas con esta versión.
+ * y no mezclar métricas con esta versión.
  *
  * Exporta:
  *  - Tipos `CvssMetricCode`, `CvssMetricDef`, `CvssVector`

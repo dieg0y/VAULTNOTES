@@ -107,7 +107,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El empleado inicia sesión el primer día en AD y M365, MemberOf contiene exactamente birthright + rol (ni más ni menos), la licencia del cargo quedó asignada y el ticket documenta fuente de autoridad, atributos y grupos concedidos.',
     escalation: 'Líder de IAM (roles o licencias fuera de la matriz: se tramitan como solicitud de acceso con aprobación del dueño del sistema)',
-    relatedTerms: ['Joiner-Mover-Leaver (JML)', 'Onboarding / Offboarding de accesos', 'Birthright access', 'Matriz de roles'],
+    relatedTerms: ['Joiner-Mover-Leaver (JML)', 'Birthright access', 'Matriz de roles'],
     relatedTickets: ['iam-001', 'iam-027']
   },
   {
@@ -389,7 +389,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El usuario entra sin re-bloqueo en las horas siguientes, el Caller del 4740 quedó identificado y corregido (o reportado al SOC con evidencia), y el patrón quedó documentado para la revisión semanal.',
     escalation: 'SOC (patrón masivo o una misma fuente bloqueando varias cuentas: password spraying en curso)',
-    relatedTerms: ['Bloqueo de cuenta (lockout)', 'Password spraying', 'Identity Protection', 'Sign-in risk (riesgo de inicio de sesión)'],
+    relatedTerms: ['Bloqueo de cuenta (lockout)', 'Password spraying', 'Entra ID Protection', 'Sign-in risk (riesgo de inicio de sesión)'],
     relatedTickets: ['iam-007', 'iam-033']
   },
   {
@@ -719,7 +719,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'Todos los sistemas del alcance tienen respuesta del dueño (o aplicación del default deny), los denegados quedaron revocados con diff del antes/después, y la carpeta de evidencia está completa con respuestas, horas y ejecutores.',
     escalation: 'Líder de IAM / Comité de cumplimiento (dueños que no responden tras escalar a su gerencia: el default deny se aplica igual y se reporta)',
-    relatedTerms: ['Access Review (certificación de accesos)', 'Attestation', 'Auditoría de accesos', 'Entitlement creep'],
+    relatedTerms: ['Access Review (certificación de accesos)', 'Auditoría de accesos', 'Entitlement creep'],
     relatedTickets: ['iam-014', 'iam-040']
   },
   {
@@ -1010,7 +1010,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'La prueba de login del leaver falla en TODAS las apps del inventario (no solo el correo), los tokens y API keys del usuario quedaron revocados con evidencia, y el checklist por app quedó adjunto al ticket de salida.',
     escalation: 'Dueño de la aplicación SaaS (apps manuales o sin acceso administrativo del equipo IAM)',
-    relatedTerms: ['Account deprovisioning', 'SCIM Provisioning', 'Cuenta dormante / inactiva', 'Identity sprawl'],
+    relatedTerms: ['Account deprovisioning', 'SCIM', 'Cuenta dormante / inactiva', 'Identity sprawl'],
     relatedTickets: ['iam-020', 'iam-046']
   },
   {
@@ -1107,7 +1107,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El ticket escalado recibió ACK del equipo receptor dentro del SLA (P1: 15 min), el receptor no pidió repetir la investigación, y el caso dejó una mejora de KB o runbook para la próxima.',
     escalation: 'Líder de IAM (cuando dudar es la respuesta: cualquier caso sin fila clara en la matriz RACI se consulta antes de actuar)',
-    relatedTerms: ['Escalamiento', 'Dueño del acceso (access owner)', 'KPIs de IAM', 'Modelo de madurez IAM'],
+    relatedTerms: ['Escalamiento funcional vs jerárquico', 'Dueño del acceso (access owner)', 'KPIs de IAM', 'Modelo de madurez IAM'],
     relatedTickets: ['iam-022', 'iam-048']
   },
   {
@@ -1388,7 +1388,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'Un Joiner del grupo piloto aparece solo en la app SCIM con los atributos mapeados, un leaver de laboratorio queda desasignado, sin password y active=false en la app, y un suspend de excedencia conserva asignaciones sin permitir login.',
     escalation: 'Dueño de la aplicación SaaS (endpoint SCIM defectuoso o permisos insuficientes del token: Okta no puede hacer lo que la app no deja)',
-    relatedTerms: ['SCIM', 'User provisioning', 'Account deprovisioning', 'Okta Workforce', 'Registros de aprovisionamiento (provisioning logs)'],
+    relatedTerms: ['SCIM', 'Provisioning / Deprovisioning', 'Account deprovisioning', 'Okta Workforce', 'Registros de aprovisionamiento (provisioning logs)'],
     relatedTickets: ['iam-008', 'iam-040']
   },
   {
@@ -1481,7 +1481,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'La campaña de prueba corre con un bloque real anonimizado: certificador correcto por bloque, remediación verificada en el source para lo denegado, y el paquete de cierre (decisiones, KPIs, excepciones con vencimiento) se exporta completo.',
     escalation: 'Líder de IAM / Comité de cumplimiento (certificadores que no responden tras el escalamiento a su gerencia: la regla default deny se aplica y se reporta, igual que en iam-kb-014)',
-    relatedTerms: ['Campaña de certificación', 'Access Review (certificación de accesos)', 'Attestation', 'Recertificación', 'Remediación', 'SailPoint IdentityNow / IGA'],
+    relatedTerms: ['Campaña de certificación', 'Access Review (certificación de accesos)', 'Remediación', 'SailPoint IdentityNow / IGA'],
     relatedTickets: ['iam-041', 'iam-049']
   },
   {
@@ -1623,7 +1623,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El equipo explica el modelo (base central, procesos, Job Service, sincronización, IT Shop) con las equivalencias Nexora, la demo corrió un joiner y una solicitud con aprobación de punta a punta, y la matriz de decisión del RFP tiene las métricas del PoC registradas.',
     escalation: 'Líder de IAM + Infra y Ops (la plataforma on-prem exige compromiso de operación: base, Job Service y parcheo son decisión de infraestructura, no solo de IAM)',
-    relatedTerms: ['One Identity Manager', 'Identity Governance & Administration (IGA)', 'Flujo de aprobación', 'User provisioning', 'Conector de IGA', 'ServiceNow (ITSM e IAM)'],
+    relatedTerms: ['One Identity Manager', 'Identity Governance & Administration (IGA)', 'Flujo de aprobación', 'Provisioning / Deprovisioning', 'Conector de IGA', 'ServiceNow (ITSM e IAM)'],
     relatedTickets: ['iam-001', 'iam-007']
   },
   {
@@ -1670,7 +1670,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El equipo ubica cada pieza (DS/AM/IDM/IG) con su puerto y su consola, explica qué resolvería en Nexora y qué no, y la matriz de evaluación registra la comparación pieza a pieza contra el stack vigente con costos de operación visibles.',
     escalation: 'Líder de IAM + Arquitectura (evaluar el stack completo es decisión de plataforma a varios años: el analista aporta el mapa técnico, la decisión es del comité de arquitectura)',
-    relatedTerms: ['ForgeRock', 'Directorio (directory service)', 'LDAP', 'User provisioning', 'PDP y PEP (decisión y aplicación de política)'],
+    relatedTerms: ['ForgeRock', 'Directorio (directory service)', 'LDAP', 'Provisioning / Deprovisioning', 'PDP y PEP (decisión y aplicación de política)'],
     relatedTickets: ['iam-031', 'iam-035']
   },
   {
@@ -1763,7 +1763,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El analista distingue ISAM (appliance, WebSEAL/junctions, pdadmin) de Verify (SaaS, cloud directory, sign-on policies), la demo publicó una app legacy con junction y probó una sign-on policy con FIDO2, y la matriz del landscape tiene la posición de ambos con costos visibles.',
     escalation: 'Líder de IAM + Arquitectura (appliance on-prem vs. SaaS es decisión de plataforma y de costo de operación a multi-año)',
-    relatedTerms: ['IBM Security Verify', 'IBM Security Access Manager (ISAM)', 'Federación (identidad federada)', 'Directivas de acceso condicional', 'PDP y PEP (decisión y aplicación de política)'],
+    relatedTerms: ['IBM Security Verify', 'IBM Security Access Manager (ISAM)', 'Federación (identidad federada)', 'Conditional Access', 'PDP y PEP (decisión y aplicación de política)'],
     relatedTickets: ['iam-038', 'iam-034']
   },
   {
@@ -2323,7 +2323,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El cierre de campaña tiene: respuestas (o default deny aplicado) del 100% del alcance, revocaciones verificadas con diff, excepciones con firma, control compensatorio y vencimiento, métricas comparadas contra el trimestre anterior, y el paquete de evidencia completo generado durante el proceso.',
     escalation: 'Líder de IAM / Comité de cumplimiento (segmentos sin respuesta tras el escalamiento a gerencia, y excepciones sin control compensatorio: no se aceptan)',
-    relatedTerms: ['Access Review (certificación de accesos)', 'Campaña de certificación', 'Attestation', 'Control compensatorio', 'KPIs de IAM', 'Recertificación'],
+    relatedTerms: ['Access Review (certificación de accesos)', 'Campaña de certificación', 'Control compensatorio', 'KPIs de IAM'],
     relatedTickets: ['iam-042', 'iam-048', 'iam-050']
   },
   {
@@ -2415,7 +2415,7 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     ],
     verification: 'El mapa de capacidades propio está al día con el gap identificado y priorizado, el RFP tiene requisitos pesables con pruebas de PoC definidas, y la decisión (o recomendación pendiente) quedó documentada con costos a 3 años, oleadas de adopción con hitos y dueño del roadmap.',
     escalation: 'Líder de IAM + comité de arquitectura + Procurement (decisión de inversión en plataforma: el equipo aporta el mapa técnico, el gap y los criterios; la firma y el presupuesto son del comité)',
-    relatedTerms: ['Identity Governance & Administration (IGA)', 'Modelo de madurez IAM', 'KPIs de IAM', 'Build vs. buy', 'Análisis de brechas (gap analysis)', 'Identity Fabric'],
+    relatedTerms: ['Identity Governance & Administration (IGA)', 'Modelo de madurez IAM', 'KPIs de IAM', 'Análisis de brechas (gap analysis)'],
     relatedTickets: ['iam-029', 'iam-023']
   },
 ];

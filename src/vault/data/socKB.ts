@@ -123,7 +123,7 @@ export const SOC_KB_ARTICLES: SocKbArticle[] = [
     ],
     verification: 'Sin ResultType 0 desde IP no conocidas en 24 h tras la revocación, sin reglas de reenvío nuevas y sin métodos MFA no reconocidos por el usuario (verificado presencialmente).',
     escalation: 'L2 / CSIRT (un solo push aprobado = cuenta comprometida: contención inmediata y revisión de persistencia; si la cuenta es privilegiada o ejecutiva, notificación directa)',
-    relatedTerms: ['MFA fatigue (ataque)', 'MFA por push (notificación)', 'Multi-Factor Authentication (MFA)', 'Cuentas con riesgo', 'Reinicio de MFA por ingeniería social'],
+    relatedTerms: ['MFA fatigue (ataque)', 'MFA por push (notificación)', 'Multi-Factor Authentication (MFA)', 'User risk (riesgo de usuario)', 'Reinicio de MFA por ingeniería social'],
     relatedTickets: ['soc-003', 'soc-028', 'soc-031']
   },
   {
@@ -161,7 +161,7 @@ export const SOC_KB_ARTICLES: SocKbArticle[] = [
     ],
     verification: 'SigninLogs y AADNonInteractiveUserSignInLogs sin ResultType 0 desde IP no conocidas en 24 h tras la revocación, y la regla de viaje imposible con FP por debajo del umbral acordado (p. ej. <3/semana).',
     escalation: 'L2 / CSIRT (sesión exitosa del atacante = P1; sesión solo por token confirmada: robo de cookie — buscar el infostealer en el host del usuario)',
-    relatedTerms: ['Viaje imposible (impossible travel)', 'Cuentas con riesgo', 'VPN site-to-site', 'Multi-Factor Authentication (MFA)', 'Token theft (robo de tokens)'],
+    relatedTerms: ['Viaje imposible (impossible travel)', 'User risk (riesgo de usuario)', 'VPN site-to-site', 'Multi-Factor Authentication (MFA)', 'Token theft (robo de tokens)'],
     relatedTickets: ['soc-004', 'soc-029', 'soc-030', 'soc-008']
   },
   {
@@ -373,7 +373,7 @@ export const SOC_KB_ARTICLES: SocKbArticle[] = [
     ],
     verification: 'Cuenta deshabilitada con 0 sign-in posteriores, barrido de inactividad ejecutado con las cuentas hermanas corregidas, y la validación de RRHH documentada en el caso.',
     escalation: 'L2 (si la sesión del atacante accedió a datos, si aparecen cuentas hermanas con roles privilegiados o si la cuenta tenía MFA ausente — revisar el despliegue de MFA por población)',
-    relatedTerms: ['Cuenta dormante / inactiva', 'Cuentas con riesgo', 'Lifecycle de cuentas privilegiadas', 'Zero Trust', 'Escalamiento'],
+    relatedTerms: ['Cuenta dormante / inactiva', 'User risk (riesgo de usuario)', 'Lifecycle de cuentas privilegiadas', 'Zero Trust', 'Escalamiento funcional vs jerárquico'],
     relatedTickets: ['soc-013', 'soc-047']
   },
   {
@@ -415,7 +415,7 @@ export const SOC_KB_ARTICLES: SocKbArticle[] = [
     ],
     verification: 'Membresía revertida (evidencia antes/después), cuenta promocionada neutralizada, 0 acciones maliciosas en su ventana de privilegio y el reporte de proceso entregado (cambio autorizado o hallazgo de disciplina).',
     escalation: 'CISO / Identity (cambio sin autorización confirmada = posible cuenta admin comprometida — IR completo; hallazgos de credential sharing o cuentas de ex-empleados van al comité)',
-    relatedTerms: ['Lifecycle de cuentas privilegiadas', 'Zero Trust', 'SIEM (Security Information and Event Management)', 'Escalamiento', 'Kerberos (TGT / ST)'],
+    relatedTerms: ['Lifecycle de cuentas privilegiadas', 'Zero Trust', 'SIEM (Security Information and Event Management)', 'Escalamiento funcional vs jerárquico', 'Kerberos (TGT / ST)'],
     relatedTickets: ['soc-014', 'soc-016', 'soc-049']
   },
   {
@@ -667,7 +667,7 @@ export const SOC_KB_ARTICLES: SocKbArticle[] = [
     ],
     verification: 'Regla eliminada (con evidencia exportada), 0 reenvíos externos posteriores, 0 reglas ocultas en el barrido del tenant y la cuenta con sesión revocada y MFA verificado con su dueño.',
     escalation: 'L2 / CSIRT (fraude en curso sobre proveedores o correspondencia sensible reenviada — valoración de exposición y notificación; la cuenta origen comprometida puede ser pivote de BEC)',
-    relatedTerms: ['Análisis de cabeceras de correo', 'Phishing', 'Revocación de sesiones y tokens', 'Cuentas con riesgo', 'Incident Response (ciclo NIST)'],
+    relatedTerms: ['Análisis de cabeceras de correo', 'Phishing', 'Revocación de sesiones y tokens', 'User risk (riesgo de usuario)', 'Incident Response (ciclo NIST)'],
     relatedTickets: ['soc-012', 'soc-023']
   },
 ];

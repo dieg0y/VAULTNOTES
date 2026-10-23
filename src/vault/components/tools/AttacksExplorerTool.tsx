@@ -38,15 +38,9 @@ import {
   ATTACK_SEVERITIES, ATTACK_CATEGORIES,
   type AttackInfo, type AttackCategory, type AttackSeverity,
 } from '../../data/attacks';
-import { inputCls, CopyBtn, CodeBlock } from './_shared';
+import { inputCls, CopyBtn, CodeBlock, SEVERITY_CHIP, fuzzyMatch, DrawerSection } from './_shared';
 
-/* ---------- severity chip colors (same palette family as the app) ---------- */
-const SEVERITY_CHIP: Record<AttackSeverity, string> = {
-  Critical: 'bg-red-500/15 text-red-300 border-red-500/40',
-  High: 'bg-orange-500/15 text-orange-300 border-orange-500/40',
-  Medium: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40',
-  Low: 'bg-[#161616] text-[#888] border-[#262626]',
-};
+/* ---------- severity chip: shared in _shared (SEVERITY_CHIP) ---------- */
 const CATEGORY_CHIP: Record<AttackCategory, string> = {
   IAM: 'bg-green-500/10 text-green-300',
   Red: 'bg-blue-500/10 text-blue-300',
@@ -57,26 +51,7 @@ const CATEGORY_CHIP: Record<AttackCategory, string> = {
   PrivEsc: 'bg-amber-500/10 text-amber-300',
 };
 
-/** Fuzzy subsequence match (like the rest of the app's search: forgiving, ranked below exact/substring). */
-function fuzzyMatch(haystack: string, needle: string): boolean {
-  if (!needle) return true;
-  let i = 0;
-  for (const ch of haystack) {
-    if (ch === needle[i]) i++;
-    if (i === needle.length) return true;
-  }
-  return i === needle.length;
-}
-
-/* ---------- Drawer section (mirrors DetailSection from ToolsView) ---------- */
-const DrawerSection: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
-  <section className="space-y-1.5">
-    <h4 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
-      {icon}{title}
-    </h4>
-    <div className="text-xs text-[#CCC] leading-relaxed space-y-1.5">{children}</div>
-  </section>
-);
+/* ---------- drawer section: shared in _shared (DrawerSection) ---------- */
 
 /** Checkbox list — used for the paso-a-paso mitigation (state lives in parent so it survives scrolling, resets per attack id). */
 const CheckList: React.FC<{ items: string[]; done: Set<number>; onToggle: (idx: number) => void }> = ({ items, done, onToggle }) => (

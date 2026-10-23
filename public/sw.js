@@ -82,7 +82,7 @@ self.addEventListener('fetch', (event) => {
   // For navigation requests, serve cached index.html (app shell) when offline.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).catch(() => caches.match('/').then((r) => r || caches.match('/index.html')))
+      fetch(req).catch(() => caches.match('/'))
     );
     return;
   }

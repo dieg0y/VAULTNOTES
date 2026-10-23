@@ -11,8 +11,8 @@
  *
  * Diseñado para ampliarse: solo agregar entradas al array SIGMA_RULES.
  *
- * Exporta la interfaz `SigmaRule`, el array `SIGMA_RULES`, los arrays de enums
- * `SIGMA_LEVELS` y `SIGMA_STATUSES`, y el helper `findSigmaById`.
+ * Exporta la interfaz `SigmaRule`, el array `SIGMA_RULES` y los arrays de enums
+ * `SIGMA_LEVELS` y `SIGMA_STATUSES`.
  * NO usa `export default`.
  */
 
@@ -1778,12 +1778,6 @@ mitre:
   - T1105`,
   },
 ];
-
-/** Helper: find a Sigma rule by ID. */
-export function findSigmaById(id: string): SigmaRule | undefined {
-  if (!id) return undefined;
-  return SIGMA_RULES.find((r) => r.id === id);
-}
 
 /** Helper: find all Sigma rules that reference a MITRE technique ID. */
 export function findSigmaByMitre(mitreId: string): SigmaRule[] {

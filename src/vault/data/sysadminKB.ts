@@ -948,7 +948,7 @@ export const SYSADMIN_KB_ARTICLES: SysAdminKbArticle[] = [
     ],
     verification: 'La VM arranca, responde por red y consola, los servicios del invitado quedan activos y los logs no muestran la condición original recurrente.',
     escalation: 'Líder de Virtualización / Soporte del hipervisor (corrupción de discos o datastores)',
-    relatedTerms: ['vSphere', 'Proxmox', 'Snapshot'],
+    relatedTerms: ['vSphere', 'Proxmox', 'Snapshot (VM)'],
     relatedTickets: ['sa-024', 'sa-050']
   },
   {
@@ -991,7 +991,7 @@ export const SYSADMIN_KB_ARTICLES: SysAdminKbArticle[] = [
     ],
     verification: 'El datastore queda por debajo del umbral con margen para consolidaciones, las VMs encienden sin errores y la alarma de capacidad quedó activa con el umbral recalibrado.',
     escalation: 'Líder de Virtualización / Storage (ampliación de LUN o datastore)',
-    relatedTerms: ['Datastore', 'Snapshot', 'vSphere'],
+    relatedTerms: ['Datastore', 'Snapshot (VM)', 'vSphere'],
     relatedTickets: ['sa-025', 'sa-051']
   },
   {
@@ -1033,7 +1033,7 @@ export const SYSADMIN_KB_ARTICLES: SysAdminKbArticle[] = [
     ],
     verification: 'El Snapshot Manager queda vacío (o solo con snapshots justificados de menos de 24 horas), el datastore recuperó espacio, la VM rinde normal y el backup nocturno completa sin advertencias de cadena.',
     escalation: 'Líder de Virtualización (consolidaciones masivas o cadenas rotas)',
-    relatedTerms: ['Snapshot', 'Datastore', 'Proxmox'],
+    relatedTerms: ['Snapshot (VM)', 'Datastore', 'Proxmox'],
     relatedTickets: ['sa-006', 'sa-052']
   },
   {
@@ -1296,7 +1296,7 @@ export const SYSADMIN_KB_ARTICLES: SysAdminKbArticle[] = [
     ],
     verification: 'El documento existe con línea de tiempo, causa raíz, factores contributivos y acciones con dueño y fecha, y la revisión de seguimiento encuentra las acciones completadas o replanificadas con justificación.',
     escalation: 'Líder de Infra & Ops / SRE (acciones que requieren inversión o cambios de proceso)',
-    relatedTerms: ['Postmortem', 'SRE', 'NOC'],
+    relatedTerms: ['Postmortem (lecciones aprendidas)', 'SRE', 'NOC'],
     relatedTickets: ['sa-026', 'sa-027', 'sa-056']
   }
 ];

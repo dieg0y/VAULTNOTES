@@ -8,7 +8,7 @@
  */
 import type { IamEnvironment, IamTicketLevel, IamTicketPriority, IamTicketType } from '../types';
 
-export interface IamTicketSeed {
+interface IamTicketSeed {
   id: string;
   number: string;
   title: string;

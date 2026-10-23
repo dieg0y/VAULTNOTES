@@ -189,3 +189,32 @@ export async function toggleToolFavorite(toolId: string): Promise<boolean> {
     return false;
   }
 }
+
+/* ---------- severity chip colors (shared by Vulnerability/Attacks explorers) ---------- */
+export const SEVERITY_CHIP: Record<'Critical' | 'High' | 'Medium' | 'Low', string> = {
+  Critical: 'bg-red-500/15 text-red-300 border-red-500/40',
+  High: 'bg-orange-500/15 text-orange-300 border-orange-500/40',
+  Medium: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40',
+  Low: 'bg-[#161616] text-[#888] border-[#262626]',
+};
+
+/** Fuzzy subsequence match (like the rest of the app's search: forgiving, ranked below exact/substring). */
+export function fuzzyMatch(haystack: string, needle: string): boolean {
+  if (!needle) return true;
+  let i = 0;
+  for (const ch of haystack) {
+    if (ch === needle[i]) i++;
+    if (i === needle.length) return true;
+  }
+  return i === needle.length;
+}
+
+/* ---------- Drawer section (mirrors DetailSection from ToolsView) ---------- */
+export const DrawerSection: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
+  <section className="space-y-1.5">
+    <h4 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+      {icon}{title}
+    </h4>
+    <div className="text-xs text-[#CCC] leading-relaxed space-y-1.5">{children}</div>
+  </section>
+);

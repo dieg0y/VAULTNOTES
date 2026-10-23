@@ -16,7 +16,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export interface SidebarLayoutState {
+interface SidebarLayoutState {
   /** Orden de los grupos (ids estables). Vacío = orden por defecto. */
   groupOrder: string[];
   /** Orden de items por grupo: groupId → section ids. */

@@ -1,10 +1,9 @@
 /**
- * glossarySeedHelpDesk — GENERATED FILE (scripts/mergeHelpdeskData.mjs).
- * NO editar a mano: editar los JSON staged y re-ejecutar el merge.
+ * glossarySeedHelpDesk — especialización HelpDesk L1/L2 del seed del glosario.
+ * (Auditada v2: 219 términos tras retirar relleno de "computing 101",
+ * soft skills y duplicados contra SysAdmin — ahora se mantiene a mano.)
  *
- * 250 términos HelpDesk (dedup aplicado contra los
- * 389 términos existentes: 0 descartados por duplicado).
- * Distribución: HelpDesk - Fundamentos IT: 46 · HelpDesk - Service Desk / ITSM: 49 · HelpDesk - Windows / Endpoint: 50 · HelpDesk - Redes (Networking): 47 · HelpDesk - Microsoft 365: 26 · HelpDesk - AD / Identidad: 14 · HelpDesk - Seguridad para Soporte: 18.
+ * Distribución: Fundamentos IT: 36 · Service Desk / ITSM: 33 · Windows / Endpoint: 50 · Redes (Networking): 42 · Microsoft 365: 26 · AD / Identidad: 14 · Seguridad para Soporte: 18.
  *
  * Se siembran vía glossarySeed.ts (GLOSSARY_SEED_TERMS) con el mismo
  * mecanismo idempotente del glosario base: dedupe por nombre normalizado
@@ -38,15 +37,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "Espacio en disco que Windows usa como RAM de emergencia cuando la memoria física se llena.",
     "longDefinition": "Cuando la RAM se agota, Windows mueve a pagefile.sys las páginas de memoria menos usadas. Es mucho más lento que la RAM real: un equipo con poca memoria empieza a golpear el disco sin parar y se siente 'pegado'. Como técnico lo gestionas cuando el pagefile está desactivado o mal dimensionado (errores de 'memoria insuficiente' con RAM libre) o cuando el disco lleno le impide crecer. Ajustarlo bien evita falsos diagnósticos de 'necesito más RAM'.",
     "example": "Error 'memoria virtual insuficiente' en un equipo cuyo pagefile desactivó una 'optimización' previa: lo restauras a gestión automática y el error desaparece."
-  },
-{
-    "id": "seed-hd-rom",
-    "term": "ROM",
-    "acronym": "ROM",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "Memoria de solo lectura: guarda instrucciones fijas y no se borra al apagar el equipo.",
-    "longDefinition": "Read-Only Memory: memoria no volátil grabada en fábrica con instrucciones básicas. Hoy casi no existe ROM pura: el BIOS/UEFI y el firmware residen en memorias flash que sí se pueden actualizar, pero el concepto sigue siendo la referencia para explicar la diferencia con la RAM. En soporte te aparece al explicar por qué un equipo 'recuerda' cómo arrancar aunque no tenga sistema operativo instalado. Un CD-ROM de instalación también lleva el nombre del concepto: datos grabados de solo lectura.",
-    "example": "Usuario pregunta por qué su equipo nuevo 'no tiene ROM': explicas que el firmware vive en un chip flash de la placa y cumple ese papel, solo que actualizable."
   },
 {
     "id": "seed-hd-bios",
@@ -89,22 +79,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "Software que traduce entre el sistema operativo y un hardware concreto: sin él, el dispositivo no funciona.",
     "longDefinition": "El driver es el traductor entre el hardware y el sistema operativo. Buena parte de los problemas de 'no reconoce el dispositivo', sonido, WiFi, gráficos o impresora se resuelven reinstalando o actualizando el driver. Orden práctico: Administrador de dispositivos, desinstalar el dispositivo, buscar cambios de hardware y, si persiste, driver oficial del fabricante (evita los genéricos de Windows Update cuando hay problemas). Un driver incorrecto o corrupto es causa clásica de pantallas azules (BSOD).",
     "example": "Portátil sin WiFi tras un upgrade de Windows: el adaptador aparece con triángulo amarillo en el Administrador de dispositivos; instalas el driver oficial del fabricante y el WiFi vuelve."
-  },
-{
-    "id": "seed-hd-periferico",
-    "term": "Periférico",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "Cualquier dispositivo conectado al equipo: teclado, ratón, monitor, impresora, auriculares.",
-    "longDefinition": "Hardware externo (o interno adicional) que añade funciones al núcleo del equipo (CPU, RAM, disco). La mayoría de tickets L1 son periféricos: no imprime, no suena, no detecta el USB. La metodología básica de aislamiento: probar el periférico en otro equipo y probar otro periférico en el mismo puerto; con eso decides si la culpa es del dispositivo, del cable o del puerto. Ese aislamiento resuelve el 80% de los casos sin abrir nada.",
-    "example": "'El ratón no funciona': lo pruebas en otro PC (funciona) y pruebas otro ratón en el mismo puerto (falla): el problema es el puerto USB dañado, no el ratón."
-  },
-{
-    "id": "seed-hd-monitor-y-resolucion",
-    "term": "Monitor y resolución",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "La resolución es cuántos píxeles dibuja la pantalla (1920x1080); define nitidez, no tamaño físico.",
-    "longDefinition": "El monitor es el periférico de salida visual; la resolución es el número de píxeles que muestra (Full HD 1920x1080, 4K 3840x2160). Los tickets típicos que resuelves: imagen borrosa (resolución que no es la nativa en Ajustes de pantalla), imagen recortada o con barras (relación de aspecto incorrecta) y 'se ve todo pequeño' en pantallas 4K, que casi siempre se arregla con el escalado (125%, 150%) en lugar de bajar la resolución. Mantener la resolución nativa y tocar solo el escalado es la buena práctica.",
-    "example": "Monitor 4K nuevo con texto diminuto: mantienes la resolución nativa 3840x2160 y subes el escalado a 150% en Ajustes de pantalla; el usuario vuelve a leer con comodidad."
   },
 {
     "id": "seed-hd-docking-station",
@@ -158,45 +132,12 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "example": "Equipo con cuelgues aleatorios: CrystalDiskInfo marca 1.200 sectores reasignados y creciendo; haces backup inmediato y abres el RMA del disco."
   },
 {
-    "id": "seed-hd-particion",
-    "term": "Partición",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "División lógica de un disco: cada partición se ve como una unidad independiente (C:, D:).",
-    "longDefinition": "Un disco físico se divide en particiones que el sistema monta como unidades separadas. Windows crea varias por defecto (recuperación, EFI, sistema) y por eso en Gestión de discos se ven más de las que el usuario espera. En soporte las tocas al reinstalar (Gestión de discos o diskpart), al recuperar datos (partición borrada no equivale a datos perdidos) y al explicar por qué 'el disco de 512 GB solo muestra 476 GB': el fabricante cuenta en decimal y hay particiones ocultas. Eliminar la partición de recuperación es el error clásico de 'limpieza'.",
-    "example": "Usuario borra la unidad D: para 'ganar espacio' y pierde sus datos: recuperas la partición con TestDisk antes de que algo se escriba encima."
-  },
-{
-    "id": "seed-hd-formateo",
-    "term": "Formateo",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "Preparar una partición con su sistema de archivos. El formateo rápido no borra los datos, solo el índice.",
-    "longDefinition": "Al formatear se crea el sistema de archivos (el índice) de la partición. El formateo rápido de Windows solo reescribe la tabla: los datos siguen en el disco y se pueden recuperar, clave en tickets de 'formateé sin querer'; el formateo completo sí los sobrescribe. En soporte lo aplicas al reimaging y a pendrives corrompidos. Antes de formatear hay que confirmar la copia de seguridad siempre; ante un formateo accidental con datos valiosos, no escribir nada en la unidad y pasar directamente a recuperación.",
-    "example": "'Perdí la carpeta tras formatear el USB por error': detienes el uso del pendrive, recuperas con Recuva y devuelves 9 de cada 10 archivos."
-  },
-{
     "id": "seed-hd-sistema-de-archivos",
     "term": "Sistema de archivos (NTFS / FAT32 / exFAT)",
     "category": "HelpDesk - Fundamentos IT",
     "shortDefinition": "Cómo el disco organiza los datos: NTFS en Windows, FAT32 universal con límite de 4 GB, exFAT para USB.",
     "longDefinition": "El sistema de archivos define cómo se guardan, indexan y recuperan los datos. NTFS es el nativo de Windows: permisos, cifrado y discos grandes. FAT32 es el más universal entre dispositivos, pero no admite archivos de más de 4 GB. exFAT es el punto medio para pendrives y tarjetas SD grandes. En soporte: 'no puedo copiar la ISO al pendrive' es FAT32 con su límite de 4 GB; y 'el USB no se lee en la TV' es un NTFS en un dispositivo que solo entiende FAT/exFAT. Elegir bien el formato evita tickets de compatibilidad.",
     "example": "Error al copiar una ISO de 5,4 GB a un pendrive FAT32: reformateas el pendrive a exFAT y la copia pasa sin protestar."
-  },
-{
-    "id": "seed-hd-placa-base",
-    "term": "Placa base (motherboard)",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "La tarjeta principal que conecta CPU, RAM, discos y periféricos: si falla, no arranca nada.",
-    "longDefinition": "El circuito central del equipo: aloja la CPU y la RAM, y conecta discos, alimentación y periféricos. En soporte la reconoces como sospechosa cuando el equipo no enciende, se apaga solo o no arranca habiendo probado ya fuente, RAM y disco en otros equipos. Sus partes útiles para el técnico: la pila CMOS, el botón o jumper de clear CMOS, las ranuras de RAM y los conectores de alimentación. Un fallo de placa en portátil fuera de garantía suele ser condena económica: criterio para proponer refresco en vez de reparación.",
-    "example": "Equipo que no enciende probando con otra fuente y otra RAM: diagnóstico de placa base; al estar fuera de garantía se propone el refresco en el mismo ticket."
-  },
-{
-    "id": "seed-hd-fuente-de-poder-psu",
-    "term": "Fuente de poder (PSU)",
-    "acronym": "PSU",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "Convierte la corriente de la red en las tensiones que usa el equipo. Si falla: reinicios y apagados.",
-    "longDefinition": "Power Supply Unit: transforma la corriente alterna en la continua de 12V, 5V y 3,3V que consumen los componentes. Síntomas de una PSU degradada: reinicios bajo carga, apagados totales o no encender. En sobremesos se prueba sustituyéndola por otra conocida buena; en portátiles el cargador hace de fuente y es lo primero que se sustituye. Una fuente insuficiente tras añadir una tarjeta gráfica potente es un clásico. Nunca se abre el interior de una PSU: sus condensadores guardan tensión peligrosa incluso desenchufada.",
-    "example": "PC que se reinicia al abrir juegos: la fuente de 450W no aguanta la tarjeta gráfica nueva; se sustituye por una de 750W y se cierra el ticket."
   },
 {
     "id": "seed-hd-bateria-cmos",
@@ -230,14 +171,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "Dos tecnologías sin cables: Bluetooth (emparejamiento, sin receptor) o dongle USB de 2,4 GHz.",
     "longDefinition": "Los periféricos inalámbricos usan Bluetooth directo o un receptor USB de 2,4 GHz. El dongle suele ser más estable y no depende de la pila de Bluetooth del equipo; Bluetooth libera un puerto USB y sirve para varios dispositivos. Diagnóstico típico del 'no responde': pilas o carga primero, luego reemparejar o cambiar el dongle de puerto, y probar en otro equipo para aislar. Las interferencias en 2,4 GHz (WiFi denso, puertos USB 3.0 con su ruido eléctrico) causan cortes raros: apartar el dongle de los puertos 3.0 es un truco de oro.",
     "example": "'El ratón va a tirones': pilas nuevas no arreglan nada, pero mover el dongle del puerto USB 3.0 pegado al WiFi al puerto frontal sí."
-  },
-{
-    "id": "seed-hd-impresora-laser-vs-tinta",
-    "term": "Impresora láser vs inyección de tinta",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "Láser: tóner en polvo, rápida y barata por página (oficina). Inyección: tinta líquida, mejor color y fotos.",
-    "longDefinition": "La láser fusiona tóner en polvo con calor: rápida, precisa en texto y con el coste por página más bajo; la inyección lanza tinta líquida: mejor calidad fotográfica y precio de compra bajo, pero la tinta se seca si no se usa. La recomendación en soporte depende del volumen: oficina es territorio láser; un despacho que imprime poco con inyección acaba generando tickets recurrentes de cabezales secos e 'imprime con rayas'. Los cartuchos originales frente a compatibles también cambian la tasa de averías.",
-    "example": "Pequeña oficina con tres impresoras de tinta atascadas por poco uso: se propone una láser monocromo de red y los tickets de inyección se acaban."
   },
 {
     "id": "seed-hd-cola-de-impresion",
@@ -305,14 +238,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "example": "Un analista necesita laboratorio de pruebas: activas Hyper-V en su portátil de 32 GB, creas dos VMs y puede romper cosas sin tocar su equipo real."
   },
 {
-    "id": "seed-hd-snapshot",
-    "term": "Snapshot",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "Fotografía del estado de una VM en un instante: reviertes a ella y borras cualquier desastre.",
-    "longDefinition": "Congela el estado de disco y memoria de una máquina virtual para poder volver a ese punto en segundos. En soporte es el botón de deshacer de las pruebas: parches experimentales, software sospechoso, cambios de configuración; se revierte sin reinstalar nada. No es una copia de seguridad: el snapshot depende del disco original y no protege ante fallo del almacenamiento. Buena práctica: etiquetar con fecha, y borrar los viejos, porque crecen y degradan el rendimiento de la VM.",
-    "example": "Vas a probar un parche en la VM de pruebas: snapshot 'antes-parche', lo aplicas, rompe el arranque; reviertes y en un minuto está como nuevo."
-  },
-{
     "id": "seed-hd-imagen-iso",
     "term": "Imagen ISO",
     "category": "HelpDesk - Fundamentos IT",
@@ -368,15 +293,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "La garantía cubre fallos de fábrica en plazo; el RMA es el proceso de devolver o reparar con el fabricante.",
     "longDefinition": "La garantía (1-3 años típico, más con extensiones) cubre fallos de hardware no causados por mal uso; el RMA (Return Merchandise Authorization) es el trámite: abrir caso con el fabricante, correr sus diagnósticos, obtener el número de autorización y enviar el equipo o pieza. En soporte, verifica el estado de la garantía por número de serie ANTES de prometer reparación; el código de error del diagnóstico del fabricante suele ser requisito para abrir el caso. El tiempo de reparación (5-10 días laborables) obliga a dejar equipo de sustitución al usuario.",
     "example": "SSD muerto en un portátil Dell: corres el ePSA, el error queda registrado, abres RMA con el service tag y Dell envía el disco en 48 horas."
-  },
-{
-    "id": "seed-hd-esd",
-    "term": "ESD (descarga electrostática)",
-    "acronym": "ESD",
-    "category": "HelpDesk - Fundamentos IT",
-    "shortDefinition": "Chispa invisible que degrada componentes al tocarlos sin estar descargado: fallan hoy o semanas después.",
-    "longDefinition": "Electrostatic Discharge: la electricidad estática de tu cuerpo puede dañar componentes sin que lo notes, a veces de forma diferida (el equipo funciona y falla semanas más tarde, cuando ya nadie relaciona la avería con la manipulación). La prevención estándar: pulsera antiestática conectada a tierra, tocar la carcasa metálica del equipo antes de los componentes, trabajar sobre superficie no sintética y evitar alfombras. Las bolsas gris metálico protegían piezas sueltas. Sin control ESD, los RMA se repiten y todo parece 'mala suerte'.",
-    "example": "En el taller de reacondicionado: pulsera antiestática puesta y bolsa gris para cada módulo de RAM extraído; cero piezas muertas en la última auditoría de calidad."
   },
 {
     "id": "seed-hd-diagnosticos-de-fabricante",
@@ -569,30 +485,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "example": "Usuario con pantalla rota: consultas el activo, está en garantía y asignado a él desde 2023; generas el reemplazo por RMA, actualizas la asignación y todo queda auditado."
   },
 {
-    "id": "seed-hd-ciclo-de-vida-del-ticket",
-    "term": "Ciclo de vida del ticket",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Estados por los que pasa un ticket: nuevo, en curso, en espera, resuelto, cerrado (y reabierto).",
-    "longDefinition": "El recorrido formal del ticket desde el contacto hasta su muerte: registro (nuevo), clasificación y asignación, en curso, en espera (pendiente del usuario o de un proveedor), resuelto (solución aplicada, a la espera de confirmación) y cerrado. Reabierto aparece cuando el usuario dice 'sigue igual': la reapertura es un evento que se mide, no un capricho. Cada estado tiene reglas de reloj: la espera detiene o descuenta SLA según política, y lo resuelto sin respuesta se auto-cierra tras N días. Entenderlo explica tus métricas: el MTTR cuenta del registro a resuelto, no a cerrado.",
-    "example": "Resuelves el ticket y pasa a 'resuelto' con nota al usuario; a los 3 días sin respuesta se auto-cierra; si el usuario vuelve quejándose, se reabre y queda registrada en la tasa de reapertura."
-  },
-{
-    "id": "seed-hd-intake",
-    "term": "Registro inicial del ticket (intake)",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Captura del primer contacto: registrar el ticket con datos completos antes de diagnosticar nada.",
-    "longDefinition": "El arte del primer minuto: convertir 'no me funciona el correo' (que no sirve para nada) en un registro con usuario, servicio, síntomas exactos (mensaje de error, desde cuándo, a quién más le pasa), contexto (oficina o VPN, tras qué cambio) y canal. Un intake pobre contamina todo lo que sigue: triage imposible, base de conocimiento que no encuentra, Tier 2 a ciegas y el usuario repitiendo su historia en cada turno. Es también el momento de la primera impresión: número de ticket, SLA aplicado y qué esperar. En teléfono lo estandariza el guion; en chat y portal, el formulario. Regla: no se diagnostica antes de registrar.",
-    "example": "Llamada: 'el Outlook va raro' se convierte en 'desde ayer a las 15:00, al abrir sale el aviso de sin conexión, solo en tu portátil, en la oficina, ya reiniciaste'. Con eso, el triage y el artículo de KB salen solos."
-  },
-{
-    "id": "seed-hd-triage-y-categorizacion",
-    "term": "Triage y categorización de tickets",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Primer análisis del ticket: clasificar por servicio y categoría, y decidir prioridad y equipo destino.",
-    "longDefinition": "Los primeros minutos de un ticket valen más que las dos horas siguientes. La categorización asigna servicio y subcategoría (Correo > Sincronización); el triage evalúa impacto y urgencia para la prioridad y decide la ruta: Tier 1 lo resuelve, Tier 2 lo investiga, el proveedor externo lo recibe. Mal categorizado, el ticket rebota entre colas y cada rebote son horas de SLA. Buen triage: el ticket llega al equipo correcto con la información mínima (usuario, servicio, síntomas, ya probado). Los reportes nacen de aquí: si la categoría miente, el análisis de tendencias mide nada.",
-    "example": "'No me funciona el Excel' se registra como Ofimática > Excel > Rendimiento; triage: un usuario con alternativa es P3; ruta: Tier 1 con un artículo de KB candidato. En 5 minutos el ticket ya tiene dueño, prioridad y camino."
-  },
-{
     "id": "seed-hd-backlog-y-envejecimiento",
     "term": "Backlog y envejecimiento de tickets",
     "category": "HelpDesk - Service Desk / ITSM",
@@ -688,118 +580,12 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "example": "En la entrevista te preguntan la diferencia entre incidente y solicitud de servicio: respondes con ITIL y el entrevistador comprueba en 30 segundos que hablas el idioma del service desk."
   },
 {
-    "id": "seed-hd-sistema-de-valor",
-    "term": "Sistema de valor (SVS)",
-    "acronym": "SVS",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "El modelo central de ITIL 4: cómo la demanda entra y sale del sistema convertida en valor.",
-    "longDefinition": "El dibujo grande de ITIL 4: la demanda y las oportunidades del entorno entran al sistema, atraviesan prácticas, recursos y socios (con los principios rectores y la gobernanza como marco) y salen como valor. Su mensaje práctico: el service desk no existe para cerrar tickets, existe para convertir esa demanda en valor con la menor fricción posible. Cada ticket es una entrada al SVS y cada mejora continua es un ajuste del sistema. Situarse en el SVS responde a la pregunta del novato ('¿por qué tanta burocracia?'): cada paso existe para proteger el valor, y si no lo hace, sobra.",
-    "example": "La dirección pregunta para qué sirve el portal de autoservicio y respondes en términos del SVS: convierte demanda repetitiva en respuesta inmediata 24x7, liberando a Tier 1 para lo que sí requiere persona."
-  },
-{
-    "id": "seed-hd-principios-rectores",
-    "term": "Principios rectores de ITIL 4",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Las 7 recomendaciones de ITIL 4 que guían toda decisión, aplicables a cualquier contexto.",
-    "longDefinition": "Siete consejos de diseño, no procesos: enfocarse en el valor; empezar donde se está; progresar iterativamente con retroalimentación; colaborar y promover la visibilidad; pensar y trabajar holísticamente; mantenerlo simple y práctico; optimizar y automatizar. Son deliberadamente universales: valen para diseñar un service desk, ordenar una cola o elegir herramienta. El que más cambia el día a día del analista es 'mantenerlo simple': un formulario de 12 campos obligatorios para un restablecimiento no es proceso, es fricción. Y 'colaborar y dar visibilidad' explica por qué el ticket con notas legibles salva al compañero del turno siguiente.",
-    "example": "Quieren rediseñar el intake con 15 campos nuevos; aplicas 'mantenlo simple' y 'empieza donde estás': piloto de 2 semanas con 5 campos y feedback del equipo antes de tocar el portal entero."
-  },
-{
-    "id": "seed-hd-cuatro-dimensiones",
-    "term": "Las 4 dimensiones de ITIL 4",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Cuatro perspectivas de todo servicio: personas, información y tecnología, socios, flujos y procesos.",
-    "longDefinition": "ITIL 4 exige mirar cada servicio desde cuatro ángulos simultáneos: organizaciones y personas (roles, cultura, competencias); información y tecnología (datos, aplicaciones, infraestructura); socios y proveedores (externalización, cloud); y flujos de valor y procesos (cómo la demanda se convierte en valor). La utilidad práctica es diagnóstica: un service desk que falla rara vez falla solo en tecnología; suele fallar en personas (rotación, sin formación) o en procesos (intake caótico). Cuando el ticket no avanza, pregunta qué dimensión está rota antes de culpar a la herramienta.",
-    "example": "MTTR alto: descubres que no es la aplicación, es que nadie entrenó a los nuevos (dimensión de personas) y que el proveedor cloud responde en 2 días (dimensión de socios): el fix toca dos dimensiones distintas."
-  },
-{
-    "id": "seed-hd-practicas-itil",
-    "term": "Prácticas de ITIL 4",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Unidades organizativas de ITIL 4 que hacen el trabajo: generales, de gestión de servicio y técnicas.",
-    "longDefinition": "ITIL 4 sustituye los 'procesos' de v3 por prácticas: conjuntos de recursos organizados para un objetivo. Son 34, agrupadas en 14 generales (mejora continua, gestión de relaciones, seguridad de la información...), 17 de gestión de servicios (gestión de incidentes, de problemas, de cambios, de solicitudes, service desk, de niveles de servicio, del conocimiento...) y 3 técnicas (despliegues, infraestructura y plataformas, y desarrollo de software). El analista de soporte vive dentro de varias a la vez. La diferencia clave con 'proceso': la práctica se adapta al tamaño de la organización; una empresa pequeña no necesita las 34.",
-    "example": "Tu día: gestión de incidentes (3 tickets), gestión de solicitudes (2 restablecimientos), gestión del conocimiento (un artículo) y service desk (todo lo demás): cuatro prácticas antes del mediodía."
-  },
-{
-    "id": "seed-hd-mejora-continua",
-    "term": "Mejora continua (CSI)",
-    "acronym": "CSI",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Ciclo permanente de medir, detectar brechas y mejorar: el modelo de mejora continua de ITIL 4.",
-    "longDefinition": "Práctica general (heredera de la Continual Service Improvement de v3) que ordena el perfeccionamiento: el modelo de mejora continua responde en orden ¿cuál es la visión?, ¿dónde estamos?, ¿dónde queremos estar?, ¿cómo llegamos?, actuar y comprobar si se logró, montado sobre el ciclo PDCA. Para el service desk no es un proyecto trimestral: es revisar los 10 motivos de ticket más comunes y escribir el artículo que falta, o ajustar la matriz cuando una celda produce prioridades absurdas. El requisito son datos: sin métricas honestas no hay mejora, solo opiniones. El error clásico es querer mejorarlo todo: se eligen una o dos brechas de alto impacto y se cierran por iteración.",
-    "example": "El informe mensual muestra que el 30% de los tickets son restablecimientos de MFA: iteración con guía ilustrada en el portal y QR en la sala de reuniones; al mes siguiente el volumen cae al 18% y se vuelve a medir."
-  },
-{
-    "id": "seed-hd-cliente-vs-usuario",
-    "term": "Cliente vs usuario (ITIL)",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Cliente: quien paga y decide el servicio; usuario: quien lo usa a diario. Expectativas distintas.",
-    "longDefinition": "Distinción fundacional de ITIL. El cliente define qué servicio, paga y firma el SLA (el director de operaciones, el negocio); el usuario es la persona que cada día abre el correo y la app de ventas. El service desk atiende a usuarios pero rinde cuentas a clientes: el CSAT lo miden los usuarios, el SLA lo firma el cliente. La confusión genera el conflicto de prioridad típico: para el usuario lo suyo es urgente; el cliente definió en el SLA qué es P1. Conocer ambos papeles permite contestar al usuario sin insultar al acuerdo.",
-    "example": "El usuario de ventas exige que su reporte sea P1; el SLA del servicio BI, firmado por su director, define P1 como caída total. Mantienes el P3 y explicas el marco con tacto: el acuerdo manda."
-  },
-{
-    "id": "seed-hd-comunicacion-y-seguimiento",
-    "term": "Comunicación y seguimiento al usuario",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Actualizaciones proactivas y contacto de verificación: el usuario nunca tiene que preguntar qué pasa.",
-    "longDefinition": "La mitad del servicio. Comunicación: cada cambio de estado, espera o decisión relevante se refleja al usuario en su idioma y con expectativa ('espero al proveedor; te escribo antes de las 16:00'). Seguimiento: contactar cuando lo prometiste aunque no haya novedad, y verificar que la solución sigue funcionando días después. Es la palanca más barata del CSAT y de la tasa de reapertura a la vez: el usuario informado no llama dos veces y el usuario seguido no descubre solo que 'sigue roto'. Regla operativa: ningún ticket en curso supera 24 horas sin actualización, y toda promesa de contacto se cumple o se renegocia antes de vencer.",
-    "example": "Ticket en espera del proveedor: escribes 'sigue con el proveedor, te escribo antes de las 17:00' y a las 16:45 escribes de nuevo, aunque la respuesta sea 'nada aún'. El usuario no llamó ni una sola vez."
-  },
-{
-    "id": "seed-hd-empatia-tecnica",
-    "term": "Empatía técnica (manejo del usuario frustrado)",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Reconocer la frustración antes de diagnosticar: primero validar el problema, luego técnica.",
-    "longDefinition": "Habilidad blanda con impacto técnico medible: un usuario furioso describe mal el problema y sabotea el diagnóstico. La secuencia funciona: validar sin juzgar ('entiendo, en cierre de mes esto es grave'), hacerte cargo del caso (no del universo: 'esto lo llevo yo'), dar un marco de tiempo realista y solo entonces preguntar técnica. Lo que no funciona: abrir con '¿ha probado a reiniciar?', culpar a otro equipo delante del usuario o minimizar ('es solo un aviso'). El límite: empatía no es soportar abusos; el guion de incidente y el escalamiento jerárquico existen para los casos que escalan de tono.",
-    "example": "El usuario grita que lleva 3 días sin imprimir: 'tres días sin imprimir en tu cierre, lo entiendo; hoy lo llevamos entre manos'. Baja el tono, te describe el error exacto y en 10 minutos lo tienes resuelto."
-  },
-{
-    "id": "seed-hd-documentacion-del-ticket",
-    "term": "Documentación del ticket (notas de trabajo)",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Notas de trabajo en el ticket: qué se probó, qué se encontró y qué falta: la memoria del caso.",
-    "longDefinition": "Cada acción deja rastro: hora, qué comprobaste, resultado y siguiente paso. Su valor es triple: el compañero que tome el ticket no parte de cero, el escalamiento llega con contexto (Tier 3 odia los tickets desnudos) y el postmortem o el problema se construyen sobre tus notas. Estándar pragmático: primera nota con síntomas exactos y contexto; notas intermedias con comandos y resultados ('ping OK, servicio caído, reiniciado, persiste'); cierre con causa, solución y referencias (artículos, CI, número de cambio). 'Mirado, nada' no es una nota: es un insulto al siguiente turno.",
-    "example": "Turno de noche: '14:20 reiniciado el servicio de impresión; 14:25 cola vacía y prueba con PDF correcta; pendiente: driver v4.11'. El de mañana escala a Tier 3 con 3 líneas y el caso avanza sin volver a llamar al usuario."
-  },
-{
-    "id": "seed-hd-lenguaje-no-tecnico",
-    "term": "Lenguaje no técnico (traducir para el usuario)",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Traducir el diagnóstico técnico a consecuencias y acciones que el usuario entiende y puede ejecutar.",
-    "longDefinition": "El usuario no necesita que le expliques DNS: necesita saber que la dirección de internet del correo está tardando en responder y que tu equipo ya lo ve. La traducción tiene tres reglas: habla de efectos ('no puedes enviar ni recibir'), no de mecanismos; instrucciones numeradas paso a paso, sin siglas sin desempacar; y expectativa honesta en tiempo ('en 30 minutos te vuelvo a escribir'). El nivel de detalle depende de la audiencia: efectos al usuario final, algo más de fondo al usuario avanzado, impacto de negocio a la dirección. Frases prohibidas: 'es cosa de la red', 'está caído' sin contexto y 'ya sabes, lo de siempre'.",
-    "example": "En lugar de 'el token expiró por desfase de reloj', dices: 'el reloj de tu portátil va desincronizado y eso confunde al sistema de seguridad; lo ajusto ahora, 2 minutos'."
-  },
-{
-    "id": "seed-hd-confirmacion-de-cierre",
-    "term": "Confirmación de cierre (closure confirmation)",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Verificar con el usuario que la solución funciona antes de cerrar el ticket.",
-    "longDefinition": "El paso que separa 'resuelto' de 'cerrado': pedir al usuario confirmación explícita de que la solución funciona y ya puede trabajar. Reduce reaperturas (la causa número uno es cerrar sin verificar), blinda la calidad del dato de resolución y da al usuario el control final del caso. Si el usuario no responde, se cierra con política (auto-cierre a 3-5 días con aviso previo), nunca en silencio. La confirmación debe ser específica: no '¿ya está?' sino '¿puedes enviar el correo de prueba con el adjunto?'. Cerrar con confirmación alimenta métricas limpias; cerrar sin ella alimenta la tasa de reapertura.",
-    "example": "Antes de cerrar escribes: '¿me confirmas que ya puedes abrir los adjuntos en Outlook?'. El usuario prueba, confirma, y cierras con 'resuelto y confirmado por el usuario' y la fecha."
-  },
-{
     "id": "seed-hd-reasignacion-vs-escalamiento",
     "term": "Reasignación vs escalamiento",
     "category": "HelpDesk - Service Desk / ITSM",
     "shortDefinition": "Reasignar: corregir la ruta (equipo equivocado); escalar: subir por conocimiento o autoridad.",
     "longDefinition": "La reasignación mueve el ticket a la cola correcta porque el intake lo mandó mal: no es subir, es enrutar de nuevo; idealmente ocurre en minutos y el reloj de SLA sigue desde el registro. El escalamiento (funcional) transfiere porque el equipo actual no tiene conocimiento o permisos: la diferencia real es la causa, 'no es mío' frente a 'no puedo'. Reasignaciones frecuentes del mismo servicio indican que el árbol de categorización está mal diseñado: cada rebote son minutos de MTTR y paciencia de usuario. Protocolo: al reasignar, nota breve del motivo y aviso al usuario para que no crea que su ticket viaja a la deriva.",
     "example": "Un ticket de 'no arranca la app de diseño' cae en la cola de redes: reasignación inmediata a soporte de estaciones con nota de 'intake erróneo'. El usuario no percibe escalamiento: solo una corrección de rumbo."
-  },
-{
-    "id": "seed-hd-cola-y-carga",
-    "term": "Cola de tickets y carga por analista",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Queue: bandeja del equipo trabajada por prioridad; carga: tickets activos por analista.",
-    "longDefinition": "La cola es la bandeja del equipo: se trabaja por prioridad y antigüedad, no por orden de llegada ni por gustos. La carga es el número de tickets activos por analista y su sostenibilidad: 10 a 15 activos simultáneos es el rango manejable típico de Tier 1; por encima, el multitasking degrada el MTTR y vacía las notas. Gestionar la cola es repartir equilibrado, vigilar el envejecimiento y mover refuerzos cuando llega la ola. Las olas se predicen con el calendario (lunes a primera hora, cierre de mes, día de parche) y se absorben con autoservicio, no con heroísmo.",
-    "example": "Lunes 09:00: 30 tickets en cola y 4 analistas; el coordinador reparte 7 u 8 por persona priorizando los 3 más viejos como foco del día y activa el aviso de 'tiempos altos' en el portal."
-  },
-{
-    "id": "seed-hd-traspaso-de-turno",
-    "term": "Traspaso de turno (shift handoff)",
-    "category": "HelpDesk - Service Desk / ITSM",
-    "shortDefinition": "Transferencia formal de la cola entre turnos: qué sigue abierto, qué vence y qué se prometió.",
-    "longDefinition": "El cambio de turno es el momento de mayor riesgo de un service desk 24x7: lo que no se transmite, se pierde. El traspaso formal mínimo: tickets abiertos por prioridad con su último estado, los que están a menos de una hora del SLA, los compromisos con usuarios ('prometí escribir a las 16:00') y los incidentes mayores en curso con su enlace al bridge. Se hace por escrito (panel o plantilla) además de verbal: la memoria del compañero no es un sistema. Lo delata la métrica: reaperturas y tickets 'perdidos' tras cambios de turno. Buena señal de madurez: el usuario no nota que cambiaste de turno.",
-    "example": "Traspaso de las 14:00: 'P1 del ERP en bridge (enlace), dos promesas de contacto a las 15:30, P3 de impresión listo para cerrar pendiente de confirmación'. El turno de tarde entra pisando firme, no adivinando."
   },
 {
     "id": "seed-hd-event-viewer",
@@ -1254,15 +1040,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "example": "Usuario sin internet: ping a su compañero responde pero ping 192.168.1.1 (gateway) no; el equipo está bien y el AP o el router de la planta está caído, se escala con ambos resultados en el ticket."
   },
 {
-    "id": "seed-hd-nat",
-    "term": "NAT (Network Address Translation)",
-    "acronym": "NAT",
-    "category": "HelpDesk - Redes (Networking)",
-    "shortDefinition": "Traduce las IP privadas de muchos equipos a una IP pública compartida al salir a internet.",
-    "longDefinition": "El router mantiene una tabla de traducciones y multiplexa por puertos, por eso toda la oficina aparece en internet con la misma IP pública. En soporte explica fenómenos cotidianos: por qué no se puede acceder desde fuera a un equipo interno sin configurar port forwarding, y por qué el 'doble NAT' (router detrás de router) rompe VPN, consolas y conexiones entrantes raras. Para saber la IP pública se usa un servicio web tipo whatismyip, que no coincide con la del ipconfig.",
-    "example": "Un teletrabajador con router nuevo del ISP detrás de su propio router no consigue conectar la VPN corporativa: doble NAT; se pone el router del ISP en modo bridge o se retira el intermedio y la VPN conecta."
-  },
-{
     "id": "seed-hd-mac-address",
     "term": "MAC address",
     "acronym": "MAC",
@@ -1270,15 +1047,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "Identificador físico hexadecimal de 48 bits de la tarjeta de red (AA:BB:CC:DD:EE:FF), único por interfaz.",
     "longDefinition": "Trabaja en capa 2 y es la dirección con la que realmente hablan los equipos vecinos y los switches; ARP se encarga de relacionarla con la IP. En soporte aparece al configurar reservas DHCP, filtrados Wi-Fi por MAC y autenticación 802.1X de equipo. Se consulta con ipconfig /all o getmac. Ojo con la randomización de MAC de iOS y Android: al cambiar de MAC aparente, rompe reservas y filtros que dependan de ella.",
     "example": "El iPhone de un directivo deja de coger su IP reservada: iOS usa una dirección privada (aleatoria) por SSID; se desactiva la dirección privada para esa red o se rehace la reserva con la MAC que ahora reporta."
-  },
-{
-    "id": "seed-hd-dns",
-    "term": "DNS (Domain Name System)",
-    "acronym": "DNS",
-    "category": "HelpDesk - Redes (Networking)",
-    "shortDefinition": "Traduce nombres (intranet.empresa.com) a direcciones IP; si falla, la red funciona pero 'nada abre'.",
-    "longDefinition": "Es la agenda telefónica de internet y de la intranet: el equipo pregunta a sus servidores DNS (visibles en ipconfig /all) y guarda respuestas en caché. Su fallo produce el síntoma más confuso para el usuario: internet 'no abre' aunque la conectividad esté perfecta. El diagnóstico de diez segundos: ping por IP funciona y ping por nombre no, luego nslookup contra el servidor configurado y contra 8.8.8.8 para comparar. La mayoría de incidencias de navegación de un solo equipo terminan siendo DNS.",
-    "example": "El portal corporativo 'no existe' para un usuario: ping 10.20.30.40 responde pero ping portal.empresa.com falla; nslookup contra el DNS interno da timeout y contra 8.8.8.8 resuelve: el DNS interno está caído, se escala y como workaround temporal se prueba con DNS público."
   },
 {
     "id": "seed-hd-registros-dns",
@@ -1319,15 +1087,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "Consulta DNS directamente: muestra qué servidor responde y qué devuelve, sin pasar por la caché local.",
     "longDefinition": "A diferencia de ping, nslookup pregunta directamente al servidor, lo que permite comparar respuestas: nslookup intranet resuelve con el servidor por defecto y nslookup intranet 8.8.8.8 fuerza otro. Con -type= se consultan registros A, CNAME o MX. Hay que saber leerlo: timeout significa servidor caído o inalcanzable, 'no encontró el registro' significa que el nombre no existe en ese servidor, y una respuesta correcta confirma que el problema está en otro lado (caché, sufijo, aplicación).",
     "example": "nslookup intranet contra 10.0.0.5 da timeout y contra 8.8.8.8 resuelve: el DNS interno está caído; se escala con ambos resultados y como workaround temporal se apunta al DNS público en el equipo afectado."
-  },
-{
-    "id": "seed-hd-dhcp",
-    "term": "DHCP (Dynamic Host Configuration Protocol)",
-    "acronym": "DHCP",
-    "category": "HelpDesk - Redes (Networking)",
-    "shortDefinition": "Servicio que reparte IP, máscara, gateway y DNS automáticamente; sin él el equipo cae en 169.254.x.x.",
-    "longDefinition": "Funciona con un intercambio DORA (Discover, Offer, Request, Acknowledge): el equipo grita que necesita configuración, el servidor ofrece una completa y la presta por un tiempo determinado. Reparte también opciones como DNS, sufijo de dominio y gateway. En soporte, buena parte de los 'sin red' son DHCP: servidor caído, alcance agotado o VLAN sin servicio. El diagnóstico empieza en ipconfig /all: si la IP empieza por 169.254, DHCP no ha llegado; si hay IP válida, el DHCP queda descartado.",
-    "example": "Una planta entera amanece sin red tras un corte eléctrico: todos los ipconfig muestran 169.254.x.x; el servidor DHCP no levantó con el resto; se escala el servicio y se documenta que los equipos están sanos."
   },
 {
     "id": "seed-hd-lease-dhcp",
@@ -1514,15 +1273,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "example": "Un puesto tarda minutos en abrir carpetas con ping impecable: el adaptador está fijado a 100 Mbps Half Duplex de hace años; se pasa a Auto Negotiation, negocia 1 Gbps Full y la velocidad vuelve a la normalidad."
   },
 {
-    "id": "seed-hd-vlan",
-    "term": "VLAN (Virtual LAN)",
-    "acronym": "VLAN",
-    "category": "HelpDesk - Redes (Networking)",
-    "shortDefinition": "Redes lógicas aisladas sobre el mismo switch físico: cada puerto pertenece a una sola VLAN.",
-    "longDefinition": "Dos equipos en VLANs distintas están en redes distintas: no se ven aunque cuelguen del mismo switch, y cada VLAN suele tener su DHCP y su subred. Para el L1 es clave porque explica el fallo 'enchufa pero no coge IP' o 'coge una IP rara de otra red': el puerto del switch está en una VLAN distinta a la esperada. La acción correcta es identificar el puerto (número de roseta o patch panel) y reportarlo al equipo de redes; no es un problema del equipo del usuario.",
-    "example": "Dos puestos reubicados no ven el ERP: ambos cogieron IPs del rango de impresoras porque el patch panel los dejó en puertos de la VLAN de impresión; redes los reasigna a la VLAN de oficinas y los puestos conectan."
-  },
-{
     "id": "seed-hd-vpn",
     "term": "VPN (túnel)",
     "acronym": "VPN",
@@ -1564,14 +1314,6 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "Zona intermedia aislada para servicios expuestos a internet sin que toquen directamente la red interna.",
     "longDefinition": "Servidores públicos (web, pasarela VPN) se colocan en la DMZ, con reglas estrictas y mínimas entre la DMZ y la red interna. Como concepto de soporte explica por qué un servidor accesible desde fuera no ve las carpetas internas: las comunicaciones entre zonas se controlan regla a regla. Cuando un servicio de la DMZ 'deja de enviar' hacia dentro, casi siempre es una regla cerrada en un cambio reciente, y el ticket va al equipo de perímetro, no al de aplicaciones.",
     "example": "El portal de clientes funciona pero sus correos de confirmación no salen: la app está en DMZ y la regla hacia el relay interno de correo se cerró en el último despliegue; perímetro la reabre y las confirmaciones vuelven."
-  },
-{
-    "id": "seed-hd-router-domestico-vs-corporativo",
-    "term": "Router doméstico vs equipo de red corporativo",
-    "category": "HelpDesk - Redes (Networking)",
-    "shortDefinition": "El router de casa integra NAT, DHCP, Wi-Fi y switch en una caja; la corporativa separa funciones gestionadas.",
-    "longDefinition": "En casa: un aparato, interfaz web sencilla, sin VLANs ni 802.1X, DNS del ISP y reiniciar resuelve el 90% de los casos. En empresa: switches de acceso, controlador de APs, routers y perímetro gestionados y monitorizados; no se reinicia nada sin coordinar. Para el HelpDesk importa delimitar alcance: en una incidencia de teletrabajador, la parte doméstica (router, ISP, latiguillos) es terreno de soporte guiado, y la corporativa (VPN, perfil, DNS) es la que se puede auditar y escalar.",
-    "example": "Teletrabajador sin VPN tras un corte de luz en su casa: se le guía para reiniciar su router doméstico y el equipo arranca; se documenta que su portátil y su perfil VPN están OK y el fallo era local de su red."
   },
 {
     "id": "seed-hd-latencia-jitter",

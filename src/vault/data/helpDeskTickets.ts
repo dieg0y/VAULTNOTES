@@ -10,7 +10,7 @@
  */
 import type { HdTicketLevel, HdTicketPriority, HdTicketType } from '../types';
 
-export interface HelpDeskTicketSeed {
+interface HelpDeskTicketSeed {
   id: string;
   number: string;
   title: string;

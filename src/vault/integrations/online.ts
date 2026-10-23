@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react';
 /** Synchronous read of the current online state. Falls back to `true` if
  *  `navigator.onLine` is undefined (very old browsers / SSR). Used by
  *  non-React modules (providers) that can't use the hook. */
-export function isOnline(): boolean {
+function isOnline(): boolean {
   if (typeof navigator === 'undefined') return true;
   return navigator.onLine !== false;
 }

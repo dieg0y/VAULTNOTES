@@ -26,9 +26,9 @@ import { IMAGES_DIR_KEY, type FSDirHandleLike } from './imageStorage';
 /* guardados nunca se borran.                                          */
 /* ------------------------------------------------------------------ */
 
-export const MEDIA_VAULT_DIR_NAME = 'GITHUBVAULT';
-export const MEDIA_VIDEOS_SUBDIR = 'videos';
-export const MEDIA_IMAGES_SUBDIR = 'imagenes';
+const MEDIA_VAULT_DIR_NAME = 'GITHUBVAULT';
+const MEDIA_VIDEOS_SUBDIR = 'videos';
+const MEDIA_IMAGES_SUBDIR = 'imagenes';
 
 const MEDIA_META_KEY = 'vault-media-meta';
 

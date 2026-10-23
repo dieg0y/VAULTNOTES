@@ -1,9 +1,9 @@
 /**
  * glossarySeedSysAdmin — especialización SysAdmin / Infraestructura.
  *
- * 134 términos SysAdmin/Infra: Linux/Unix 30 · Windows Server 12 · Redes & Firewalls 17 ·
- * Storage & Backup 20 · Virtualización 8 · Cloud/Contenedores 18 · Monitoreo & Observabilidad 14 ·
- * Automatización 9 · Seguridad & Hardening 6. Español es-CO, tono práctico del día a día.
+ * 131 términos SysAdmin/Infra (auditada v2): Linux/Unix 30 · Windows Server 12 · Redes & Firewalls 17 ·
+ * Storage & Backup 20 · Virtualización 8 · Cloud/Contenedores 17 · Monitoreo & Observabilidad 13 ·
+ * Automatización 8 · Seguridad & Hardening 6. Español es-CO, tono práctico del día a día.
  * Los nombres obligatorios referenciados por la KB SysAdmin (sakb-*) van con su nombre
  * canónico exacto (systemd, journalctl, LVM, RAID, hot spare, Snapshot, DNS, GPO, etc.).
  *
@@ -954,15 +954,6 @@ export const GLOSSARY_SEED_SYSADMIN_TERMS: SeedTerm[] = [
     example: "El procesamiento nocturno encola millones de registros: la política de auto-scaling por profundidad de cola levanta 8 workers de 01:00 a 04:00 que drenan la cola y se retiran solos: el batch pasa de 9 horas a 3 sin servidores fijos pagando el mes entero."
   },
   {
-    id: "seed-sa-finops",
-    term: "Egress y FinOps",
-    acronym: undefined,
-    category: "SysAdmin - Cloud / Contenedores",
-    shortDefinition: "Egress: el costo del tráfico que SALE de la nube; FinOps: la práctica de gestionar la factura cloud con visibilidad, presupuestos y optimización.",
-    longDefinition: "En la mayoría de proveedores el tráfico entrante es gratis y el saliente (hacia Internet o hacia otra región) se cobra por GB: mover decenas de TB de respaldos o bases desde la nube puede costar más que el storage mismo. FinOps es la disciplina que ata la factura a la realidad: etiquetado por equipo y proyecto, presupuestos y alertas de gasto, caza de recursos ociosos (discos huérfanos, IPs reservadas, instancias al 5%), rightsizing y compromisos de uso (reservas). Por qué importa: la nube convierte el CAPEX en OPEX y la factura crece en silencio sin dueño: el SysAdmin que sabe leerla y predecirla se vuelve insustituible; y el egress es un factor de arquitectura (dónde viven los respaldos y por qué 'la nube barata' puede arruinar el restore caro). Trampa: el restore masivo de DRP desde la nube con egress alto puede costar miles de dólares en horas y nadie lo presupuesta hasta que ocurre; y sin política de tags ANTES del primer despliegue, la factura es una sopa imposible de delegar por equipo.",
-    example: "Revisión FinOps mensual: el reporte por tags revela 40 discos huérfanos de pruebas (600 USD al mes), un bucket sirviendo 3 TB de egress por una configuración equivocada y dos instancias al 8% de CPU: rightsizing y limpieza bajan la factura 18% y el acta queda como evidencia del ciclo."
-  },
-  {
     id: "seed-sa-zabbix",
     term: "Zabbix",
     acronym: undefined,
@@ -1015,15 +1006,6 @@ export const GLOSSARY_SEED_SYSADMIN_TERMS: SeedTerm[] = [
     shortDefinition: "Network Operations Center: el equipo y los turnos que vigilan la infraestructura en tiempo real, triagean alertas y ejecutan los runbooks de primera respuesta.",
     longDefinition: "El NOC es la guardia de la infraestructura: pantallas con el estado (dashboards), turnos cubriendo 24/7 o horario extendido, y un flujo: la alerta entra, se triagea (¿es real?, ¿qué impacto tiene?, ¿qué runbook aplica?), se ejecuta la primera respuesta documentada y se escala al especialista o al on-call si no resuelve; sus herramientas son el monitoreo, los runbooks, la bitácora y el handover escrito de cada turno. Por qué importa: es el primer anillo de respuesta: la diferencia entre un incidente contenido en minutos con un runbook claro y uno descubierto cuatro horas después por el usuario; y para el SysAdmin junior el NOC es la escuela: ver cientos de incidentes reales y sus patrones entrena el criterio que ningún curso da. Trampa: el NOC sin runbooks ni criterio de escala degenera en 'pantallas y clics' (reiniciar sin diagnosticar, alertas cerradas sin causa raíz), y sin handover escrito cada cambio de turno reinicia el diagnóstico del incidente de la noche: la memoria del NOC es la bitácora, no la cabeza de la gente.",
     example: "03:40: el NOC recibe 'túnel sede norte down': ejecuta el runbook TUN-01 (verificar fase 2, logs del ISP, failover al enlace de respaldo), confirma el corte del operador, activa el enlace 4G de emergencia y escala a L3 con toda la evidencia; el handover de las 07:00 cuenta la historia completa."
-  },
-  {
-    id: "seed-sa-postmortem",
-    term: "Postmortem",
-    acronym: undefined,
-    category: "SysAdmin - Monitoreo & Observabilidad",
-    shortDefinition: "Análisis posterior al incidente: línea de tiempo, causa raíz, impacto medido y acciones con dueño y fecha; sin culpas para que la verdad salga.",
-    longDefinition: "El postmortem reconstruye el incidente: timeline (detección, diagnóstico, mitigación, cierre), impacto en usuarios y negocio con números, causa raíz técnica (el porqué del porqué, no 'alguien se equivocó'), qué funcionó y qué falló del proceso, y action items con dueño y fecha. La cultura blameless no elimina la responsabilidad: elimina el miedo a contar lo que pasó, porque la causa raíz es casi siempre sistémica (proceso, prioridad, herramienta), no maldad. Por qué importa: es el único mecanismo que convierte cada incidente en mejora permanente: sin postmortem, el mismo ticket renace en tres meses; con postmortem, la acción con dueño mata la CLASE de incidente, y la biblioteca de postmortems se vuelve la memoria operativa de la organización. Trampa: los action items sin dueño ni fecha ('se revisará') son decoración, y el postmortem para buscar culpable garantiza que el próximo incidente se reporte tarde y con medias verdades: el objetivo es el sistema, no el disparo.",
-    example: "Postmortem del P1 de facturación: el timeline muestra 47 minutos entre la caída y la primera acción porque la alerta caía a un buzón sin vigilar; causa raíz: el cambio no tenía verificación post-implementación; tres acciones con dueño (alerta al pager, checklist post-cambio, runbook de rollback) cierran en el sprint siguiente."
   },
   {
     id: "seed-sa-sli",
@@ -1161,17 +1143,6 @@ export const GLOSSARY_SEED_SYSADMIN_TERMS: SeedTerm[] = [
     shortDefinition: "La divergencia silenciosa entre el estado declarado (Git, IaC) y el estado real de los servidores: cambios manuales que nadie volvió a código.",
     longDefinition: "El drift nace de las emergencias: el hotfix por SSH de las 3 a.m. que salva el servicio y se olvida, la configuración 'temporal' del proveedor, el servidor que se saltó la campaña; semanas después, la flota 'idéntica' tiene veinte variantes y el próximo despliegue falla solo en el servidor que nadie recuerda haber tocado. Se combate con detección programada (terraform plan agendado, auditorías de configuración), convergencia periódica (Ansible en cron) y disciplina: el hotfix de emergencia se volca a Git al día siguiente o no existió. Por qué importa: el drift es el impuesto oculto de la operación manual: cada divergencia es un incidente futuro con causa raíz 'alguien cambió algo'; los entornos reproducibles lo eliminan como clase de problema y el diagnóstico deja de depender de la memoria de la gente. Trampa: detectar drift y 'corregirlo' a mano agrega más drift (ahora hay tres estados); la corrección siempre es la declaración en Git, y sin detección programada el drift se descubre en pleno incidente: tarde y caro.",
     example: "El despliegue falla solo en srv-app-07: la convergencia diaria reporta 'changed' permanente en ese host y la comparación revela un httpd.conf editado a mano hace dos meses; se convierte a template, el drift desaparece y la flota vuelve a ser idéntica de verdad."
-  },
-  {
-    id: "seed-sa-runbook",
-    // LIMPIEZA V13: sufijo de dominio — antes duplicaba al término base y
-    // nunca se sembraba.
-    term: "Runbook (operaciones)",
-    acronym: undefined,
-    category: "SysAdmin - Automatización",
-    shortDefinition: "Procedimiento documentado paso a paso para una operación o incidente recurrente: diagnóstico con comandos, criterios de decisión y punto de escala.",
-    longDefinition: "El runbook es la receta ejecutable por un humano (a diferencia del playbook, que lo ejecuta Ansible): síntomas esperados, pasos de diagnóstico con los comandos exactos, las decisiones (si pasa X, hacer Y), el punto de escala (a quién y con qué información) y cómo verificar que quedó resuelto; vive versionado (Git o wiki), con dueño y fecha de última validación. Por qué importa: convierte el conocimiento del experto en capacidad del equipo: la guardia de la madrugada resuelve con el runbook lo que antes esperaba al especialista; reduce tiempos de respuesta, entrena a los nuevos y es la etapa previa natural a la automatización (runbook maduro, playbook después). Trampa: el runbook desactualizado es más peligroso que no tenerlo (confianza ciega en pasos que ya no aplican: cada uso debe validar y actualizar), y el 'runbook' sin comandos ni criterio de éxito es un ensayo, no una herramienta de guardia.",
-    example: "El P1 del túnel se resuelve en 12 minutos por el NOC siguiendo el runbook TUN-01 (verificación de fases, logs del ISP, failover); el postmortem agrega los dos pasos que faltaban y la alerta queda enlazada al runbook en su annotation: la respuesta y el documento viven conectados."
   },
   {
     id: "seed-sa-pki",

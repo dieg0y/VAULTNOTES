@@ -16,7 +16,7 @@
  */
 import type { SocTicketLevel, SocTicketPriority, SocTicketType, SocEnvironment } from '../types';
 
-export interface SocTicketSeed {
+interface SocTicketSeed {
   id: string;
   number: string;
   title: string;

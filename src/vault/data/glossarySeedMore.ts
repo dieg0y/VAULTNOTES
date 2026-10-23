@@ -1,7 +1,7 @@
 import type { SeedTerm } from './glossarySeedBase';
 
 /**
- * glossarySeedMore — ampliación del seed del glosario (195 términos nuevos).
+ * glossarySeedMore — ampliación del seed del glosario (193 términos tras la auditoría v2).
  *
  * Segundo bloque del seed base (glossarySeedBase.ts): profundiza Entra ID
  * (logs, tenant, PHS/PTA, PIM, CA), Active Directory (estructura, FSMO, SID,
@@ -88,15 +88,6 @@ export const GLOSSARY_SEED_MORE_TERMS: SeedTerm[] = [
     shortDefinition: "Integración que conecta el IGA con cada aplicación para leer y escribir accesos.",
     longDefinition: "Componente (agente, API o SCIM) que permite al IGA leer identidades y entitlements de un sistema y ejecutar altas, cambios y bajas. Cada aplicación se integra con conectores estándar (AD, Entra, SAP) o a medida (REST, JDBC, ficheros planos). La salud del conector es responsabilidad diaria del equipo IAM: si falla, se acumula drift entre lo aprobado y lo real.",
     example: "El conector de ServiceNow marca error de conexión dos días seguidos; el analista detecta el token de API vencido y replantea la cola de aprovisionamiento pendiente."
-  },
-  {
-    id: "seed-more-identity-fabric",
-    term: "Identity Fabric",
-    acronym: undefined,
-    category: "IAM - IGA",
-    shortDefinition: "Capa de servicios de identidad que teje directorios, IGA y control de acceso.",
-    longDefinition: "Arquitectura de referencia que abstrae directorios, IGA, MFA y autorización en una capa común, con orquestación entre herramientas dispares en lugar de una plataforma única. Importa porque la mayoría de empresas tiene identidades repartidas en 5 a 15 herramientas que necesitan cooperar. Para el analista junior, entender el fabric ayuda a ubicar su herramienta concreta dentro del panorama.",
-    example: "La orquestación del fabric traduce un cambio de cargo del HRIS a rol de Okta, grupo de AD y licencia de M365 sin scripts manuales por sistema."
   },
   {
     id: "seed-more-catalogo-de-entitlements",
@@ -358,15 +349,6 @@ export const GLOSSARY_SEED_MORE_TERMS: SeedTerm[] = [
     shortDefinition: "Carpeta compartida de AD donde viven las GPO y los scripts de inicio.",
     longDefinition: "Directorio replicado por FRS o DFSR entre los DC que contiene las plantillas de GPO y los scripts de login. La versión de una GPO en SYSVOL puede divergir de la de la base AD y eso rompe políticas. Alterar SYSVOL es además una táctica clásica de persistencia, por lo que su monitoreo entra en las listas de endurecimiento.",
     example: "Una GPO aparece como aplicada en el reporte pero no surte efecto: la versión en SYSVOL quedó desactualizada y se fuerza la restauración desde el DC maestro."
-  },
-  {
-    id: "seed-more-gpo",
-    term: "GPO (Directiva de grupo)",
-    acronym: "GPO",
-    category: "IAM - IGA",
-    shortDefinition: "Colección de ajustes que AD impone a usuarios y equipos de su alcance.",
-    longDefinition: "Directiva de grupo: configuración (contraseñas, firewall, restricciones, software) que AD aplica a equipos y usuarios enlazada a sitios, dominios u OUs, procesándose en orden LSDOU. Para IAM es la palanca de política técnica: longitud de contraseña, bloqueo de interactive logon o deshabilitar el hash LM se controlan por GPO. Cambiar una GPO sin prueba en una OU piloto es el error clásico.",
-    example: "La GPO Default Domain Policy exige 14 caracteres y bloqueo a 5 intentos; al subir a 16, el analista valida primero el gpresult de un equipo piloto."
   },
   {
     id: "seed-more-agdlp",
