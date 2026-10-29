@@ -223,4 +223,44 @@ Pasada E2E completa en navegador real (Chromium headless) sobre el HEAD actual �
 
 ---
 
-*Fin del reporte. Auditoría original en modo solo lectura; este addendum documenta los fixes posteriores y la re-verificación final.*
+## 9. ADDENDUM II — Auditoría integral en ciclos (2026-10-29, HEAD `4aa3d71`→`9588dcb`)
+
+Auditoría completa de reparación (no solo lectura) sobre el HEAD `3b52d61` en ciclos detectar→corregir→verificar→re-auditar. `tsc --noEmit` reveló **193 errores** que lastraban el quality gate: todos originados por el checkpoint de sesión `2de9dbd` (23 oct, posterior a v13), que resucitó en el árbol **95 archivos fantasma** de features ya retiradas por diseño o de scaffold ajeno a la app.
+
+### 9.1 Eliminación de código fantasma (commit `4aa3d71`, 101 archivos)
+
+| Grupo | Archivos | Motivo verificado |
+|---|---|---|
+| Scaffold shadcn/prisma | `src/components/ui/*` (48), `hooks/use-toast/use-mobile`, `lib/utils`, `lib/db`, `components.json`, `tailwind.config.ts`, `prisma/schema.prisma`, `api/route.ts` | Cero imports desde la app; dependencias npm nunca instaladas (@radix-ui/*, clsx, cva, @prisma/client, tailwindcss-animate). El propio v13 documenta "prisma/ huérfano eliminado" — el checkpoint lo re-introdujo |
+| Features retiradas v11 (Data & Intel / Threat Intel) | `DataIntelView`, `DataIntelDatasets`, `intelStore`, `integrations/{threatIntel,cve,kev,mitre,sigma}` | Referencian tablas Dexie borradas en v25 (tiCache, intelItems…) y el export `isOnline` ya inexistente. La retirada fue decisión de feature documentada en la migración v25 |
+| Features retiradas V6 | `ReviewView` (reviewItems, v20), `CveSearchTool`, 9 tools hd extra, `HdSlaCalculatorTool` | Fuera del catálogo de 48 tools; el catálogo dice "(V6) hd-sla → migrada a runbooks / eliminada" |
+| Datos pre-fusión V11 | `cheatsheetCore`, `socCheatSheet`, `serviceDeskCheatSheet`, `sysadminCheatSheet`, `troubleshootingRunbooks`, `helpDeskLabsData`, `sysadminLabsData`, `iamGlossaryPacks` | Contenido verificado como ABSORBIDO en los runbooks/glosarios vivos (spot-checks por comandos distintivos: dcdiag 13→32, repadmin 4→25, w32tm completo en runbooksSysAdmin…; 184/194 términos de packs ya en los seeds). Historial git preserva las copias |
+| Artefactos | `public/vaultnotes-fixed-src.zip`, `public/vaultnotes-fixed.bundle`, `VaultLogo.tsx` | Sin referencia alguna (grep global) |
+
+Verificación del ciclo: tsc 0 · eslint 0 · **0 archivos inalcanzables** desde el entry (era 95) · E2E navegador completo sin errores.
+
+### 9.2 Auditoría profunda de zipBackup.ts + App.tsx (commit `9588dcb`)
+
+Lectura completa de zipBackup.ts (2138 líneas) y de las superficies de seguridad. **Todas las invariantes del reporte original SIGUEN EN VERDE** (DOMPurify + 3 hooks + fallback; highlight dual-escaped; SW dev-never + wipe + guard 30 s; cero innerHTML en App; merge no destructivo; gate de versión antes de mutar; topes anti zip-bomb activos). Cero P0/P1/P2. Seis P3 corregidos y **verificados dinámicamente en navegador**:
+
+1. `manifest.stats` añadía `troubleshootingIamCount` y `flashcardStatsCount` ausentes (los .json SÍ se exportaban). ✅ Export real: `troubleshootingIamCount: 30`.
+2. Los 10 archivos legacy (9 tablas Data & Intel ≤3.10.0 + `reviewItems` ≤3.5.0) se ignoraban **en silencio**; ahora se cuentan sus filas y el reporte lo muestra. ✅ ZIP con 3+2+1+1 filas legacy → reporte "7".
+3. Rama update de notas: `sourceUrl: valid.sourceUrl || ''` borraba la URL local si el backup más nuevo traía el campo vacío. ✅ Backup con URL vacía + `updatedAt` posterior actualizó contenido pero **preservó** `https://ejemplo.com/fuente`. Chequeo transversal: términos/labs/referencias usan spread completo consistente — el patrón era exclusivo de la rama de notas.
+4. Round-trip de comillas: el exportador escapa `\"` en el título y el parser no lo revertía. ✅ Título con comillas round-trip intacto (ADD branch).
+5. Comentario v16 de `db/index.ts` apuntaba al eliminado `store/intelStore.ts`; reescrito con nota de auditoría (declaración v16 conservada por la cadena de migraciones).
+6. `page.tsx`: `VaultErrorBoundary` ahora envuelve también a nivel de página (la fase de render del propio App quedó fuera de cobertura — estrecho camino a pantalla blanca). Componente ligero (solo React).
+
+### 9.3 Re-verificación E2E del ciclo final (sesión Chromium + IndexedDB real)
+
+Notas (crear/editar/autosave/reload/persist con unicode+emojis) · papelera (confirmación nativa → restaurar) · Ctrl+K fuzzy → dispatch a tool · 48/48 tools · Log Parser (parse 3 formatos + extract IOCs → handoff cross-tool al IoC Extractor verificado con los 7 IoCs en el textarea destino) · Glosario flashcards (entrar/voltear/salir) · Labs (crear/editar/reload/persist) · Simulador SD (HD-1001 "Empezar a trabajar" → En progreso → persiste tras reload) · Roadmap IAM 373 ítems (toggle → persiste) · export ZIP (manifest v25/3.11.0 íntegro) · import merge con reporte · endpoint `/api/enrich-ticket` (LLM + Zod OK) · QuickCapture `Ctrl+Shift+Q` → Inbox · móvil 390 px sin overflow · **cero errores de consola y de página**.
+
+### 9.4 Notas informativas (sin acción)
+
+- **Inventario de red actualizado**: además de los 5 entry points online retirados con v11, la app tiene DOS puentes same-origin opt-in y con gesto explícito del usuario: `/api/enrich-ticket` (LLM, tras confirm de consentimiento, en HdTicketTriageTool) y `/api/git/pull` (Pull espejo GitHub). Ninguno se ejecuta sin click; el análisis offline nunca depende de ellos. La sección §2.1 del reporte original queda como snapshot de su fecha.
+- **Persistencia del navegador de pruebas**: el perfil de Chromium del harness es efímero (cerrar el navegador = IndexedDB borrado); los datos de las pruebas viven en los ZIP exportados durante la sesión. Verificado que NO es un bug de la app: dentro de un mismo perfil todo persiste a través de reloads.
+- **Import no transaccional** (por diseño): cada sección del ZIP hace commit aditivo con su propio try/catch; un fallo intermedio deja estado parcial válido y re-importable idempotentemente (los gates de versión/seguridad sí garantizan no-import-parcial). Documentado como decisión consciente.
+- **Offline en producción**: no re-verificado en esta sesión (el SW no se registra en dev POR DISEÑO — ver §2.5); las garantías offline quedan cubiertas por el diseño documentado y verificaciones E2E previas de producción.
+
+---
+
+*Fin del reporte. Auditoría original en modo solo lectura; el addendum §8 documenta los fixes posteriores; el addendum §9 documenta la auditoría integral en ciclos de 2026-10-29 (ghost cleanup + 6 P3 con verificación dinámica).*
