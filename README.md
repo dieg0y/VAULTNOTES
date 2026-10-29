@@ -1,271 +1,95 @@
-# VAULTNOTES
+# VaultNotes
 
-**Tu segundo cerebro de ciberseguridad.** Una PWA **local-first y 100% offline** para estudiar, trabajar y investigar ciberseguridad como se hace en el puesto real: **4 PILARES AUTÓNOMOS** (Pilar 1 **IAM** · Pilar 2 **SOC/Blue Team** · Pilar 3 **Service Desk** · Pilar 4 **SysAdmin Ops**), cada uno con su simulador de tickets, roadmap, Troubleshooting y Runbooks — y cada runbook presentado como **ticket real de trabajo** con paso a paso universal, comandos copiables y **respuesta en inglés lista para copiar**. Apuntes con editor rico, glosario con flashcards (**862 términos**), **48 herramientas de análisis en UN solo catálogo unificado** (cada tool una vez, etiquetada con su rol), **235 runbooks** (los quick-fixes del antiguo CheatSheet viven ahora dentro de Runbooks), simulador IAM con **Semana de Access Review**, y backups ZIP portables — todo dentro de tu navegador, sin servidor, sin cuenta, sin nube.
+**Tu segundo cerebro de ciberseguridad.** PWA local-first y 100% offline: todo vive en tu navegador (IndexedDB), sin servidor, sin cuenta, sin nube. Estudia y practica como en el puesto real con **4 pilares autónomos** — cada uno con su simulador de tickets, roadmap, troubleshooting y runbooks — más apuntes con editor rico, glosario con flashcards, 48 herramientas de análisis y backups ZIP portables.
 
-> 🎓 **V15 — ROADMAP MAESTRO IAM ANALYST INTEGRADO (34 fases · 373 ítems)**: se integra COMPLETO el roadmap profesional externo (de estudiante a IAM Analyst preparado para trabajo remoto) sobre el roadmap existente — **sin quitar nada** del V13/V14, solo sumando y renumerando: `(1)` **4 fases NUEVAS**: *Fundamentos Técnicos: Sistemas, Redes y Formatos* (Windows/Linux de administrador, DNS/TCP-IP/TLS/NTP/Proxy-VPN, JSON/CSV/YAML, HTTP y códigos, Git, SQL, regex, toolkit Bash/PowerShell/Python — la nueva Fase 1), *GRC, Cumplimiento y Evidencias de Auditoría* (ISO 27001 Anexo A, NIST 800-53 AC-2/AC-3/AC-5/AC-6, SOC 2 CC6.x, el IAM Control Evidence Pack y la auto-auditoría del propio lab), *Portfolio GitHub: los 10 Proyectos IAM* (IAM Lifecycle Lab, RBAC & SoD Policy Engine, Access Review Simulator, Entra ID/Graph Audit Toolkit, SSO Lab Keycloak/OIDC, SCIM 2.0 API FastAPI, Identity Threat Detection Pack, IAM Operations Runbooks, IGA Platform Comparison, Enterprise Capstone + estructura estándar de repo + limitaciones de licencia P1/P2/Governance) y *Mercado Laboral & Búsqueda de Empleo Remoto* (tabla de cargos por prioridad, títulos alternos, portales y alertas para Colombia/LATAM, checklist de filtrado de vacantes, titular de LinkedIn, CV en inglés con logros verificables, 10 escenarios de entrevista como procedimientos, checklist 15/15 de preparación y la ruta final de 10 pasos). `(2)` **+21 ítems de profundidad en las fases existentes**: vocabulario raíz identidad/cuenta/credencial + taxonomía de tipos de identidad + dominios IAM + NIST 800-63-4 y ACL/Need-to-Know/JEA/JIT/excepciones (Fundamentos), arquitectura bosque/árbol/DC/replicación/sitios/trusts y tabla COMPLETA de Event IDs de gestión de cuentas (AD), anatomía del tenant + roles personalizados/unidades administrativas + Connect Sync vs Cloud Sync + estados de dispositivo (Entra), idempotencia y seguridad de escritura en Graph, WS-Federation + condiciones NotBefore/NotOnOrAfter + procedimiento Enterprise Application Onboarding (SSO), Python/pandas/pytest para reconciliación de inventarios (Automatización), los 5 registros de Entra (sign-in/audit/provisioning/SP/MI), TAP/CBA/protección de contraseñas (MFA), Lifecycle Workflows + casos JML alternativos, ciclo de 10 pasos de la solicitud de acceso (Granting), vocabulario completo IGA + SailPoint Developer Community (IGA), Delinea/Secret Server como 4º vendor PAM, Global Secure Access (Zero Trust), las 11 preguntas + entregables del capstone (Lab) y SC-300 con dominios/pesos/orden de estudio + inglés técnico con las 10 preguntas (Certificación). `(3)` **Renumeración 1..34 verificada sin colisiones** — **ids estables 100%**: el progreso del usuario sobrevive intacto (seed aditivo de Dexie, igual que en V13). `eslint` 0 en código vault · validación estructural: 34 fases, 373 ítems, 0 duplicados, 0 huecos.
+## Contenido
 
-> 🧹 **V14 — AUDITORÍA COMPLETA + GLOSARIO DEPURADO + 26 RUNBOOKS CON LAS HERRAMIENTAS DE CADA PLATAFORMA**: `(1)` **IAM +14 runbooks (50)** con las herramientas reales de las plataformas — Okta (System Log API con filtros eventType, reset de factores con la Factors/Lifecycle API), SailPoint ISC (alta de sources con aggregation/correlación, investigación con la v3 Search API), One Identity Safeguard (onboarding de assets al vault con checkout de prueba y rotación), PingFederate (cliente OIDC + troubleshooting del token endpoint: invalid_client/invalid_grant + Runtime Log), ForgeRock DS (healthcheck con status/dsreplication/dsconfig/dsbackup), IBM ISAM (publicación junction + ACL con pdadmin y cabeceras iv-user), Oracle OAM (registro de WebGate, Host Identifier, Application Domain), AD toolkit nativo (dcdiag, repadmin /showobjmeta, setspn -X, klist, netdom, ldp) y las herramientas nativas de Entra (PIM con activación aprobada, Entitlement Management, Access Reviews con auto-apply, ID Protection con Get-MgRiskyUser). `(2)` **+12 runbooks en los otros pilares**: SOC (Golden Ticket/DCSync con el doble reset de krbtgt, abuso de AD CS ESC1–ESC8 con Certipy, exfiltración con rclone, respuesta a honeytoken), SysAdmin (RAID degradado con storcli64/mdadm, VPN sitio-a-sitio por fases IKE/IPSec, nginx 502/504, montaje NFS con _netdev/nofail) y Service Desk (encendido/POST por capas, restauración de archivos por capas, migración a equipo nuevo con retiro seguro, Word/Excel safe mode). `(3)` **Glosario auditado a fondo**: **−52** términos que no aportaban (relleno "computing 101", soft skills, duplicados reales entre pilares — 853→862 neto) y **+62** términos de alto valor que faltaban (herramientas IAM: Okta Workflows, PingOne, Identity Security Cloud, Active Roles, Junction/pdadmin, Microsoft Graph API; seguridad: ransomware, infostealer, DDoS, SQLi/XSS/CSRF/SSRF, WAF, DLP, BEC, UEBA, honeytoken, LOLBins, credential dumping, Mimikatz, Cobalt Strike, BloodHound, Certipy, rclone, Sysmon, YARA, Nmap, Wireshark, CVE/CVSS/KEV/EPSS, supply chain, CTI/OSINT, red/blue/purple team, storcli/nginx/IPMI). `(4)` **Limpieza de código**: findSigmaById muerto, 3 funciones muertas de imageStorage, ~14 exports internos de-exportados, SEVERITY_CHIP/fuzzyMatch/DrawerSection deduplicados en _shared, comentarios obsoletos corregidos, fallback inalcanzable del sw.js retirado. `eslint` 0 · `tsc --noEmit` 0 · validación de seeds (0 duplicados, 0 categorías inválidas, 0 referencias rotas).
+| Pilar | Tickets | KB | Runbooks | Troubleshooting | Roadmap |
+|---|---|---|---|---|---|
+| **1 · IAM** | 50 | 50 | 50 | 30 | 373 ítems · 34 fases |
+| **2 · SOC / Blue Team** | 50 | 16 | 45 | 22 | 93 ítems |
+| **3 · Service Desk** | 60 | 28 | 68 | 24 | 93 ítems |
+| **4 · SysAdmin Ops** | 56 | 28 | 72 | 22 | 119 ítems |
 
-> 🎯 **V13 — ROADMAP IAM ×2 + limpieza a fondo + reparación de datos**: el roadmap del Pilar 1 IAM se duplica — **315 ítems en 30 fases** (era 154 en 23), con **7 fases nuevas**: *IAM Hygiene & Campañas de Limpieza*, *IAM Metrics/KPIs & Reporting Ejecutivo*, *Role Engineering & Minería de Roles*, *PAM en Profundidad (Safeguard · CyberArk · BeyondTrust)*, *Multi-Cloud Identity (Azure · GCP · Kubernetes)*, *Zero Trust & Arquitectura Identity-Centric (NIST 800-207)* e *IAM Disaster Recovery, Break-Glass & Resiliencia* — y +96 ítems de profundidad en las 23 fases existentes (LAPS/AdminSDHolder/AD Recycle Bin/PSO, OIDC flows y tokens, NIST 800-63B AALs, consent y SSPR, Gobernanza de integraciones SSO, caso Okta 2022, IIQ vs ISC, mapa completo de ataques a identidad, SCPs/boundaries, workload identity federation, caso MGM 2023…). **Limpieza y reparación**: cadena de navegación muerta eliminada de los 4 stores (~60 líneas), memo del Header reparado, race del auto-backup resuelta, fuentes Geist retiradas (payload del shell a la mitad), `prisma/` huérfano eliminado, **8 chips de glosario de la KB IAM reparados** + **3 términos IAM nuevos** (Política de autenticación, Role model, Build vs. buy → **853 términos**, +80 de IAM/PAM) y 3 términos SysAdmin que nunca se sembraban ahora sí (Snapshot (VM), Playbook (Ansible), Runbook (operaciones)). El progreso del roadmap existente **se conserva intacto** (ids estables + seed aditivo).
+Además:
 
-> 🔍 **V12 — IAM al máximo + GITHUBVAULT + Pull espejo**: el Pilar 1 IAM queda **lo más completo posible** — **50 tickets · 36 runbooks · 30 escaleras de decisión · KB de 50 artículos** (Directory Services/LDAP, modelo de roles RBAC, granting/revoking de privilegios, identity life-cycle, Access Reviews, PAM profundo, **Okta**, **SailPoint**, **One Identity Safeguard**, **ForgeRock**, **Ping Identity**, **IBM Security Verify/ISAM**, **Oracle Access Manager**, MFA/FIDO2, SSO/federación). Los roadmaps de los 4 pilares ganan especificidad: SOC 93 ítems · Service Desk 93 · SysAdmin 119. **GITHUBVAULT**: videos e imágenes se guardan por defecto en `Documentos/GITHUBVAULT/videos` y `/imagenes` (editable en Configuración) — nunca en la base del navegador. **Pull a tu medida**: Pull seguro (fast-forward, nunca pierde nada) o **Espejo exacto con GitHub** (deja el disco IGUAL al repo — descarta commits locales, restaura modificados y borra lo que ya no existe en GitHub; tus datos y backups jamás se tocan).
+- **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. Glosario sembrado con **862 términos + flashcards**. Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
+- **48 herramientas offline en un catálogo único** (filtro por rol): IAM (JWT, SID/RID, LDAP/DN, RBAC, vulnerabilidades 203, ataques 102) · SOC (Event IDs 93, IoC Extractor, MITRE ATT&CK, Sigma, KQL/SPL, CVSS, hash, guías de Sentinel/Splunk/Elastic/Wireshark…) · Service Desk (triage 91 reglas, AD, Intune, network L1) · SysAdmin (subnetting, puertos 119, cron, systemd, RAID, LVM, firewall) · Global (encoding, regex, timestamp).
+- **Simuladores de tickets reales (Nexora S.A.)** — cola filtrable, modo estudio, flujo de estados con nota de cierre y proyecto final por pilar (Semana de Access Review, Primera semana SOC, etc.).
+- **Runbooks como tickets reales** — paso a paso universal con comandos copiables y respuesta en inglés lista para pegar.
 
-> 🔒 **Privacidad por diseño**: tus datos nunca salen de tu máquina. La base de datos vive en IndexedDB (tu navegador). La app es **100% offline**: las dos únicas piezas con red son opcionales y explícitas — el botón **Pull** (descarga tus propias actualizaciones de código desde GitHub) y **[Enrich Online]** del Ticket Triage (clic explícito + consentimiento, nunca auto-envía nada).
+## Arranque
 
-## ⚡ Resumen en 3 minutos
+**Windows** — doble clic en `IniciarVaultNotes.bat`: instala Bun solo si falta, resuelve dependencias, arranca en el puerto 3000 y abre el navegador. Para detener, cierra la ventana del servidor.
 
-| Pregunta | Respuesta |
-|---|---|
-| **¿Qué es?** | Tu segundo cerebro de ciberseguridad, 100% en tu navegador — sin cuenta, sin nube, sin servidor de datos. |
-| **¿Cómo lo arranco?** | Windows: doble clic en `IniciarVaultNotes.bat` — resuelve todo solo (Bun incluido si falta) y abre el navegador. Cualquier SO: `bun install` + `bun run dev`. |
-| **¿Puedo llevarla en una USB?** | Sí — la carpeta es 100% portable (app + runtime + build) y el **Respaldo automático** hace que tus fotos y apuntes viajen en la misma USB. Ver sección 🎒 abajo. |
-| **¿Dónde están mis datos?** | En IndexedDB de tu navegador (tu PC). Backups ZIP para cambiar de máquina/navegador — o activa el Respaldo automático y llévalos en tu USB. |
-| **¿Qué hay dentro?** | **4 pilares autónomos** — IAM: 50 tickets + 50 KB + 50 runbooks + 30 troubleshooting + **roadmap 373**; SOC: roadmap 93 + 45 runbooks + 22 troubleshooting; Service Desk: 60 tickets + 28 KB + 68 runbooks + 24 troubleshooting + roadmap 93; SysAdmin: 56 tickets + 28 KB + 72 runbooks + 22 troubleshooting + roadmap 119. Además: **48 herramientas offline** con etiqueta de rol, explorador de Vulnerabilidades (203) y Ataques (102), apuntes con editor rico, glosario con flashcards (**862 términos**), y un **sidebar que reordenas a tu gusto** (arrastrar + plegar). Labs **vacío intencional**. |
-| **¿Y si actualizo el código?** | Botón **Pull** del header: **Pull seguro** (fast-forward, nunca pierde nada) o **Espejo exacto con GitHub** (menú ⌄ — deja el disco IGUAL que el repo: descarta commits locales sin push, restaura archivos modificados y borra los que ya no existan; tu base de datos, backups y carpetas ignoradas NUNCA se tocan). En producción regenera el build solo y te pide reiniciar. |
-| **Regla de oro** | Los **videos y las imágenes nunca entran a la base ni a los backups** — viven en `Documentos/GITHUBVAULT/videos` y `/imagenes` (carpeta configurable), como archivos reales en tu disco. |
-
----
-
-## ✨ Características
-
-### 🗂️ Sidebar a tu gusto (V11)
-- **Arrastra apartados**: cualquier sección (p. ej. sube *Inbox* arriba del todo) y **grupos enteros** (p. ej. baja *Global Knowledge* al final) se reordenan arrastrando — el orden se guarda en tu navegador y sobrevive recargas y actualizaciones.
-- **Plega y despliega grupos con un clic**: el grupo que contiene tu sección activa siempre se revela solo — nunca te esconde dónde estás.
-- Tolerante a versiones: secciones nuevas que lleguen con actualizaciones aparecen solas (nunca se pierde nada del orden guardado).
-
-### 🧰 Herramientas — UN catálogo global, cada tool una vez (V11)
-> Un solo apartado **Herramientas** arriba del todo. Las 48 tools interactivas aparecen **una sola vez**, cada una con su **etiqueta de rol** (IAM · SOC · Service Desk · SysAdmin · Global) — sin copiar y pegar entre pilares. Filtro por rol, favoritos y recientes globales, búsqueda instantánea y `Ctrl+K` indexado.
-
-| Rol | Herramientas |
-|---|---|
-| **IAM** | JWT Decoder · SID/RID Analyzer · LDAP/DN Parser · RBAC Analyzer · Vulnerabilidades IAM/SOC (203) · Ataques (102) |
-| **SOC** | Windows Event IDs (93) · IoC Extractor (refang, scoring, KQL/SPL/STIX) · IOC Defanger · PowerShell Analyzer · Command Line Analyzer · Log Parser · MITRE ATT&CK · Sigma Explorer · Detection Query Helper (KQL/SPL) · Hash Toolkit · File Hash Analyzer · CVSS 3.1 · IP Analyzer · Timestamp Converter · HTTP Status · **8 guías de tools SOC** (Sentinel KQL · Splunk SPL · Elastic · Wireshark · Sysmon · Defender · VirusTotal+ANY.RUN · TheHive — referencia copiable 100% offline) |
-| **Service Desk** | Ticket Triage Parser (motor offline de 91 reglas + **[Enrich Online] opcional** con consentimiento explícito) · AD Account Troubleshooter · KB Article Generator · Network L1 (intérprete de ipconfig) · Intune/Autopilot · System Info Sanitizer |
-| **SysAdmin** | Subnetting · Puertos y Servicios (119) · Cron Parser · Linux Permissions (chmod) · systemd Unit Builder · RAID Calculator · LVM Planner · Cron Builder · Firewall Rule Builder (ufw/iptables/nftables/firewalld/netsh) · Disk Growth Planner |
-| **Global** | Base Converter · Encoding/Decoding (Base64/Hex/URL/ASCII/Unicode/HTML) · Regex Tester (14 presets) |
-
-### 📝 Conocimiento
-- **Apuntes** con editor rico (WYSIWYG): títulos, listas, checkboxes, tablas, código, imágenes, PDFs adjuntos y **videos** (ver política de videos abajo). Jerarquía de subpáginas, plataformas/categorías, favoritos.
-- **Glosario (sembrado)** — **862 términos incluidos** (base depurada 180 + ampliación 193 + HelpDesk 219 + SysAdmin 131 + **77 de plataformas IAM/PAM**: Okta, SailPoint, Ping, ForgeRock, ISAM, OAM, Safeguard, CyberArk, FIDO2/WebAuthn, LDAP, gobernanza… + **62 de la auditoría V14**: herramientas IAM, malware, ataques web, detección, gestión de vulnerabilidades y threat intel) + **flashcards** con repaso espaciado: abre la app y están todos ahí, sin importar nada.
-- **Perfil Profesional (multi-perfil)** — tus CVs vivos con export **Markdown AI-ready** para que tu IA te arme el CV perfecto.
-- **Roadmap IAM** — checklist del *Junior IAM / Identity Security Analyst* (3 tiers + proyecto final, **373 ítems en 34 fases**: **fundamentos técnicos** (Windows/Linux, redes, formatos, HTTP/APIs), fundamentos, AD/LDAP (LAPS, AdminSDHolder, papelera, PSO), Entra ID, Graph, SSO/SCIM/OIDC, MFA (NIST 800-63B/63-4, FIDO2, WHfB, TAP/CBA), life-cycle (**Lifecycle Workflows**), **higiene y campañas de limpieza**, PowerShell + Python, troubleshooting, **métricas y KPIs ejecutivos**, modelo de roles, **role engineering/minería**, granting, revoking, access reviews, PAM, **PAM profundo (Safeguard/CyberArk/BeyondTrust/Delinea)**, Okta, SailPoint/Saviynt, **GRC y evidencias de auditoría (ISO 27001 · NIST 800-53 · SOC 2)**, Ping/ForgeRock/IBM/Oracle, ITDR, AWS, **multi-cloud (Azure/GCP/K8s)**, identidades no-humanas, **Zero Trust (NIST 800-207 + Global Secure Access)**, **DR y break-glass**, **portfolio GitHub de 10 proyectos**, lab final, SC-300 y **estrategia laboral + búsqueda de empleo remoto**), persistente y exportable. Los roadmaps SOC (93), Service Desk (93) y SysAdmin (119) con la misma especificidad.
-- **Inbox + Captura rápida** (Ctrl+Shift+Q), **Referencias**, **Papelera** con restauración, **Generar Blog** (exporta apuntes/labs como blog estático).
-
-### 🎟️ Los 4 pilares — simuladores de tickets reales (Nexora S.A.)
-Todos los simuladores comparten la misma mecánica profesional: cola filtrable (estado/prioridad/tipo/entorno/categoría/búsqueda/orden), **modo estudio** (la guía se OCULTA — primero intentas, luego contrastas), flujo de estados real con **nota de cierre obligatoria** como evidencia, y **KB enlazada** (solo lectura). El trabajo persiste en Dexie y viaja en el backup ZIP.
-
-| Pilar | Simulador | Proyecto final |
-|---|---|---|
-| **1 · IAM** | 50 tickets del equipo IAM: JML (onboarding/offboarding/traslados), Access (grupos, licencias, accesos temporales), PAM (checkouts, break-glass), Gobernanza (SoD, certificaciones), Infra IAM (AD↔Entra, SSO/SAML, cuentas de servicio) + **KB de 50 artículos** con capa completa de plataformas (Okta, SailPoint, Safeguard, Ping, ForgeRock, IBM, Oracle, LDAP, role model, granting/revoking, MFA/SSO, access reviews) | **Semana de Access Review** — 10 tickets (2/día × 5 días): del kickoff al cierre con firma, KPIs y postmortem |
-| **2 · SOC** | 50 casos del Blue Team por torre de detección (Identity/Endpoint/Network/Email/Cloud/Web) | Primera semana SOC (30 casos) |
-| **3 · Service Desk** | 60 tickets L1/L2 con triage ITSM | "Primera semana" (30 tickets, 5 días) |
-| **4 · SysAdmin Ops** | 56 tickets de guardia por entorno (Linux/Windows Server/Red/Storage/VM/Cloud), incl. cambios con ventana y rollback | Semana de Guardia (30 tickets, 6/día × 5 días) |
-
-### 🛠️ Troubleshooting + Runbooks (V11: fusionados, sin duplicados)
-Cada pilar tiene sus dos secciones de conocimiento consultable, 100% offline:
-
-- **Troubleshooting** — escaleras de decisión: PROBLEMA → SÍNTOMA → CHECK (con comando copiable) → RESULTADO → SIGUIENTE ACCIÓN. 24/22/22/30 entradas (HD/SA/SOC/IAM).
-- **Runbooks** — cada problema como **ticket real**: ticket_example, impacto, síntomas, causas raíz, prerrequisitos, escalera universal con comandos copiables, verificación, evidencia, escalación y las **dos respuestas EN INGLÉS** (cliente + explicación técnica para L2). **68/72/45/50** por pilar (HD/SA/SOC/IAM). Los 26 nuevos cubren las herramientas de las plataformas: Okta (System Log, reset de factores, SSO/SCIM), SailPoint (certificaciones, conectores, sources, Search API), Safeguard (checkout, onboarding de assets), PingFederate (SAML, OIDC/tokens), ForgeRock (SSPR, DS healthcheck), ISAM (policies, junction+pdadmin), OAM (sesión, WebGate), role engineering, LDAP, FIDO2, toolkit nativo AD, Entra PIM/Entitlement/Access Reviews/ID Protection, Golden Ticket/DCSync, AD CS ESC1–ESC8, rclone, honeytoken, RAID, VPN IKE/IPSec, nginx, NFS, encendido/POST, restauración de archivos, migración de equipo y Word/Excel.
-- **La fusión V11**: el antiguo CheatSheet vive ahora AQUÍ — cada quick-fix se convirtió a formato runbook completo (o se fusionó con su runbook gemelo si existía, absorbiendo sus comandos únicos). **Cero duplicados**: 143 duplicados detectados y resueltos; los ids CS-* se conservan para que los enlaces antiguos sigan funcionando.
-
-### 🎥 Política de videos e imágenes (V12) — LA REGLA DE ORO
-> **Los videos y las imágenes NUNCA entran a la base de datos ni a los backups. Solo viven en tu disco.**
-- **GITHUBVAULT por defecto (V12)**: en Configuración → *GITHUBVAULT — Videos e Imágenes*, un clic abre el selector en **Documentos**, eliges la carpeta y la app crea sola `GITHUBVAULT/videos` y `GITHUBVAULT/imagenes`. Todo lo que insertes desde ahí se copia a esas carpetas y la nota guarda solo una referencia limpia (`data-vault-video="…"` / `data-vault-img="…"`).
-- **Editable**: puedes elegir otra carpeta base en cualquier momento (misma estructura), o seguir usando una carpeta de videos personalizada.
-- Sin carpeta de imágenes configurada, las imágenes se insertan embebidas (data-URL, límite 25 MB) como en versiones anteriores — compatibilidad total con notas existentes.
-- **Backups ZIP excluyen videos e imágenes de carpeta por completo** — ligeros y portables; los archivos ya están a salvo en tu disco. Al cambiar de PC: copia `GITHUBVAULT` tal cual y re-configura la carpeta.
-
-### 💾 Backups ZIP portables
-- Exporta TODO el vault (apuntes `.md`, labs, glosario, referencias, imágenes, PDFs, plataformas, categorías, perfiles, progreso de TODOS los roadmaps y la práctica de TODOS los simuladores — Service Desk, SysAdmin, SOC e IAM) a un único ZIP con manifest versionado (formato **3.11.0**, schema Dexie **v25**).
-- Import con **validación estricta** (schemas Zod por tipo, protección anti zip-bomb, merge "latest wins" por `updatedAt` — un backup viejo jamás revierte trabajo nuevo). Los backups 3.2.0→3.11.0 siguen siendo importables; los archivos de Data & Intel de backups viejos (≤3.10.0) se ignoran con gracia.
-- **Respaldo automático (USB)**: ZIPs rotativos `VaultNotes-Auto-*.zip` cada N minutos con cambios sin respaldar + *Restaurar último backup* en 2 clics.
-- **Snapshots de referencia**: los datasets de runbooks/troubleshooting viajan en el ZIP como snapshot informativo (el bundle de la app siempre prevalece).
-
-### 🔍 Búsqueda global inteligente
-Fuzzy + substring + acrónimos con ranking por tipo. Un solo atajo (`Ctrl+K`) para todo el vault: notas, labs, glosario, herramientas, runbooks (incluidos los quick-fixes ex-CheatSheet), troubleshooting, MITRE, Sigma, eventos, comandos. El índice está **cacheado y precomputado** — instantáneo incluso con 1000+ notas.
-
-### 🎒 En una memoria USB (app + fotos + todo)
-Lleva VaultNotes **completa** en tu USB y úsala en cualquier Windows sin volver a descargar nada: copia la carpeta COMPLETA (con `node_modules/`, `.next/` y `tools/bun/`), doble clic en `IniciarVaultNotes.bat`, y activa *Carpeta de la App* + *Respaldo automático* apuntando a la USB una sola vez. Cambios de letra de unidad, movimientos y renombres de carpeta se detectan solos (ver sección 📦 abajo). **Videos e imágenes**: copia también la carpeta `GITHUBVAULT` a la USB (o configúrala dentro de la USB) y viajan igual (REGLA DE ORO).
-
-> ¿Por qué hace falta el backup para cambiar de PC? Tus datos viven en el IndexedDB **del navegador de cada PC** (privacidad local-first: nada sale de la máquina). El respaldo rotativo en la USB es el puente: la USB siempre actualizada, y cada PC la importa en 2 clics.
-
-### 📦 Mover / copiar / renombrar la carpeta — sin errores
-El build de producción es portable (rutas relativas); la caché de dev no, y el `.bat` la regenera sola si detecta que la carpeta se movió (marker `.vaultnotes-folder.txt`) — tu build, dependencias, datos y backups no se tocan. `IniciarVaultNotes.bat limpiar` parte de cero si algún día hace falta.
-
----
-
-## 🛠️ Stack técnico
-
-| Capa | Tecnología |
-|---|---|
-| Framework | **Next.js 16** (App Router, Turbopack) · **React 19** |
-| Lenguaje | **TypeScript 5** (strict) |
-| UI | **Tailwind CSS 4** · **lucide-react** (sistema de diseño propio dark) |
-| Base de datos | **Dexie 4** (IndexedDB, schema **v25**, 25 object stores) |
-| Backup | **JSZip** (formato **3.11.0**, gates anti zip-bomb + validación Zod) |
-| Búsqueda | Índice fuzzy propio (cacheado y precomputado) |
-| Seguridad | **DOMPurify** (sanitizado de todo HTML persistido) |
-| Estado | React hooks + stores ligeros (zustand) |
-
-**Arquitectura**: 100% cliente (`ssr: false`), cero backend de datos. Los datos viven en IndexedDB; los archivos grandes (PDFs/imágenes) en tablas blobs dedicadas; los videos en tu disco (File System Access API).
-
----
-
-## 📁 Estructura del proyecto
-
-```
-src/
-├── app/                  # Next.js App Router (una sola ruta: /)
-│   ├── page.tsx          # Boundary cliente + self-healing HMR (dev)
-│   ├── layout.tsx        # Metadatos + fuentes
-│   ├── globals.css       # Tema oscuro (Tailwind 4)
-│   └── api/
-│       ├── git/pull/     # Botón Pull (fetch + fast-forward + rebuild)
-│       └── enrich-ticket/# [Enrich Online] del Triage (z-ai SDK, SOLO backend)
-├── vault/                # (todo el código cliente)
-│   ├── App.tsx           # Shell + navegación + shortcuts + lazy views
-│   ├── components/
-│   │   ├── Editor/       # RichEditor + editorMedia (REGLA DE ORO de videos)
-│   │   ├── tools/        # Herramientas autocontenidas (hd/ · sa/ · soc/ · base)
-│   │   └── …             # NotesView, GlossaryView, RoadmapView (4 variantes),
-│   │                     #  ProfileView, ToolsView (catálogo global V11),
-│   │                     #  RunbooksView (V11: incluye quick-fixes), IamView,
-│   │                     #  HelpDeskView, SysAdminView, SocView, Sidebar
-│   │                     #  (drag + fold V11), SettingsView, TrashView…
-│   ├── data/             # Datasets offline: runbooksHelpDesk 64 /
-│   │                     #  runbooksSysAdmin 68 / runbooksSoc 41 /
-│   │                     #  runbooksIam 36, troubleshooting* (4 pilares),
-│   │                     #  iamTickets 50 + iamKB 50, helpDeskTickets 60,
-│   │                     #  sysadminTickets 56, socTickets 50, KBs (28/28/16),
-│   │                     #  MITRE, Sigma, WinEvents, puertos, HTTP, cron,
-│   │                     #  vulnerabilidades 203, ataques 102, toolsCatalog 48,
-│   │                     #  glossarySeed* 862, roadmaps (373/93/93/119)
-│   ├── db/               # Dexie: schema v25 + migraciones v1→v25 (v25 retira
-│   │                     #  las tablas de Data & Intel y añade iamTickets)
-│   ├── integrations/     # online.ts (indicador de conectividad local)
-│   ├── hooks/            # useDebouncedAutoSave, useToolPrefs,
-│   │                     #  useResizablePanel, useAutoBackupStatus
-│   ├── store/            # Stores zustand (note, pendingTool, ioc, helpdesk,
-│   │                     #  sysadmin, soc, iam, sidebarLayout)
-│   ├── utils/            # videoStorage, zipBackup (3.11.0), autoBackup,
-│   │                     #  profileExport, sanitizeHtml, fuzzySearch…
-│   └── types/            # Tipos compartidos (incl. ProfileDoc, IamTicket)
-└── public/
-    ├── sw.js             # Service worker (offline shell; NO corre en dev)
-    └── manifest.webmanifest
-```
-
----
-
-## ⚡ Performance
-
-- **Code-splitting**: la ruta `/` carga solo el shell (Sidebar + Header). Las vistas y modales son chunks separados (`next/dynamic`) que se montan al usarse; el chunk de búsqueda se pre-calienta en idle tras el primer paint.
-- **Shell mínimo**: el módulo de backup (JSZip + DOMPurify + zod + file-saver, ~100 KB) se carga con `import()` dinámico solo al exportar/importar un ZIP.
-- **Grafo de herramientas estático dentro de su chunk**: las 48 herramientas viajan juntas en el chunk lazy de ToolsView — estático a propósito para robustez HMR en dev (VN-F-003).
-- **Búsqueda Ctrl+K**: corpus estático (~740 docs con runbooks de los 4 pilares) indexado una vez a nivel de módulo; corpus de usuario re-indexado solo cuando cambian los datos.
-- **Blobs aislados** (imágenes/PDFs en tablas dedicadas) y videos jamás en IndexedDB (REGLA DE ORO).
-- **Re-renders acotados**: Sidebar y Header memoizados con callbacks estables; modales solo montados al abrirse; autoguardado con debounce 1500 ms.
-
----
-
-## 🚀 Instalación y ejecución
-
-**Requisitos (Windows)**: nada — el `IniciarVaultNotes.bat` instala **Bun** solo si falta. Navegador **Chromium** (Edge/Chrome — necesario para la carpeta de videos y guardado de backups vía File System Access API). Otros SO: [Bun](https://bun.sh) 1.x manual.
-
-### 🖱️ Arranque con un clic (Windows) — 100% automático
-
-> **`IniciarVaultNotes.bat`** (raíz del repo) — doble clic y la app se abre sola.
-
-1. **Puerto 3000** → si VaultNotes ya corría, solo abre el navegador; si el puerto lo ocupa OTRA app, te lo dice claro.
-2. **Bun** → 1) el de la carpeta (`tools\bun`, portable), 2) el del sistema, 3) se instala DENTRO de la carpeta (una única vez, con internet).
-3. **Dependencias** → `bun install` automático solo la primera vez.
-4. **Carpeta movida/copiada/renombrada** → detectada sola: regenera SOLO la caché de dev.
-5. **Producción primero** → si hay build arranca directo (~1 s); si no, lo construye una única vez (~1–3 min).
-6. Espera a que la app responda y **abre tu navegador**.
-- Para **detener**: cierra la ventana *"VaultNotes (servidor) - NO CERRAR"*.
-- Reparación: `IniciarVaultNotes.bat limpiar`.
-- ⚠️ **No borres ese archivo del repo** — es el punto de entrada de un clic para Windows.
-
-### Manual (cualquier SO)
+**Cualquier SO:**
 
 ```bash
-# 1. Instalar dependencias
 bun install
+bun run dev        # http://localhost:3000
+```
 
-# 2. Levantar en modo desarrollo (http://localhost:3000)
-bun run dev
+Build de producción: `bun run build` + `bun run start`. Navegador recomendado: **Chromium** (Edge/Chrome) — necesario para la carpeta de videos y el guardado de backups.
 
-# 3. Calidad (0 errores esperados)
+Calidad (0 errores esperados):
+
+```bash
 bun run lint
 bun run typecheck
 ```
 
-Build de producción:
+## Tus datos
 
-```bash
-bun run build
-bun run start
-```
+- Viven en **IndexedDB de tu navegador**, por origen: `localhost:3000` y otro puerto son vaults separados.
+- **Backups ZIP portables**: *Guardar Backup* exporta TODO (apuntes, labs, glosario, perfiles, progreso de roadmaps y simuladores) a un ZIP con manifest versionado (**formato 3.11.0**, schema Dexie **v25**). *Importar* valida cada sección (Zod + anti zip-bomb) y fusiona con **latest-wins por `updatedAt`** — un backup viejo jamás revierte trabajo nuevo.
+- **Respaldo automático**: ZIPs rotativos `VaultNotes-Auto-*.zip` cada N minutos con cambios sin respaldar, apuntando a la carpeta que elijas (ideal: una USB) + *Restaurar último backup* en 2 clics.
 
-> Los datos (IndexedDB) son por origen: `localhost:3000` y un build en otro puerto son vaults separados. Usa **Guardar Backup / Importar** para mover datos entre orígenes.
+### 🎥 Regla de oro: videos e imágenes
 
----
+**Los videos y las imágenes NUNCA entran a la base de datos ni a los backups — solo viven en tu disco.** En Configuración, *GITHUBVAULT* crea `Documentos/GITHUBVAULT/videos` e `imagenes`: la nota guarda solo una referencia limpia y los archivos quedan a salvo en tu disco. Para cambiar de PC, copia la carpeta `GITHUBVAULT` tal cual y re-configura la ruta.
 
-## ⌨️ Atajos principales
+### 📦 USB portátil
+
+Copia la carpeta COMPLETA del proyecto (con `node_modules/` y `.next/`) a la USB y arranca con el `.bat` en cualquier Windows. Cambios de letra de unidad, movimientos y renombres de carpeta se detectan solos.
+
+## Atajos
 
 | Atajo | Acción |
 |---|---|
-| `Ctrl+K` / `⌘K` | Búsqueda global (notas, labs, glosario, runbooks, herramientas, comandos) |
+| `Ctrl+K` | Búsqueda global (notas, labs, glosario, runbooks, herramientas, MITRE, Sigma…) |
 | `Ctrl+Shift+Q` | Captura rápida → Inbox |
 | `Ctrl+Shift+N` / `Ctrl+Shift+L` | Nueva nota / nuevo lab |
-| `Ctrl+Shift+I` / `T` / `H` / `R` / `M` | Abrir IoC Extractor / Timestamp / Hash / Regex / MITRE |
+| `Ctrl+Shift+I` / `T` / `H` / `R` / `M` | IoC Extractor · Timestamp · Hash · Regex · MITRE |
 | `Ctrl+V` | Pegar imágenes directo al editor |
-| `Esc` | Cerrar modales |
 
-> Los atajos con `Ctrl+Shift` están desactivados mientras escribes — nunca interfieren con el navegador.
+## Privacidad y red
 
----
+**100% offline.** Sin requests al cargar ni al usar la app. Las únicas dos piezas con red son opcionales y tras clic explícito del usuario:
 
-## 🔒 Privacidad y red
+- **Pull** (header) — descarga TUS actualizaciones de código desde GitHub (fast-forward puro); aborta si hay trabajo local sin guardar. Jamás envía datos del vault.
+- **[Enrich Online]** (Ticket Triage del Service Desk) — envía el texto del ticket al backend local solo tras consentimiento; el análisis offline funciona al 100% sin él.
 
-- **100% offline**: sin requests de red al cargar ni al usar la app. Las herramientas, los 4 pilares, los datasets y la búsqueda funcionan completos sin internet.
-- **Las dos únicas piezas con red** (opcionales y explícitas):
-  - **Botón Pull** (header) — descarga TUS actualizaciones de código desde GitHub; jamás envía datos del vault.
-  - **[Enrich Online]** del Ticket Triage (Service Desk) — con **clic explícito + consentimiento** (una sola vez), envía el texto del ticket al backend LOCAL (`/api/enrich-ticket`) para sugerencias de categorización. **Nunca auto-envía nada**; el análisis offline funciona al 100% sin él.
-- **Service worker**: cachea el shell para uso offline en producción. En desarrollo no se registra.
+El service worker cachea el shell para uso offline en producción (no se registra en dev). Todo HTML persistido se sanitiza con **DOMPurify**.
 
----
+## Stack
 
-## ✅ Verificación (estado actual — V16)
-
-> **V16 — Auditoría integral en ciclos: limpieza del checkpoint fantasma + hardening de backups (navegador real)**: `(1)` **tsc --noEmit 193 → 0**: el checkpoint de sesión del 23-oct (post-v13) había resucitado **101 archivos fantasma** — 95 inalcanzables desde el entry, todos verificados antes de borrar: scaffold shadcn/prisma sin dependencias instaladas, vistas/features retiradas por diseño (Data & Intel + Threat Intel de v11, Review/CveSearch/hd-tools de V6 — referenciaban tablas Dexie borradas en v25), copias de datos pre-fusión V11 (spot-checks confirman el contenido absorbido en los runbooks/glosarios vivos: dcdiag 13→32, repadmin 4→25, 184/194 términos de packs en seeds) y artefactos públicos sin referencia. Tras el cleanup: 0 archivos inalcanzables. `(2)` **Auditoría profunda de zipBackup.ts (2138 líneas) + superficies de seguridad**: todas las invariantes en verde (DOMPurify+3 hooks, gate de versión pre-mutación, anti zip-bomb, merge latest-wins); 6 hallazgos P3 corregidos y verificados dinámicamente: manifest.stats completo (troubleshootingIamCount/flashcardStatsCount), los 10 archivos legacy de features retiradas ahora se REPORTAN en el import (antes silencio), `sourceUrl` ya no se borra cuando el backup más nuevo lo trae vacío, round-trip de comillas en frontmatter reparado, comentario v16 re-escrito, `VaultErrorBoundary` también a nivel de página (cierra el camino a pantalla blanca). `(3)` E2E navegador completo: notas con unicode/emojis→autosave→reload, papelera, Ctrl+K fuzzy, 48/48 tools con handoff Log Parser→IoC Extractor, flashcards, labs, simulador SD con persistencia de estado, roadmap 373, export/import ZIP con reporte, `/api/enrich-ticket` LLM+Zod, móvil 390px, `eslint` 0 · `tsc` 0 · 0 errores consola/página.
-
-> **V15 — Roadmap maestro IAM Analyst integrado (navegador real)**: `(1)` **Roadmap IAM: 315 ítems/30 fases → 373 ítems/34 fases** — integración COMPLETA del roadmap profesional externo ("de estudiante a IAM Analyst preparado para trabajo remoto") sin quitar nada: 4 fases nuevas (Fundamentos Técnicos Sistemas/Redes/Formatos como Fase 1, GRC y Evidencias de Auditoría en Tier 2, Portfolio GitHub de 10 Proyectos y Mercado Laboral & Búsqueda de Empleo Remoto en el tier final) + 21 ítems de profundidad en 15 fases existentes (vocabulario raíz + tipos de identidad + NIST 800-63-4, arquitectura bosque/trusts + tabla completa de Event IDs, tenant/AUs/roles personalizados + Cloud Sync + dispositivos, idempotencia en Graph, WS-Federation + NotBefore/NotOnOrAfter + Enterprise App Onboarding, Python/pandas/pytest, 5 registros de Entra, TAP/CBA, Lifecycle Workflows + casos JML alternativos, ciclo de 10 pasos de la solicitud, vocabulario IGA + SailPoint Developer, Delinea, Global Secure Access, capstone 11 preguntas + entregables, SC-300 dominios/pesos/orden + inglés técnico 10 preguntas). Renumeración 1..34 verificada sin colisiones, **ids estables 100%** (0 duplicados, numeración continua, 0 huecos) — el progreso del usuario sobrevive intacto (seed aditivo de Dexie). `(2)` README y comentarios sincronizados (373/34 en resumen, características, árbol y Dashboard). `(3)` Validación: 34 fases · 373 ítems · secuencia 1..34 · `eslint` 0 en código vault · E2E navegador con checklist funcional.
-> **V14 — Auditoría completa, glosario depurado y runbooks con herramientas (navegador real)**: `(1)` **+26 runbooks** (IAM 36→50 con las herramientas de cada plataforma — Okta System Log/Factors API, SailPoint Search/Sources, Safeguard asset onboarding, PingFederate OIDC/token endpoint, ForgeRock DS CLIs, ISAM pdadmin, OAM WebGate, AD toolkit, Entra PIM/Entitlement/Access Reviews/ID Protection; SOC 41→45 con Golden Ticket/DCSync+doble reset de krbtgt, AD CS ESC1–ESC8, rclone, honeytoken; SysAdmin 68→72 con RAID storcli64/mdadm, VPN IKE/IPSec, nginx 502/504, NFS; HD 64→68 con encendido/POST, restauración por capas, migración, Word/Excel). `(2)` **Glosario**: 52 términos retirados (relleno y duplicados reales), 62 añadidos (herramientas IAM + vocabulario de seguridad crítico) → **862**, validación automatizada: 0 IDs duplicados, 0 nombres duplicados, 0 categorías inválidas, 0 relatedTerms rotos (25 referencias de las KB corregidas con sus equivalentes vivos). `(3)` **Limpieza**: findSigmaById y 3 funciones muertas eliminadas, 14 exports internos de-exportados, SEVERITY_CHIP/fuzzyMatch/DrawerSection unificados en tools/_shared.tsx, sw.js sin rama inalcanzable, comentarios obsoletos corregidos. `(4)` `eslint` 0 · `tsc --noEmit` 0 · E2E navegador verificado.
-
-> **V13 — Roadmap IAM ×2 + auditoría y limpieza integral (navegador real)**: `(1)` **Roadmap IAM duplicado**: 154 ítems/23 fases → **315 ítems/30 fases** — 7 fases nuevas (IAM Hygiene, Metrics/KPIs, Role Engineering, PAM Safeguard/CyberArk/BeyondTrust, Multi-Cloud Azure/GCP/K8s, Zero Trust NIST 800-207, DR/Break-Glass) + 96 ítems de profundidad en las fases existentes; renumeración 1..30 verificada sin colisiones, **ids estables 100%** (0 duplicados, numeración continua) — el progreso del usuario sobrevive intacto por diseño (seed aditivo de Dexie). `(2)` **Auditoría de código completa** (10 hallazgos reales, 0 falsos positivos verificados contra import() dinámicos y lazy chunks): cadena de navegación muerta `navigateRequest` eliminada de los 4 stores + App.tsx (~60 líneas), `React.memo` del Header reparado (useCallback de export/import), race de `runBackupCycle` resuelta (guard síncrono), id de Inbox→Referencias con entropía, `IAM_TICKETS_COUNT` huérfano retirado, `prisma/` eliminado, fuentes Geist retiradas del shell. `(3)` **Reparación de datos**: 8 relatedTerms de la KB IAM enlazados de nuevo al glosario (chips inertes → navegables), 3 términos IAM NUEVOS (Política de autenticación, Role model, Build vs. buy — glosario **853**), 3 términos SysAdmin des-duplicados que ahora sí se siembran (Snapshot (VM), Playbook (Ansible), Runbook (operaciones)); validación automatizada de relatedTerms contra el glosario completo: **0 rotos** en los 4 pilares. `(4)` E2E navegador: roadmap IAM renderizando las 30 fases con progreso global, colas de tickets y modo estudio, móvil 375px sin overflow, `eslint` 0 · `tsc --noEmit` 0 · **0 errores de consola/página/dev.log**.
-
-> **V11 — 4 pilares + herramientas unificadas + sidebar libre + retirada total de Data & Intel (navegador real)**: `(1)` **Retirada completa** de la feature Data & Intel y del Threat Intel (los 4 proveedores VT/AbuseIPDB/OTX/Shodan, CVE Search/NVD/KEV/EPSS, Sync Center de MITRE/Sigma, consentimientos y credenciales): 26 archivos eliminados, 18 limpiados, Dexie **v25** (las 9 tablas de intel se retiran con el patrón delta `null` del repo; la BD `VaultIntelDB` y las claves retiradas se limpian una vez), backup **3.11.0** (los 9 .json de intel dejan de viajar; los backups viejos se importan con gracia), Settings sin el panel Online, sidebar y header sin indicadores dinámicos. `(2)` **Pilar 1 · IAM completo**: simulador clonado del patrón profesional — 50 tickets sembrados (JML 10 · Access 9 · PAM 9 · Gobernanza 11 · Infra IAM 7 · Multi 4 · Incidentes 23/Solicitudes 16/Cambios 11), **Semana de Access Review** (5 días × 2, del kickoff al postmortem), KB de 24 artículos, 24 runbooks RB-IAM-*, 18 escaleras de decisión TS-IAM-*, backup `iamTickets.json` + Dashboard. `(3)` **Fusión CheatSheet→Runbooks sin duplicados**: 176 quick-fixes analizados — 143 duplicados resueltos (7/35/34+101 mapeados a sus runbooks gemelos, absorbiendo los comandos únicos que faltaban), 33 convertidos a formato runbook completo — HD 52→**64**, SA 48→**68**, SOC 40→**41**; ids CS-* conservados (los enlaces antiguos siguen funcionando). `(4)` **Herramientas UNIFICADAS**: un solo apartado arriba del todo — 48 tools, cada una UNA vez, con **etiqueta de rol** (IAM/SOC/Service Desk/SysAdmin/Global) y filtro por rol (IAM → 6, verificado). `(5)` **Sidebar libre**: arrastrar apartados y grupos enteros + plegar/desplegar con clic — verificado con drag&drop real (item Blog→top, grupo Career→arriba de Global Knowledge), persistencia en localStorage tras reload y auto-revelado del grupo activo. `(6)` E2E navegador: sidebar con orden exacto (Herramientas → Global → IAM → SOC → SD → SA → Career), simulador IAM end-to-end (selección → modo estudio → En progreso → persiste tras reload), AR week 5/5 días con 10 tickets, Ctrl+K "cuenta bloqueada" → RB-HD-001 **y** RB-IAM-006, móvil 375px sin overflow, Settings limpio, `eslint` 0 · `tsc --noEmit` 0 · **0 errores de consola/página/dev.log**.
-
-Historial completo de verificaciones de versiones anteriores (V6→V12) en el historial de commits del repo. Nota: la capa online V10 (Sync Center de datasets oficiales + CVE Search + Threat Intel) fue **retirada por decisión del usuario en V11** para volver al diseño 100% offline; el informe de análisis se eliminó junto con la feature.
-
----
-
-## 🔄 Botón Pull (header, arriba a la derecha)
-
-Descarga actualizaciones de código directamente desde GitHub (`git fetch` + fast-forward puro): features nuevas, fixes y borrados de archivos se aplican sin tocar tus datos (viven en IndexedDB). Si cambiaron dependencias reinstala solo. Si hay commits locales sin push o cambios sin confirmar, aborta para no perder nada — con instrucciones exactas de qué hacer.
-
-| Estado | Significado |
+| Capa | Tecnología |
 |---|---|
-| ⬇ gris `Pull` | normal |
-| ⟳ verde `Pull…` | trabajando (fetch + merge) |
-| ✅ verde | al día, o cambios aplicados (dev: la página se recarga sola) |
-| 🟡 ámbar ⟳ `restart` | **producción**: build regenerado — reabre `IniciarVaultNotes.bat` |
-| 🟡 ámbar 🔑 `token` | GitHub rechazó el acceso — tooltip con el comando `git remote set-url` exacto |
-| ⚠ rojo | error con mensaje humano: red caída, Git ausente, repo sucio… |
+| Framework | Next.js 16 (App Router) · React 19 |
+| Lenguaje | TypeScript 5 (strict) |
+| UI | Tailwind CSS 4 · lucide-react (tema oscuro propio) |
+| Datos | Dexie 4 (IndexedDB, schema v25) — 100% cliente (`ssr: false`) |
+| Backup | JSZip + Zod (validación estricta, anti zip-bomb) |
+| Seguridad | DOMPurify en todos los límites de confianza |
+| Estado | zustand + hooks |
 
----
+```
+src/app/        # Ruta única / + api (git/pull, enrich-ticket)
+src/vault/      # components/ · data/ (datasets offline) · db/ (Dexie) ·
+                # store/ · utils/ (zipBackup, videoStorage, fuzzySearch…) · types/
+public/sw.js    # Service worker (offline shell)
+```
 
-## 📄 Licencia
+## Licencia
 
 Uso personal / proyecto educativo de ciberseguridad. Sin garantía expresa o implícita.
