@@ -129,6 +129,12 @@ export interface ImportSummary {
    *  deliberately NOT imported — they never travel in backups anymore and
    *  live only in the user's videos folder on disk. */
   ignoredLegacyVideos: number;
+  /** V25/V6 (auditoría 2026-10): filas de features RETIRADAS (Data & Intel
+   *  ≤3.10.0 — 9 tablas Dexie borradas en v25 — y Review ≤3.5.0) presentes
+   *  en backups legacy y deliberadamente NO importadas. Se cuentan para que
+   *  el reporte de importación lo diga en lugar de descartar en silencio
+   *  (mismo patrón que ignoredLegacyVideos). */
+  ignoredLegacyIntel: number;
   /** AUDIT VN-001: number of incoming rows skipped because the local row
    *  has a more recent `updatedAt` (preserve local — non-destructive). */
   conflictNotes: number;

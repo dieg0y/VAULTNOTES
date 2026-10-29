@@ -421,9 +421,12 @@ class VaultDatabase extends Dexie {
     // v16: DATA & INTEL — tabla `intelItems` para el dataset de trabajo
     // (IoCs extraídos por tools, eventos de seguridad y reglas/queries KQL/SPL/
     // Sigma). Alta aditiva y no destructiva: Dexie crea la tabla y sus índices
-    // al hacer upgrade; ningún dato existente se toca. Los items se deduplican
-    // por (kind + iocType + título normalizado) al insertar desde tools/store
-    // (ver store/intelStore.ts) — el backup viaja como intelItems.json.
+    // al hacer upgrade; ningún dato existente se toca.
+    // NOTA DE AUDITORÍA (2026-10): esta tabla y su store fueron RETIRADOS en
+    // v25 junto con toda la feature Data & Intel (ver la migración v25 abajo
+    // y el comentario de zipBackup 3.11.0). La declaración v16 debe
+    // conservarse para que los upgrades v1→v25 sigan encadenando; los backups
+    // ≤3.10.0 que traigan intelItems.json lo reportan como legacy ignorado.
     this.version(16).stores({
       intelItems: 'id, kind, iocType, createdAt, updatedAt',
     });

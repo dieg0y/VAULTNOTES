@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { VaultErrorBoundary } from '@/vault/components/VaultErrorBoundary';
 
 /* ------------------------------------------------------------------ */
 /* DEV-ONLY SELF-HEALING (HMR robustness), layer v2.                   */
@@ -101,5 +102,16 @@ const VaultApp = dynamic(() => import('@/vault/App'), {
 });
 
 export default function Home() {
-  return <VaultApp />;
+  // AUDIT 2026-10 (P3): VaultErrorBoundary vivía SOLO dentro de App.tsx,
+  // dejando la propia fase de render de App (hooks, useLiveQuery, dynamic
+  // import) fuera de cobertura — el estrecho camino a pantalla blanca.
+  // Un boundary a nivel de página lo cierra: cualquier crash de render por
+  // debajo de este punto muestra el panel de recuperación en español con
+  // "tus datos están a salvo" en lugar de una página muerta. Componente
+  // ligero (solo React) — no arrastra módulos al chunk de entrada.
+  return (
+    <VaultErrorBoundary>
+      <VaultApp />
+    </VaultErrorBoundary>
+  );
 }

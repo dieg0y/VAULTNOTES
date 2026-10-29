@@ -1,7 +1,7 @@
 import React from 'react';
 import { useEffect } from 'react';
 import { ImportSummary } from '../types';
-import { CheckCircle2, FileText, FlaskConical, BookOpen, Image as ImageIcon, X, RefreshCw, Video as VideoIcon, AlertTriangle, ShieldAlert, Info } from 'lucide-react';
+import { CheckCircle2, FileText, FlaskConical, BookOpen, Image as ImageIcon, X, RefreshCw, Video as VideoIcon, AlertTriangle, ShieldAlert, Info, ShieldOff } from 'lucide-react';
 
 interface ImportReportModalProps {
   isOpen: boolean;
@@ -195,6 +195,13 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
             </>
           )}
 
+          {/* V25/V6 (auditoría 2026-10): rows of retired features (Data &
+              Intel ≤3.10.0, Review ≤3.5.0) present in legacy backups are
+              counted and deliberately ignored — no silent drops. */}
+          {(summary.ignoredLegacyIntel || 0) > 0 && (
+            <Row icon={<ShieldOff className="w-3.5 h-3.5" />} color="text-amber-400" label="Filas ignoradas de features retiradas (Data & Intel ≤3.10.0 / Review ≤3.5.0)" value={summary.ignoredLegacyIntel || 0} valueClass="font-semibold text-amber-400" />
+          )}
+
           {summary.addedPdfs > 0 && (
             <>
               <div className="h-px bg-[#262626]" />
@@ -234,6 +241,7 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
           {totalInvalid > 0 && ' Las filas con esquema incorrecto se rechazan antes de insertarse (validación Zod).'}
           {totalOrphans > 0 && ' Los medios huérfanos quedaron guardados, pero el apunte/lab al que apuntan no existe en este vault.'}
           {(summary.ignoredLegacyVideos || 0) > 0 && ' Los videos de backups antiguos no se importan: viven únicamente en tu carpeta de videos. Si un apunte restaurado muestra el placeholder de video, usa "Buscar archivo" en el editor.'}
+          {(summary.ignoredLegacyIntel || 0) > 0 && ' Los datos de features ya retiradas (Data & Intel / Review) no se importan: la app actual no tiene dónde restaurarlos y los conserva el propio archivo ZIP original.'}
         </p>
 
         <button

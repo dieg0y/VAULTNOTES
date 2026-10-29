@@ -304,6 +304,9 @@ function emptySummary(): ImportSummary {
     addedReferences: 0,
     // REGLA DE ORO (videos): legacy backup videos deliberately ignored.
     ignoredLegacyVideos: 0,
+    // V25/V6 (auditoría 2026-10): legacy rows of retired features, ignored
+    // and REPORTED (no silent drops) — same pattern as ignoredLegacyVideos.
+    ignoredLegacyIntel: 0,
     // AUDIT VN-001: conflict counters (local newer → preserve, skip).
     conflictNotes: 0,
     conflictLabs: 0,
@@ -574,6 +577,11 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       troubleshootingHdCount: TROUBLESHOOTING_HD.length,
       troubleshootingSaCount: TROUBLESHOOTING_SA.length,
       troubleshootingSocCount: TROUBLESHOOTING_SOC.length,
+      // AUDIT 2026-10: troubleshootingIam.json y flashcardStats.json SÍ se
+      // exportan (líneas 639/587) — sus conteos faltaban en stats y el
+      // manifest describía mal su propio contenido.
+      troubleshootingIamCount: TROUBLESHOOTING_IAM.length,
+      flashcardStatsCount: flashcardStats.length,
     }
   };
 
@@ -1141,7 +1149,11 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       categories: valid.categories && valid.categories.length > 0 ? valid.categories : existing.categories,
       parentId: valid.parentId ?? existing.parentId,
       contentHtml: valid.contentHtml != null ? sanitizeHtml(valid.contentHtml) : existing.contentHtml,
-      sourceUrl: valid.sourceUrl || '',
+      // AUDIT 2026-10: un sourceUrl vacío en el backup significa "sin dato",
+      // no "borrar el local" — mismo fallback defensivo que title/platform/
+      // category/categories. Antes un backup más nuevo con el campo vacío
+      // limpiaba silenciosamente la URL guardada localmente.
+      sourceUrl: valid.sourceUrl || existing.sourceUrl || '',
       isFavorite: Boolean(valid.isFavorite),
       updatedAt: valid.updatedAt || new Date().toISOString(),
       id: existing.id,
@@ -1647,15 +1659,44 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     console.error('Error importing inboxItems:', e);
   }
 
-  // V6: reviewItems.json (backups ≤3.5.0) — la feature Review se eliminó:
-  // el archivo, si existe, se ignora con gracia (nada que importar).
-
+  // V6: reviewItems.json (backups ≤3.5.0) — la feature Review se eliminó.
   // V25 (3.11.0) — la feature Data & Intel / sync online se retiró por
   // completo (esquema Dexie v25). Los 9 archivos legacy (tiCache.json,
   // onlineActivity.json, customSigmaRules.json, savedCves.json,
   // datasetMeta.json, mitreTechniques.json, sigmaRulesSynced.json,
   // kevCatalog.json, intelItems.json), si vienen en backups ≤3.10.0, se
   // IGNORAN con gracia (import file-by-file: nada que importar).
+  // AUDIT 2026-10: "con gracia" ahora incluye decirlo — se cuentan las
+  // filas presentes y el reporte de importación lo muestra (mismo patrón
+  // que ignoredLegacyVideos), en lugar de descartar en silencio.
+  try {
+    const legacyIgnoredFiles = [
+      'reviewItems.json',
+      'tiCache.json',
+      'onlineActivity.json',
+      'customSigmaRules.json',
+      'savedCves.json',
+      'datasetMeta.json',
+      'mitreTechniques.json',
+      'sigmaRulesSynced.json',
+      'kevCatalog.json',
+      'intelItems.json',
+    ];
+    let ignoredIntel = 0;
+    for (const name of legacyIgnoredFiles) {
+      const f = contents.file(name);
+      if (!f) continue;
+      try {
+        const parsed: unknown = JSON.parse(await f.async('text'));
+        ignoredIntel += Array.isArray(parsed) ? parsed.length : 1;
+      } catch {
+        ignoredIntel += 1; // ilegible sigue siendo payload legacy ignorado
+      }
+    }
+    if (ignoredIntel > 0) summary.ignoredLegacyIntel = ignoredIntel;
+  } catch (e) {
+    console.warn('Error contando archivos legacy ignorados:', e);
+  }
 
   // profiles — PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18). Upsert
   // por id "latest wins" con el guard VN-B-012 (un backup MÁS VIEJO jamás
@@ -2107,6 +2148,12 @@ function parseMarkdownWithFrontmatter(text: string): Partial<Note> {
     // Strip quotes
     if (val.startsWith('"') && val.endsWith('"')) {
       val = val.slice(1, -1);
+      // AUDIT 2026-10 (round-trip fidelity): el exportador escapa las
+      // comillas dobles del título como \" (línea del export: replace
+      // /\"/g). Sin este unescape, un título como Mi "nota" volvía del
+      // backup como Mi \"nota\". Solo este formato produce la secuencia,
+      // así que revertirla aquí es seguro para todos los campos quoted.
+      val = val.replace(/\\\"/g, '"');
     }
 
     if (key === 'id') note.id = val;
