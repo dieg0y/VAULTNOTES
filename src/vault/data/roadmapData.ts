@@ -102,7 +102,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f31-2',
             label: 'Fundamentos',
-            text: 'Dominar Linux como el otro lado del mundo identidades: /etc/passwd, /etc/group y el concepto de /etc/shadow; propietario/grupo/otros con permisos rwx y ACL (getfacl/setfacl); sudo y mínimo privilegio (sudoers, NOPASSWD como hallazgo); SSH con claves pública/privada (authorized_keys); LDAP como concepto de directorio; journalctl y /var/log/auth.log; y el ciclo de vida de usuarios con useradd/usermod/userdel y chage.',
+            text: 'Dominar Linux como el otro lado del mundo identidades: /etc/passwd, /etc/group y el concepto de /etc/shadow; propietario/grupo/otros con permisos rwx y ACL (getfacl/setfacl); sudo y mínimo privilegio (sudoers, NOPASSWD como hallazgo); SSH con claves pública/privada (authorized_keys); LDAP como concepto de directorio; journalctl y /var/log/auth.log; y el ciclo de vida de usuarios con useradd/usermod/userdel y chage — más los servicios de aplicaciones con systemctl (systemd), el paralelo Linux de los servicios de Windows.',
           },
           {
             id: 'rm-f31-3',
@@ -122,17 +122,17 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f31-6',
             label: 'Conceptos Clave',
-            text: 'HTTP y APIs como lenguaje diario: métodos GET/POST/PATCH/PUT/DELETE con su significado; códigos 200, 201, 400, 401 (¿token ausente o inválido?), 403 (autenticado pero SIN permiso — la diferencia AuthN/AuthZ en un número), 404, 409 (conflicto/idempotencia), 429 (rate limit) y 5xx; y los conceptos REST: autenticación por tokens, paginación, manejo de errores y límites de peticiones. Criterio: describir qué hace cada método contra /Users de SCIM sin consultar nada.',
+            text: 'HTTP y APIs como lenguaje diario: métodos GET/POST/PATCH/PUT/DELETE con su significado; códigos 200, 201, 400, 401 (¿token ausente o inválido?), 403 (autenticado pero SIN permiso — la diferencia AuthN/AuthZ en un número), 404, 409 (conflicto/idempotencia), 429 (rate limit) y 5xx; y los conceptos REST: autenticación por tokens, paginación, manejo de errores y límites de peticiones. Criterio: describir qué hace cada método contra /Users de SCIM sin consultar nada. Referencias de práctica: la referencia HTTP de MDN y Postman para ensayar peticiones antes de tocar APIs reales.',
           },
           {
             id: 'rm-f31-7',
             label: 'Práctica',
-            text: 'Adoptar Git y GitHub como hábito profesional: ramas, commits, pull requests, versiones y documentación — el repositorio donde vivirán tus scripts, runbooks y evidencias de TODO el roadmap. Regla de oro desde el día 1: jamás commitear tokens, secretos, contraseñas, claves privadas ni datos personales (datos sintéticos + .gitignore + variables de entorno con .env.example).',
+            text: 'Adoptar Git y GitHub como hábito profesional: ramas, commits, pull requests, versiones y documentación — el repositorio donde vivirán tus scripts, runbooks y evidencias de TODO el roadmap (referencia de cabecera: Pro Git, git-scm.com/book/es). Regla de oro desde el día 1: jamás commitear tokens, secretos, contraseñas, claves privadas ni datos personales (datos sintéticos + .gitignore + variables de entorno con .env.example).',
           },
           {
             id: 'rm-f31-8',
             label: 'Comandos',
-            text: 'Construir el toolkit multi-lenguaje del analista: Bash básico (grep, awk, cut, sort, uniq para procesar logs), PowerShell (pipeline con Where-Object/Select-Object/Sort-Object, Import-Csv/Export-Csv) y Python (csv, json, datetime, re) — el mismo problema de "limpiar un inventario de usuarios" resuelto en los tres, para elegir el lenguaje según la tarea y saber explicarlo en entrevistas.',
+            text: 'Construir el toolkit multi-lenguaje del analista: Bash básico (grep, awk, cut, sort, uniq para procesar logs), PowerShell (pipeline con Where-Object/Select-Object/Sort-Object/ForEach-Object/Group-Object, Import-Csv/Export-Csv) y Python (csv, json, datetime, re) — el mismo problema de "limpiar un inventario de usuarios" resuelto en los tres, para elegir el lenguaje según la tarea y saber explicarlo en entrevistas.',
           },
           {
             id: 'rm-f31-9',
@@ -210,7 +210,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f1-11',
             label: 'Entrevista',
-            text: 'Tener la respuesta de 60 segundos a "¿qué es IAM?": la disciplina que garantiza que la identidad correcta tenga el acceso correcto, en el momento correcto, por la razón correcte — con evidencia auditable; y saber desglosarla en sus cuatro verbos operativos: identificar (autenticar), autorizar (acceso correcto), gobernar (ciclo de vida y revisión) y auditar (evidencia de todo lo anterior). Seguida de la frase ancla: "la identidad es el nuevo perímetro" con un ejemplo real.',
+            text: 'Tener la respuesta de 60 segundos a "¿qué es IAM?": la disciplina que garantiza que la identidad correcta tenga el acceso correcto, en el momento correcto, por la razón correcta — con evidencia auditable; y saber desglosarla en sus cuatro verbos operativos: identificar (autenticar), autorizar (acceso correcto), gobernar (ciclo de vida y revisión) y auditar (evidencia de todo lo anterior). Seguida de la frase ancla: "la identidad es el nuevo perímetro" con un ejemplo real.',
           },
           {
             id: 'rm-f1-12',
@@ -237,12 +237,12 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f2-1',
             label: 'Arquitectura y Objetos',
-            text: 'Estructurar el dominio con OUs por función (nunca por persona), Users, Security Groups y Group Nesting. Aplicar AGDLP: Account → Global group (por equipo/función) → Domain Local group (del recurso) → Permission, de modo que se delega el permiso una sola vez y los cambios posteriores son de membresía, no de ACLs.',
+            text: 'Estructurar el dominio con OUs por función (nunca por persona), Users, Security Groups y Group Nesting. Aplicar AGDLP: Account → Global group (por equipo/función) → Domain Local group (del recurso) → Permission, de modo que se delega el permiso una sola vez y los cambios posteriores son de membresía, no de ACLs — y la delegación administrativa con alcance restringido: el helpdesk que solo restablece contraseñas de UNA OU, jamás admin del dominio.',
           },
           {
             id: 'rm-f2-2',
             label: 'Cuentas y Protocolos',
-            text: 'Administrar Service Accounts: naming svc-, owner documentado en description y migración a gMSA (New-ADServiceAccount -PrincipalsAllowedToRetrieveManagedPassword) para rotación automática. Manejar SPNs con setspn -S (valida duplicados) y entender kerberoasting. Diferenciar autenticación (Kerberos/LDAP) de autorización (ACLs/membresías) y LastLogon (exacto, por DC, no replicado) vs. LastLogonTimestamp (replicado, granularidad de días).',
+            text: 'Administrar Service Accounts: naming svc-, owner documentado en description y migración a gMSA (New-ADServiceAccount -PrincipalsAllowedToRetrieveManagedPassword) para rotación automática. Manejar SPNs con setspn -S (valida duplicados) y entender kerberoasting. Diferenciar autenticación (Kerberos/LDAP; y NTLM como protocolo heredado: por qué se deprecia y el riesgo de NTLM relay) de autorización (ACLs/membresías) y LastLogon (exacto, por DC, no replicado) vs. LastLogonTimestamp (replicado, granularidad de días).',
           },
           {
             id: 'rm-f2-3',
@@ -257,7 +257,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f2-5',
             label: 'Evidencia (Exit Criteria)',
-            text: 'Generar un reporte de auditoría ejecutable por otro analista: hallazgo, evidencia (comando + salida real), severidad con matriz Likelihood x Impact (sin CVSS), dueño asignado y recomendación con el comando de remediación. Mínimo 4 hallazgos reales encontrados en tu propio laboratorio.',
+            text: 'Generar un reporte de auditoría ejecutable por otro analista: hallazgo, evidencia (comando + salida real), severidad con matriz Likelihood x Impact (sin CVSS), dueño asignado y recomendación con el comando de remediación. Mínimo 4 hallazgos reales encontrados en tu propio laboratorio. Este es el proyecto AD Access Audit Lab: usuarios deshabilitados que siguen en grupos, cuentas sin propietario, miembros inesperados de grupos privilegiados, privilegios incompatibles con la función y cambios de membresía sin validar — con el entregable GitHub completo (inventario de identidades, scripts de auditoría, datos sintéticos, ejemplos de salida y runbook de investigación) y la regla de seguridad: solo en tu laboratorio propio, jamás en un dominio de terceros o universitario.',
           },
           {
             id: 'rm-f2-6',
@@ -297,7 +297,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f2-13',
             label: 'Conceptos Clave',
-            text: 'Dominar la arquitectura lógica completa de AD DS: dominio → árbol → bosque (forest), Domain Controllers y replicación multi-master, sitios y servicios de Active Directory (subredes, costos de replicación entre sitios), relaciones de confianza (intraforest automática vs. external/forest trust), y los grupos por ámbito: universales, globales y de dominio local (y por qué AGDLP los ordena). Saber responder sin dudar: "¿qué se rompe si se cae un DC?" (nada, si hay más — la resiliencia NATIVA), "¿por qué el Global Catalog conoce el memberOf de otro dominio del bosque?" y "¿qué diferencia un trust externo de un forest trust?".',
+            text: 'Dominar la arquitectura lógica completa de AD DS: dominio → árbol → bosque (forest), el SID (S-1-5-…: la identidad inmutable del objeto, base de todo ACL y de la filtración entre dominios), Domain Controllers y replicación multi-master, sitios y servicios de Active Directory (subredes, costos de replicación entre sitios), relaciones de confianza (intraforest automática vs. external/forest trust), y los grupos por ámbito: universales, globales y de dominio local (y por qué AGDLP los ordena). Saber responder sin dudar: "¿qué se rompe si se cae un DC?" (nada, si hay más — la resiliencia NATIVA), "¿por qué el Global Catalog conoce el memberOf de otro dominio del bosque?" y "¿qué diferencia un trust externo de un forest trust?".',
           },
           {
             id: 'rm-f2-14',
@@ -372,12 +372,12 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f3-1',
             label: 'Identidades Cloud',
-            text: 'Crear y administrar en entra.microsoft.com: Users (member vs. guest B2B), Dynamic Groups con reglas de membresía (user.department -eq "Ventas"), Enterprise Applications (el Service Principal de cada app integrada) y Managed Identities para recursos. Entender qué sincroniza Entra Connect desde el AD local (y qué significa el immutableId en la identidad híbrida).',
+            text: 'Crear y administrar en entra.microsoft.com: Users (member vs. guest B2B), Dynamic Groups con reglas de membresía (user.department -eq "Ventas"), Enterprise Applications (el Service Principal de cada app integrada) y Managed Identities para recursos. Entender qué sincroniza Entra Connect desde el AD local (y qué significa el immutableId en la identidad híbrida) y la eliminación/recuperación de objetos según los procedimientos soportados (la papelera de Entra y su ventana de recuperación).',
           },
           {
             id: 'rm-f3-2',
             label: 'Políticas de Acceso',
-            text: 'Configurar Conditional Access (Entra → Protection → Conditional Access): asignaciones (users/groups/cloud apps) + Access controls (Grant: Require MFA o Block; Session). Aplicar siempre primero en Report-only, validar con la herramienta What If y nombrar con convención (CA01-BLOCK-LegacyAuth). Tener la lógica clara: se evalúan todas y gana la más restrictiva.',
+            text: 'Configurar Conditional Access (Entra → Protection → Conditional Access): asignaciones (users/groups/cloud apps) + Access controls (Grant: Require MFA o Block; Session). Comprender además el Authentication Context (el step-up DENTRO de la sesión ya abierta, para acciones protegidas como cambiar MFA o tocar datos regulados) y las plantillas oficiales como punto de partida. Aplicar siempre primero en Report-only, validar con la herramienta What If y nombrar con convención (CA01-BLOCK-LegacyAuth). Tener la lógica clara: se evalúan todas y gana la más restrictiva.',
           },
           {
             id: 'rm-f3-3',
@@ -417,12 +417,12 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f3-10',
             label: 'Práctica',
-            text: 'Operar Entra Connect con criterio: elegir PHS (password hash sync) vs. PTA (pass-through) vs. federación con sus trade-offs, configurar el filtrado por OU (provisioning scope), pre-limpiar con IdFix (atributos duplicados y caracteres ilegales) y entender el informe de errores de sincronización (duplicate attributes, hard match con anchor immovable). El classic de producción: el usuario renombrado en RRHH que se duplica — saber por qué (UPN cambiado sin matching) y cómo corregirlo sin borrar y recrear.',
+            text: 'Operar Entra Connect con criterio: elegir PHS (password hash sync) vs. PTA (pass-through) vs. federación con sus trade-offs (con el Seamless SSO que acompaña a PHS/PTA para evitar prompts en la intranet — y la migración de federado a managed por fases, el proyecto que toda empresa híbrida acaba haciendo), configurar el filtrado por OU (provisioning scope), pre-limpiar con IdFix (atributos duplicados y caracteres ilegales) y entender el informe de errores de sincronización (duplicate attributes, hard match con anchor immovable). El classic de producción: el usuario renombrado en RRHH que se duplica — saber por qué (UPN cambiado sin matching) y cómo corregirlo sin borrar y recrear.',
           },
           {
             id: 'rm-f3-11',
             label: 'Conceptos Clave',
-            text: 'Governar el consent y los permisos de apps: App registrations (el desarrollador crea la app y SUS permisos) vs. Enterprise applications (el service principal: la app EN TU inquilino y sus consentimientos concedidos), delegated vs. application permissions, el flujo admin consent, y el inventario periódico de OAuth permission grants (Get-MgOauth2PermissionGrant) — exactamente el control que habría evitado el consent phishing de Uber. Sin este inventario, cualquier app maliciosa con un banner bonito puede pedir Mail.Read.',
+            text: 'Governar el consent y los permisos de apps: App registrations (el desarrollador crea la app y SUS permisos) vs. Enterprise applications (el service principal: la app EN TU inquilino y sus consentimientos concedidos), single-tenant vs. multitenant (quién puede consumir la app registrada), delegated vs. application permissions, los roles de aplicación (app roles) para asignar usuarios/grupos a la app, el flujo admin consent, y el inventario periódico de OAuth permission grants (Get-MgOauth2PermissionGrant) — exactamente el control que habría evitado el consent phishing de Uber. Sin este inventario, cualquier app maliciosa con un banner bonito puede pedir Mail.Read.',
           },
           {
             id: 'rm-f3-12',
@@ -516,7 +516,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f5-2',
             label: 'Troubleshooting',
-            text: 'Capturar aserciones SAML con SAML Tracer (extensión de navegador), decodificar JWT en jwt.io verificando claims (aud, exp, iss, sub, scp) y depurar el attribute mapping (NameID, email, grupos) entre IdP y SP. Saber distinguir un fallo de firma/audience de un fallo de mapping: síntomas y causa raíz diferentes.',
+            text: 'Capturar aserciones SAML con SAML Tracer (extensión de navegador), decodificar JWT en jwt.io verificando claims (aud, exp, iss, sub, scp) y la validez de la firma, y depurar el attribute mapping (NameID, email, grupos) entre IdP y SP. Saber distinguir un fallo de firma/audience de un fallo de mapping: síntomas y causa raíz diferentes.',
           },
           {
             id: 'rm-f5-3',
@@ -536,7 +536,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f5-6',
             label: 'Conceptos Clave',
-            text: 'Entender la federación como red de confianza: Home Realm Discovery (el dominio del correo decide a qué IdP redirigir), SP-initiated vs. IdP-initiated, dominios federados vs. managed en Entra, y el rol del STS. Saber por qué las empresas grandes terminan con un hub (PingFederate, ADFS o Entra) que federá hacia múltiples IdPs de partners y subsidiaries.',
+            text: 'Entender la federación como red de confianza: Home Realm Discovery (el dominio del correo decide a qué IdP redirigir), SP-initiated vs. IdP-initiated, dominios federados vs. managed en Entra, y el rol del STS. Saber por qué las empresas grandes terminan con un hub (PingFederate, ADFS o Entra) que federa hacia múltiples IdPs de partners y subsidiaries.',
           },
           {
             id: 'rm-f5-7',
@@ -546,7 +546,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f5-8',
             label: 'Conceptos Clave',
-            text: 'Dominar los flujos OAuth 2.0/OIDC y su caso de uso exacto: authorization code + PKCE (el estándar para apps web y SPA — PKCE cierra el ataque del código interceptado), client credentials (app-to-app sin usuario: machine identity), device code flow (TVs/CLI sin browser: la diana del phishing de códigos), refresh token (renovación sin re-login) y por qué implicit flow quedó deprecado (token expuesto en URL/fragment). Saber dibujar authorization code + PKCE de memoria con los 5 pasos.',
+            text: 'Dominar los flujos OAuth 2.0/OIDC y su caso de uso exacto: authorization code + PKCE (el estándar para apps web y SPA — PKCE cierra el ataque del código interceptado), client credentials (app-to-app sin usuario: machine identity), device code flow (TVs/CLI sin browser: la diana del phishing de códigos), refresh token (renovación sin re-login) y por qué implicit flow y Resource Owner Password Credentials (ROPC) quedaron deprecados (token expuesto en URL/fragment; la app manejando contraseñas). Referencia vigente: RFC 9700 (OAuth 2.0 Security Best Current Practice) — PKCE recomendado para TODO Authorization Code, Implicit y ROPC fuera. Saber dibujar authorization code + PKCE de memoria con los 5 pasos.',
           },
           {
             id: 'rm-f5-9',
@@ -594,7 +594,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f16-2',
             label: 'Conceptos Clave',
-            text: 'Analizar el MFA fatigue (bombardeo de push hasta que la víctima aprueba) y sus defensas: number matching en Microsoft Authenticator (aprobar exige teclear el número mostrado), contexto de ubicación/app en la notificación, rate limiting y bloqueo tras N rechazos. Tener lista la historia del caso Uber 2022 (MFA fatigue seguido de consent phishing) como story de entrevista.',
+            text: 'Analizar el MFA fatigue (bombardeo de push hasta que la víctima aprueba) y sus defensas: number matching en Microsoft Authenticator (aprobar exige teclear el número mostrado), contexto de ubicación/app en la notificación, rate limiting y bloqueo tras N rechazos. Tener lista la historia del caso Uber 2022 (MFA fatigue: push bombing hasta que la víctima aprobó — y el hallazgo posterior de credenciales de PAM expuestas en un script de red) como story de entrevista.',
           },
           {
             id: 'rm-f16-3',
@@ -624,7 +624,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f16-8',
             label: 'Conceptos Clave',
-            text: 'Manejar NIST SP 800-63B (Digital Identity Guidelines): los niveles IAL (identity assurance: cuán segura es la prueba de identidad), AAL (authenticator assurance: cuán fuerte es el login) y FAL (federation assurance). Mapear apps a AAL: la wiki interna = AAL1/2, el ERP financiero externo = AAL2 con authenticator phishing-resistant, admin de identidad = AAL3 (hardware, resistencia a replay). Este marco te da el vocabulario para NEGOCIAR exigencias por app en vez de "MFA para todo o para nada".',
+            text: 'Manejar NIST SP 800-63-4 (Digital Identity Guidelines, revisión 2025 — la versión vigente que reemplazó a la 800-63B): los niveles IAL (identity assurance: cuán segura es la prueba de identidad), AAL (authenticator assurance: cuán fuerte es el login) y FAL (federation assurance). Mapear apps a AAL: la wiki interna = AAL1/2, el ERP financiero externo = AAL2 con authenticator phishing-resistant, admin de identidad = AAL3 (hardware, resistencia a replay). Este marco te da el vocabulario para NEGOCIAR exigencias por app en vez de "MFA para todo o para nada".',
           },
           {
             id: 'rm-f16-9',
@@ -859,7 +859,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f7-4',
             label: 'Evidencia (Exit Criteria)',
-            text: 'Playbooks de resolución documentados para 5 escenarios reales: usuario sin acceso a app SAML, loop de MFA, usuario fuera del grupo dinámico esperado, SCIM que no crea la cuenta y app que rechaza la aserción. Cada playbook con síntoma, diagnóstico paso a paso, causa raíz típica y fix verificado.',
+            text: 'Playbooks de resolución documentados para 5 escenarios reales: usuario sin acceso a app SAML, loop de MFA, usuario fuera del grupo dinámico esperado, SCIM que no crea la cuenta y app que rechaza la aserción. Cada playbook con síntoma, diagnóstico paso a paso, causa raíz típica, permisos requeridos, fix verificado y criterio de escalamiento (qué resuelve el analista y cuándo escala al administrador, al desarrollador, al equipo de red o al dueño de la aplicación).',
           },
           {
             id: 'rm-f7-5',
@@ -889,7 +889,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f7-10',
             label: 'Entrevista',
-            text: 'Tener 3 historias de troubleshooting PERFECTAS con estructura STAR: (síntoma en una frase) → (diagnóstico: fuentes consultadas en orden) → (hipótesis descartadas con por qué) → (causa raíz) → (remediación + verificación) → (prevención: runbook/monitor). Rehecharlas en voz alta hasta contarlas en 90 segundos cada una — el entrevistador evalúa el ORDEN de tu diagnóstico más que la solución.',
+            text: 'Tener 3 historias de troubleshooting PERFECTAS con estructura STAR: (síntoma en una frase) → (diagnóstico: fuentes consultadas en orden) → (hipótesis descartadas con por qué) → (causa raíz) → (remediación + verificación) → (prevención: runbook/monitor). Ensayarlas en voz alta hasta contarlas en 90 segundos cada una — el entrevistador evalúa el ORDEN de tu diagnóstico más que la solución.',
           },
           {
             id: 'rm-f7-11',
@@ -978,7 +978,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f18-3',
             label: 'Práctica',
-            text: 'Construir la matriz rol ↔ entitlements en hoja de cálculo para un área real o ficticia: rol "Analista de Nómina" → grupos AD (GG-NOMINA-CONSULTA-R), carpetas (\\fs01\nomina\lectura), apps SaaS (Workday: rol Reporter), base de datos (SELECT en esquema HR). Una fila por entitlement con dueño del sistema y criticidad.',
+            text: 'Construir la matriz rol ↔ entitlements en hoja de cálculo para un área real o ficticia: rol "Analista de Nómina" → grupos AD (GG-NOMINA-CONSULTA-R), carpetas (\\fs01\nomina\lectura), apps SaaS (Workday: rol Reporter), base de datos (SELECT en esquema HR). Con las columnas de gobernanza completas: Departamento | Puesto | Aplicación | Rol | Entitlement | Propietario | Aprobador | Riesgo | Justificación — y una fila por entitlement con dueño del sistema y criticidad.',
           },
           {
             id: 'rm-f18-4',
@@ -1346,7 +1346,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f27-1',
             label: 'Conceptos Clave',
-            text: 'Anatomy de One Identity Safeguard: la appliance (hardware o virtual) con dos caras — Safeguard for Privileged Sessions (SPS: el proxy que graba y controla RDP/SSH/HTTPS) y Safeguard for Privileged Passwords (SPP: la bóveda con checkout, rotación y políticas por asset), los asset groups con cuentas agrupadas por sistema, y las access policies (quién puede hacer check-out de qué cuenta, con aprobación, en qué horario, con grabación). El flujo típico: usuario se autentica en la appliance (o con SSO), pide el acceso, la política decide, la sesión se abre proxied y grabada.',
+            text: 'Anatomía de One Identity Safeguard: la appliance (hardware o virtual) con dos caras — Safeguard for Privileged Sessions (SPS: el proxy que graba y controla RDP/SSH/HTTPS) y Safeguard for Privileged Passwords (SPP: la bóveda con checkout, rotación y políticas por asset), los asset groups con cuentas agrupadas por sistema, y las access policies (quién puede hacer check-out de qué cuenta, con aprobación, en qué horario, con grabación). El flujo típico: usuario se autentica en la appliance (o con SSO), pide el acceso, la política decide, la sesión se abre proxied y grabada.',
           },
           {
             id: 'rm-f27-2',
@@ -1356,12 +1356,12 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f27-3',
             label: 'Conceptos Clave',
-            text: 'Anatomy de CyberArk PAM: la Digital Vault / EPV (la bóveda con los safes por tipo de cuenta), el CPM (Central Policy Manager: la rotación on-schedule y post-checkout), el PSM (Privileged Session Manager: el proxy de sesión para RDP/SSH/DB), la PVWA (el portal web del usuario) y AIM (Application Identity Manager: los secrets para aplicaciones — el eslabón que las demás plataformas copiaron). Los conceptos que el mercado heredó de CyberArk: safe, checkout con lock, on-demand rotation — saber de dónde viene cada uno demuestra historia.',
+            text: 'Anatomía de CyberArk PAM: la Digital Vault / EPV (la bóveda con los safes por tipo de cuenta), el CPM (Central Policy Manager: la rotación on-schedule y post-checkout), el PSM (Privileged Session Manager: el proxy de sesión para RDP/SSH/DB), la PVWA (el portal web del usuario) y AIM (Application Identity Manager: los secrets para aplicaciones — el eslabón que las demás plataformas copiaron). Los conceptos que el mercado heredó de CyberArk: safe, checkout con lock, on-demand rotation — saber de dónde viene cada uno demuestra historia.',
           },
           {
             id: 'rm-f27-4',
             label: 'Conceptos Clave',
-            text: 'Anatomy de BeyondTrust: Password Safe (vaulting + rotación + descubrimiento con la curva más suave del mercado) y Remote Support (el anterior Bomgar: sesiones remotas con granularidad por representado/representante), la inyección de credenciales en la sesión (el usuario no ve el password), Privilege Manager (least privilege en endpoint — elevar solo la app que lo necesita, no al usuario completo) y PowerBroker (la historia Unix que lo precedió). Su nicho real: empresas que necesitan PAM + soporte remoto a terceros en la misma plataforma.',
+            text: 'Anatomía de BeyondTrust: Password Safe (vaulting + rotación + descubrimiento con la curva más suave del mercado) y Remote Support (el anterior Bomgar: sesiones remotas con granularidad por representado/representante), la inyección de credenciales en la sesión (el usuario no ve el password), Privilege Manager (least privilege en endpoint — elevar solo la app que lo necesita, no al usuario completo) y PowerBroker (la historia Unix que lo precedió). Su nicho real: empresas que necesitan PAM + soporte remoto a terceros en la misma plataforma.',
           },
           {
             id: 'rm-f27-5',
@@ -1641,7 +1641,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f22-11',
             label: 'Escenario',
-            text: 'Responder la consulta del cliente con stack Oracle EBS + OAM viejo: "¿migramos o mantenemos?": los costes de quedarse (middleware fuera de soporte, know-how que se jubila, MFA débil por capas extra), los de migrar (proyecto multi-año, riesgo de integración con el EBS, doble correr), y tu recomendación como analista: stranded risk por años + roadmap del vendor (el OAM clásico está en modo mantenimiento — el future es Oracle Access Management con OCI/Redwood) → plan híbrido: estabilizar ( parches + MFA frontal) mientras se planifica la salida. La respuesta que vale es la CRITERIA, no la opinión.',
+            text: 'Responder la consulta del cliente con stack Oracle EBS + OAM viejo: "¿migramos o mantenemos?": los costes de quedarse (middleware fuera de soporte, know-how que se jubila, MFA débil por capas extra), los de migrar (proyecto multi-año, riesgo de integración con el EBS, doble correr), y tu recomendación como analista: stranded risk por años + roadmap del vendor (el OAM clásico está en modo mantenimiento — el futuro es Oracle Access Management con OCI/Redwood) → plan híbrido: estabilizar (parches + MFA frontal) mientras se planifica la salida. La respuesta que vale es el CRITERIO, no la opinión.',
           },
         ],
       },
@@ -1791,7 +1791,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f28-3',
             label: 'Conceptos Clave',
-            text: 'Entender GCP IAM sin sufrir: la organización como raíz (organización → folders → projects → resources), el binding como primitive (member + role + resource: el "quién-qué-dónde" en una línea), la gran diferencia con Azure: NO hay herencia de políticas full-accional — la effective policy es la UNIÓN de bindings en la jerarquía (IAM conditions y deny policies llegaron después), los roles predefined vs. custom vs. primitive (owner/editor/viewer), y la identidad: usuarios Google, service accounts GCP y grupos. La traducción mental AWS→GCP: policy document → binding list.',
+            text: 'Entender GCP IAM sin sufrir: la organización como raíz (organización → folders → projects → resources), el binding como primitive (member + role + resource: el "quién-qué-dónde" en una línea), la gran diferencia con AWS/Azure: las allow policies SÍ se heredan por UNIÓN de bindings en la jerarquía (la effective policy acumula org → folder → project), y lo que llegó después fueron las IAM Conditions y las deny policies (el Deny explícito estilo AWS apareció tarde), los roles predefined vs. custom vs. primitive (owner/editor/viewer), y la identidad: usuarios Google, service accounts GCP y grupos. La traducción mental AWS→GCP: policy document → binding list.',
           },
           {
             id: 'rm-f28-4',
@@ -1975,12 +1975,12 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f30-6',
             label: 'Conceptos Clave',
-            text: 'Detectar y romper las DEPENDENCIAS CIRCULARES del stack IAM (la bomba lógica silenciosa): el IdP que se autentica contra el directorio que protege el acceso al panel del directorio; el helpdesk que necesita el SSO (protegido por el IdP) para gestionar los tickets de bloqueo del IdP; el SIEM que ingeria los logs del IdP via API (autenticada por el IdP). El inventario de dependencias con el test del "¿y si el IdP no está?": cada dependencia marcada como rota-lógica/rota-física/sana, y la remediación (cuenta local de emergencia del helpdesk, credenciales break-glass del SIEM, rutas de autenticación alternativas documentadas).',
+            text: 'Detectar y romper las DEPENDENCIAS CIRCULARES del stack IAM (la bomba lógica silenciosa): el IdP que se autentica contra el directorio que protege el acceso al panel del directorio; el helpdesk que necesita el SSO (protegido por el IdP) para gestionar los tickets de bloqueo del IdP; el SIEM que ingiere los logs del IdP via API (autenticada por el IdP). El inventario de dependencias con el test del "¿y si el IdP no está?": cada dependencia marcada como rota-lógica/rota-física/sana, y la remediación (cuenta local de emergencia del helpdesk, credenciales break-glass del SIEM, rutas de autenticación alternativas documentadas).',
           },
           {
             id: 'rm-f30-7',
             label: 'Conceptos Clave',
-            text: 'Construir la MATRIZ de DR del programa IAM (la evidencia de resiliencia que pide cualquier auditor serio): filas = componentes (IdP cloud, AD, PAM, IGA, certificado de firma SAML, carpetas GITHUBVAULT de evidencias), columnas = escenario de fallo (proveedor caído, on-prem caído, credencial comprometida, desastres naturales), objetivo RTO/RPO por componente, cómo se PRUEBA cada escenario (drill break-glass semestral, restauración de AD anual, failover del proveedor: leer el historial público), fecha de la ÚLTIMA prueba y su resultado. Una fila sin prueba reciente = un plan de papel.',
+            text: 'Construir la MATRIZ de DR del programa IAM (la evidencia de resiliencia que pide cualquier auditor serio): filas = componentes (IdP cloud, AD, PAM, IGA, certificado de firma SAML, carpetas VaultNotes de evidencias), columnas = escenario de fallo (proveedor caído, on-prem caído, credencial comprometida, desastres naturales), objetivo RTO/RPO por componente, cómo se PRUEBA cada escenario (drill break-glass semestral, restauración de AD anual, failover del proveedor: leer el historial público), fecha de la ÚLTIMA prueba y su resultado. Una fila sin prueba reciente = un plan de papel.',
           },
           {
             id: 'rm-f30-8',
@@ -2016,7 +2016,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f33-2',
             label: 'Plan',
-            text: 'Continuar el portfolio: 04 Entra ID / Microsoft Graph Audit Toolkit (PowerShell + Graph SDK + CSV: scripts de SOLO LECTURA que inventarían usuarios, grupos, roles, service principals y credenciales próximas a vencer, con permisos mínimos y manejo de errores). 05 SSO Lab — OpenID Connect (Keycloak en Docker + app de prueba: configuración de cliente y redirect URI, Authorization Code con PKCE, lectura de claims, pruebas de acceso permitido/denegado — complementado con el runbook de diagnóstico SAML de metadata, ACS URL y certificados). 06 SCIM 2.0 Provisioning API (Python + FastAPI + pytest: crear, consultar, actualizar y desactivar usuarios, validar atributos, registrar operaciones y devolver errores coherentes).',
+            text: 'Continuar el portfolio: 04 Entra ID / Microsoft Graph Audit Toolkit (PowerShell + Graph SDK + CSV: scripts de SOLO LECTURA para inventariar usuarios, grupos, roles, service principals y credenciales próximas a vencer, con permisos mínimos y manejo de errores). 05 SSO Lab — OpenID Connect (Keycloak en Docker + app de prueba: configuración de cliente y redirect URI, Authorization Code con PKCE, lectura de claims, pruebas de acceso permitido/denegado — complementado con el runbook de diagnóstico SAML de metadata, ACS URL y certificados). 06 SCIM 2.0 Provisioning API (Python + FastAPI + pytest: crear, consultar, actualizar y desactivar usuarios, validar atributos, registrar operaciones y devolver errores coherentes).',
           },
           {
             id: 'rm-f33-3',
@@ -2051,12 +2051,12 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f33-9',
             label: 'Entrevista',
-            text: 'Preparar la explicación de CADA proyecto en inglés con estructura fija: problema, diseño, implementación, pruebas, limitaciones y decisión de seguridad — la versión de 30 segundos y la de 3 minutos de cada uno, rehechadas en voz alta con cronómetro. En la entrevista remota internacional no basta con leer documentación: hay que explicar decisiones técnicas HABLANDO, con precisión y sin tonterías.',
+            text: 'Preparar la explicación de CADA proyecto en inglés con estructura fija: problema, diseño, implementación, pruebas, limitaciones y decisión de seguridad — la versión de 30 segundos y la de 3 minutos de cada uno, ensayadas en voz alta con cronómetro. En la entrevista remota internacional no basta con leer documentación: hay que explicar decisiones técnicas HABLANDO, con precisión y sin tonterías.',
           },
           {
             id: 'rm-f33-10',
             label: 'Evidencia (Exit Criteria)',
-            text: 'Publicar y mantener: repos públicos con el README como portada del proyecto, el perfil de GitHub con los 5 principales pineados, y cada descripción redactada como logro técnico verificable (p. ej. "Developed a Python-based IAM lifecycle simulator to reconcile employee records with expected application access, identify orphaned accounts, and generate auditable reports for joiner-mover-leaver workflows") — nunca como "conocimientos de IAM". Seguridad final: cero tokens, cero secretos, cero datos personales reales en ningún repo (la app GITHUBVAULT es el almacén de tus evidencias — GitHub es la vitrina).',
+            text: 'Publicar y mantener: repos públicos con el README como portada del proyecto, el perfil de GitHub con los 5 principales pineados, y cada descripción redactada como logro técnico verificable (p. ej. "Developed a Python-based IAM lifecycle simulator to reconcile employee records with expected application access, identify orphaned accounts, and generate auditable reports for joiner-mover-leaver workflows") — nunca como "conocimientos de IAM". Seguridad final: cero tokens, cero secretos, cero datos personales reales en ningún repo (la app VaultNotes es el almacén de tus evidencias — GitHub es la vitrina).',
           },
         ],
       },
@@ -2171,7 +2171,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f14-7',
             label: 'Entrevistas',
-            text: 'Compilar y REHECHAR la batería de 20 preguntas de entrevista extraídas de TODO el roadmap (JML, MFA fatigue, AADSTS50011, role model, SoD, PAM checkout, break-glass, consent phishing, cross-account AWS, correlación IGA…): cada una con tu respuesta escrita en estructura, rehechada en voz alta con cronómetro, y la versión de 30 segundos + la de 3 minutos. El repaso de la noche anterior a una entrevista son estas tarjetas — no tutoriales de YouTube.',
+            text: 'Compilar y ENSAYAR la batería de 20 preguntas de entrevista extraídas de TODO el roadmap (JML, MFA fatigue, AADSTS50011, role model, SoD, PAM checkout, break-glass, consent phishing, cross-account AWS, correlación IGA…): cada una con tu respuesta escrita en estructura, ensayada en voz alta con cronómetro, y la versión de 30 segundos + la de 3 minutos. El repaso de la noche anterior a una entrevista son estas tarjetas — no tutoriales de YouTube.',
           },
           {
             id: 'rm-f14-8',
@@ -2181,7 +2181,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f14-9',
             label: 'Entrevistas',
-            text: 'Entrenar el inglés técnico ACTIVO con las 10 preguntas que deben salir fluidas: How do you provision and deprovision a user? / What is the difference between authentication and authorization? / How do you perform an access review? / How would you investigate a failed SSO login? / What is the difference between SAML and OpenID Connect? / How do you identify excessive privileges? / What is segregation of duties? / How do you investigate failed provisioning? / Why is least privilege important? / How would you troubleshoot a Microsoft Graph permissions error? — cada una con respuesta estructurada rehechada en voz alta, y la explicación de cada proyecto del portfolio en inglés: problema, diseño, implementación, pruebas, limitaciones y decisión de seguridad. No necesitas sonar nativo: necesitas precisión, comprender la pregunta y justificar la decisión técnica.',
+            text: 'Entrenar el inglés técnico ACTIVO con las 10 preguntas que deben salir fluidas: How do you provision and deprovision a user? / What is the difference between authentication and authorization? / How do you perform an access review? / How would you investigate a failed SSO login? / What is the difference between SAML and OpenID Connect? / How do you identify excessive privileges? / What is segregation of duties? / How do you investigate failed provisioning? / Why is least privilege important? / How would you troubleshoot a Microsoft Graph permissions error? — cada una con respuesta estructurada ensayada en voz alta, y la explicación de cada proyecto del portfolio en inglés: problema, diseño, implementación, pruebas, limitaciones y decisión de seguridad. No necesitas sonar nativo: necesitas precisión, comprender la pregunta y justificar la decisión técnica.',
           },
         ],
       },
@@ -2204,7 +2204,7 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
           {
             id: 'rm-f34-3',
             label: 'Práctica',
-            text: 'Montar el sistema de búsqueda con portales y alertas: LinkedIn Jobs Colombia (el principal punto de partida para cargos de identidad y remotos LATAM), Indeed Colombia (comparar oportunidades junior), los agregadores de empleo remoto de seguridad (Remotera, Jobicy — con elegibilidad geográfica explícita) y las páginas de empleo de proveedores IAM, consultoras y MSP. Guardar como alertas: "Junior IAM Analyst" remote Colombia · "IAM Operations Analyst" remote LATAM · "Identity Governance Analyst" junior · "Access Management Analyst" remote · "Identity Lifecycle Analyst" · "User Provisioning Analyst" · "User Access Management" · "IAM Support Analyst" · "Identity Security Analyst" remote LATAM · "Entra ID Administrator" junior · "Active Directory Administrator" junior · "Okta Administrator" junior · "SailPoint Analyst" junior · "Joiner Mover Leaver".',
+            text: 'Montar el sistema de búsqueda con portales y alertas: LinkedIn Jobs Colombia (el principal punto de partida para cargos de identidad y remotos LATAM), Indeed Colombia (comparar oportunidades junior), los agregadores de empleo remoto de seguridad (Remotera, Jobicy — con elegibilidad geográfica explícita) y las páginas de empleo de proveedores IAM, consultoras y MSP. Guardar como alertas: "Junior IAM Analyst" remote Colombia · "IAM Operations Analyst" remote LATAM · "Identity Governance Analyst" junior · "Access Management Analyst" remote · "Identity Lifecycle Analyst" · "User Provisioning Analyst" · "User Access Management" · "IAM Support Analyst" · "Identity Security Analyst" remote LATAM · "Entra ID Administrator" junior · "Active Directory Administrator" junior · "Okta Administrator" junior · "SailPoint Analyst" junior · "Joiner Mover Leaver" · "Identity and Access Management Analyst" · "IGA Analyst" remote LATAM · "Application Access Analyst".',
           },
           {
             id: 'rm-f34-4',
