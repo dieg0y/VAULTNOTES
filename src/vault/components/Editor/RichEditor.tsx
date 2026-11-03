@@ -178,6 +178,7 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   // en db.images (propietario de esta nota).
   const {
     handleImageFile,
+    handlePasteHtml,
     attachImageSources,
     handleRelinkImageFiles,
     grantImageAccess,
@@ -196,8 +197,15 @@ export const RichEditor: React.FC<RichEditorProps> = ({
   });
 
   // SECURITY (VN-B-014): sanitized paste — see editorMedia.runSanitizedPaste.
+  // V17 (pegado Obsidian): onPasteHtml recibe el HTML CRUDO para descargar
+  // las imágenes remotas (ver editorMedia.handlePasteHtml).
   const handlePaste = (e: React.ClipboardEvent) =>
-    runSanitizedPaste(e, { editorRef, onImageFile: handleImageFile, onContentChange: handleContentInput });
+    runSanitizedPaste(e, {
+      editorRef,
+      onImageFile: handleImageFile,
+      onContentChange: handleContentInput,
+      onPasteHtml: handlePasteHtml,
+    });
 
   // NOTE: this component is keyed by `note.id` upstream (NotesView), so local
   // state initializes from props on every note switch — no sync effect needed.

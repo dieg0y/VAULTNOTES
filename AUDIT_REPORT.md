@@ -263,4 +263,46 @@ Notas (crear/editar/autosave/reload/persist con unicode+emojis) · papelera (con
 
 ---
 
-*Fin del reporte. Auditoría original en modo solo lectura; el addendum §8 documenta los fixes posteriores; el addendum §9 documenta la auditoría integral en ciclos de 2026-10-29 (ghost cleanup + 6 P3 con verificación dinámica).*
+## 10. ADDENDUM III — Pegado tipo Obsidian: imágenes remotas localizadas (2026-10-29, V17)
+
+**Feature:** pegar una captura o una página web completa (Ctrl+A, Ctrl+C en el navegador) con imágenes/GIFs en línea y que todo quede guardado LOCAL, instantáneo y perfecto. Antes: el texto se pegaba y las imágenes desaparecían en silencio (el sanitizador VN-AUD-001 elimina los `src` remotos, con razón).
+
+### 10.1 Superficie nueva: `/api/fetch-image` (proxy local)
+
+El navegador no puede descargar imágenes cross-origin sin CORS (`fetch()` falla en la mayoría de sitios). El proxy server-side resuelve eso y su hardening queda **verificado dinámicamente**:
+
+| Control | Verificación E2E |
+|---|---|
+| Esquema http/https único (`ftp:` → 400) | ✓ curl real |
+| SSRF: hosts privados bloqueados (loopback, RFC1918, link-local, ULA, CGNAT, .local) — `localhost:3000/secret` → 403 | ✓ curl real |
+| `Sec-Fetch-Site: cross-site` → 403 (DNS rebinding y uso como proxy desde webs de terceros) | diseño + header siempre presente en navegadores modernos |
+| Tope 25 MB **contado en streaming** (Content-Length mentiroso no desborda memoria) | diseño |
+| Timeout 15 s (AbortController) | diseño |
+| Content-Type `image/*` obligatorio (hotlink-blocked que devuelve text/html → 502/415 → el cliente degrada a enlace) | ✓ curl real (raw text → 502) |
+| Redirecciones: sigue fetch() (≤20 hops) — residual: una URL pública puede redirigir a host interno; solo lo provoca el propio usuario al pegar esa URL | documentado |
+
+### 10.2 Invariantes preservadas (todas re-verificadas en E2E)
+
+- **VN-AUD-001 (beacons) INTACTA**: jamás se persiste un `src` remoto. La transformación pre-sanitiza marca las imágenes como pending SIN src; el sanitizador nunca ve una URL remota que conservar. Tras el pegado completo: **0 srcs remotos en el DOM guardado** (verificado tras reload).
+- **Offline por defecto**: la red SOLO ocurre tras pegado explícito + consentimiento ÚNICO (localStorage; cancelar = enlaces esa sesión, sessionStorage). El load boundary JAMÁS hace red: los marcadores de descargas inconclusas se convierten a enlaces al abrir la nota (guard por contador de descargas activas).
+- **REGLA DE ORO (imágenes)**: con carpeta GITHUBVAULT configurada, las descargas se copian al disco (`data-vault-img`, sin IDB ni ZIP); sin carpeta, data-URL en db.images (mismo patrón que el picker, registro incluido para el manifest del backup).
+- **Sanitización íntegra**: el HTML se parsea con DOMParser (documento inerte), se transforma y DESPUÉS pasa por `sanitizeHtml` (misma config VN-B-014). Los fallbacks de enlace llevan `rel="noopener noreferrer"`.
+
+### 10.3 Límites y degradaciones
+
+- Tope 30 imágenes por pegado (la 31+ degrada a enlace, toast informativo); dedupe por URL (el logo repetido se descarga una vez).
+- Concurrencia 6; 25 MB por imagen (el tope legacy).
+- Fallos (404, hotlink, offline, >25 MB): **enlace visible** con la URL original — nada se pierde en silencio.
+- Nota cerrada a mitad de descarga: los marcadores restantes → enlaces al reabrir (sin red); las descargas completas no escriben huérfanos (chequeo de marcador pre-save).
+- Capturas pegadas ("image.png" repetida): auto-rename silencioso (el pegado es instantáneo; el picker de archivos sigue preguntando por sobrescritura). Multi-archivo: TODAS las imágenes del portapapeles (antes solo la primera), en orden.
+- Lazy-load: `data-src`/`data-original`/`data-lazy-src`/`data-actualsrc`/`srcset` resueltos a la URL real antes de decidir.
+
+### 10.4 E2E (navegador real, Chromium + IndexedDB)
+
+Paste HTML con 1 imagen real + 1 rota → `✅ 1 guardada (data-URL) · 1 enlace` con toast · registro `db.images` con nombre derivado de la URL · **reload + reabrir → 6 imágenes data-URL + GIF animado (`data:image/gif`) + 4 enlaces, 0 srcs remotos** · consentimiento: diálogo 1ª vez → Aceptar recuerda (localStorage) · Cancelar → enlaces esa sesión SIN volver a preguntar · captura "image.png" instantánea sin diálogos · 2 imágenes en un solo pegado → ambas insertadas en orden · API: octocat PNG 200 · GIF placehold.co 200 image/gif · localhost 403 · ftp: 400 · no-imagen 502 · `eslint` 0 · `tsc --noEmit` 0 · 0 errores de consola/página.
+
+Nota de proceso: los ~100 archivos fantasma del checkpoint (eliminados en §9.1, commit `4aa3d71`) reaparecieron durante esta sesión; se volvieron a eliminar con la misma justificación verificada (scaffold sin dependencias, features retiradas, datos pre-fusión absorbidos) — los checkpoints de sesión del entorno siguen siendo la fuente de las resurrecciones.
+
+---
+
+*Fin del reporte. Auditoría original en modo solo lectura; el addendum §8 documenta los fixes posteriores; el addendum §9 la auditoría integral en ciclos del 2026-10-29; el addendum §10 el pegado tipo Obsidian (V17).

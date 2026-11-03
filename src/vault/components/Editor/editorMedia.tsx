@@ -46,6 +46,26 @@ import {
   ensureImagesPermission,
   NoImagesDirectoryError, ImagesPermissionError, ImageRejectedError,
 } from '../../utils/imageStorage';
+import {
+  transformHtmlWithRemoteImages, fetchRemoteImage, blobToDataUrl, filenameForPaste,
+  showPasteToast, autoclosePasteToast, runWithConcurrency, linkFallbackHtml,
+  getPasteImagesConsent, setPasteImagesConsent,
+  wasPasteImagesDeclinedThisSession, setPasteImagesDeclinedThisSession,
+  PASTE_IMG_CAP, PASTE_IMG_BYTES_CAP, PASTE_IMG_CONCURRENCY,
+} from '../../utils/remoteImages';
+
+/**
+ * V17 (pegado Obsidian): descargas de imágenes remotas en vuelo en ESTE módulo
+ * (editores de notas y labs). attachImageSources NO convierte marcadores
+ * `data-vault-img-pending` a enlaces mientras haya descargas activas — son
+ * marcadores VIVOS del pipeline, no restos de una descarga inconclusa.
+ */
+let activePasteDownloads = 0;
+
+/** Escapa una URL para usarla literal dentro de un selector de atributo. */
+function cssAttrEscape(v: string): string {
+  return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(v) : v.replace(/["\\]/g, '\\$&');
+}
 
 /* ------------------------------------------------------------------ */
 /* Pure helpers                                                        */
@@ -345,6 +365,26 @@ export function useImageInsert(opts: ImageInsertOpts) {
    *  surface as a CSS placeholder + banner. */
   const attachImageSources = useCallback(async () => {
     if (!editorRef.current) return;
+    // V17 (pegado Obsidian): marcadores de descarga INCONCLUSA — la nota se
+    // cerró antes de que terminara la descarga. Se convierten a ENLACE
+    // visible SIN red (offline por diseño en el load boundary). Guard: si
+    // hay descargas en vuelo, los pending son vivos y no se tocan.
+    if (activePasteDownloads === 0) {
+      const pendings = editorRef.current.querySelectorAll<HTMLElement>(
+        'figure[data-vault-img-pending], img[data-vault-pending-src]',
+      );
+      if (pendings.length > 0) {
+        for (const p of Array.from(pendings)) {
+          const url = p.getAttribute('data-vault-img-pending') || p.getAttribute('data-vault-pending-src') || '';
+          const innerImg = p.querySelector('img');
+          const alt = innerImg?.getAttribute('alt') || p.getAttribute('alt') || '';
+          const tmp = document.createElement('div');
+          tmp.innerHTML = linkFallbackHtml(url, alt);
+          p.replaceWith(...Array.from(tmp.childNodes));
+        }
+        onContentChangeRef.current(); // persiste la conversión en el próximo autosave
+      }
+    }
     const figures = editorRef.current.querySelectorAll<HTMLElement>('.vault-image-embed[data-vault-img]');
     if (figures.length === 0) {
       // Fast path: legacy notes (data-URL images) cost nothing.
@@ -385,7 +425,12 @@ export function useImageInsert(opts: ImageInsertOpts) {
     setNoImagesDir(noDir);
   }, [editorRef]);
 
-  const handleImageFile = useCallback(async (file: File) => {
+  /**
+   * V17: `silentConflict` (pegado) → auto-rename en conflictos de nombre —
+   * la captura "image.png" repetida del portapapeles no interrumpe el flujo
+   * instantáneo tipo Obsidian. El picker de archivos sigue preguntando.
+   */
+  const handleImageFile = useCallback(async (file: File, ctx?: { silentConflict?: boolean }) => {
     if (!file.type.startsWith('image/')) return;
 
     // ── REGLA DE ORO (imágenes): folder flow when configured ────────────
@@ -396,12 +441,14 @@ export function useImageInsert(opts: ImageInsertOpts) {
       let filename: string;
       try {
         filename = await saveImageToDirectory(file, {
-          onConflict: (existing) =>
-            window.confirm(
-              `Ya existe "${existing}" en la carpeta de imágenes.\n\nAceptar = Sobrescribir el archivo existente\nCancelar = Guardar con un nombre único`
-            )
-              ? 'overwrite'
-              : 'rename',
+          onConflict: ctx?.silentConflict
+            ? () => 'rename'
+            : (existing) =>
+                window.confirm(
+                  `Ya existe "${existing}" en la carpeta de imágenes.\n\nAceptar = Sobrescribir el archivo existente\nCancelar = Guardar con un nombre único`
+                )
+                  ? 'overwrite'
+                  : 'rename',
         });
       } catch (err) {
         if (err instanceof ImageRejectedError) return; // user declined the advisory sniff — silent abort
@@ -470,6 +517,200 @@ export function useImageInsert(opts: ImageInsertOpts) {
     reader.readAsDataURL(file);
   }, [editorRef, owner, captionFor, captionPrefix, figureClass, figcaptionClass, attachImageSources]);
 
+  /* ---------------------------------------------------------------- */
+  /* V17 — PEGADO TIPO OBSIDIAN: imágenes remotas del HTML pegado       */
+  /* ---------------------------------------------------------------- */
+
+  /** ¿Queda algún marcador pending con esta URL en el editor vivo? */
+  const hasPendingMarker = useCallback((url: string): boolean => {
+    const root = editorRef.current;
+    if (!root) return false;
+    const sel = `figure[data-vault-img-pending="${cssAttrEscape(url)}"], img[data-vault-pending-src="${cssAttrEscape(url)}"]`;
+    return root.querySelector(sel) !== null;
+  }, [editorRef]);
+
+  /**
+   * Parchea TODOS los marcadores de una URL tras resolver su descarga:
+   *  · folder → figure data-vault-img="<filename>" (REGLA DE ORO) — el src
+   *    se adhiere en runtime vía attachImageSources.
+   *  · data   → img src="<dataUrl>" (flujo legacy sin carpeta).
+   *  · link   → enlace de fallback visible (descarga fallida).
+   * Devuelve cuántos elementos se parchearon (0 = ya no quedan: raced).
+   */
+  const patchPendingByUrl = useCallback((
+    url: string,
+    result: { kind: 'folder'; filename: string } | { kind: 'data'; dataUrl: string } | { kind: 'link' },
+  ): number => {
+    const root = editorRef.current;
+    if (!root) return 0;
+    const esc = cssAttrEscape(url);
+    let patched = 0;
+
+    const replaceWithLink = (el: Element) => {
+      const alt = el.querySelector('img')?.getAttribute('alt') || el.getAttribute('alt') || '';
+      const tmp = document.createElement('div');
+      tmp.innerHTML = linkFallbackHtml(url, alt);
+      el.replaceWith(...Array.from(tmp.childNodes));
+      patched++;
+    };
+
+    root.querySelectorAll(`figure[data-vault-img-pending="${esc}"]`).forEach((fig) => {
+      if (result.kind === 'folder') {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = folderImageEmbedHtml(
+          escapeHtml(result.filename), figureClass, figcaptionClass, captionPrefix,
+        ).trim();
+        fig.replaceWith(...Array.from(tmp.childNodes));
+        patched++;
+      } else if (result.kind === 'data') {
+        const img = fig.querySelector('img');
+        if (img) {
+          img.setAttribute('src', result.dataUrl);
+          img.setAttribute('style', 'max-width: 100%; height: auto; display: block;');
+          fig.removeAttribute('data-vault-img-pending');
+          patched++;
+        } else {
+          replaceWithLink(fig);
+        }
+      } else {
+        replaceWithLink(fig);
+      }
+    });
+
+    root.querySelectorAll(`img[data-vault-pending-src="${esc}"]`).forEach((img) => {
+      if (result.kind === 'data') {
+        img.setAttribute('src', result.dataUrl);
+        img.setAttribute('style', 'max-width: 100%; height: auto; display: block;');
+        img.removeAttribute('data-vault-pending-src');
+        patched++;
+      } else if (result.kind === 'folder') {
+        // Modo carpeta decidido DESPUÉS de marcar en modo legacy (raro: la
+        // carpeta se configuró entre el paste y el parcheo) — envolver.
+        const tmp = document.createElement('div');
+        tmp.innerHTML = folderImageEmbedHtml(
+          escapeHtml(result.filename), figureClass, figcaptionClass, captionPrefix,
+        ).trim();
+        img.replaceWith(...Array.from(tmp.childNodes));
+        patched++;
+      } else {
+        replaceWithLink(img);
+      }
+    });
+    return patched;
+  }, [editorRef, figureClass, figcaptionClass, captionPrefix]);
+
+  /**
+   * V17 — PEGADO TIPO OBSIDIAN. Recibe el HTML CRUDO del portapapeles
+   * (antes de sanitizar: el sanitizador cegaría los src remotos y aquí
+   * necesitamos verlos para descargarlos). Pipeline:
+   *   1. Detecta imágenes remotas (incl. lazy-load data-src) en DOMParser
+   *      inerte y las marca como pending (placeholder gris visible).
+   *   2. Sanitiza + inserta AL INSTANTE (el usuario ve la estructura).
+   *   3. Descarga por el proxy local /api/fetch-image (tras consentimiento
+   *      único) y parchea los marcadores in place.
+   *   4. Fallos → enlace visible; nunca se pierde nada en silencio.
+   * Sin imágenes remotas → comportamiento previo (sanitizar e insertar).
+   */
+  const handlePasteHtml = useCallback((rawHtml: string): void => {
+    void (async () => {
+      const folderMode = await hasImagesDirectory();
+      let tr = transformHtmlWithRemoteImages(rawHtml, {
+        folderMode, figureClass, figcaptionClass, captionPrefix, mode: 'download',
+      });
+
+      if (tr.urls.length > 0 || tr.overflow > 0) {
+        // Consentimiento ÚNICO (la app es offline por defecto — la red
+        // siempre es explícita: Pull, Enrich Online y ahora el pegado).
+        let consent = getPasteImagesConsent();
+        if (!consent && !wasPasteImagesDeclinedThisSession()) {
+          consent = window.confirm(
+            `El contenido pegado incluye ${tr.urls.length + tr.overflow} imagen(es) alojadas en webs externas.\n\n` +
+            `¿Descargarlas y guardarlas en tu vault ahora?\n\n` +
+            `· Se conecta a esas webs (igual que al abrir la página original) y las imágenes quedan guardadas OFFLINE para siempre.\n` +
+            `· Aceptar = sí, siempre (no se vuelve a preguntar).\n` +
+            `· Cancelar = no; quedan como enlaces (se recuerda solo esta sesión).`
+          );
+          if (consent) setPasteImagesConsent(true);
+          else setPasteImagesDeclinedThisSession();
+        }
+        if (!consent) {
+          tr = transformHtmlWithRemoteImages(rawHtml, {
+            folderMode: false, figureClass, figcaptionClass, captionPrefix, mode: 'links',
+          });
+        }
+      }
+
+      // Sanitizar (sin srcs remotos ya: la transformación los retiró) e
+      // insertar AL INSTANTE — el pegado nunca espera a la red.
+      const sanitized = sanitizeHtml(tr.html);
+      if (!sanitized) return;
+      insertHtmlInEditable(editorRef.current, sanitized);
+      onContentChangeRef.current();
+
+      if (tr.urls.length === 0) {
+        if (tr.overflow > 0) {
+          const t = showPasteToast(`⚠️ ${tr.overflow} imagen(es) omitidas — tope de ${PASTE_IMG_CAP} por pegado`, 'warn');
+          autoclosePasteToast(t);
+        }
+        return;
+      }
+
+      // Descarga concurrente + parcheo in place.
+      activePasteDownloads++;
+      const toast = showPasteToast(`⬇️ Descargando ${tr.urls.length} imagen(es)…`);
+      let ok = 0;
+      let fail = 0;
+      let done = 0;
+      try {
+        await runWithConcurrency(tr.urls.map((url) => async () => {
+          try {
+            const blob = await fetchRemoteImage(url);
+            // ¿Sigue habiendo marcadores? (nota cerrada a mitad → no
+            // guardamos huérfanos en la carpeta/DB).
+            if (!hasPendingMarker(url)) return;
+            if (folderMode) {
+              const file = new File([blob], filenameForPaste(url, blob.type), { type: blob.type });
+              const name = await saveImageToDirectory(file, { onConflict: () => 'rename' });
+              if (patchPendingByUrl(url, { kind: 'folder', filename: name }) > 0) ok++;
+            } else {
+              if (blob.size > PASTE_IMG_BYTES_CAP) throw new Error('imagen > 25 MB');
+              const dataUrl = await blobToDataUrl(blob);
+              // Registro en db.images (consistente con el flujo legacy del
+              // picker: export/import del backup lo incluye en el manifest).
+              const imgId = `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+              const record: StoredImage = {
+                id: imgId,
+                name: filenameForPaste(url, blob.type),
+                mimeType: blob.type,
+                dataUrl,
+                caption: captionFor(filenameForPaste(url, blob.type)),
+                createdAt: new Date().toISOString(),
+                ...owner,
+              };
+              await db.images.add(record);
+              if (patchPendingByUrl(url, { kind: 'data', dataUrl }) > 0) ok++;
+            }
+          } catch {
+            patchPendingByUrl(url, { kind: 'link' });
+            fail++;
+          } finally {
+            done++;
+            toast.update(`⬇️ Descargando imágenes… ${done}/${tr.urls.length}`, 'progress');
+          }
+        }), PASTE_IMG_CONCURRENCY);
+        onContentChangeRef.current();
+        void attachImageSources();
+        const parts = [`✅ ${ok} imagen(es) guardadas localmente`];
+        if (fail > 0) parts.push(`${fail} no disponible(s) — quedaron como enlaces`);
+        if (tr.overflow > 0) parts.push(`${tr.overflow} omitida(s) — tope ${PASTE_IMG_CAP}`);
+        toast.update(parts.join(' · '), fail > 0 ? 'warn' : 'ok');
+        autoclosePasteToast(toast);
+      } finally {
+        activePasteDownloads--;
+      }
+    })();
+  }, [editorRef, owner, captionFor, figureClass, figcaptionClass, captionPrefix, attachImageSources, hasPendingMarker, patchPendingByUrl]);
+
   /** REGLA DE ORO — "Buscar archivo" for images: re-link missing files by
    *  picking them from anywhere on disk; each one is COPIED into the
    *  images folder under the exact filename the reference expects. */
@@ -513,6 +754,7 @@ export function useImageInsert(opts: ImageInsertOpts) {
 
   return {
     handleImageFile,
+    handlePasteHtml,
     attachImageSources,
     handleRelinkImageFiles,
     grantImageAccess,
@@ -536,31 +778,53 @@ export function useImageInsert(opts: ImageInsertOpts) {
  * any web page would EXECUTE at paste time, before autosave or the
  * load-time sanitizeHtml ever ran. The default is ALWAYS prevented and
  * the payload is re-inserted manually:
- *   1. image file → the editor's image flow (unchanged);
- *   2. text/html  → sanitizeHtml() (same DOMPurify config as the load
- *                   boundary) + insertHtmlInEditable;
+ *   1. image file(s) → the editor's image flow — V17: TODAS las imágenes
+ *      del portapapeles (antes solo la primera), secuenciales para
+ *      conservar el orden, con silentConflict (auto-rename instantáneo);
+ *   2. text/html  → onPasteHtml (V17, pegado tipo Obsidian: descarga las
+ *      imágenes remotas vía /api/fetch-image y las guarda localmente) —
+ *      o el camino clásico sanitizeHtml() + insertHtmlInEditable;
  *   3. plain text → execCommand('insertText') — lands as literal text,
- *                   including inside code blocks.
+ *      including inside code blocks.
  */
 export function runSanitizedPaste(
   e: React.ClipboardEvent,
   opts: {
     editorRef: React.RefObject<HTMLDivElement | null>;
-    onImageFile: (file: File) => void;
+    onImageFile: (file: File, ctx?: { silentConflict?: boolean }) => void | Promise<void>;
     onContentChange: () => void;
+    /** V17: recibe el HTML CRUDO del portapapeles (el handler sanitiza) —
+     *  necesario para ver los src remotos que el sanitizador elimina. */
+    onPasteHtml?: (rawHtml: string) => void;
   },
 ): void {
   e.preventDefault();
   const items = e.clipboardData.items;
+  // V17: todas las imágenes del portapapeles (copiar N archivos → N
+  // inserts). Secuencial: cada insert deja el caret tras lo insertado y
+  // el orden de llegada se conserva. silentConflict = pegado instantáneo
+  // (la captura "image.png" repetida auto-renombra sin preguntar).
+  const imgFiles: File[] = [];
   for (let i = 0; i < items.length; i++) {
     if (items[i].type.indexOf('image') !== -1) {
       const file = items[i].getAsFile();
-      if (file) opts.onImageFile(file);
-      return;
+      if (file) imgFiles.push(file);
     }
+  }
+  if (imgFiles.length > 0) {
+    void (async () => {
+      for (const f of imgFiles) {
+        await opts.onImageFile(f, { silentConflict: true });
+      }
+    })();
+    return;
   }
   const html = e.clipboardData.getData('text/html');
   if (html && html.trim()) {
+    if (opts.onPasteHtml) {
+      opts.onPasteHtml(html);
+      return;
+    }
     const sanitized = sanitizeHtml(html);
     if (sanitized) {
       insertHtmlInEditable(opts.editorRef.current, sanitized);

@@ -1320,6 +1320,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
   // configurada; data-URL legacy en db.images (propietario de este lab) si no.
   const {
     handleImageFile,
+    handlePasteHtml,
     attachImageSources,
     handleRelinkImageFiles,
     grantImageAccess,
@@ -1338,8 +1339,15 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
   });
 
   // SECURITY (VN-B-014): sanitized paste — see editorMedia.runSanitizedPaste.
+  // V17 (pegado Obsidian): onPasteHtml recibe el HTML CRUDO para descargar
+  // las imágenes remotas (ver editorMedia.handlePasteHtml).
   const handlePaste = (e: React.ClipboardEvent) =>
-    runSanitizedPaste(e, { editorRef, onImageFile: handleImageFile, onContentChange: handleInput });
+    runSanitizedPaste(e, {
+      editorRef,
+      onImageFile: handleImageFile,
+      onContentChange: handleInput,
+      onPasteHtml: handlePasteHtml,
+    });
   // Drop routing: images / videos (lab parts have no PDF embeds).
   const handleDrop = (e: React.DragEvent) =>
     runFileDrop(e, { onImageFile: handleImageFile, onVideoFile: handleVideoFile });

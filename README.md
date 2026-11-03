@@ -13,7 +13,7 @@
 
 Además:
 
-- **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. Glosario sembrado con **862 términos + flashcards**. Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
+- **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. **Pegado tipo Obsidian**: pega una captura o una página web completa y las imágenes/GIFs se descargan y guardan localmente al instante (las que fallen quedan como enlaces). Glosario sembrado con **862 términos + flashcards**. Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
 - **48 herramientas offline en un catálogo único** (filtro por rol): IAM (JWT, SID/RID, LDAP/DN, RBAC, vulnerabilidades 203, ataques 102) · SOC (Event IDs 93, IoC Extractor, MITRE ATT&CK, Sigma, KQL/SPL, CVSS, hash, guías de Sentinel/Splunk/Elastic/Wireshark…) · Service Desk (triage 91 reglas, AD, Intune, network L1) · SysAdmin (subnetting, puertos 119, cron, systemd, RAID, LVM, firewall) · Global (encoding, regex, timestamp).
 - **Simuladores de tickets reales (Nexora S.A.)** — cola filtrable, modo estudio, flujo de estados con nota de cierre y proyecto final por pilar (Semana de Access Review, Primera semana SOC, etc.).
 - **Runbooks como tickets reales** — paso a paso universal con comandos copiables y respuesta en inglés lista para pegar.
@@ -64,10 +64,11 @@ Copia la carpeta COMPLETA del proyecto (con `node_modules/` y `.next/`) a la USB
 
 ## Privacidad y red
 
-**100% offline.** Sin requests al cargar ni al usar la app. Las únicas dos piezas con red son opcionales y tras clic explícito del usuario:
+**100% offline.** Sin requests al cargar ni al usar la app. Las únicas piezas con red son opcionales y tras clic explícito del usuario:
 
 - **Pull** (header) — descarga TUS actualizaciones de código desde GitHub (fast-forward puro); aborta si hay trabajo local sin guardar. Jamás envía datos del vault.
 - **[Enrich Online]** (Ticket Triage del Service Desk) — envía el texto del ticket al backend local solo tras consentimiento; el análisis offline funciona al 100% sin él.
+- **Pegar páginas con imágenes** — al pegar contenido web con imágenes/GIFs en línea, estas se descargan vía el backend local (consentimiento único la primera vez; si cancelas, quedan como enlaces). Ninguna imagen queda jamás referenciada a una web externa: siempre se guardan localmente.
 
 El service worker cachea el shell para uso offline en producción (no se registra en dev). Todo HTML persistido se sanitiza con **DOMPurify**.
 
@@ -84,9 +85,10 @@ El service worker cachea el shell para uso offline en producción (no se registr
 | Estado | zustand + hooks |
 
 ```
-src/app/        # Ruta única / + api (git/pull, enrich-ticket)
+src/app/        # Ruta única / + api (git/pull, enrich-ticket, fetch-image)
 src/vault/      # components/ · data/ (datasets offline) · db/ (Dexie) ·
-                # store/ · utils/ (zipBackup, videoStorage, fuzzySearch…) · types/
+                # store/ · utils/ (zipBackup, remoteImages, videoStorage,
+                # fuzzySearch…) · types/
 public/sw.js    # Service worker (offline shell)
 ```
 
