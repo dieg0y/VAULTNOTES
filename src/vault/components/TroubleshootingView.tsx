@@ -219,11 +219,20 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
 
   const fuse = useMemo(() => new Fuse(cfg.entries, FUSE_OPTIONS), [cfg.entries]);
 
+  // Deep-link desde el buscador global (Ctrl+K) — se consume UNA vez.
+  // Patrón "derived state during render" (regla set-state-in-effect del
+  // React Compiler): la selección local se aplica durante el render con
+  // guard de valor previo (sentinel undefined — el deep-link SUELE llegar
+  // antes del montaje, así que el estado previo NO puede inicializarse al
+  // valor actual o se saltaría); el efecto SOLO sincroniza al padre
+  // (limpieza del pending) — setState externo, uso sancionado de efectos.
+  const [prevAutoSelect, setPrevAutoSelect] = useState<string | null | undefined>(undefined);
+  if (autoSelectId !== prevAutoSelect) {
+    setPrevAutoSelect(autoSelectId);
+    if (autoSelectId) setSelectedId(autoSelectId);
+  }
   React.useEffect(() => {
-    if (autoSelectId) {
-      setSelectedId(autoSelectId);
-      onConsumeAutoSelect?.();
-    }
+    if (autoSelectId) onConsumeAutoSelect?.();
   }, [autoSelectId, onConsumeAutoSelect]);
 
   const filtered = useMemo(() => {

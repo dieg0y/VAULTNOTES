@@ -54,6 +54,17 @@ import { useSysadminStore } from './store/sysadminStore';
 /* (VN-F-003, "module factory is not available"). See the             */
 /* HMR-ROBUSTNESS note in ToolsView.tsx.                              */
 /* ------------------------------------------------------------------ */
+
+/* BLOQUE 5 — gate de los atajos de teclado: true si el foco está en un
+ * campo de texto (input/textarea/select/contenteditable). Función pura
+ * a nivel de módulo (sin estado del componente) — el linter del React
+ * Compiler exige declararla antes de su uso en los efectos de abajo. */
+const isTypingTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+};
+
 const ViewLoader = () => (
   <div className="flex-1 flex items-center justify-center" role="status" aria-label="Cargando vista">
     <div className="flex flex-col items-center gap-3">
@@ -352,35 +363,38 @@ export default function App() {
   // sigue siendo onSelectSection; selectTicket sigue vivo para la
   // selección del ticket dentro de cada vista.
 
-  // Set initial selected note if none selected (prefer a top-level note)
-  useEffect(() => {
-    if (!selectedNoteId && notes.length > 0) {
+  // Selección inicial (nota/lab/término): patrón "derived state during
+  // render" de React (ajustar estado durante el render con guard de valor
+  // previo) — sin efecto y sin render en cascada (regla set-state-in-effect
+  // del React Compiler, eslint-config-next 16.4.5). Se recalcula solo
+  // cuando cambia la colección; respeta una selección explícita del
+  // usuario y repone una si la seleccionada desaparece con la colección.
+  const [prevNotes, setPrevNotes] = useState<typeof notes | null>(null);
+  if (notes !== prevNotes) {
+    setPrevNotes(notes);
+    if (!selectedNoteId || !notes.some((n) => n.id === selectedNoteId && !n.isDeleted)) {
       const active = notes.find((n) => !n.isDeleted && !n.parentId) || notes.find((n) => !n.isDeleted);
-      if (active) {
-        setSelectedNoteId(active.id);
-      }
+      if (active) setSelectedNoteId(active.id);
     }
-  }, [notes, selectedNoteId]);
+  }
 
-  // Set initial selected lab if none selected
-  useEffect(() => {
-    if (!selectedLabId && labs.length > 0) {
+  const [prevLabs, setPrevLabs] = useState<typeof labs | null>(null);
+  if (labs !== prevLabs) {
+    setPrevLabs(labs);
+    if (!selectedLabId || !labs.some((l) => l.id === selectedLabId && !l.isDeleted)) {
       const active = labs.find((l) => !l.isDeleted);
-      if (active) {
-        setSelectedLabId(active.id);
-      }
+      if (active) setSelectedLabId(active.id);
     }
-  }, [labs, selectedLabId]);
+  }
 
-  // Set initial selected glossary term
-  useEffect(() => {
-    if (!selectedTermId && glossary.length > 0) {
+  const [prevGlossary, setPrevGlossary] = useState<typeof glossary | null>(null);
+  if (glossary !== prevGlossary) {
+    setPrevGlossary(glossary);
+    if (!selectedTermId || !glossary.some((g) => g.id === selectedTermId && !g.isDeleted)) {
       const active = glossary.find((g) => !g.isDeleted);
-      if (active) {
-        setSelectedTermId(active.id);
-      }
+      if (active) setSelectedTermId(active.id);
     }
-  }, [glossary, selectedTermId]);
+  }
 
   // BLOQUE 5 — Global Keyboard Shortcuts.
   // Existing: Ctrl+K (search), Ctrl+Shift+Q (quick capture).
@@ -1054,16 +1068,6 @@ export default function App() {
       useSysadminStore.getState().selectTicket(ticketId);
       setActiveSection('sysadmin');
     }
-  };
-
-  // BLOQUE 5 — Extended keyboard shortcuts.
-  // - Only fire when the user is NOT typing in an input/textarea/contenteditable.
-  // - Don't interfere with native browser shortcuts that include Alt.
-  // - Easy to extend: just add another `key === '<letter>'` branch below.
-  const isTypingTarget = (target: EventTarget | null): boolean => {
-    if (!(target instanceof HTMLElement)) return false;
-    const tag = target.tagName.toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
   };
 
   // BLOQUE 5 — Inbox "Convert to Note/Glossary" entry point.

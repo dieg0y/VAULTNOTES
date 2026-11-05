@@ -392,10 +392,34 @@ Nota de proceso: los ~100 archivos fantasma del checkpoint reaparecieron por ter
 - Nota de prueba E2E creada, verificada y **borrada** (vault limpio).
 - `eslint` 0 · `tsc --noEmit` 0 · `dev.log` limpio (todas las rutas 200).
 
-### 12.4 Estado final
+### 12.5 Seguridad de dependencias (Dependabot: 50 alertas abiertas → deps directas parcheadas)
+
+El push del cierre activó la lista de Dependabot del repo: 50 alertas abiertas, TODAS contra el `package-lock.json` recién eliminado (las versiones npm quedaron congeladas desde Sep). Las que afectan a las deps DIRECTAS reales (bun.lock) se parchearon:
+
+| Paquete | Antes | Ahora | CVEs resueltos |
+|---|---|---|---|
+| next (+eslint-config-next) | 16.1.3 | 16.4.5 | GHSA-673q-mjm6-r5xr (RCE `use cache`, CRITICAL) · GHSA-f87g-xv8r-7p7x · GHSA-6gpp-xcg3-4w24 |
+| dompurify | 3.4.14 | 3.4.17 | GHSA-cg2g-xh64-v4q7 (SAFE_FOR_TEMPLATES bypass, CRITICAL) · GHSA-mrv2-3pqr-j5jr · GHSA-6688-9rhm-gjv2 · GHSA-p98j-92pf-mc4p |
+| zod | 4.3.5 | 4.6.7 | GHSA-mrhx-c7xc-m3w5 (agotamiento de memoria en arrays sin tope, HIGH) — superficie real: la validación Zod de los ZIPs importados |
+
+Las ~45 alertas restantes son transitivas del lockfile npm eliminado; Dependabot las cerrará al re-escanear HEAD sin `package-lock.json` (bun.lock no las pinea).
+
+### 12.6 eslint-config-next 16.4.5 → React Compiler: 10 errores, 10 arreglados de raíz (0 supresiones)
+
+La nueva config trae las reglas del React Compiler activas como error. Hallazgos y fixes (todos re-verificados E2E):
+
+| Archivo | Regla | Fix |
+|---|---|---|
+| App.tsx ×3 | set-state-in-effect (selección inicial nota/lab/glosario) | Patrón "derived state during render" con guard de colección previa (repone selección si la elegida desaparece — mejora sobre el original) |
+| App.tsx | immutability (isTypingTarget usada antes de declararse) | Hoist a nivel de módulo (función pura) |
+| RunbooksView / TroubleshootingView | set-state-in-effect (deep-link Ctrl+K) | Split: aplicación de la selección durante el render (sentinel `undefined` — el deep-link llega ANTES del montaje) + efecto que SOLO limpia el pending del padre (setState externo, uso sancionado). E2E: deep-link a runbook "Golden Ticket" y TS "DNS no resuelve" navegan Y seleccionan |
+| IocExtractorView | set-state-in-effect (hand-off cross-tool) + immutability (patrón latest-ref) | Derived-state con sentinel para sembrar el texto + eliminado el ref: `run` en deps con early-return inofensivo; timer one-shot idempotente SIN cleanup (el cleanup cancelaba la extracción — bug hallado y corregido durante la verificación E2E). E2E: Log Parser → "Sent 2 candidate IOCs" → IoC Extractor monta sembrado Y auto-extrae |
+| SettingsView ×2 | set-state-in-effect (refresh FSA) + purity (Date.now en render) | Refresh vía timer de 0ms (setState en callback externo) + `now` como estado con interval de 30 s (fmtRel puro) |
+
+### 12.7 Estado final
 
 P0: 0 · P1: 0 · P2: 0 pendientes. Residual P3 conocido (confirm/alert nativos en 3 flujos, ring de foco 1px tenue — heredado de §11, aceptado).
 
 ---
 
-*Fin del reporte. Addendum §10: pegado tipo Obsidian (V17). §11: ronda Impeccable V17.1. §12: cierre final (limpieza de repo + accesibilidad + re-verificación E2E integral).*
+*Fin del reporte. Addendum §10: pegado tipo Obsidian (V17). §11: ronda Impeccable V17.1. §12: cierre final (limpieza de repo + accesibilidad + deps de seguridad + React Compiler compliance + re-verificación E2E integral).*

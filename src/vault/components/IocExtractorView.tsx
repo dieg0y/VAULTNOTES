@@ -684,22 +684,13 @@ export const IocExtractorView: React.FC = () => {
   // Command Line Analyzer, …) calls `useIocStore.getState().setPendingText(...)`,
   // we pick it up here, seed the textarea and trigger extraction. The store
   // value is cleared right after — never persisted, never sent anywhere.
+  // Patrón "derived state during render" (regla set-state-in-effect del React
+  // Compiler): el texto se siembra durante el render con guard de valor previo
+  // (sentinel undefined — el hand-off puede llegar ANTES del montaje); el
+  // efecto SOLO hace sincronización externa: limpia el store zustand y
+  // programa el timer de extracción (los timers son sistemas externos).
   const pendingIocText = useIocStore((s) => s.pendingText);
   const setIocPendingText = useIocStore((s) => s.setPendingText);
-  useEffect(() => {
-    if (pendingIocText !== null) {
-      setText(pendingIocText);
-      setIocPendingText(null);
-      // Run extraction immediately against the override text so we don't
-      // depend on the React state having re-rendered yet.
-      setTimeout(() => runRef.current?.(pendingIocText), 0);
-    }
-  }, [pendingIocText, setIocPendingText]);
-
-  // Keep a ref of `run` so the effect above can trigger extraction without
-  // re-running every time `text`/`whitelist` change.
-  const runRef = useRef<(overrideText?: string) => void>(() => {});
-  useEffect(() => { saveWhitelist(whitelist); }, [whitelist]);
 
   const run = useCallback((overrideText?: string) => {
     const work = overrideText ?? text;
@@ -718,8 +709,26 @@ export const IocExtractorView: React.FC = () => {
     }, 30);
   }, [text, whitelist]);
 
-  // Keep the cross-tool hand-off ref pointing at the latest `run`.
-  useEffect(() => { runRef.current = run; }, [run]);
+  const [prevPending, setPrevPending] = useState<string | null | undefined>(undefined);
+  if (pendingIocText !== prevPending) {
+    setPrevPending(pendingIocText);
+    if (pendingIocText !== null) setText(pendingIocText);
+  }
+  useEffect(() => {
+    if (pendingIocText === null) return;
+    setIocPendingText(null);
+    // Run extraction immediately against the override text so we don't
+    // depend on the React state having re-rendered yet.
+    //
+    // NOTA (React Compiler): sin cleanup a propósito. El siembra-Texto del
+    // bloque derived-state de arriba recrea `run` → el efecto re-arranca y
+    // su cleanup CANCELARÍA este timer de 0ms antes de disparar (y el
+    // re-arranque hace early-return porque el store ya se limpió). El timer
+    // es one-shot e idempotente: extraer dos veces el mismo texto da el
+    // mismo resultado, así que no hay nada que cancelar con seguridad.
+    setTimeout(() => run(pendingIocText), 0);
+  }, [pendingIocText, setIocPendingText, run]);
+  useEffect(() => { saveWhitelist(whitelist); }, [whitelist]);
 
   const onFile = useCallback(async (file: File) => {
     if (!file) return;

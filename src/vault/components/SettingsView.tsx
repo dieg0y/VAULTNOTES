@@ -68,8 +68,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
     setAppName(await getAppFolderName());
   }, []);
 
+  // Refresco del estado externo (File System Access API: handles, permisos,
+  // nombres de carpeta) al montar. Los setState de refreshVideoStorage van
+  // TODOS tras awaits (asíncronos de verdad), pero el análisis estático del
+  // React Compiler no modela la suspensión y los marca como síncronos — el
+  // timer de 0ms los deja explícitamente en un callback externo (patrón
+  // sancionado: "setState en un callback cuando el sistema externo responde").
   useEffect(() => {
-    refreshVideoStorage();
+    const t = setTimeout(() => { void refreshVideoStorage(); }, 0);
+    return () => clearTimeout(t);
   }, [refreshVideoStorage]);
 
   const handlePickVideosDir = async () => {
@@ -186,10 +193,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
     }
   };
 
-  /** "hace 4 min" / "hace 2 h" — human short relative time. */
+  /** "hace 4 min" / "hace 2 h" — human short relative time.
+   * `now` es estado del componente (tick cada 30 s desde un interval —
+   * setState en callback externo, patrón sancionado) porque Date.now()
+   * durante el render es impuro (react-hooks/purity) y rompería la
+   * memoización del React Compiler. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const i = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(i);
+  }, []);
   const fmtRel = (ts: number | null): string => {
     if (!ts) return 'nunca';
-    const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    const s = Math.max(0, Math.floor((now - ts) / 1000));
     if (s < 60) return 'hace instantes';
     if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
     if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
