@@ -400,7 +400,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 /** Labelled value cell used inside the expanded "Show all fields" card. */
 const Field2: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="space-y-0.5">
-    <div className="text-[9px] uppercase tracking-widest text-[#555]">{label}</div>
+    <div className="text-[9px] uppercase tracking-widest text-[#828282]">{label}</div>
     <div className="text-[11px] text-white font-mono break-all">{value || '-'}</div>
   </div>
 );

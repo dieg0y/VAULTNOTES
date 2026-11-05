@@ -650,10 +650,10 @@ export const PowerShellAnalyzerTool: React.FC = () => {
             <header className="flex items-center gap-2 text-xs font-semibold text-white">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
               Detected Indicators
-              <span className="text-[#555] font-normal">({analysis.indicators.length})</span>
+              <span className="text-[#828282] font-normal">({analysis.indicators.length})</span>
             </header>
             {analysis.indicators.length === 0 ? (
-              <p className="text-[11px] text-[#666]">
+              <p className="text-[11px] text-[#858585]">
                 No suspicious indicators matched. Absence of indicators does not guarantee benign
                 intent — review the script manually.
               </p>
@@ -696,7 +696,7 @@ export const PowerShellAnalyzerTool: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <div className="font-mono text-[10px] text-[#666] break-all leading-snug">
+                    <div className="font-mono text-[10px] text-[#858585] break-all leading-snug">
                       <span>{ind.contextBefore}</span>
                       <span className="text-amber-400 font-bold">{ind.contextMatch}</span>
                       <span>{ind.contextAfter}</span>
@@ -713,7 +713,7 @@ export const PowerShellAnalyzerTool: React.FC = () => {
               <header className="flex items-center gap-2 text-xs font-semibold text-white">
                 <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
                 Potential MITRE Techniques
-                <span className="text-[#555] font-normal">({analysis.techniques.length})</span>
+                <span className="text-[#828282] font-normal">({analysis.techniques.length})</span>
               </header>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {analysis.techniques.map((t) => (
@@ -746,7 +746,7 @@ export const PowerShellAnalyzerTool: React.FC = () => {
               <header className="flex items-center gap-2 text-xs font-semibold text-white">
                 <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
                 Suspicious Patterns
-                <span className="text-[#555] font-normal">({analysis.suspicious.length})</span>
+                <span className="text-[#828282] font-normal">({analysis.suspicious.length})</span>
               </header>
               <ul className="flex flex-wrap gap-1.5">
                 {analysis.suspicious.map((s) => (
@@ -767,12 +767,12 @@ export const PowerShellAnalyzerTool: React.FC = () => {
               <header className="flex items-center gap-2 text-xs font-semibold text-white">
                 <Code2 className="w-3.5 h-3.5 text-green-400" />
                 Decoded Content
-                <span className="text-[#555] font-normal">({activeDecoded.length})</span>
+                <span className="text-[#828282] font-normal">({activeDecoded.length})</span>
               </header>
               <ul className="space-y-3">
                 {activeDecoded.map((d) => (
                   <li key={d.raw} className="space-y-1">
-                    <div className="text-[10px] text-[#666]">
+                    <div className="text-[10px] text-[#858585]">
                       Source payload:{' '}
                       <code className="font-mono text-[#888] break-all">{d.raw}</code>
                     </div>

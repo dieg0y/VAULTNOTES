@@ -238,7 +238,7 @@ export const HdKbGeneratorTool: React.FC = () => {
           {/* pasos dinámicos */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">
                 Pasos ({steps.length})
               </span>
               <button
@@ -255,13 +255,13 @@ export const HdKbGeneratorTool: React.FC = () => {
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-mono text-blue-400">Paso {i + 1}</span>
                   <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => moveStep(i, -1)} disabled={i === 0} className="p-1 rounded text-[#666] hover:text-blue-400 hover:bg-[#222] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" title="Subir paso" aria-label={`Subir paso ${i + 1}`}>
+                    <button type="button" onClick={() => moveStep(i, -1)} disabled={i === 0} className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#222] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" title="Subir paso" aria-label={`Subir paso ${i + 1}`}>
                       <ArrowUp className="w-3 h-3" />
                     </button>
-                    <button type="button" onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1} className="p-1 rounded text-[#666] hover:text-blue-400 hover:bg-[#222] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" title="Bajar paso" aria-label={`Bajar paso ${i + 1}`}>
+                    <button type="button" onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1} className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#222] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed" title="Bajar paso" aria-label={`Bajar paso ${i + 1}`}>
                       <ArrowDown className="w-3 h-3" />
                     </button>
-                    <button type="button" onClick={() => removeStep(i)} className="p-1 rounded text-[#666] hover:text-red-400 hover:bg-[#222] transition-colors cursor-pointer" title="Eliminar paso" aria-label={`Eliminar paso ${i + 1}`}>
+                    <button type="button" onClick={() => removeStep(i)} className="p-1 rounded text-[#858585] hover:text-red-400 hover:bg-[#222] transition-colors cursor-pointer" title="Eliminar paso" aria-label={`Eliminar paso ${i + 1}`}>
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
@@ -337,7 +337,7 @@ export const HdKbGeneratorTool: React.FC = () => {
                       <span key={t} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[9px] font-mono">
                         <Tag className="w-2.5 h-2.5" />
                         {t}
-                        <button type="button" onClick={() => removeTag(t)} className="text-[#666] hover:text-red-400 cursor-pointer" title={`Quitar tag ${t}`} aria-label={`Quitar tag ${t}`}>
+                        <button type="button" onClick={() => removeTag(t)} className="text-[#858585] hover:text-red-400 cursor-pointer" title={`Quitar tag ${t}`} aria-label={`Quitar tag ${t}`}>
                           <X className="w-2.5 h-2.5" />
                         </button>
                       </span>
@@ -352,7 +352,7 @@ export const HdKbGeneratorTool: React.FC = () => {
         {/* ---------- vista previa en vivo ---------- */}
         <div className="space-y-3">
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">
               <Eye className="w-3 h-3" />
               Vista previa en vivo
             </div>
@@ -363,17 +363,17 @@ export const HdKbGeneratorTool: React.FC = () => {
                 {escalation && <span className="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-400 text-[9px] font-semibold">Escalación: {escalation}</span>}
               </div>
               <div className="space-y-1.5 pt-1">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Síntomas</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Síntomas</div>
                 <p className="text-[11px] text-[#AAA] leading-relaxed">{symptoms || 'Describe cuándo aplica el artículo...'}</p>
               </div>
               <div className="space-y-1.5">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Causa</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Causa</div>
                 <p className="text-[11px] text-[#AAA] leading-relaxed">{cause || 'Causa(s) típica(s)...'}</p>
               </div>
               <div className="space-y-1.5">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Pasos</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Pasos</div>
                 {realSteps.length === 0 ? (
-                  <p className="text-[11px] text-[#666]">Añade pasos en el formulario...</p>
+                  <p className="text-[11px] text-[#858585]">Añade pasos en el formulario...</p>
                 ) : (
                   <ol className="space-y-1.5">
                     {realSteps.map((s, i) => (
@@ -390,11 +390,11 @@ export const HdKbGeneratorTool: React.FC = () => {
                 )}
               </div>
               <div className="space-y-1.5">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Verificación</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Verificación</div>
                 <p className="text-[11px] text-[#AAA] leading-relaxed">{verification || 'Cómo confirmar la resolución...'}</p>
               </div>
               <div className="space-y-1.5">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Escalación</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Escalación</div>
                 <p className="text-[11px] text-[#AAA]">{escalation ? `Escalar a ${escalation} cuando se cumplan los criterios.` : 'Resolver en L1; sin escalación definida.'}</p>
               </div>
               {tags.length > 0 && (
@@ -409,7 +409,7 @@ export const HdKbGeneratorTool: React.FC = () => {
 
           {/* salida markdown */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">
               <FileText className="w-3 h-3" />
               Salida Markdown
             </div>

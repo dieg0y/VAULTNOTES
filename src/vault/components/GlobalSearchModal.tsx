@@ -20,6 +20,7 @@ import {
   Zap,
   LifeBuoy,
   GitBranch,
+  Ticket as TicketIcon,
 } from 'lucide-react';
 import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
 import { searchAllVault, SearchResultItem, resultToToolDeepLink } from '../utils/fuzzySearch';
@@ -44,6 +45,8 @@ interface GlobalSearchModalProps {
   onSelectRunbook?: (runbookId: string) => void;
   /** V9 — deep-links de guías de troubleshooting (escaleras de decisión). */
   onSelectTroubleshooting?: (troubleshootingId: string) => void;
+  /** V17.1 — deep-links a tickets de los simuladores desde Ctrl+K. */
+  onSelectSimTicket?: (pillar: 'iam' | 'soc' | 'hd' | 'sa', ticketId: string) => void;
 }
 
 /** Outer wrapper: mounts fresh content each time the modal opens. */
@@ -66,6 +69,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
   onSelectCommand,
   onSelectRunbook,
   onSelectTroubleshooting,
+  onSelectSimTicket,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -103,6 +107,10 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
       onSelectRunbook(item.id);
     } else if (item.type === 'troubleshooting-tree' && onSelectTroubleshooting) {
       onSelectTroubleshooting(item.id);
+    } else if (item.type === 'sim-ticket' && onSelectSimTicket && item.rawItem && 'pillar' in item.rawItem) {
+      // V17.1 — deep-link al simulador correcto con el ticket seleccionado.
+      const ref = item.rawItem as { pillar: 'iam' | 'soc' | 'hd' | 'sa'; ticketId: string };
+      onSelectSimTicket(ref.pillar, ref.ticketId);
     } else if (toolLink && onSelectTool) {
       onSelectTool(toolLink);
     } else if (item.type === 'reference' && onSelectReference) {
@@ -169,6 +177,9 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
         return { label: 'Runbook', icon: <LifeBuoy className="w-3.5 h-3.5" />, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', dot: 'bg-blue-500/10 text-blue-400' };
       case 'troubleshooting-tree':
         return { label: 'Troubleshooting', icon: <GitBranch className="w-3.5 h-3.5" />, color: 'bg-teal-500/10 text-teal-400 border-teal-500/20', dot: 'bg-teal-500/10 text-teal-400' };
+      case 'sim-ticket':
+        // V17.1 — tickets de simuladores: amber como los badges de "abiertos" del sidebar.
+        return { label: 'Ticket', icon: <TicketIcon className="w-3.5 h-3.5" />, color: 'bg-amber-500/10 text-amber-300 border-amber-500/20', dot: 'bg-amber-500/10 text-amber-300' };
       case 'command':
         return { label: 'Comando', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-violet-500/10 text-violet-400 border-violet-500/20', dot: 'bg-violet-500/10 text-violet-400' };
       default:
@@ -189,7 +200,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder:text-[#555]"
+            className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder:text-[#828282]"
           />
           <div className="flex items-center gap-1.5">
             <span className="px-1.5 py-0.5 rounded border border-[#262626] bg-[#161616] font-mono text-[10px] text-[#888]">
@@ -204,7 +215,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
         {/* Results List */}
         <div className="p-2 overflow-y-auto flex-1 divide-y divide-[#202020] space-y-1">
           {results.length === 0 ? (
-            <div className="p-8 text-center text-[#666]">
+            <div className="p-8 text-center text-[#858585]">
               <p className="text-xs">No se encontraron resultados para &quot;{query}&quot;</p>
             </div>
           ) : (
@@ -270,7 +281,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
                   {/* Matched Fields Pills (when query exists) */}
                   {query && item.matchedFields && item.matchedFields.length > 0 && (
                     <div className="pl-9 flex items-center gap-1.5 flex-wrap pt-0.5">
-                      <span className="text-[10px] text-[#666] font-mono">Coincidencia en:</span>
+                      <span className="text-[10px] text-[#858585] font-mono">Coincidencia en:</span>
                       {item.matchedFields.map((mf, i) => (
                         <span
                           key={i}
@@ -288,7 +299,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
         </div>
 
         {/* Footer shortcuts */}
-        <div className="p-2.5 bg-[#0D0D0D] border-t border-[#262626] flex items-center justify-between text-xs text-[#666]">
+        <div className="p-2.5 bg-[#0D0D0D] border-t border-[#262626] flex items-center justify-between text-xs text-[#858585]">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1 text-[11px]">
               <kbd className="px-1 py-0.2 rounded bg-[#161616] border border-[#262626] text-[10px] font-mono text-[#888]">

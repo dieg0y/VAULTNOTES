@@ -93,7 +93,7 @@ const VaultApp = dynamic(() => import('@/vault/App'), {
             />
           </svg>
         </div>
-        <p className="text-xs font-mono text-[#666] animate-pulse">
+        <p className="text-xs font-mono text-[#858585] animate-pulse">
           Cargando Vault (base de datos local)...
         </p>
       </div>

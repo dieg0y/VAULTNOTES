@@ -322,7 +322,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                   placeholder="ej. Análisis de Phishing y Extracción de Cabeceras RFC 822"
                   value={noteTitle}
                   onChange={(e) => setNoteTitle(e.target.value)}
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 transition-colors font-medium"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 transition-colors font-medium"
                   autoFocus
                 />
               </div>
@@ -338,7 +338,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                   placeholder="https://learn.microsoft.com/... o https://letsdefend.io/..."
                   value={noteSourceUrl}
                   onChange={(e) => setNoteSourceUrl(e.target.value)}
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2 text-xs text-blue-400 placeholder:text-[#555] focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2 text-xs text-blue-400 placeholder:text-[#828282] focus:outline-none focus:border-blue-500 transition-colors font-mono"
                 />
               </div>
 
@@ -357,7 +357,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
               <div>
                 <label className="block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                   <span>Categoría / Tema / Especialidad</span>
-                  <span className="text-[10px] text-[#555] font-normal font-mono">Lista maestra compartida</span>
+                  <span className="text-[10px] text-[#828282] font-normal font-mono">Lista maestra compartida</span>
                 </label>
                 <CategoryTreeChecklist
                   categories={categories}
@@ -378,9 +378,9 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                   placeholder="Escribe notas preliminares o conceptos clave (podrás editarlas con formato rico en el editor)..."
                   value={noteInitialContent}
                   onChange={(e) => setNoteInitialContent(e.target.value)}
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md p-3 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 leading-relaxed"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md p-3 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 leading-relaxed"
                 />
-                <p className="text-[10px] text-[#666] mt-1.5">
+                <p className="text-[10px] text-[#858585] mt-1.5">
                   Podrás crear subpáginas infinitas dentro de este apunte una vez creado (como en Notion).
                 </p>
               </div>
@@ -419,7 +419,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                   placeholder="ej. SOC164 - Phishing Email Detected (Incident Case #42)"
                   value={labTitle}
                   onChange={(e) => setLabTitle(e.target.value)}
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 transition-colors font-medium"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 transition-colors font-medium"
                   autoFocus
                 />
               </div>
@@ -435,7 +435,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                   placeholder="https://app.letsdefend.io/challenge/... o https://tryhackme.com/room/..."
                   value={labSourceLink}
                   onChange={(e) => setLabSourceLink(e.target.value)}
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2 text-xs text-blue-400 placeholder:text-[#555] focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2 text-xs text-blue-400 placeholder:text-[#828282] focus:outline-none focus:border-blue-500 transition-colors font-mono"
                 />
               </div>
 
@@ -489,7 +489,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                     placeholder="ej. 45m o 1h 30m"
                     value={labTimeSpent}
                     onChange={(e) => setLabTimeSpent(e.target.value)}
-                    className="w-full bg-[#161616] border border-[#262626] rounded-md px-3 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 font-mono"
+                    className="w-full bg-[#161616] border border-[#262626] rounded-md px-3 py-2 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
               </div>
@@ -498,7 +498,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
               <div>
                 <label className="block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                   <span>Tema / Especialidad del Lab</span>
-                  <span className="text-[10px] text-[#555] font-normal font-mono">Lista maestra compartida</span>
+                  <span className="text-[10px] text-[#828282] font-normal font-mono">Lista maestra compartida</span>
                 </label>
                 <CategoryTreeChecklist
                   categories={categories}
@@ -554,7 +554,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                           <button
                             type="button"
                             onClick={() => setLabParts(prev => prev.filter((_, i) => i !== index))}
-                            className="p-1 text-[#777] hover:text-red-400 cursor-pointer"
+                            className="p-1 text-[#868686] hover:text-red-400 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -600,7 +600,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                     placeholder="ej. Man In The Middle o Privileged Access Management"
                     value={term}
                     onChange={(e) => setTerm(e.target.value)}
-                    className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 font-medium"
+                    className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 font-medium"
                     autoFocus
                   />
                 </div>
@@ -614,7 +614,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                     placeholder="ej. MITM o PAM"
                     value={acronym}
                     onChange={(e) => setAcronym(e.target.value)}
-                    className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-blue-400 font-mono placeholder:text-[#555] focus:outline-none focus:border-blue-500 uppercase"
+                    className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2.5 text-xs text-blue-400 font-mono placeholder:text-[#828282] focus:outline-none focus:border-blue-500 uppercase"
                   />
                 </div>
               </div>
@@ -630,7 +630,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                   placeholder="https://csrc.nist.gov/... o https://learn.microsoft.com/..."
                   value={glossarySourceUrl}
                   onChange={(e) => setGlossarySourceUrl(e.target.value)}
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2 text-xs text-blue-400 placeholder:text-[#555] focus:outline-none focus:border-blue-500 transition-colors font-mono"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md px-3.5 py-2 text-xs text-blue-400 placeholder:text-[#828282] focus:outline-none focus:border-blue-500 transition-colors font-mono"
                 />
               </div>
 
@@ -647,7 +647,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
               <div>
                 <label className="block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                   <span>Categoría del Término</span>
-                  <span className="text-[10px] text-[#555] font-normal font-mono">Lista maestra compartida</span>
+                  <span className="text-[10px] text-[#828282] font-normal font-mono">Lista maestra compartida</span>
                 </label>
                 <CategoryTreeChecklist
                   categories={categories}
@@ -667,7 +667,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                   placeholder="Explicación clara y técnica del concepto, protocolo, función o vector de ataque..."
                   value={definition}
                   onChange={(e) => setDefinition(e.target.value)}
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md p-3 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 leading-relaxed"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md p-3 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 leading-relaxed"
                 />
               </div>
 
@@ -705,7 +705,7 @@ export const NewItemModal: React.FC<NewItemModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleRemoveExample(ex.id)}
-                            className="p-1 text-[#777] hover:text-red-400 transition-colors cursor-pointer"
+                            className="p-1 text-[#868686] hover:text-red-400 transition-colors cursor-pointer"
                             title="Eliminar este ejemplo"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

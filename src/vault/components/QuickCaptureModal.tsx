@@ -94,7 +94,7 @@ const QuickCaptureContent: React.FC<{ onClose: () => void }> = ({ onClose }) => 
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-semibold text-white">Captura Rápida → Inbox</span>
-              <span className="text-[10px] text-[#666] font-mono">Ctrl+Shift+Q</span>
+              <span className="text-[10px] text-[#858585] font-mono">Ctrl+Shift+Q</span>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -121,16 +121,16 @@ const QuickCaptureContent: React.FC<{ onClose: () => void }> = ({ onClose }) => 
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Idea, comando, observación, pendiente... aterriza en el Inbox. La organizas luego."
-            className="w-full bg-[#161616] border border-[#262626] rounded-md p-3 text-sm text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 transition-colors resize-y min-h-[88px]"
+            className="w-full bg-[#161616] border border-[#262626] rounded-md p-3 text-sm text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 transition-colors resize-y min-h-[88px]"
           />
-          <p className="text-[10px] text-[#666] mt-1.5 font-mono">
+          <p className="text-[10px] text-[#858585] mt-1.5 font-mono">
             Ctrl+Enter para guardar · Escape para cerrar
           </p>
         </div>
 
         {/* Footer */}
         <div className="p-3 border-t border-[#262626] flex items-center justify-between bg-[#0D0D0D]">
-          <span className="text-[10px] text-[#555] font-mono">
+          <span className="text-[10px] text-[#828282] font-mono">
             {text.length} chars
           </span>
           <div className="flex items-center gap-2">

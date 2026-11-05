@@ -241,7 +241,7 @@ const GenerateMode: React.FC = () => {
       </Field>
 
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-2">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-2">
           Algorithms ({enabledCount}/{ALGOS.length})
         </div>
         <div className="flex flex-wrap gap-2">

@@ -13,7 +13,7 @@
 
 Además:
 
-- **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. **Pegado tipo Obsidian**: pega una captura o una página web completa y las imágenes/GIFs se descargan y guardan localmente al instante (las que fallen quedan como enlaces). Glosario sembrado con **862 términos + flashcards**. Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
+- **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. **Pegado tipo Obsidian**: pega una captura o una página web completa y las imágenes/GIFs se descargan y guardan localmente al instante (las que fallen quedan como enlaces). Glosario sembrado con **862 términos + flashcards con repetición espaciada** (Difícil/Bueno/Fácil, teclado completo). Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
 - **48 herramientas offline en un catálogo único** (filtro por rol): IAM (JWT, SID/RID, LDAP/DN, RBAC, vulnerabilidades 203, ataques 102) · SOC (Event IDs 93, IoC Extractor, MITRE ATT&CK, Sigma, KQL/SPL, CVSS, hash, guías de Sentinel/Splunk/Elastic/Wireshark…) · Service Desk (triage 91 reglas, AD, Intune, network L1) · SysAdmin (subnetting, puertos 119, cron, systemd, RAID, LVM, firewall) · Global (encoding, regex, timestamp).
 - **Simuladores de tickets reales (Nexora S.A.)** — cola filtrable, modo estudio, flujo de estados con nota de cierre y proyecto final por pilar (Semana de Access Review, Primera semana SOC, etc.).
 - **Runbooks como tickets reales** — paso a paso universal con comandos copiables y respuesta en inglés lista para pegar.
@@ -56,11 +56,12 @@ Copia la carpeta COMPLETA del proyecto (con `node_modules/` y `.next/`) a la USB
 
 | Atajo | Acción |
 |---|---|
-| `Ctrl+K` | Búsqueda global (notas, labs, glosario, runbooks, herramientas, MITRE, Sigma…) |
+| `Ctrl+K` | Búsqueda global (notas, labs, glosario, runbooks, herramientas, **tickets de los simuladores**, MITRE, Sigma…) · escribe `atajos` para ver la referencia completa dentro de la app |
 | `Ctrl+Shift+Q` | Captura rápida → Inbox |
 | `Ctrl+Shift+N` / `Ctrl+Shift+L` | Nueva nota / nuevo lab |
 | `Ctrl+Shift+I` / `T` / `H` / `R` / `M` | IoC Extractor · Timestamp · Hash · Regex · MITRE |
 | `Ctrl+V` | Pegar imágenes directo al editor |
+| `Espacio` · `1/2/3` · `←/→` · `Esc` | Flashcards: voltear · calificar Difícil/Bueno/Fácil · navegar · salir |
 
 ## Privacidad y red
 

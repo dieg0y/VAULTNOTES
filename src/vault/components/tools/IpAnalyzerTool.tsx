@@ -386,7 +386,7 @@ export const IpAnalyzerTool: React.FC = () => {
       )}
 
       {!result && (
-        <p className="text-[11px] text-[#555] leading-relaxed">
+        <p className="text-[11px] text-[#828282] leading-relaxed">
           Enter an IPv4 or IPv6 address to analyze it locally. Auto-detects the
           version as you type. 100% offline — no DNS, WHOIS, ping, or
           geolocation.

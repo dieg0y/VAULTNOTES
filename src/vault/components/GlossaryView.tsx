@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import {
   BookOpen,
   Search,
@@ -15,6 +16,7 @@ import {
   Tag
 } from 'lucide-react';
 import { GlossaryTerm, Note, GlossaryExample, PlatformItem, CategoryItem } from '../types';
+import { db } from '../db';
 import { CategoryTreeChecklist } from './CategoryTreeChecklist';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
@@ -73,6 +75,20 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
   const [isStudyMode, setIsStudyMode] = useState(false);
   const [studyCardIndex, setStudyCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  // Sesión actual: cuántas cartas se calificaron con cada botón (feedback honesto
+  // en pantalla; antes los 3 botones prometían efectos distintos y no hacían nada).
+  const [sessionStats, setSessionStats] = useState<{ again: number; good: number; easy: number }>({
+    again: 0,
+    good: 0,
+    easy: 0,
+  });
+  // FSRS-lite: stats por término (misma tabla `flashcardStats` que usa el deck
+  // inteligente del Dashboard — las calificaciones de aquí alimentan aquel).
+  const flashcardStatsRows = useLiveQuery(() => db.flashcardStats.toArray(), [], []);
+  const statsByTerm = useMemo(
+    () => new Map((flashcardStatsRows || []).map((s) => [s.termId, s])),
+    [flashcardStatsRows]
+  );
   const [isCategoryListOpen, setIsCategoryListOpen] = useState(false);
 
   // Resizable terms list panel (persisted)
@@ -187,7 +203,8 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
 
   const currentFlashcard = flashcardDeck[studyCardIndex];
 
-  const handleNextFlashcard = () => {
+  /** Avanza el mazo; al terminar la última carta vuelve a la 1 (con confetti). */
+  const advanceDeck = () => {
     setIsFlipped(false);
     if (studyCardIndex + 1 < flashcardDeck.length) {
       setStudyCardIndex((prev) => prev + 1);
@@ -197,12 +214,112 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
     }
   };
 
+  const handleNextFlashcard = () => advanceDeck();
+
   const handlePrevFlashcard = () => {
     setIsFlipped(false);
     if (studyCardIndex > 0) {
       setStudyCardIndex((prev) => prev - 1);
     }
   };
+
+  /** Califica la carta actual y persiste el stats FSRS-lite (misma tabla y
+   *  familia de fórmulas que el deck inteligente del Dashboard). */
+  const handleRateFlashcard = async (rating: 'again' | 'good' | 'easy') => {
+    const card = currentFlashcard;
+    if (!card) return;
+    setSessionStats((s) => ({ ...s, [rating]: s[rating] + 1 }));
+    try {
+      const stat = statsByTerm.get(card.id);
+      const prevStability = stat?.stability || 0;
+      const prevDifficulty = stat?.difficulty || 5;
+      const prevReps = stat?.reps || 0;
+      const prevLapses = stat?.lapses || 0;
+      const newDifficulty =
+        rating === 'again'
+          ? Math.min(10, prevDifficulty + 1)
+          : rating === 'easy'
+            ? Math.max(1, prevDifficulty - 1)
+            : Math.max(1, prevDifficulty - 0.5);
+      const growth = 1.5 + (10 - newDifficulty) * 0.1;
+      const newStability =
+        rating === 'again'
+          ? 0
+          : rating === 'easy'
+            ? Math.max(2, prevStability === 0 ? 2 : prevStability * growth * 1.3)
+            : Math.max(1, prevStability === 0 ? 1 : prevStability * growth);
+      const now = new Date();
+      const due = new Date(now);
+      due.setDate(due.getDate() + Math.ceil(newStability));
+      await db.flashcardStats.put({
+        id: card.id,
+        termId: card.id,
+        knownCount: (stat?.knownCount || 0) + (rating === 'again' ? 0 : 1),
+        unknownCount: (stat?.unknownCount || 0) + (rating === 'again' ? 1 : 0),
+        lastStudiedAt: now.toISOString(),
+        stability: newStability,
+        difficulty: newDifficulty,
+        due: due.toISOString(),
+        reps: prevReps + 1,
+        lapses: rating === 'again' ? prevLapses + 1 : prevLapses,
+      });
+    } catch (err) {
+      console.warn('Failed to persist flashcard stat:', err);
+    }
+    advanceDeck();
+  };
+
+  // Teclado del modo estudio: Espacio/Enter voltea, 1/2/3 califica,
+  // ←/→ navega, Esc sale. Si el foco está en un botón, Espacio/Enter los
+  // activa nativamente (no interceptamos para no robar el click).
+  // Focus management del diálogo: al entrar al modo estudio el foco pasa a la
+  // tarjeta (si se quedara en el botón "Estudiar Flashcards" del header, que
+  // queda CUBIERTO por el overlay, pulsar Espacio lo re-activaría y reiniciaría
+  // la sesión). Con el foco en la tarjeta, Espacio voltea nativamente y Esc sale.
+  const cardRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (isStudyMode && currentFlashcard) {
+      cardRef.current?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo debe dispararse al entrar/salir del modo o al cambiar de tarjeta
+  }, [isStudyMode, studyCardIndex]);
+
+  useEffect(() => {
+    if (!isStudyMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsStudyMode(false);
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      const onInteractive = !!target?.closest('button, input, textarea, select, [contenteditable="true"]');
+      const isSpace = e.key === ' ' || e.code === 'Space';
+      if ((isSpace || e.key === 'Enter') && onInteractive) return;
+      if (isSpace || e.key === 'Enter') {
+        e.preventDefault();
+        setIsFlipped((f) => !f);
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextFlashcard();
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevFlashcard();
+        return;
+      }
+      if (e.key === '1' || e.key === '2' || e.key === '3') {
+        e.preventDefault();
+        void handleRateFlashcard(e.key === '1' ? 'again' : e.key === '2' ? 'good' : 'easy');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers cierran sobre el render actual; el efecto re-suscribe al cambiar índice/mazo
+  }, [isStudyMode, studyCardIndex, flashcardDeck, isFlipped, statsByTerm]);
 
   return (
     <div className="flex flex-col flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A] relative">
@@ -224,6 +341,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
               setIsStudyMode(true);
               setStudyCardIndex(0);
               setIsFlipped(false);
+              setSessionStats({ again: 0, good: 0, easy: 0 });
               setDeckSeed((s) => s + 1);
             }}
             disabled={activeTerms.length === 0}
@@ -254,13 +372,13 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
           {/* Quick Filter Search */}
           <div className="p-3 border-b border-[#262626] bg-[#0D0D0D]">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#666] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[#858585] absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Filtrar por término o sigla..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#161616] border border-[#262626] rounded pl-8 pr-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500/50"
+                className="w-full bg-[#161616] border border-[#262626] rounded pl-8 pr-2.5 py-1.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500/50"
               />
             </div>
           </div>
@@ -268,7 +386,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
           {/* List grouped by Alphabet letter */}
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {groupedTerms.size === 0 ? (
-              <div className="p-6 text-center text-[#666] text-xs">
+              <div className="p-6 text-center text-[#858585] text-xs">
                 No se encontraron términos para &quot;{searchQuery}&quot;
               </div>
             ) : (
@@ -304,7 +422,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-[#777] line-clamp-1">
+                        <p className="text-[11px] text-[#868686] line-clamp-1">
                           {t.shortDefinition || t.longDefinition}
                         </p>
                       </button>
@@ -331,16 +449,16 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
                       value={currentTerm.term}
                       onChange={(e) => onUpdateTerm(currentTerm.id, { term: e.target.value })}
                       placeholder="Nombre del Término"
-                      className="text-2xl font-bold text-white font-mono bg-transparent outline-none flex-1 border-b border-transparent focus:border-blue-500/50"
+                      className="text-2xl font-bold text-white font-mono bg-transparent outline-none flex-1 w-0 border-b border-transparent focus:border-blue-500/50"
                     />
                     <div className="flex items-center gap-1 bg-[#161616] px-2 py-1 rounded border border-[#262626]">
-                      <span className="text-[10px] font-bold text-[#666] uppercase font-mono">Sigla:</span>
+                      <span className="text-[10px] font-bold text-[#858585] uppercase font-mono">Sigla:</span>
                       <input
                         type="text"
                         value={currentTerm.acronym || ''}
                         onChange={(e) => onUpdateTerm(currentTerm.id, { acronym: e.target.value })}
                         placeholder="ej. MITM"
-                        className="text-xs font-bold text-blue-400 font-mono bg-transparent outline-none w-20 uppercase placeholder:text-[#555]"
+                        className="text-xs font-bold text-blue-400 font-mono bg-transparent outline-none w-20 uppercase placeholder:text-[#828282]"
                       />
                     </div>
                   </div>
@@ -440,7 +558,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
 
                 <button
                   onClick={() => onDeleteTerm(currentTerm.id)}
-                  className="p-1.5 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                  className="p-1.5 rounded text-[#858585] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                   title="Mover término a papelera"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -508,7 +626,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleRemoveExample(ex.id)}
-                            className="text-[#666] hover:text-red-400 p-1"
+                            className="text-[#858585] hover:text-red-400 p-1"
                             title="Eliminar este ejemplo"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -538,11 +656,11 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
 
               {/* Notes using this term */}
               <div className="pt-3 border-t border-[#262626] space-y-2">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#666]">
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#858585]">
                   Usado en {notesUsingTerm.length} Apuntes Relacionados
                 </h3>
                 {notesUsingTerm.length === 0 ? (
-                  <p className="text-xs text-[#666] italic">
+                  <p className="text-xs text-[#858585] italic">
                     Este término aún no aparece en ninguno de tus apuntes activos.
                   </p>
                 ) : (
@@ -559,12 +677,12 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
                             <span className="text-xs font-semibold text-white group-hover:text-blue-400 truncate block">
                               {note.title}
                             </span>
-                            <span className="text-[10px] text-[#666]">
+                            <span className="text-[10px] text-[#858585]">
                               {note.platform} • {note.category}
                             </span>
                           </div>
                         </div>
-                        <ExternalLink className="w-3 h-3 text-[#666] group-hover:text-blue-400 shrink-0 ml-2" />
+                        <ExternalLink className="w-3 h-3 text-[#858585] group-hover:text-blue-400 shrink-0 ml-2" />
                       </div>
                     ))}
                   </div>
@@ -572,7 +690,7 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#666] space-y-2">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#858585] space-y-2">
               <BookOpen className="w-10 h-10 text-[#333]" />
               <p className="text-xs">Selecciona o crea un término para ver sus detalles.</p>
             </div>
@@ -582,14 +700,30 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
 
       {/* 3. Fullscreen Flashcard Study Mode */}
       {isStudyMode && currentFlashcard && (
-        <div className="fixed inset-0 z-50 bg-[#0A0A0A]/95 backdrop-blur-sm flex flex-col items-center justify-between p-6 md:p-10 animate-in fade-in duration-150">
-          <div className="w-full max-w-2xl flex items-center justify-between">
-            <span className="text-xs font-mono text-[#888] bg-[#161616] px-2.5 py-1 rounded border border-[#262626]">
-              Tarjeta {studyCardIndex + 1} de {flashcardDeck.length}
-            </span>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Modo estudio con flashcards"
+          className="fixed inset-0 z-50 bg-[#0A0A0A]/95 backdrop-blur-sm flex flex-col items-center justify-between p-6 md:p-10 animate-in fade-in duration-150"
+        >
+          <div className="w-full max-w-2xl flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-mono text-[#888] bg-[#161616] px-2.5 py-1 rounded border border-[#262626]">
+                Tarjeta {studyCardIndex + 1} de {flashcardDeck.length}
+              </span>
+              {sessionStats.again + sessionStats.good + sessionStats.easy > 0 && (
+                <span
+                  className="text-xs font-mono text-[#858585] bg-[#161616] px-2.5 py-1 rounded border border-[#262626]"
+                  title="Calificaciones de esta sesión (se guardan por término y alimentan el deck inteligente del Dashboard)"
+                >
+                  {sessionStats.again} difíciles · {sessionStats.good} buenas · {sessionStats.easy} fáciles
+                </span>
+              )}
+            </div>
             <button
               onClick={() => setIsStudyMode(false)}
-              className="flex items-center gap-1 px-2.5 py-1 bg-[#161616] hover:bg-[#202020] text-[#888] hover:text-white rounded border border-[#262626] text-xs font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-[#161616] hover:bg-[#202020] text-[#888] hover:text-white rounded border border-[#262626] text-xs font-medium transition-colors cursor-pointer"
+              title="Salir del modo estudio (Esc)"
             >
               <X className="w-3.5 h-3.5" />
               Salir
@@ -597,9 +731,13 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
           </div>
 
           <div className="w-full max-w-xl my-auto">
-            <div
+            <button
+              type="button"
+              ref={cardRef}
               onClick={() => setIsFlipped(!isFlipped)}
-              className="w-full aspect-[16/10] perspective-1000 cursor-pointer select-none group"
+              aria-pressed={isFlipped}
+              aria-label={isFlipped ? `Volver al término: ${currentFlashcard.term}` : `Ver la definición de: ${currentFlashcard.term}`}
+              className="w-full aspect-[16/10] perspective-1000 cursor-pointer select-none group text-left"
             >
               <div
                 className={`w-full h-full transition-transform duration-500 transform-style-3d relative rounded-lg ${
@@ -630,8 +768,8 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
                     </span>
                   )}
 
-                  <span className="text-xs text-[#666] mt-3 flex items-center gap-1">
-                    Toca la tarjeta para ver la definición &rarr;
+                  <span className="text-xs text-[#858585] mt-3 flex items-center gap-1">
+                    Toca la tarjeta o pulsa Espacio para ver la definición &rarr;
                   </span>
                 </div>
 
@@ -649,31 +787,33 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
                       <div className="space-y-1.5">
                         {currentFlashcard.examples.map((ex, i) => (
                           <div key={ex.id || i} className="p-2 rounded bg-[#0D0D0D] border border-[#262626] font-mono text-xs text-blue-300">
-                            <span className="text-[#666] block mb-0.5 text-[9px] font-bold">{ex.title}:</span>
+                            <span className="text-[#858585] block mb-0.5 text-[9px] font-bold">{ex.title}:</span>
                             <pre className="whitespace-pre-wrap">{ex.content}</pre>
                           </div>
                         ))}
                       </div>
                     ) : currentFlashcard.example ? (
                       <div className="p-2.5 rounded bg-[#0D0D0D] border border-[#262626] font-mono text-xs text-blue-300">
-                        <span className="text-[#666] block mb-1 text-[10px]">Ejemplo:</span>
+                        <span className="text-[#858585] block mb-1 text-[10px]">Ejemplo:</span>
                         {currentFlashcard.example}
                       </div>
                     ) : null}
                   </div>
 
-                  <span className="text-[10px] text-[#666] text-center pt-2">
-                    Toca para volver al término
+                  <span className="text-[10px] text-[#858585] text-center pt-2">
+                    Toca o pulsa Espacio para volver al término
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
 
           <div className="w-full max-w-sm flex items-center justify-between gap-3">
             <button
               onClick={handlePrevFlashcard}
               disabled={studyCardIndex === 0}
+              aria-label="Tarjeta anterior"
+              title="Tarjeta anterior (←)"
               className="p-2.5 rounded-full bg-[#161616] border border-[#262626] hover:bg-[#202020] text-white disabled:opacity-30 transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -681,19 +821,22 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
 
             <div className="flex items-center gap-2">
               <button
-                onClick={handleNextFlashcard}
+                onClick={() => void handleRateFlashcard('again')}
+                title="Difícil: la verás antes (tecla 1)"
                 className="px-3.5 py-1.5 rounded bg-[#161616] border border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Difícil
               </button>
               <button
-                onClick={handleNextFlashcard}
+                onClick={() => void handleRateFlashcard('good')}
+                title="Bueno: siguiente repaso en unos días (tecla 2)"
                 className="px-3.5 py-1.5 rounded bg-[#161616] border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Bueno
               </button>
               <button
-                onClick={handleNextFlashcard}
+                onClick={() => void handleRateFlashcard('easy')}
+                title="Fácil: espacia el repaso aún más (tecla 3)"
                 className="px-3.5 py-1.5 rounded bg-[#161616] border border-green-500/30 text-green-400 hover:bg-green-500/10 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Fácil
@@ -702,6 +845,8 @@ export const GlossaryView: React.FC<GlossaryViewProps> = ({
 
             <button
               onClick={handleNextFlashcard}
+              aria-label="Siguiente tarjeta (sin calificar)"
+              title="Siguiente tarjeta (→)"
               className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white transition-colors cursor-pointer"
             >
               <ArrowRight className="w-4 h-4" />

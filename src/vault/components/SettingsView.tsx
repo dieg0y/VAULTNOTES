@@ -278,12 +278,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
             instance. db.verno is the version number of the schema currently
             active in the browser's IndexedDB. */}
         <div className="flex items-center gap-2 pt-1 border-t border-[#1a1a1a]">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[#555]">DB schema</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282]">DB schema</span>
           <code className="font-mono text-[10px] text-blue-300 bg-blue-500/5 border border-blue-500/20 px-1.5 py-0.5 rounded">
             v{db.verno}
           </code>
-          <span className="text-[10px] text-[#555]">·</span>
-          <span className="font-mono text-[10px] text-[#555]">{db.name}</span>
+          <span className="text-[10px] text-[#828282]">·</span>
+          <span className="font-mono text-[10px] text-[#828282]">{db.name}</span>
         </div>
       </div>
 
@@ -358,7 +358,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
                 Dejar de usar carpeta
               </button>
             </div>
-            <p className="text-[10px] text-[#666]">
+            <p className="text-[10px] text-[#858585]">
               Al cambiar de PC: copia la carpeta GITHUBVAULT tal cual y vuelve a configurarla aquí para que los
               apuntes re-encuentren los archivos por nombre.
             </p>
@@ -426,7 +426,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
               <FolderOpen className="w-4 h-4" />
               Elegir otra carpeta base
             </button>
-            <p className="text-[10px] text-[#666] text-center">
+            <p className="text-[10px] text-[#858585] text-center">
               El selector abrirá <strong>Documentos</strong>: elige esa carpeta (o la que quieras) y la app creará
               <span className="font-mono"> GITHUBVAULT/videos</span> y <span className="font-mono">GITHUBVAULT/imagenes</span> automáticamente.
               Sin carpeta de imágenes configurada, las imágenes insertadas se guardan embebidas en el apunte (con límite de 25 MB).
@@ -486,7 +486,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
               <FolderOpen className="w-4 h-4" />
               Elegir carpeta para los backups
             </button>
-            <p className="text-[10px] text-[#666] text-center">Opcional: sin carpeta, cada backup pedirá dónde guardarse.</p>
+            <p className="text-[10px] text-[#858585] text-center">Opcional: sin carpeta, cada backup pedirá dónde guardarse.</p>
           </div>
         )}
       </div>
@@ -625,7 +625,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
               onChange={(e) => setNewCategory(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAddCategory(); }}
               placeholder="Nueva categoría..."
-              className="flex-1 bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500"
             />
             <button onClick={handleAddCategory} className="p-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white"><Plus className="w-3.5 h-3.5" /></button>
           </div>
@@ -633,7 +633,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
             {categories.map((cat) => (
               <div key={cat.id} className="flex items-center justify-between py-2 text-xs text-[#DDD]">
                 <span className="truncate">{cat.name}</span>
-                <button onClick={() => handleDeleteCategory(cat)} className="p-1 text-[#666] hover:text-red-400" title="Eliminar">
+                <button onClick={() => handleDeleteCategory(cat)} className="p-1 text-[#858585] hover:text-red-400" title="Eliminar">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -653,7 +653,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
               onChange={(e) => setNewTool(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAddTool(); }}
               placeholder="Nueva herramienta..."
-              className="flex-1 bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-emerald-500"
+              className="flex-1 bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-emerald-500"
             />
             <button onClick={handleAddTool} className="p-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white"><Plus className="w-3.5 h-3.5" /></button>
           </div>
@@ -661,7 +661,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
             {tools.map((tool) => (
               <div key={tool.id} className="flex items-center justify-between py-2 text-xs text-[#DDD]">
                 <span className="truncate">{tool.name}</span>
-                <button onClick={() => handleDeleteTool(tool)} className="p-1 text-[#666] hover:text-red-400" title="Eliminar">
+                <button onClick={() => handleDeleteTool(tool)} className="p-1 text-[#858585] hover:text-red-400" title="Eliminar">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -670,7 +670,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ categories, tools })
         </div>
       </div>
 
-      <div className="flex items-start gap-2 text-[11px] text-[#666] bg-[#0D0D0D] border border-[#262626] rounded p-3">
+      <div className="flex items-start gap-2 text-[11px] text-[#858585] bg-[#0D0D0D] border border-[#262626] rounded p-3">
         <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
         <span>Si una categoría o herramienta está en uso por un apunte, lab o término, no se puede eliminar hasta que dejes de usarla.</span>
       </div>

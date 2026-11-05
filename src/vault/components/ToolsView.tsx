@@ -184,7 +184,7 @@ const CopyBtn: React.FC<{ text: string }> = ({ text }) => {
           setTimeout(() => setCopied(false), 1500);
         });
       }}
-      className="p-1 rounded text-[#666] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0"
+      className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0"
       title="Copiar"
     >
       {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -194,7 +194,7 @@ const CopyBtn: React.FC<{ text: string }> = ({ text }) => {
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="space-y-1">
-    <label className="text-[10px] font-bold uppercase tracking-widest text-[#555]">{label}</label>
+    <label className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">{label}</label>
     {children}
   </div>
 );
@@ -233,7 +233,7 @@ const DetailModal: React.FC<{
       >
         <div className="sticky top-0 bg-[#0D0D0D] border-b border-[#262626] px-5 py-3 flex items-center justify-between">
           <div className="font-bold text-white text-sm">{title}</div>
-          <button onClick={onClose} aria-label="Cerrar detalle" className="p-1 rounded text-[#666] hover:text-white hover:bg-[#161616] cursor-pointer transition-colors">
+          <button onClick={onClose} aria-label="Cerrar detalle" className="p-1 rounded text-[#858585] hover:text-white hover:bg-[#161616] cursor-pointer transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -257,7 +257,7 @@ const CodeBlock: React.FC<{ code: string; lang?: string }> = ({ code, lang }) =>
   <div className="bg-[#0A0A0A] border border-[#262626] rounded p-2.5 font-mono text-[10px] text-green-300 break-all flex items-start justify-between gap-2">
     <pre className="whitespace-pre-wrap break-all flex-1">{code}</pre>
     <CopyBtn text={code} />
-    {lang && <span className="text-[9px] text-[#444] uppercase shrink-0">{lang}</span>}
+    {lang && <span className="text-[9px] text-[#808080] uppercase shrink-0">{lang}</span>}
   </div>
 );
 
@@ -439,7 +439,7 @@ const SubnetTool: React.FC = () => {
             </div>
           )}
           <div className="pt-2 border-t border-[#262626] space-y-1">
-            <div className="text-[10px] text-[#555] font-bold uppercase">Binario</div>
+            <div className="text-[10px] text-[#828282] font-bold uppercase">Binario</div>
             <div className="text-[10px] font-mono text-green-400">IP:  {result.ipBin}</div>
             <div className="text-[10px] font-mono text-amber-400">Mask: {result.maskBin}</div>
           </div>
@@ -509,7 +509,7 @@ const PortsTool: React.FC<PortsToolProps> = ({ autoOpenId, onAutoOpenConsumed })
   return (
     <div className="space-y-3">
       <input className={inputCls} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por puerto, servicio o categoría..." />
-      <div className="text-[10px] text-[#555]">{filtered.length} puertos listados (más comunes en ciberseguridad). Click para ver detalle.</div>
+      <div className="text-[10px] text-[#828282]">{filtered.length} puertos listados (más comunes en ciberseguridad). Click para ver detalle.</div>
       <div className="space-y-1 max-h-[480px] overflow-y-auto">
         {filtered.map((p) => (
           <button
@@ -522,7 +522,7 @@ const PortsTool: React.FC<PortsToolProps> = ({ autoOpenId, onAutoOpenConsumed })
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-semibold text-white">{p.service}</span>
                 <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${p.proto.includes('TCP') ? 'bg-blue-500/15 text-blue-300' : 'bg-purple-500/15 text-purple-300'}`}>{p.proto}</span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666]">{p.category}</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#858585]">{p.category}</span>
               </div>
               <div className="text-[10px] text-[#888] mt-0.5 truncate">{p.short}</div>
             </div>
@@ -628,7 +628,7 @@ const JwtTool: React.FC = () => {
             <div className="text-[10px] font-bold uppercase text-blue-400 mb-1">Payload</div>
             <pre className="text-[10px] font-mono text-amber-300 whitespace-pre-wrap break-all">{decoded.payload}</pre>
           </div>
-          <p className="text-[10px] text-[#555]">Recuerda: el signature no se valida aquí. Un JWT decodificado no es prueba de autenticidad.</p>
+          <p className="text-[10px] text-[#828282]">Recuerda: el signature no se valida aquí. Un JWT decodificado no es prueba de autenticidad.</p>
         </div>
       )}
     </div>
@@ -744,7 +744,7 @@ const BaseTool: React.FC = () => {
       </Field>
       {decimal && !error && (
         <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-1">
-          <div className="text-[10px] text-[#555] font-bold uppercase">Resumen</div>
+          <div className="text-[10px] text-[#828282] font-bold uppercase">Resumen</div>
           <div className="flex items-center justify-between text-xs"><span className="text-[#888]">Decimal</span><span className="font-mono text-blue-300 flex items-center gap-1">{decimal}<CopyBtn text={decimal} /></span></div>
           <div className="flex items-center justify-between text-xs"><span className="text-[#888]">Hex</span><span className="font-mono text-green-300 flex items-center gap-1">0x{hex}<CopyBtn text={'0x' + hex} /></span></div>
           <div className="flex items-center justify-between text-xs"><span className="text-[#888]">Octal</span><span className="font-mono text-amber-300 flex items-center gap-1">0{octal}<CopyBtn text={'0' + octal} /></span></div>
@@ -830,7 +830,7 @@ const HttpTool: React.FC<HttpToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
             <span className="flex items-center gap-2">
               <span className={`font-mono font-bold ${catColor(selected.cat)}`}>{selected.code}</span>
               <span className="text-white">{selected.name}</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666] uppercase">{selected.cat}</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#858585] uppercase">{selected.cat}</span>
             </span>
           }
           label={`HTTP ${selected.code} ${selected.name}`}
@@ -1017,7 +1017,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
         ))}
       </div>
 
-      <div className="text-[10px] text-[#555]">{filtered.length} eventos. Click para ver explicación a fondo + cómo detectarlo.</div>
+      <div className="text-[10px] text-[#828282]">{filtered.length} eventos. Click para ver explicación a fondo + cómo detectarlo.</div>
       <div className="space-y-1 max-h-[480px] overflow-y-auto">
         {filtered.map((e) => (
           <button
@@ -1029,7 +1029,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-semibold text-white">{e.name}</span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666]">{e.log}</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#858585]">{e.log}</span>
                 <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] border border-[#262626] text-blue-300/70">{getWinEventCategory(e.id)}</span>
               </div>
               <div className="text-[10px] text-[#888] mt-0.5 truncate">{e.short}</div>
@@ -1051,7 +1051,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
             <span className="flex items-center gap-2">
               <span className="font-mono font-bold text-blue-400">{selected.id}</span>
               <span className="text-white">{selected.name}</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666]">{selected.log}</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#858585]">{selected.log}</span>
             </span>
           }
           label={`Evento ${selected.id} ${selected.name}`}
@@ -1202,7 +1202,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
               corresponding tool via goToTool(). */}
           {hasRelatedKnowledge && (
             <div className="border border-[#262626] rounded p-3 mt-2 space-y-3">
-              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#555] font-bold">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#828282] font-bold">
                 <BookOpen className="w-3 h-3" />
                 Related Knowledge
               </div>
@@ -1210,7 +1210,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
               {/* MITRE */}
               {relatedMitreEntries.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-[10px] uppercase tracking-widest text-[#555]">MITRE</div>
+                  <div className="text-[10px] uppercase tracking-widest text-[#828282]">MITRE</div>
                   <div className="flex flex-wrap gap-1.5">
                     {relatedMitreEntries.map((m) => (
                       <button
@@ -1231,7 +1231,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
               {/* Sigma */}
               {relatedSigmaRules.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-[10px] uppercase tracking-widest text-[#555]">Sigma</div>
+                  <div className="text-[10px] uppercase tracking-widest text-[#828282]">Sigma</div>
                   <div className="flex flex-col gap-1.5">
                     {relatedSigmaRules.map((rule) => (
                       <button
@@ -1243,7 +1243,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
                       >
                         <BookMarked className="w-3 h-3 shrink-0" />
                         <span className="font-bold text-white">{rule.title}</span>
-                        <span className="text-[#666]">— {rule.id}</span>
+                        <span className="text-[#858585]">— {rule.id}</span>
                       </button>
                     ))}
                   </div>
@@ -1253,7 +1253,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
               {/* Related Event IDs */}
               {relatedEventEntries.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-[10px] uppercase tracking-widest text-[#555]">Related Event IDs</div>
+                  <div className="text-[10px] uppercase tracking-widest text-[#828282]">Related Event IDs</div>
                   <div className="flex flex-wrap gap-1.5">
                     {relatedEventEntries.map((r) => (
                       <button
@@ -1273,9 +1273,9 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
 
               {/* Notes — local content that mentions this Event ID */}
               <div className="space-y-1.5">
-                <div className="text-[10px] uppercase tracking-widest text-[#555]">Notes</div>
+                <div className="text-[10px] uppercase tracking-widest text-[#828282]">Notes</div>
                 {relatedNotes.length === 0 ? (
-                  <p className="text-[10px] text-[#666] leading-relaxed">
+                  <p className="text-[10px] text-[#858585] leading-relaxed">
                     Sin apuntes que mencionen <code className="font-mono text-blue-300">Event {selected.id}</code> todavía.
                   </p>
                 ) : (
@@ -1290,7 +1290,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
                         <span className="truncate">{n.title}</span>
                       </div>
                     ))}
-                    <p className="text-[10px] text-[#555] leading-relaxed pt-1">
+                    <p className="text-[10px] text-[#828282] leading-relaxed pt-1">
                       Found {relatedNotes.length} note{relatedNotes.length === 1 ? '' : 's'} mentioning Event {selected.id}. Usa <kbd className="font-mono px-1 py-0.5 rounded bg-[#161616] border border-[#262626] text-[#888] text-[9px]">Ctrl+K</kbd> para abrir el buscador global y saltar al apunte.
                     </p>
                   </div>
@@ -1299,7 +1299,7 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
 
               {/* Detection Query Helper — single button (always available) */}
               <div className="space-y-1.5">
-                <div className="text-[10px] uppercase tracking-widest text-[#555]">Detection Query</div>
+                <div className="text-[10px] uppercase tracking-widest text-[#828282]">Detection Query</div>
                 <button
                   type="button"
                   onClick={() => goToTool('detection-query')}
@@ -1873,18 +1873,18 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
           </div>
           {/* Tool search box — filters by name / desc / category / tags. */}
           <div className="relative w-full sm:w-72 max-w-full">
-            <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-[#828282] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={toolQuery}
               onChange={(e) => setToolQuery(e.target.value)}
               placeholder="Buscar herramientas…"
-              className="w-full bg-[#161616] border border-[#262626] rounded pl-8 pr-2 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500"
+              className="w-full bg-[#161616] border border-[#262626] rounded pl-8 pr-2 py-1.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500"
             />
             {toolQuery && (
               <button
                 onClick={() => setToolQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#666] hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#858585] hover:text-white"
                 title="Limpiar"
               >
                 <X className="w-3.5 h-3.5" />
@@ -1941,7 +1941,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
           {/* Recently Used section — only shown when there's at least 1 recent */}
           {recentTools.length > 0 && !toolQuery && (
             <div className="p-2 space-y-0.5 border-b border-[#1a1a1a]">
-              <p className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#444] flex items-center gap-1">
+              <p className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#808080] flex items-center gap-1">
                 <History className="w-2.5 h-2.5" /> Recientes
               </p>
               {recentTools.map((t) => (
@@ -1953,7 +1953,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
                   }`}
                   title={t.desc}
                 >
-                  <Clock3 className="w-3 h-3 text-[#555] shrink-0" />
+                  <Clock3 className="w-3 h-3 text-[#828282] shrink-0" />
                   {t.icon}
                   <span className="truncate">{t.name}</span>
                 </button>
@@ -1964,7 +1964,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
           {/* Categories (filtered by tool search query) */}
           {Array.from(cats.entries()).map(([cat, tools]) => (
             <div key={cat} className="p-2 space-y-0.5">
-              <p className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#444]">{cat}</p>
+              <p className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#808080]">{cat}</p>
               {tools.map((t) => {
                 const isFav = favoriteIds.has(t.id);
                 return (
@@ -1985,7 +1985,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
                         {toolRoles(t).map((p) => (
                           <span
                             key={p}
-                            className={`text-[8px] font-mono font-bold px-1 py-px rounded border ${TOOL_PILLAR_META[p].chip}`}
+                            className={`text-[9px] font-mono font-bold px-1 py-px rounded border ${TOOL_PILLAR_META[p].chip}`}
                             title={TOOL_PILLAR_META[p].label}
                           >
                             {TOOL_PILLAR_META[p].short}
@@ -2009,7 +2009,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
           ))}
           {filteredTools.length === 0 && (
             <div className="p-4 text-center">
-              <p className="text-xs text-[#666]">Sin coincidencias para &ldquo;{toolQuery}&rdquo;</p>
+              <p className="text-xs text-[#858585]">Sin coincidencias para &ldquo;{toolQuery}&rdquo;</p>
             </div>
           )}
         </div>
@@ -2041,7 +2041,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
                 className={`shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors ${
                   isCurrentFavorite
                     ? 'text-amber-400 hover:bg-amber-500/10'
-                    : 'text-[#666] hover:text-amber-400 hover:bg-[#161616]'
+                    : 'text-[#858585] hover:text-amber-400 hover:bg-[#161616]'
                 }`}
                 title={isCurrentFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
               >

@@ -126,7 +126,7 @@ export const CvssCalculatorTool: React.FC = () => {
                       <span className="text-blue-300 font-semibold">{valueDef.code} — {valueDef.label}.</span>{' '}
                       {valueDef.description}
                     </p>
-                    <p className="text-[10px] text-[#555]">
+                    <p className="text-[10px] text-[#828282]">
                       Métrica: <span className="text-[#888]">{metric.label}</span> · {metric.description}
                       {valueDef.scopeDependent && (
                         <span className="text-yellow-500/70 ml-1">(valor depende de Scope)</span>
@@ -150,11 +150,11 @@ export const CvssCalculatorTool: React.FC = () => {
         {/* Score + Severity */}
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-baseline gap-2">
-            <span className="text-[10px] uppercase tracking-widest text-[#555]">Base Score</span>
+            <span className="text-[10px] uppercase tracking-widest text-[#828282]">Base Score</span>
             <span className="text-3xl font-mono font-bold text-white">
               {result.baseScore.toFixed(1)}
             </span>
-            <span className="text-xs text-[#555]">/ 10.0</span>
+            <span className="text-xs text-[#828282]">/ 10.0</span>
           </div>
           <span
             className={`px-3 py-1 rounded text-xs font-bold uppercase border ${SEVERITY_STYLES[result.severity]}`}
@@ -166,7 +166,7 @@ export const CvssCalculatorTool: React.FC = () => {
         {/* Vector string */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] uppercase tracking-widest text-[#555]">Vector</span>
+            <span className="text-[10px] uppercase tracking-widest text-[#828282]">Vector</span>
             <div className="flex gap-1.5">
               <button
                 type="button"
@@ -244,7 +244,7 @@ export const CvssCalculatorTool: React.FC = () => {
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-[#666] leading-relaxed">
+        <p className="text-[10px] text-[#858585] leading-relaxed">
           La severidad se determina automáticamente a partir del base score. CVSS 3.1 usa la fórmula oficial documentada en <code className="text-blue-300">first.org/cvss/v3.1/specification-formula</code> con el Roundup estándar (no Math.round).
         </p>
       </div>

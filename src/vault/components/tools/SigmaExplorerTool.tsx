@@ -153,7 +153,7 @@ const YamlLine: React.FC<{ line: string }> = ({ line }) => {
 
   // Full-comment line (starts with # after optional whitespace).
   if (content.startsWith('#')) {
-    return <div className="whitespace-pre text-[#666] italic">{line}</div>;
+    return <div className="whitespace-pre text-[#858585] italic">{line}</div>;
   }
 
   // Detect inline comment: ` # …` after at least one non-# character.
@@ -196,7 +196,7 @@ const YamlLine: React.FC<{ line: string }> = ({ line }) => {
   }
 
   if (commentPart) {
-    spans.push(<span key="cmt" className="text-[#666] italic whitespace-pre">{commentPart}</span>);
+    spans.push(<span key="cmt" className="text-[#858585] italic whitespace-pre">{commentPart}</span>);
   }
 
   return <div className="whitespace-pre">{spans}</div>;
@@ -368,7 +368,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
     <div className="space-y-3">
       {/* Search box */}
       <div className="flex items-center gap-2">
-        <Search className="w-3.5 h-3.5 text-[#666] shrink-0" />
+        <Search className="w-3.5 h-3.5 text-[#858585] shrink-0" />
         <input
           type="text"
           className={inputCls}
@@ -381,7 +381,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
 
       {/* Filter chips row */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-widest text-[#555] mr-1">Severity:</span>
+        <span className="text-[10px] uppercase tracking-widest text-[#828282] mr-1">Severity:</span>
         <button
           type="button"
           onClick={() => setSelectedLevel(null)}
@@ -408,7 +408,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
           </button>
         ))}
 
-        <span className="text-[10px] uppercase tracking-widest text-[#555] ml-2 mr-1">Status:</span>
+        <span className="text-[10px] uppercase tracking-widest text-[#828282] ml-2 mr-1">Status:</span>
         <select
           value={selectedStatus}
           onChange={(e) => setSelectedStatus(e.target.value as SigmaStatus | 'All')}
@@ -423,14 +423,14 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
       </div>
 
       {/* Result count */}
-      <div className="text-[10px] text-[#555]">
+      <div className="text-[10px] text-[#828282]">
         {filtered.length} reglas Sigma — click para ver YAML completo.
       </div>
 
       {/* Result list */}
       <div className="max-h-[480px] overflow-y-auto space-y-1 pr-1">
         {filtered.length === 0 ? (
-          <div className="text-center py-8 text-[#666] text-xs">
+          <div className="text-center py-8 text-[#858585] text-xs">
             No se encontraron reglas Sigma que coincidan con los filtros.
           </div>
         ) : (
@@ -455,7 +455,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
               </div>
 
               {/* Logsource */}
-              <div className="text-[9px] text-[#666] font-mono">{logsourceStr(r.logsource) || '—'}</div>
+              <div className="text-[9px] text-[#858585] font-mono">{logsourceStr(r.logsource) || '—'}</div>
 
               {/* MITRE tags */}
               {r.mitre.length > 0 && (
@@ -509,13 +509,13 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
                   <span className="inline-flex items-center gap-1">
                     <User className="w-3 h-3" />{selected.author}
                   </span>
-                  <span className="font-mono text-[#555]">{selected.id}</span>
+                  <span className="font-mono text-[#828282]">{selected.id}</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="p-1 rounded text-[#666] hover:text-white hover:bg-[#161616] transition-colors shrink-0"
+                className="p-1 rounded text-[#858585] hover:text-white hover:bg-[#161616] transition-colors shrink-0"
                 title="Cerrar"
                 aria-label="Cerrar"
               >
@@ -564,7 +564,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
                       key={i}
                       className="bg-[#161616] border border-[#262626] rounded p-2 space-y-1"
                     >
-                      <div className="text-[9px] uppercase tracking-widest text-[#555]">
+                      <div className="text-[9px] uppercase tracking-widest text-[#828282]">
                         Selector {i + 1} (AND)
                       </div>
                       {sel.map((f, j) => (
@@ -575,7 +575,7 @@ export const SigmaExplorerTool: React.FC<SigmaExplorerProps> = ({
                           <code className="font-mono text-blue-300">
                             {f.field}{f.modifier ? `|${f.modifier}` : ''}
                           </code>
-                          <span className="text-[#555]">:</span>
+                          <span className="text-[#828282]">:</span>
                           {f.values.map((v, k) => (
                             <span
                               key={k}

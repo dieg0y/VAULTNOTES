@@ -355,7 +355,7 @@ export const LdapDnParserTool: React.FC = () => {
             <div className="space-y-1">
               {parsed.components.map((c) => (
                 <div key={c.index} className="flex items-center gap-2 text-[11px]">
-                  <span className="text-[#444] font-mono w-5 text-right shrink-0">
+                  <span className="text-[#808080] font-mono w-5 text-right shrink-0">
                     {c.index}.
                   </span>
                   <span

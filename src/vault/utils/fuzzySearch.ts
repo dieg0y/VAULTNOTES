@@ -19,6 +19,12 @@ import { TROUBLESHOOTING_HD } from '../data/troubleshootingHelpDesk';
 import { TROUBLESHOOTING_SA } from '../data/troubleshootingSysAdmin';
 import { TROUBLESHOOTING_SOC } from '../data/troubleshootingSoc';
 import { TROUBLESHOOTING_IAM } from '../data/troubleshootingIam';
+// V17.1 — tickets de los 4 simuladores en Ctrl+K (antes "IAM-4003" no
+// encontraba nada siendo el contenido central de la app).
+import { IAM_TICKET_SEEDS } from '../data/iamTickets';
+import { SOC_TICKET_SEEDS } from '../data/socTickets';
+import { HELPDESK_TICKET_SEEDS } from '../data/helpDeskTickets';
+import { SYSADMIN_TICKET_SEEDS } from '../data/sysadminTickets';
 import { escapeHtml } from './escapeHtml';
 
 interface SearchMatchDetail {
@@ -44,6 +50,7 @@ type SearchResultType =
   | 'tool-cvss'              // CVSS metric codes (lookup-style navigation)
   | 'tool'                   // the tool catalog itself (search-as-you-type "open X")
   | 'runbook'                // V9 — runbooks por pilar (ticket + pasos + respuesta EN) — V11: incluye los quick-fixes ex-CheatSheet
+  | 'sim-ticket'             // V17.1 — tickets de los simuladores (IAM/SOC/Service Desk/SysAdmin)
   | 'troubleshooting-tree'   // V9 — escaleras de decisión por pilar (TS-XX-NNN)
   | 'command';               // command palette entries (new note, open trash, …)
 
@@ -63,7 +70,7 @@ export interface SearchResultItem {
   highlightedSnippet?: string;
   /** For 'command' results: the command key the modal dispatches. */
   commandId?: string;
-  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting;
+  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting | SimTicketRef;
 }
 
 /** A synthetic command palette entry (spec items #7). */
@@ -94,7 +101,7 @@ interface SearchDocument {
    *  corpus build). Optional so hand-built docs keep working. */
   titleLower?: string;
   acronymLower?: string;
-  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting;
+  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting | SimTicketRef;
 }
 
 /** Parsed query: filter tokens + the remaining free-text search term. */
@@ -137,6 +144,12 @@ const TYPE_FILTER_MAP: Record<string, SearchResultType[]> = {
   notes: ['note'],
   apunte: ['note'],
   apuntes: ['note'],
+  // V17.1 — tickets de los simuladores: type:ticket IAM-4003 / type:sim phishing
+  ticket: ['sim-ticket'],
+  tickets: ['sim-ticket'],
+  sim: ['sim-ticket'],
+  simulador: ['sim-ticket'],
+  caso: ['sim-ticket'],
   lab: ['lab'],
   labs: ['lab'],
   glossary: ['glossary'],
@@ -486,6 +499,50 @@ function buildToolDoc(t: ToolCatalogEntry): SearchDocument {
   };
 }
 
+/** V17.1 — Ticket de simulador (search document). rawItem lleva el pillar +
+ *  ticketId para que el modal pueda navegar al simulador correcto y dejar el
+ *  ticket seleccionado (deep-link igual que runbooks/troubleshooting). */
+interface SimTicketRef {
+  pillar: 'iam' | 'soc' | 'hd' | 'sa';
+  ticketId: string;
+  number: string;
+}
+const SIM_PILLAR_LABEL: Record<SimTicketRef['pillar'], string> = {
+  iam: 'IAM',
+  soc: 'SOC',
+  hd: 'Service Desk',
+  sa: 'SysAdmin',
+};
+interface SimTicketSeedLike {
+  id: string;
+  number: string;
+  title: string;
+  category: string;
+  requester: string;
+  description: string;
+  symptoms: string;
+  priority?: string;
+  isFinalProject?: boolean;
+}
+function buildSimTicketDoc(t: SimTicketSeedLike, pillar: SimTicketRef['pillar']): SearchDocument {
+  const ref: SimTicketRef = { pillar, ticketId: t.id, number: t.number };
+  const pillarLabel = SIM_PILLAR_LABEL[pillar];
+  return {
+    id: `sim-${pillar}-${t.id}`,
+    type: 'sim-ticket',
+    title: `${t.number} · ${t.title}`,
+    acronym: t.number,
+    platform: `Simulador ${pillarLabel}`,
+    category: `${pillarLabel} • ${t.category.replace(/^(IAM|SOC|HelpDesk|SysAdmin)[ -]*/, '')}`,
+    tools: '',
+    sourceUrl: '',
+    content: [t.number, t.title, t.category, t.requester, t.description, t.symptoms].join(' '),
+    subtitle: `Simulador ${pillarLabel} • ${t.priority ?? ''}${t.isFinalProject ? ' • Proyecto final' : ''}`.trim(),
+    status: undefined,
+    rawItem: ref,
+  };
+}
+
 /** V9 — Runbook search document (por pilar). "bloqueada" / "dns" /
  *  "phishing" llevan directo al runbook del pilar correspondiente. */
 const RUNBOOK_PILLAR_LABEL: Record<string, string> = {
@@ -587,6 +644,12 @@ const STATIC_TOOL_DOCS: SearchDocument[] = [
   ...TROUBLESHOOTING_SA.map(buildTroubleshootingDoc),
   ...TROUBLESHOOTING_SOC.map(buildTroubleshootingDoc),
   ...TROUBLESHOOTING_IAM.map(buildTroubleshootingDoc),
+  // V17.1 — los 216 tickets de los 4 simuladores (el contenido central de
+  // estudio) entran al índice estático: "IAM-4003", "phishing"… llegan al ticket.
+  ...IAM_TICKET_SEEDS.map((t) => buildSimTicketDoc(t, 'iam')),
+  ...SOC_TICKET_SEEDS.map((t) => buildSimTicketDoc(t, 'soc')),
+  ...HELPDESK_TICKET_SEEDS.map((t) => buildSimTicketDoc(t, 'hd')),
+  ...SYSADMIN_TICKET_SEEDS.map((t) => buildSimTicketDoc(t, 'sa')),
 ].map(withLowercase);
 
 // ------------------------------------------------------------------
@@ -676,6 +739,7 @@ const COMMAND_ENTRIES: CommandEntry[] = [
     { id: 'new-glossary', label: 'Nuevo término de glosario', hint: 'Crear un término nuevo', keywords: ['new', 'nuevo', 'glossary', 'termino', 'glosario'], commandId: 'new-glossary' },
     { id: 'new-reference', label: 'Nueva referencia', hint: 'Añadir una referencia', keywords: ['new', 'nuevo', 'reference', 'referencia'], commandId: 'new-reference' },
     { id: 'quick-capture', label: 'Captura rápida → Inbox', hint: 'Ctrl+Shift+Q', keywords: ['capture', 'inbox', 'quick', 'captura', 'idea'], commandId: 'quick-capture' },
+    { id: 'show-shortcuts', label: 'Ver atajos de teclado', hint: 'Referencia de todos los atajos + sintaxis de búsqueda', keywords: ['atajos', 'shortcuts', 'teclado', 'keyboard', 'ayuda', 'help', 'comandos'], commandId: 'show-shortcuts' },
     { id: 'open-ioc', label: 'Abrir IoC Extractor', hint: 'Herramienta', keywords: ['open', 'abrir', 'ioc', 'extractor'], commandId: 'open-tool:ioc' },
     { id: 'open-mitre', label: 'Abrir MITRE ATT&CK', hint: 'Herramienta', keywords: ['open', 'abrir', 'mitre', 'attack'], commandId: 'open-tool:mitre' },
     { id: 'open-sigma', label: 'Abrir Sigma Explorer', hint: 'Herramienta', keywords: ['open', 'abrir', 'sigma'], commandId: 'open-tool:sigma' },

@@ -89,7 +89,7 @@ export const AutoToc: React.FC<AutoTocProps> = ({ contentHtml, editorRef }) => {
       >
         <List className="w-4 h-4" />
         {items.length > 0 && (
-          <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center">
             {items.length}
           </span>
         )}
@@ -103,7 +103,7 @@ export const AutoToc: React.FC<AutoTocProps> = ({ contentHtml, editorRef }) => {
               <List className="w-3 h-3" />
               Índice
             </div>
-            <button onClick={() => setOpen(false)} className="p-0.5 rounded text-[#666] hover:text-white cursor-pointer">
+            <button onClick={() => setOpen(false)} className="p-0.5 rounded text-[#858585] hover:text-white cursor-pointer">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -116,7 +116,7 @@ export const AutoToc: React.FC<AutoTocProps> = ({ contentHtml, editorRef }) => {
                 style={{ paddingLeft: `${0.5 + (it.level - 1) * 0.9}rem` }}
                 title={it.text}
               >
-                <ChevronRight className={`w-3 h-3 mt-0.5 shrink-0 ${it.level === 1 ? 'text-blue-400' : it.level === 2 ? 'text-[#666]' : 'text-[#444]'}`} />
+                <ChevronRight className={`w-3 h-3 mt-0.5 shrink-0 ${it.level === 1 ? 'text-blue-400' : it.level === 2 ? 'text-[#858585]' : 'text-[#808080]'}`} />
                 <span className={`truncate ${it.level === 1 ? 'font-semibold text-white' : ''}`}>{it.text}</span>
               </button>
             ))}

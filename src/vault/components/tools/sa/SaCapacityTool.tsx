@@ -269,7 +269,7 @@ export const SaCapacityTool: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
           <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Crecimiento mensual</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Crecimiento mensual</div>
             <div className="flex gap-1.5">
               <button
                 type="button"
@@ -287,7 +287,7 @@ export const SaCapacityTool: React.FC = () => {
               </button>
               <input value={growthStr} onChange={(e) => setGrowthStr(e.target.value)} inputMode="decimal" placeholder="4" spellCheck={false} autoComplete="off" aria-label="Valor de crecimiento mensual" className={`${inputCls} flex-1 min-w-0`} />
             </div>
-            <p className="text-[10px] text-[#666]">
+            <p className="text-[10px] text-[#858585]">
               {mode === 'gb'
                 ? 'GB lineales por mes (mide: usado(hoy) − usado(hace 30 días)).'
                 : 'Porcentaje mensual relativo a la CAPACIDAD TOTAL (5% de 100 GB = 5 GB/mes).'}
@@ -297,7 +297,7 @@ export const SaCapacityTool: React.FC = () => {
             <input type="checkbox" checked={logsRotation} onChange={(e) => setLogsRotation(e.target.checked)} className="accent-cyan-500 w-3.5 h-3.5 cursor-pointer mt-0.5" />
             <span>
               La rotación de logs es viable en este filesystem
-              <span className="block text-[10px] text-[#666]">
+              <span className="block text-[10px] text-[#858585]">
                 Ajusta las recomendaciones: logrotate/journal vacuum puede aplanar el crecimiento.
               </span>
             </span>
@@ -357,7 +357,7 @@ export const SaCapacityTool: React.FC = () => {
                   <div key={p} className="absolute top-0 h-4 w-px bg-white/25" style={{ left: `${p}%` }} aria-hidden="true" />
                 ))}
                 <div className="absolute -top-1 -bottom-1 w-0.5 bg-cyan-300 z-10" style={{ left: `${barPos}%` }} aria-hidden="true" />
-                <div className="relative h-3 mt-0.5 text-[9px] text-[#555] font-mono">
+                <div className="relative h-3 mt-0.5 text-[9px] text-[#828282] font-mono">
                   <span className="absolute left-0">0%</span>
                   {[70, 80, 90].map((p) => (
                     <span key={p} className="absolute" style={{ left: `${p}%`, transform: 'translateX(-50%)' }}>{p}</span>
@@ -365,7 +365,7 @@ export const SaCapacityTool: React.FC = () => {
                   <span className="absolute right-0">100%</span>
                 </div>
               </div>
-              <p className="text-[9px] text-[#666] mt-1">
+              <p className="text-[9px] text-[#858585] mt-1">
                 Zonas: verde menos de 70% · ámbar 70-80% · naranja 80-90% · roja 90%+ (▲ = uso actual).
               </p>
             </div>
@@ -381,11 +381,11 @@ export const SaCapacityTool: React.FC = () => {
                   {t.status === 'superado' ? (
                     <span className="text-red-400 font-bold">YA SUPERADO</span>
                   ) : t.status === 'nunca' ? (
-                    <span className="text-[#777]">nunca — sin crecimiento</span>
+                    <span className="text-[#868686]">nunca — sin crecimiento</span>
                   ) : (
                     <>
                       {fmtDate(t.date as Date)}
-                      <span className="text-[#666]"> ({fmtNum(t.months as number)} meses)</span>
+                      <span className="text-[#858585]"> ({fmtNum(t.months as number)} meses)</span>
                     </>
                   )}
                 </span>
@@ -424,7 +424,7 @@ export const SaCapacityTool: React.FC = () => {
                 ))}
               </tbody>
             </table>
-            <p className="text-[9px] text-[#666]">
+            <p className="text-[9px] text-[#858585]">
               Colores: verde menos de 70% · ámbar 70-80% · naranja 80-90% · rojo más de 90%.
               Modelo lineal: uso(m) = uso actual + crecimiento × m.
             </p>

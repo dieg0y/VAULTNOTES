@@ -143,7 +143,7 @@ const EnglishBlock: React.FC<{
         <span className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 ${isCustomer ? 'text-green-400/90' : 'text-sky-400/90'}`}>
           <Languages className="w-3 h-3" />
           {title}
-          <span className="font-normal normal-case tracking-normal text-[9px] text-[#666]">(EN · ready to copy)</span>
+          <span className="font-normal normal-case tracking-normal text-[9px] text-[#858585]">(EN · ready to copy)</span>
         </span>
         <button
           type="button"
@@ -185,7 +185,7 @@ const CopyableCommand: React.FC<{ text: string }> = ({ text }) => {
             setTimeout(() => setCopied(false), 1500);
           });
         }}
-        className="p-1 rounded text-[#666] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0 cursor-pointer"
+        className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0 cursor-pointer"
         title="Copiar comando"
         aria-label="Copiar comando"
       >
@@ -207,12 +207,12 @@ const StepRow: React.FC<{ step: RunbookStep }> = ({ step }) => (
         {step.expected && (
           <p className="text-[10.5px] text-[#888] leading-relaxed flex items-start gap-1.5">
             <CheckCircle2 className="w-3 h-3 text-green-500/60 shrink-0 mt-[2px]" />
-            <span><span className="text-[#666] font-semibold uppercase text-[9px] mr-1">Esperado:</span>{step.expected}</span>
+            <span><span className="text-[#858585] font-semibold uppercase text-[9px] mr-1">Esperado:</span>{step.expected}</span>
           </p>
         )}
         {step.explanation && (
           <p className="text-[10.5px] text-[#999] leading-relaxed flex items-start gap-1.5">
-            <span className="text-[#555] shrink-0 mt-[1px]">↳</span>
+            <span className="text-[#828282] shrink-0 mt-[1px]">↳</span>
             <span>{step.explanation}</span>
           </p>
         )}
@@ -227,7 +227,7 @@ const DetailSection: React.FC<{
   children: React.ReactNode;
 }> = ({ icon, title, children }) => (
   <div className="flex flex-col gap-2">
-    <span className="text-[10px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1.5">
+    <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282] flex items-center gap-1.5">
       {icon}
       {title}
     </span>
@@ -241,7 +241,7 @@ const RunbookDetail: React.FC<{ rb: PillarRunbook; accent: PillarConfig }> = ({ 
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2 flex-wrap">
         <span className={`text-[10px] font-mono ${accent.accentText} shrink-0`}>{rb.id}</span>
-        <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border bg-[#161616] text-[#777] border-[#262626]">
+        <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border bg-[#161616] text-[#868686] border-[#262626]">
           {rb.category}
         </span>
       </div>
@@ -250,7 +250,7 @@ const RunbookDetail: React.FC<{ rb: PillarRunbook; accent: PillarConfig }> = ({ 
       <div className="bg-[#161616] border border-[#262626] rounded p-2.5 flex items-start gap-2.5">
         <Ticket className="w-3.5 h-3.5 text-[#888] shrink-0 mt-[2px]" />
         <div className="min-w-0">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] block mb-0.5">Ticket de ejemplo</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] block mb-0.5">Ticket de ejemplo</span>
           <code className="text-[11px] font-mono text-amber-200/90 break-all leading-relaxed">{rb.ticket_example}</code>
         </div>
       </div>
@@ -259,13 +259,13 @@ const RunbookDetail: React.FC<{ rb: PillarRunbook; accent: PillarConfig }> = ({ 
     {/* Problema + impacto */}
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1.5 mb-1">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] flex items-center gap-1.5 mb-1">
           <Stethoscope className="w-3 h-3" /> Problema
         </span>
         <p className="text-[11px] text-[#BBB] leading-relaxed">{rb.problem_description}</p>
       </div>
       <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1.5 mb-1">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] flex items-center gap-1.5 mb-1">
           <TrendingDown className="w-3 h-3" /> Impacto de negocio
         </span>
         <p className="text-[11px] text-[#BBB] leading-relaxed">{rb.business_impact}</p>
@@ -275,7 +275,7 @@ const RunbookDetail: React.FC<{ rb: PillarRunbook; accent: PillarConfig }> = ({ 
     {/* Síntomas + causas + prerrequisitos */}
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] block mb-1.5">Síntomas</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] block mb-1.5">Síntomas</span>
         <ul className="flex flex-col gap-1">
           {rb.symptoms.map((s, i) => (
             <li key={i} className="text-[10.5px] text-[#AAA] leading-relaxed flex items-start gap-1.5">
@@ -285,7 +285,7 @@ const RunbookDetail: React.FC<{ rb: PillarRunbook; accent: PillarConfig }> = ({ 
         </ul>
       </div>
       <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] block mb-1.5">Causas probables</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] block mb-1.5">Causas probables</span>
         <ul className="flex flex-col gap-1">
           {rb.root_causes.map((c, i) => (
             <li key={i} className="text-[10.5px] text-[#AAA] leading-relaxed flex items-start gap-1.5">
@@ -295,7 +295,7 @@ const RunbookDetail: React.FC<{ rb: PillarRunbook; accent: PillarConfig }> = ({ 
         </ul>
       </div>
       <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] block mb-1.5">Prerrequisitos</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] block mb-1.5">Prerrequisitos</span>
         <ul className="flex flex-col gap-1">
           {rb.prerequisites.map((p, i) => (
             <li key={i} className="text-[10.5px] text-[#AAA] leading-relaxed flex items-start gap-1.5">
@@ -336,13 +336,13 @@ const RunbookDetail: React.FC<{ rb: PillarRunbook; accent: PillarConfig }> = ({ 
         <p className="text-[10.5px] text-[#BBB] leading-relaxed">{rb.verification}</p>
       </div>
       <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1.5 mb-1">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] flex items-center gap-1.5 mb-1">
           <ClipboardList className="w-3 h-3" /> Evidencia
         </span>
         <ul className="flex flex-col gap-1">
           {rb.evidence_to_collect.map((e, i) => (
             <li key={i} className="text-[10.5px] text-[#AAA] leading-relaxed flex items-start gap-1.5">
-              <span className="text-[#555] shrink-0">·</span><span>{e}</span>
+              <span className="text-[#828282] shrink-0">·</span><span>{e}</span>
             </li>
           ))}
         </ul>
@@ -413,27 +413,27 @@ export const RunbooksView: React.FC<RunbooksViewProps> = ({ pillar, autoSelectId
             </div>
             <div className="flex flex-col min-w-0">
               <h1 className="text-base font-bold text-white tracking-tight leading-tight truncate">{cfg.label}</h1>
-              <p className="text-[11px] text-[#666] font-mono">
+              <p className="text-[11px] text-[#858585] font-mono">
                 {cfg.count} runbooks · 100% offline
               </p>
             </div>
           </div>
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-[#828282] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar: «bloqueada», «dns», «phishing», «vpn»…"
               aria-label="Buscar en los runbooks"
-              className={`w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-8 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none ${cfg.accentRing}`}
+              className={`w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-8 py-2 text-xs text-white placeholder:text-[#828282] focus:outline-none ${cfg.accentRing}`}
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery('')}
                 aria-label="Limpiar búsqueda"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#555] hover:text-white cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#828282] hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -448,7 +448,7 @@ export const RunbooksView: React.FC<RunbooksViewProps> = ({ pillar, autoSelectId
               className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
                 category === null
                   ? `${cfg.accentBg} ${cfg.accentText} ${cfg.accentBorder}`
-                  : 'text-[#777] border-[#262626] hover:text-white hover:border-[#333]'
+                  : 'text-[#868686] border-[#262626] hover:text-white hover:border-[#333]'
               }`}
             >
               Todas
@@ -461,14 +461,14 @@ export const RunbooksView: React.FC<RunbooksViewProps> = ({ pillar, autoSelectId
                 className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
                   category === c
                     ? `${cfg.accentBg} ${cfg.accentText} ${cfg.accentBorder}`
-                    : 'text-[#777] border-[#262626] hover:text-white hover:border-[#333]'
+                    : 'text-[#868686] border-[#262626] hover:text-white hover:border-[#333]'
                 }`}
               >
                 {c}
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-[#666]">
+          <p className="text-[11px] text-[#858585]">
             {filtered.length} de {cfg.count} runbooks
             {query && <> · búsqueda fuzzy activa</>}
           </p>
@@ -477,10 +477,10 @@ export const RunbooksView: React.FC<RunbooksViewProps> = ({ pillar, autoSelectId
         {/* Lista scrolleable */}
         <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-[#555] gap-2 text-center px-4">
+            <div className="flex flex-col items-center justify-center py-16 text-[#828282] gap-2 text-center px-4">
               <AlertTriangle className="w-10 h-10 text-[#2a2a2a]" />
-              <p className="text-xs text-[#777]">Sin resultados para «{query}»</p>
-              <p className="text-[10px] text-[#555]">Prueba con el síntoma tal cual lo reporta el usuario o el alert.</p>
+              <p className="text-xs text-[#868686]">Sin resultados para «{query}»</p>
+              <p className="text-[10px] text-[#828282]">Prueba con el síntoma tal cual lo reporta el usuario o el alert.</p>
             </div>
           ) : (
             filtered.map((rb) => (
@@ -495,8 +495,8 @@ export const RunbooksView: React.FC<RunbooksViewProps> = ({ pillar, autoSelectId
                 }`}
               >
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[9px] font-mono text-[#555]">{rb.id}</span>
-                  <span className="text-[8.5px] font-mono uppercase px-1 py-0.5 rounded border bg-[#161616] text-[#666] border-[#262626] truncate">
+                  <span className="text-[9px] font-mono text-[#828282]">{rb.id}</span>
+                  <span className="text-[8.5px] font-mono uppercase px-1 py-0.5 rounded border bg-[#161616] text-[#858585] border-[#262626] truncate">
                     {rb.category}
                   </span>
                 </div>
@@ -521,7 +521,7 @@ export const RunbooksView: React.FC<RunbooksViewProps> = ({ pillar, autoSelectId
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Volver
               </button>
-              <span className="text-[11px] text-[#666] font-mono hidden md:block truncate">
+              <span className="text-[11px] text-[#858585] font-mono hidden md:block truncate">
                 {selected.id} · {selected.title}
               </span>
               <div className="flex-1" />
@@ -545,10 +545,10 @@ export const RunbooksView: React.FC<RunbooksViewProps> = ({ pillar, autoSelectId
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-[#555] gap-3 p-8 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-[#828282] gap-3 p-8 text-center">
             <LifeBuoy className="w-12 h-12 text-[#2a2a2a]" />
-            <p className="text-sm text-[#777]">Selecciona un runbook de la lista</p>
-            <p className="text-xs text-[#555] max-w-sm leading-relaxed">
+            <p className="text-sm text-[#868686]">Selecciona un runbook de la lista</p>
+            <p className="text-xs text-[#828282] max-w-sm leading-relaxed">
               {cfg.subtitle}
             </p>
           </div>

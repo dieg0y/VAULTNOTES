@@ -72,7 +72,7 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
       {label && (
         <label className="block text-xs font-semibold text-[#888] uppercase tracking-wider mb-1.5 flex items-center justify-between">
           <span>{label}</span>
-          <span className="text-[10px] text-[#555] font-normal font-mono">Sincronizado global</span>
+          <span className="text-[10px] text-[#828282] font-normal font-mono">Sincronizado global</span>
         </label>
       )}
 
@@ -86,7 +86,7 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
           {selectedPlatform ? (
             <span className="font-semibold text-white truncate">{selectedPlatform}</span>
           ) : (
-            <span className="text-[#666]">{placeholder}</span>
+            <span className="text-[#858585]">{placeholder}</span>
           )}
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-[#888] transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} />
@@ -97,7 +97,7 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-[#121212] border border-[#2c2c2c] rounded-md shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100">
           {/* Search box */}
           <div className="p-2 border-b border-[#262626] bg-[#161616] flex items-center gap-2">
-            <Search className="w-3.5 h-3.5 text-[#666] shrink-0" />
+            <Search className="w-3.5 h-3.5 text-[#858585] shrink-0" />
             <input
               type="text"
               autoFocus
@@ -120,7 +120,7 @@ export const PlatformSelector: React.FC<PlatformSelectorProps> = ({
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="text-[#666] hover:text-white"
+                className="text-[#858585] hover:text-white"
               >
                 <X className="w-3 h-3" />
               </button>

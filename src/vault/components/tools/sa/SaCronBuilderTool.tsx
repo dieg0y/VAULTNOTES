@@ -453,7 +453,7 @@ export const SaCronBuilderTool: React.FC = () => {
               <AlertTriangle className="w-3.5 h-3.5" />
               {'"Último día del mes": cron estándar NO lo soporta'}
             </span>
-            <button type="button" onClick={() => setShowLastDayNote(false)} className="text-[10px] text-[#777] hover:text-white cursor-pointer shrink-0">ocultar</button>
+            <button type="button" onClick={() => setShowLastDayNote(false)} className="text-[10px] text-[#868686] hover:text-white cursor-pointer shrink-0">ocultar</button>
           </div>
           <p>
             <span className="font-mono">L</span> (last day of month) existe en{' '}
@@ -485,7 +485,7 @@ export const SaCronBuilderTool: React.FC = () => {
                     {preset}
                   </button>
                 ))}
-                <span className="text-[9px] text-[#666] ml-1">{spec.hint}</span>
+                <span className="text-[9px] text-[#858585] ml-1">{spec.hint}</span>
               </div>
             </div>
           ))}
@@ -504,7 +504,7 @@ export const SaCronBuilderTool: React.FC = () => {
               {[parsed.minute, parsed.hour, parsed.dom, parsed.month, parsed.dow].map((f) => (
                 <div key={f.spec.key} className="min-w-0">
                   <div className="font-mono text-lg font-bold text-cyan-300 break-all">{f.raw}</div>
-                  <div className="text-[9px] text-[#555] uppercase tracking-widest">{f.spec.short}</div>
+                  <div className="text-[9px] text-[#828282] uppercase tracking-widest">{f.spec.short}</div>
                 </div>
               ))}
             </div>
@@ -532,15 +532,15 @@ export const SaCronBuilderTool: React.FC = () => {
           )}
           {nextRuns.runs.map((d, i) => (
             <div key={i} className="flex items-baseline gap-2">
-              <span className="text-[10px] text-[#666] font-mono shrink-0">{i + 1}.</span>
+              <span className="text-[10px] text-[#858585] font-mono shrink-0">{i + 1}.</span>
               <span className="text-[11px] text-white flex-1">{d.toLocaleString('es-CO', { dateStyle: 'full', timeStyle: 'short' })}</span>
               <span className="text-[10px] text-cyan-400 shrink-0">{relLabel(d, now)}</span>
             </div>
           ))}
           {nextRuns.exhausted && nextRuns.runs.length > 0 && nextRuns.runs.length < 5 && (
-            <p className="text-[10px] text-[#777]">Solo {nextRuns.runs.length} de 5: la expresión es poco frecuente y se agotó el tope de 400 días de búsqueda.</p>
+            <p className="text-[10px] text-[#868686]">Solo {nextRuns.runs.length} de 5: la expresión es poco frecuente y se agotó el tope de 400 días de búsqueda.</p>
           )}
-          <p className="text-[10px] text-[#666] leading-relaxed pt-1 border-t border-[#1A1A1A]">
+          <p className="text-[10px] text-[#858585] leading-relaxed pt-1 border-t border-[#1A1A1A]">
             Calculado con iteración local (saltos mes→día→hora→minuto, tope 400 días, semántica
             Vixie). Cron usa la zona horaria <span className="text-white">del servidor</span> (compruébala
             con <span className="font-mono text-cyan-300">timedatectl</span>); en cronie/Vixie modernos puedes
@@ -563,7 +563,7 @@ export const SaCronBuilderTool: React.FC = () => {
           </label>
         </div>
         <CodeBlock code={crontabBlock} lang="crontab" label="crontab -e" />
-        <p className="text-[10px] text-[#666] leading-relaxed">
+        <p className="text-[10px] text-[#858585] leading-relaxed">
           Instala con <span className="font-mono text-cyan-300">crontab -e</span> (crontab del usuario dueño), lista con{' '}
           <span className="font-mono text-cyan-300">crontab -l</span> y cuidado con{' '}
           <span className="font-mono text-red-400">crontab -r</span> (borra TODO sin confirmar).{' '}
@@ -595,7 +595,7 @@ export const SaCronBuilderTool: React.FC = () => {
                 <li key={s.shortcut}><code className="text-cyan-300">{s.shortcut}</code> = {s.equivalent}</li>
               ))}
             </ul>
-            <p className="mt-1 text-[#777]">
+            <p className="mt-1 text-[#868686]">
               <span className="font-mono text-cyan-300">@reboot</span> se evalúa al arrancar el demonio — no se re-ejecuta si cron se reinicia sin reboot.
             </p>
           </div>

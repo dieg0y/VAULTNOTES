@@ -292,7 +292,7 @@ export const SaFirewallTool: React.FC = () => {
         <h3 className="text-xs font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-1.5"><ShieldCheck className="w-3 h-3" /> La regla</h3>
 
         <div className="space-y-1.5">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Acción</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Acción</div>
           <div className="flex flex-wrap gap-1.5">
             {(Object.keys(ACTION_INFO) as FwAction[]).map((a) => (
               <Pill key={a} active={form.action === a} onClick={() => set('action', a)} cls={ACTION_INFO[a].cls} title={ACTION_INFO[a].desc}>
@@ -305,7 +305,7 @@ export const SaFirewallTool: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Protocolo</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Protocolo</div>
             <div className="flex flex-wrap gap-1.5">
               {(['tcp', 'udp', 'tcp+udp'] as FwProto[]).map((p) => (
                 <Pill key={p} active={form.protocol === p} onClick={() => set('protocol', p)} cls="bg-cyan-500/15 border-cyan-500/40 text-cyan-300" title={PROTO_INFO[p]}>
@@ -313,7 +313,7 @@ export const SaFirewallTool: React.FC = () => {
                 </Pill>
               ))}
             </div>
-            <p className="text-[10px] text-[#666] leading-relaxed">{PROTO_INFO[form.protocol]}</p>
+            <p className="text-[10px] text-[#858585] leading-relaxed">{PROTO_INFO[form.protocol]}</p>
           </div>
           <Field label="Puerto (único o rango)" hint="Validado 1-65535 · ej. 5432 o 5000-5100">
             <input value={form.port} onChange={(e) => set('port', e.target.value)} placeholder="5432" spellCheck={false} autoComplete="off" aria-label="Puerto o rango de puertos" className={inputCls} />
@@ -322,7 +322,7 @@ export const SaFirewallTool: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Origen (source)</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Origen (source)</div>
             <div className="flex gap-1.5">
               <Pill active={form.srcMode === 'any'} onClick={() => set('srcMode', 'any')} cls="bg-cyan-500/15 border-cyan-500/40 text-cyan-300" title="Cualquier origen">any</Pill>
               <Pill active={form.srcMode === 'cidr'} onClick={() => set('srcMode', 'cidr')} cls="bg-cyan-500/15 border-cyan-500/40 text-cyan-300" title="Solo esta red en CIDR">CIDR</Pill>
@@ -330,10 +330,10 @@ export const SaFirewallTool: React.FC = () => {
             {form.srcMode === 'cidr' && (
               <input value={form.srcCidr} onChange={(e) => set('srcCidr', e.target.value)} placeholder="10.0.0.0/24" spellCheck={false} autoComplete="off" aria-label="Red de origen en formato CIDR IPv4" className={inputCls} />
             )}
-            <p className="text-[10px] text-[#666]">IPv4 con máscara: 10.0.0.0/24, 172.16.0.0/16…</p>
+            <p className="text-[10px] text-[#858585]">IPv4 con máscara: 10.0.0.0/24, 172.16.0.0/16…</p>
           </div>
           <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Destino (este servidor)</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Destino (este servidor)</div>
             <div className="flex gap-1.5">
               <Pill active={form.dstMode === 'any'} onClick={() => set('dstMode', 'any')} cls="bg-cyan-500/15 border-cyan-500/40 text-cyan-300" title="Cualquier IP local">any</Pill>
               <Pill active={form.dstMode === 'ip'} onClick={() => set('dstMode', 'ip')} cls="bg-cyan-500/15 border-cyan-500/40 text-cyan-300" title="Solo esta IP local">IP</Pill>
@@ -341,7 +341,7 @@ export const SaFirewallTool: React.FC = () => {
             {form.dstMode === 'ip' && (
               <input value={form.dstIp} onChange={(e) => set('dstIp', e.target.value)} placeholder="192.168.1.10" spellCheck={false} autoComplete="off" aria-label="IP de destino de la regla" className={inputCls} />
             )}
-            <p className="text-[10px] text-[#666]">En reglas de ENTRADA el destino es una IP local del servidor.</p>
+            <p className="text-[10px] text-[#858585]">En reglas de ENTRADA el destino es una IP local del servidor.</p>
           </div>
         </div>
 
@@ -356,7 +356,7 @@ export const SaFirewallTool: React.FC = () => {
 
         <div className="border-t border-[#1A1A1A] pt-2 space-y-1">
           <Row label="Dirección" value="entrada (INPUT) — esta tool solo genera reglas de entrada" />
-          <p className="text-[10px] text-[#666] leading-relaxed">
+          <p className="text-[10px] text-[#858585] leading-relaxed">
             <span className="text-white">Posición — el orden importa:</span> las reglas se evalúan
             de arriba hacia abajo y gana la <span className="text-white">primera coincidencia</span>.
             Coloca las allow específicas <span className="text-cyan-300">ANTES</span> de las deny
@@ -374,7 +374,7 @@ export const SaFirewallTool: React.FC = () => {
         <div className="space-y-3">
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-1">
             <h3 className="text-xs font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-1.5"><Terminal className="w-3 h-3" /> Traducción a los 5 dialectos</h3>
-            <p className="text-[10px] text-[#666]">
+            <p className="text-[10px] text-[#858585]">
               Misma regla, cinco herramientas — elige la de tu distribución.{' '}
               {rule.protocol === 'tcp+udp' && 'Con tcp+udp se genera una regla por protocolo.'}
             </p>
@@ -383,7 +383,7 @@ export const SaFirewallTool: React.FC = () => {
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
             <div className="flex items-baseline justify-between gap-2">
               <h4 className="text-[11px] font-bold text-white">1 · ufw</h4>
-              <span className="text-[10px] text-[#777]">Ubuntu / Debian</span>
+              <span className="text-[10px] text-[#868686]">Ubuntu / Debian</span>
             </div>
             <CodeBlock code={ufwCmd} lang="bash" />
             <p className="text-[10px] text-[#888] leading-relaxed">
@@ -397,7 +397,7 @@ export const SaFirewallTool: React.FC = () => {
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
             <div className="flex items-baseline justify-between gap-2">
               <h4 className="text-[11px] font-bold text-white">2 · iptables</h4>
-              <span className="text-[10px] text-[#777]">legacy / control fino</span>
+              <span className="text-[10px] text-[#868686]">legacy / control fino</span>
             </div>
             <CodeBlock code={ipCmd} lang="bash" />
             <p className="text-[10px] text-[#888] leading-relaxed">
@@ -411,7 +411,7 @@ export const SaFirewallTool: React.FC = () => {
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
             <div className="flex items-baseline justify-between gap-2">
               <h4 className="text-[11px] font-bold text-white">3 · nftables</h4>
-              <span className="text-[10px] text-[#777]">estándar moderno</span>
+              <span className="text-[10px] text-[#868686]">estándar moderno</span>
             </div>
             <CodeBlock code={nftCmd} lang="bash" />
             <p className="text-[10px] text-[#888] leading-relaxed">
@@ -425,7 +425,7 @@ export const SaFirewallTool: React.FC = () => {
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
             <div className="flex items-baseline justify-between gap-2">
               <h4 className="text-[11px] font-bold text-white">4 · firewalld (rich rule)</h4>
-              <span className="text-[10px] text-[#777]">familia RHEL</span>
+              <span className="text-[10px] text-[#868686]">familia RHEL</span>
             </div>
             <CodeBlock code={fdCmd} lang="bash" />
             <p className="text-[10px] text-[#888] leading-relaxed">
@@ -441,7 +441,7 @@ export const SaFirewallTool: React.FC = () => {
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
             <div className="flex items-baseline justify-between gap-2">
               <h4 className="text-[11px] font-bold text-white">5 · Windows netsh</h4>
-              <span className="text-[10px] text-[#777]">Windows Server / 10 / 11</span>
+              <span className="text-[10px] text-[#868686]">Windows Server / 10 / 11</span>
             </div>
             <CodeBlock code={nsCmd} lang="cmd" />
             <p className="text-[10px] text-[#888] leading-relaxed">
@@ -525,7 +525,7 @@ export const SaFirewallTool: React.FC = () => {
           <p><span className="text-white">RHEL / Rocky / Alma / Fedora</span> → firewalld (backend nftables).</p>
           <p><span className="text-white">Sistemas legacy / Docker hosts</span> → iptables clásico (Docker sigue encadenando ahí).</p>
           <p><span className="text-white">Windows</span> → netsh / GPO / PowerShell New-NetFirewallRule.</p>
-          <p className="text-[#777]">
+          <p className="text-[#868686]">
             Y recuerda: el default policy (ACCEPT/DROP) de la cadena importa tanto como las reglas —
             una regla allow no protege nada si la política ya es ACCEPT-all, y un deny final cambia
             el comportamiento de todo lo que no coincidió antes.

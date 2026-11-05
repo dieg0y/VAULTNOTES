@@ -359,7 +359,7 @@ const Section: React.FC<{
 }> = ({ label, icon, children, actions }) => (
   <div className="space-y-1.5">
     <div className="flex items-center justify-between gap-2">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-[#555] inline-flex items-center gap-1.5">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282] inline-flex items-center gap-1.5">
         {icon}
         {label}
       </div>
@@ -423,11 +423,11 @@ const UserCard: React.FC<{
       </button>
     </div>
     <div>
-      <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1.5">
+      <div className="text-[9px] uppercase tracking-widest text-[#828282] mb-1.5">
         Assigned roles
       </div>
       {roles.length === 0 ? (
-        <div className="text-[10px] text-[#555] italic">No roles defined.</div>
+        <div className="text-[10px] text-[#828282] italic">No roles defined.</div>
       ) : (
         <div className="space-y-1">
           {roles.map((role) => {
@@ -489,11 +489,11 @@ const RoleCard: React.FC<{
       </button>
     </div>
     <div>
-      <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1.5">
+      <div className="text-[9px] uppercase tracking-widest text-[#828282] mb-1.5">
         Permissions
       </div>
       {permissions.length === 0 ? (
-        <div className="text-[10px] text-[#555] italic">No permissions defined.</div>
+        <div className="text-[10px] text-[#828282] italic">No permissions defined.</div>
       ) : (
         <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
           {permissions.map((perm) => {
@@ -575,13 +575,13 @@ const MatrixTable: React.FC<{ rows: MatrixRow[] }> = ({ rows }) => (
     <table className="w-full text-[10px] font-mono">
       <thead>
         <tr className="border-b border-[#262626]">
-          <th className="text-left px-2 py-1.5 text-[9px] uppercase tracking-widest text-[#555]">
+          <th className="text-left px-2 py-1.5 text-[9px] uppercase tracking-widest text-[#828282]">
             Role
           </th>
           {ACTIONS.map((a) => (
             <th
               key={a}
-              className="text-center px-2 py-1.5 text-[9px] uppercase tracking-widest text-[#555]"
+              className="text-center px-2 py-1.5 text-[9px] uppercase tracking-widest text-[#828282]"
             >
               {a}
             </th>
@@ -591,7 +591,7 @@ const MatrixTable: React.FC<{ rows: MatrixRow[] }> = ({ rows }) => (
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={5} className="px-2 py-3 text-center text-[#555] italic">
+            <td colSpan={5} className="px-2 py-3 text-center text-[#828282] italic">
               No roles.
             </td>
           </tr>
@@ -623,7 +623,7 @@ const EffectiveList: React.FC<{
 }> = ({ state, effective }) => (
   <div className="space-y-2">
     {state.users.length === 0 ? (
-      <div className="text-[10px] text-[#555] italic">No users.</div>
+      <div className="text-[10px] text-[#828282] italic">No users.</div>
     ) : (
       state.users.map((user) => {
         const perms = effective.get(user.id) ?? [];
@@ -636,7 +636,7 @@ const EffectiveList: React.FC<{
               {user.name || '(unnamed)'}
             </div>
             {perms.length === 0 ? (
-              <div className="text-[10px] text-[#555] italic">
+              <div className="text-[10px] text-[#828282] italic">
                 No effective permissions.
               </div>
             ) : (
@@ -648,7 +648,7 @@ const EffectiveList: React.FC<{
                   >
                     {p.name || '(unnamed)'}
                     <ActionBadge action={p.action} />
-                    <span className="text-[#555]">·</span>
+                    <span className="text-[#828282]">·</span>
                     <span className="text-[#888]">{p.resource || '?'}</span>
                   </span>
                 ))}
@@ -1182,7 +1182,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
           )}
 
           {/* Status line */}
-          <div className="text-[10px] text-[#666]">
+          <div className="text-[10px] text-[#858585]">
             {editingId ? (
               <>
                 {'Editing scenario: '}
@@ -1220,7 +1220,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
         >
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {state.users.length === 0 ? (
-              <div className="text-[10px] text-[#555] italic px-2 py-3 text-center border border-dashed border-[#262626] rounded">
+              <div className="text-[10px] text-[#828282] italic px-2 py-3 text-center border border-dashed border-[#262626] rounded">
                 No users. Click [+ Add].
               </div>
             ) : (
@@ -1257,7 +1257,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
         >
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {state.roles.length === 0 ? (
-              <div className="text-[10px] text-[#555] italic px-2 py-3 text-center border border-dashed border-[#262626] rounded">
+              <div className="text-[10px] text-[#828282] italic px-2 py-3 text-center border border-dashed border-[#262626] rounded">
                 No roles. Click [+ Add].
               </div>
             ) : (
@@ -1294,7 +1294,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
         >
           <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {state.permissions.length === 0 ? (
-              <div className="text-[10px] text-[#555] italic px-2 py-3 text-center border border-dashed border-[#262626] rounded">
+              <div className="text-[10px] text-[#828282] italic px-2 py-3 text-center border border-dashed border-[#262626] rounded">
                 No permissions. Click [+ Add].
               </div>
             ) : (
@@ -1318,7 +1318,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
           <div className="space-y-3">
             {/* Effective permissions */}
             <div>
-              <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1.5">
+              <div className="text-[9px] uppercase tracking-widest text-[#828282] mb-1.5">
                 Effective permissions
               </div>
               <EffectiveList state={state} effective={effective} />
@@ -1326,7 +1326,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
 
             {/* Permission matrix */}
             <div>
-              <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1.5">
+              <div className="text-[9px] uppercase tracking-widest text-[#828282] mb-1.5">
                 Permission matrix
               </div>
               <MatrixTable rows={matrix} />
@@ -1334,7 +1334,7 @@ export const RbacAnalyzerTool: React.FC<RbacAnalyzerProps> = ({ autoOpenId }) =>
 
             {/* Detections */}
             <div>
-              <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1.5 inline-flex items-center gap-1">
+              <div className="text-[9px] uppercase tracking-widest text-[#828282] mb-1.5 inline-flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-yellow-400" />
                 Detections
               </div>

@@ -218,7 +218,7 @@ export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, on
     <div className="space-y-3">
       {/* search box */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#555]" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#828282]" />
         <input
           type="text"
           value={q}
@@ -273,7 +273,7 @@ export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, on
       )}
 
       {/* result count */}
-      <div className="text-[10px] text-[#555]">
+      <div className="text-[10px] text-[#828282]">
         {filtered.length} técnicas — click para ver detalle.
       </div>
 
@@ -289,11 +289,11 @@ export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, on
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-[11px] font-mono font-bold text-blue-400">{t.id}</code>
               <span className="text-xs font-semibold text-white">{t.name}</span>
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666]">
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#858585]">
                 {t.tactic}
               </span>
             </div>
-            <div className="mt-1 text-[9px] text-[#666]">{t.platforms.join(' · ')}</div>
+            <div className="mt-1 text-[9px] text-[#858585]">{t.platforms.join(' · ')}</div>
             <div className="mt-0.5 text-[10px] text-[#888] truncate">
               {truncate(t.description, 80)}
             </div>
@@ -316,14 +316,14 @@ export const MitreExplorerTool: React.FC<MitreExplorerProps> = ({ autoOpenId, on
               <div className="flex items-center gap-2 flex-wrap min-w-0">
                 <code className="text-sm font-mono font-bold text-blue-400">{selected.id}</code>
                 <span className="text-sm font-semibold text-white truncate">{selected.name}</span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#666]">
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] text-[#858585]">
                   {selected.tactic}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="p-1 rounded text-[#666] hover:text-white hover:bg-[#161616] cursor-pointer transition-colors shrink-0"
+                className="p-1 rounded text-[#858585] hover:text-white hover:bg-[#161616] cursor-pointer transition-colors shrink-0"
                 aria-label="Cerrar detalle"
               >
                 <X className="w-4 h-4" />

@@ -185,7 +185,7 @@ export const GitPullButton: React.FC = () => {
         disabled={pulling}
         aria-label="Pull: descargar actualizaciones de código desde GitHub"
         title="Pull seguro desde GitHub: descarga features nuevas, fixes y borrados de código del repo. Si hay cambios locales sin confirmar, NADA se pierde (aborta). Tus notas y datos NO se tocan."
-        className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-emerald-400 transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70"
+        className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-emerald-400 transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70 p-2 -ml-1.5 -my-2 sm:p-0 sm:ml-0 sm:my-0 sm:py-2 rounded"
       >
         {pulling ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" aria-hidden="true" />
@@ -222,7 +222,7 @@ export const GitPullButton: React.FC = () => {
         aria-label="Opciones de pull"
         aria-expanded={menuOpen}
         title="Opciones de Pull: espejo exacto con GitHub"
-        className="flex items-center text-[#666] hover:text-[#AAA] transition-colors cursor-pointer disabled:opacity-70 px-0.5"
+        className="flex items-center text-[#858585] hover:text-[#AAA] transition-colors cursor-pointer disabled:opacity-70 p-2 -mr-1.5 -my-2 sm:p-0 sm:mr-0 sm:my-0 sm:py-2 rounded"
       >
         <ChevronDown className={`w-3 h-3 transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
@@ -240,7 +240,7 @@ export const GitPullButton: React.FC = () => {
             <DownloadCloud className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
             <span className="flex flex-col">
               <span className="text-[11px] font-semibold text-[#DDD]">Pull seguro (recomendado)</span>
-              <span className="text-[10px] text-[#777] leading-snug">Fast-forward desde GitHub. Nunca descarta nada: si hay cambios locales, aborta.</span>
+              <span className="text-[10px] text-[#868686] leading-snug">Fast-forward desde GitHub. Nunca descarta nada: si hay cambios locales, aborta.</span>
             </span>
           </button>
           <button
@@ -251,12 +251,12 @@ export const GitPullButton: React.FC = () => {
             <GitCompareArrows className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
             <span className="flex flex-col">
               <span className="text-[11px] font-semibold text-[#DDD]">Espejo exacto con GitHub…</span>
-              <span className="text-[10px] text-[#777] leading-snug">
+              <span className="text-[10px] text-[#868686] leading-snug">
                 El código queda IGUAL al GitHub: descarta commits locales sin push, restaura archivos modificados y borra los que ya no existen en el repo. Tus datos nunca se tocan.
               </span>
             </span>
           </button>
-          <p className="px-2 pt-1.5 pb-0.5 text-[9px] text-[#555] flex items-center gap-1 border-t border-[#1a1a1a] mt-1">
+          <p className="px-2 pt-1.5 pb-0.5 text-[9px] text-[#828282] flex items-center gap-1 border-t border-[#1a1a1a] mt-1">
             <X className="w-2.5 h-2.5 shrink-0" aria-hidden="true" />
             Notas, labs, glosario y progreso viven en tu navegador: ningún pull los toca.
           </p>

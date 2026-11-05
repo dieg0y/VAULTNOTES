@@ -59,12 +59,12 @@ export const TrashView: React.FC<TrashViewProps> = ({
       </div>
 
       {totalDeleted === 0 ? (
-        <div className="p-12 text-center text-[#666] flex flex-col items-center justify-center space-y-2">
-          <div className="w-12 h-12 rounded bg-[#161616] border border-[#262626] flex items-center justify-center text-[#444]">
+        <div className="p-12 text-center text-[#858585] flex flex-col items-center justify-center space-y-2">
+          <div className="w-12 h-12 rounded bg-[#161616] border border-[#262626] flex items-center justify-center text-[#808080]">
             <Trash2 className="w-6 h-6" />
           </div>
           <h3 className="font-semibold text-sm text-white">La papelera está vacía</h3>
-          <p className="text-xs text-[#666]">
+          <p className="text-xs text-[#858585]">
             No tienes apuntes, labs ni términos eliminados en este momento.
           </p>
         </div>
@@ -93,7 +93,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
                           {note.platform}
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#666] truncate">
+                      <p className="text-[11px] text-[#858585] truncate">
                         {note.category}
                       </p>
                     </div>
@@ -117,7 +117,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
                             onPermanentDeleteNote(note.id);
                           }
                         }}
-                        className="p-1 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="p-1 rounded text-[#858585] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                         title="Eliminar definitivamente"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -155,7 +155,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
                           {lab.topic}
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#666] truncate">
+                      <p className="text-[11px] text-[#858585] truncate">
                         Dificultad: {lab.difficulty} • Partes: {lab.parts.length} • {lab.status}
                       </p>
                     </div>
@@ -182,7 +182,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
                               onPermanentDeleteLab(lab.id);
                             }
                           }}
-                          className="p-1 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          className="p-1 rounded text-[#858585] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                           title="Eliminar definitivamente"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -220,7 +220,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-[#666] truncate">
+                      <p className="text-[11px] text-[#858585] truncate">
                         {term.shortDefinition || term.longDefinition}
                       </p>
                     </div>
@@ -244,7 +244,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
                             onPermanentDeleteTerm(term.id);
                           }
                         }}
-                        className="p-1 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="p-1 rounded text-[#858585] hover:text-red-400 hover:bg-red-500/10 transition-colors"
                         title="Eliminar definitivamente"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

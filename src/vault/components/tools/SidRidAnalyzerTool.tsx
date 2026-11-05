@@ -452,7 +452,7 @@ export const SidRidAnalyzerTool: React.FC<SidRidAnalyzerProps> = () => {
       {/* Results section — only shown after first Analyze click */}
       {results !== null && results.length > 0 && (
         <div className="space-y-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">
             {results.length} SID{results.length === 1 ? '' : 's'} analizado
             {results.length === 1 ? '' : 's'}
           </div>

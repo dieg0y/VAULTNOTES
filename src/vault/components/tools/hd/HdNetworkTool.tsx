@@ -403,7 +403,7 @@ export const HdNetworkTool: React.FC = () => {
 
           {analysis.chips.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Análisis en vivo</div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Análisis en vivo</div>
               <div className="flex flex-col gap-1.5">
                 {analysis.chips.map((c) => (
                   <div key={c.id} className={`border rounded px-2.5 py-1.5 space-y-0.5 ${CHIP_CLS[c.level]}`}>
@@ -415,7 +415,7 @@ export const HdNetworkTool: React.FC = () => {
             </div>
           )}
           {analysis.chips.length === 0 && (
-            <p className="text-[10px] text-[#666]">Introduce al menos la IP para ver el análisis en vivo (rojo = bloqueante, ámbar = revisar, verde = correcto).</p>
+            <p className="text-[10px] text-[#858585]">Introduce al menos la IP para ver el análisis en vivo (rojo = bloqueante, ámbar = revisar, verde = correcto).</p>
           )}
 
           <div className="pt-1 border-t border-[#1A1A1A] space-y-2">
@@ -544,10 +544,10 @@ export const HdNetworkTool: React.FC = () => {
             </div>
           )}
           {!firstFail && !allOk && anyMarked && (
-            <p className="text-[10px] text-[#666]">Continúa con el siguiente paso pendiente — aún no hay fallos marcados.</p>
+            <p className="text-[10px] text-[#858585]">Continúa con el siguiente paso pendiente — aún no hay fallos marcados.</p>
           )}
           {!anyMarked && (
-            <p className="text-[10px] text-[#666]">Empieza por el paso 1 y baja en orden: cada paso descarta una capa.</p>
+            <p className="text-[10px] text-[#858585]">Empieza por el paso 1 y baja en orden: cada paso descarta una capa.</p>
           )}
 
           <div className="flex gap-2">
@@ -566,7 +566,7 @@ export const HdNetworkTool: React.FC = () => {
       {/* ---------------- Tab 3: Wi-Fi y DHCP ---------------- */}
       {tab === 'wifi' && (
         <div className="space-y-3">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Pasos rápidos de recuperación</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Pasos rápidos de recuperación</div>
           {WIFI_STEPS.map((s) => (
             <div key={s.title} className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-1.5 hover:border-blue-500/40 transition-colors">
               <div className="text-[11px] font-bold text-white">{s.title}</div>
@@ -575,7 +575,7 @@ export const HdNetworkTool: React.FC = () => {
             </div>
           ))}
 
-          <div className="text-[10px] font-bold uppercase tracking-widest text-[#555] pt-1">Síntoma → causa probable → comando</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282] pt-1">Síntoma → causa probable → comando</div>
           <div className="overflow-x-auto border border-[#262626] rounded">
             <table className="w-full text-[10px] border-collapse">
               <thead className="bg-[#161616]">

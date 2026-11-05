@@ -97,7 +97,7 @@ export const CategoryTreeChecklist: React.FC<CategoryTreeChecklistProps> = ({
       {/* Search & Add New Header */}
       <div className="p-2 border-b border-[#262626] bg-[#121212] flex items-center justify-between gap-2">
         <div className="relative flex-1">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#666]" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#858585]" />
           <input
             type="text"
             value={searchQuery}
@@ -169,7 +169,7 @@ export const CategoryTreeChecklist: React.FC<CategoryTreeChecklistProps> = ({
       {/* Multi-Select Checklist List */}
       <div className="max-h-52 overflow-y-auto p-2 grid grid-cols-1 sm:grid-cols-2 gap-1 scrollbar-thin scrollbar-thumb-[#262626]">
         {filteredCategories.length === 0 ? (
-          <div className="col-span-2 p-4 text-center text-xs text-[#666]">
+          <div className="col-span-2 p-4 text-center text-xs text-[#858585]">
             No se encontraron categorías coincidentes. Puedes crearla con &quot;+ Agregar categoría&quot;.
           </div>
         ) : (
@@ -206,7 +206,7 @@ export const CategoryTreeChecklist: React.FC<CategoryTreeChecklistProps> = ({
       {/* Selected badges at bottom */}
       {selectedCategories.length > 0 && (
         <div className="p-2 bg-[#121212] border-t border-[#262626] flex items-center flex-wrap gap-1.5 text-xs">
-          <span className="text-[10px] uppercase font-bold text-[#777] mr-1">
+          <span className="text-[10px] uppercase font-bold text-[#868686] mr-1">
             Seleccionadas ({selectedCategories.length}):
           </span>
           {selectedCategories.map((cat) => (

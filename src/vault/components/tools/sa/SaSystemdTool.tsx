@@ -498,7 +498,7 @@ export const SaSystemdTool: React.FC = () => {
           <Info className="w-3 h-3" /> Directivas de esta unit — por qué importan
         </h3>
         {presentDirectives.length === 0 ? (
-          <p className="text-[10px] text-[#666]">Corrige los errores del formulario para ver las directivas generadas.</p>
+          <p className="text-[10px] text-[#858585]">Corrige los errores del formulario para ver las directivas generadas.</p>
         ) : (
           <div className="divide-y divide-[#161616]">
             {presentDirectives.map((d) => (

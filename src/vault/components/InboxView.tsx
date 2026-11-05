@@ -129,7 +129,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
             </div>
             <div className="flex flex-col">
               <h1 className="text-xl font-bold text-white tracking-tight">Inbox</h1>
-              <p className="text-[11px] text-[#666] font-mono">
+              <p className="text-[11px] text-[#858585] font-mono">
                 {activeCount} activo{activeCount === 1 ? '' : 's'} · {total} en total · {taskCount} como tarea{taskCount === 1 ? '' : 's'}
               </p>
             </div>
@@ -152,17 +152,17 @@ export const InboxView: React.FC<InboxViewProps> = ({
             <span>Mostrar convertidos ({total - activeCount})</span>
           </label>
           {total > 0 && (
-            <span className="text-[10px] text-[#555] font-mono">Orden: más recientes primero</span>
+            <span className="text-[10px] text-[#828282] font-mono">Orden: más recientes primero</span>
           )}
         </div>
 
         {/* Empty state */}
         {visible.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-[#666] gap-3">
+          <div className="flex flex-col items-center justify-center py-16 text-[#858585] gap-3">
             <InboxIcon className="w-12 h-12 text-[#2a2a2a]" />
             <div className="text-center space-y-1">
               <p className="text-sm font-medium text-[#888]">Inbox vacío</p>
-              <p className="text-xs text-[#666] max-w-md">
+              <p className="text-xs text-[#858585] max-w-md">
                 Pulsa <kbd className="px-1 py-0.2 rounded bg-[#161616] border border-[#262626] text-[10px] font-mono text-[#888]">Ctrl+Shift+Q</kbd> desde cualquier vista para capturar una idea rápidamente.
               </p>
             </div>
@@ -206,11 +206,11 @@ export const InboxView: React.FC<InboxViewProps> = ({
                 </div>
 
                 {/* Metadata row */}
-                <div className="flex items-center gap-2 text-[10px] text-[#666] font-mono">
+                <div className="flex items-center gap-2 text-[10px] text-[#858585] font-mono">
                   <Clock className="w-2.5 h-2.5" />
                   <span>{fmtDate(item.createdAt)}</span>
                   {item.convertedAt && (
-                    <span className="text-[#555]">· convertida {fmtDate(item.convertedAt)}</span>
+                    <span className="text-[#828282]">· convertida {fmtDate(item.convertedAt)}</span>
                   )}
                 </div>
 

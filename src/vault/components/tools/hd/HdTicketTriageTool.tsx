@@ -571,7 +571,7 @@ function buildAnalysisText(a: TriageAnalysis, sla: SlaTable): string {
 
 const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode }> = ({ title, icon, children }) => (
   <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
-    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">
       {icon}
       {title}
     </div>
@@ -807,12 +807,12 @@ export const HdTicketTriageTool: React.FC = () => {
             <button
               type="button"
               onClick={() => setEnrichment(null)}
-              className="text-[10px] text-[#777] hover:text-white cursor-pointer"
+              className="text-[10px] text-[#868686] hover:text-white cursor-pointer"
             >
               ocultar
             </button>
           </div>
-          <p className="text-[10px] text-[#777] leading-relaxed">
+          <p className="text-[10px] text-[#868686] leading-relaxed">
             Sugerencias generadas al pedirlo explícitamente — compáralas con el análisis OFFLINE de arriba
             (que es el que queda como fuente de verdad). Confianza: <span className="text-violet-300 font-semibold">{enrichment.confidence}</span>.
           </p>
@@ -831,7 +831,7 @@ export const HdTicketTriageTool: React.FC = () => {
           </div>
           {enrichment.keywords.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-[#666] uppercase tracking-wider">Keywords IA:</span>
+              <span className="text-[10px] text-[#858585] uppercase tracking-wider">Keywords IA:</span>
               {enrichment.keywords.map((k, i) => (
                 <span key={i} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#161616] border border-[#262626] text-[#AAA]">{k}</span>
               ))}
@@ -839,7 +839,7 @@ export const HdTicketTriageTool: React.FC = () => {
           )}
           {enrichment.missingInfo.length > 0 && (
             <div className="space-y-0.5">
-              <span className="text-[10px] text-[#666] uppercase tracking-wider">Info a pedir (IA):</span>
+              <span className="text-[10px] text-[#858585] uppercase tracking-wider">Info a pedir (IA):</span>
               {enrichment.missingInfo.map((m, i) => (
                 <p key={i} className="text-[10px] text-[#AAA] leading-relaxed">▸ {m}</p>
               ))}
@@ -869,7 +869,7 @@ export const HdTicketTriageTool: React.FC = () => {
             <div className="flex flex-wrap gap-1 pt-1">
               {analysis.matchedKeywords.slice(0, 12).map((k, i) => <KwChip key={i} kw={k.kw} />)}
             </div>
-            <details className="text-[10px] text-[#666]">
+            <details className="text-[10px] text-[#858585]">
               <summary className="cursor-pointer select-none hover:text-white">
                 Ver marcador completo del parser ({analysis.scoreboard.filter((s) => s.hits > 0).length} categorías con coincidencias)
               </summary>
@@ -892,13 +892,13 @@ export const HdTicketTriageTool: React.FC = () => {
               <div className="flex flex-col gap-1">
                 {analysis.impactEvidence.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] text-[#666] uppercase tracking-wider">Impacto por:</span>
+                    <span className="text-[10px] text-[#858585] uppercase tracking-wider">Impacto por:</span>
                     {analysis.impactEvidence.map((k, i) => <KwChip key={i} kw={k} />)}
                   </div>
                 )}
                 {analysis.urgencyEvidence.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] text-[#666] uppercase tracking-wider">Urgencia por:</span>
+                    <span className="text-[10px] text-[#858585] uppercase tracking-wider">Urgencia por:</span>
                     {analysis.urgencyEvidence.map((k, i) => <KwChip key={i} kw={k} />)}
                   </div>
                 )}
@@ -971,7 +971,7 @@ export const HdTicketTriageTool: React.FC = () => {
                     <span className="text-[#888] font-mono mr-1">{i + 1}.</span>
                     {c.cause}
                   </span>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 ${c.likelihood === 'Probable' ? 'bg-blue-500/15 border-blue-500/30 text-blue-400' : c.likelihood === 'Posible' ? 'bg-gray-500/15 border-gray-500/30 text-gray-400' : 'bg-gray-500/10 border-gray-500/20 text-[#777]'}`}>{c.likelihood}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 ${c.likelihood === 'Probable' ? 'bg-blue-500/15 border-blue-500/30 text-blue-400' : c.likelihood === 'Posible' ? 'bg-gray-500/15 border-gray-500/30 text-gray-400' : 'bg-gray-500/10 border-gray-500/20 text-[#868686]'}`}>{c.likelihood}</span>
                 </li>
               ))}
             </ul>
@@ -994,7 +994,7 @@ export const HdTicketTriageTool: React.FC = () => {
                 {analysis.securityConcerns.map((s, i) => <ErrorBanner key={i} message={s} />)}
               </div>
             ) : (
-              <p className="text-[11px] text-[#666]">Sin keywords de seguridad detectadas en este ticket.</p>
+              <p className="text-[11px] text-[#858585]">Sin keywords de seguridad detectadas en este ticket.</p>
             )}
           </Section>
 
@@ -1005,7 +1005,7 @@ export const HdTicketTriageTool: React.FC = () => {
                   <div key={k.id} className="bg-[#161616] border border-[#262626] rounded p-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[11px] text-blue-300 font-semibold">{k.title}</span>
-                      <code className="text-[9px] text-[#666] font-mono">{k.id}</code>
+                      <code className="text-[9px] text-[#858585] font-mono">{k.id}</code>
                     </div>
                     <div className="flex flex-wrap gap-1 pt-1">
                       {k.matched.map((m, i) => <KwChip key={i} kw={m} />)}
@@ -1014,7 +1014,7 @@ export const HdTicketTriageTool: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-[11px] text-[#666]">Sin coincidencias claras en la KB local.</p>
+              <p className="text-[11px] text-[#858585]">Sin coincidencias claras en la KB local.</p>
             )}
           </Section>
 

@@ -32,11 +32,15 @@ import type { ToolDeepLink } from './components/ToolsView';
 // (mismo módulo cacheado ⇒ instanceof de las clases de error sigue válido).
 import { deletePdfEverywhere } from './utils/pdfStorage';
 import { useNoteStore } from './store/noteStore';
-// LIMPIEZA V13: retirados los imports de los stores de navegación de los 4
-// simuladores (useHelpdeskStore/useSysadminStore/useSocStore/useIamStore) —
-// su única consumer en el shell era la cadena navigateRequest muerta. Los
-// stores siguen vivos: los consumen sus vistas (HelpDeskView, SysAdminView,
-// SocView, IamView) para la selección de tickets.
+// LIMPIEZA V13 → V17.1: los stores de navegación de los 4 simuladores
+// (useHelpdeskStore/useSysadminStore/useSocStore/useIamStore) volvieron al
+// shell con un consumer REAL: el deep-link de tickets desde Ctrl+K
+// (selecciona el ticket y navega al simulador). Las vistas siguen
+// consumiéndolos para la selección de tickets.
+import { useIamStore } from './store/iamStore';
+import { useSocStore } from './store/socStore';
+import { useHelpdeskStore } from './store/helpdeskStore';
+import { useSysadminStore } from './store/sysadminStore';
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -54,7 +58,7 @@ const ViewLoader = () => (
   <div className="flex-1 flex items-center justify-center" role="status" aria-label="Cargando vista">
     <div className="flex flex-col items-center gap-3">
       <div className="w-6 h-6 rounded-full border-2 border-blue-500/30 border-t-blue-400 animate-spin" />
-      <p className="text-[11px] font-mono text-[#555]">Cargando…</p>
+      <p className="text-[11px] font-mono text-[#828282]">Cargando…</p>
     </div>
   </div>
 );
@@ -96,6 +100,7 @@ const ModalLoader = () => null;
 const GlobalSearchModal = dynamic(() => import('./components/GlobalSearchModal').then((m) => m.GlobalSearchModal), { ssr: false, loading: ModalLoader });
 const NewItemModal = dynamic(() => import('./components/NewItemModal').then((m) => m.NewItemModal), { ssr: false, loading: ModalLoader });
 const QuickCaptureModal = dynamic(() => import('./components/QuickCaptureModal').then((m) => m.QuickCaptureModal), { ssr: false, loading: ModalLoader });
+const ShortcutsDialog = dynamic(() => import('./components/ShortcutsDialog').then((m) => m.ShortcutsDialog), { ssr: false, loading: ModalLoader });
 const AddToNoteModal = dynamic(() => import('./components/AddToNoteModal').then((m) => m.AddToNoteModal), { ssr: false, loading: ModalLoader });
 const ImportReportModal = dynamic(() => import('./components/ImportReportModal').then((m) => m.ImportReportModal), { ssr: false, loading: ModalLoader });
 
@@ -306,6 +311,8 @@ export default function App() {
   const [pendingInboxConvert, setPendingInboxConvert] = useState<{ inboxItemId: string; targetType: 'note' | 'glossary' } | null>(null);
   // Quick Capture modal (Ctrl+Shift+Q) — writes plain text to the inbox.
   const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  // V17.1 — ayuda de atajos dentro de la app (Ctrl+K → "Ver atajos de teclado").
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -1007,6 +1014,8 @@ export default function App() {
       setActiveSection('references');
     } else if (commandId === 'quick-capture') {
       setIsQuickCaptureOpen(true);
+    } else if (commandId === 'show-shortcuts') {
+      setIsShortcutsOpen(true);
     } else if (commandId.startsWith('open-section:')) {
       const section = commandId.slice('open-section:'.length) as ActiveSection;
       setActiveSection(section);
@@ -1026,6 +1035,24 @@ export default function App() {
       // button in the header (which is always rendered).
       // We rely on the Header's existing Import button; just focus it visually.
       setActiveSection('settings');
+    }
+  };
+
+  // V17.1 — deep-link de tickets de simulador desde Ctrl+K: selecciona en el
+  // store del pilar y navega. Los stores son zustand → getState() fuera de React.
+  const handleOpenSimTicket = (pillar: 'iam' | 'soc' | 'hd' | 'sa', ticketId: string) => {
+    if (pillar === 'iam') {
+      useIamStore.getState().selectTicket(ticketId);
+      setActiveSection('iam');
+    } else if (pillar === 'soc') {
+      useSocStore.getState().selectTicket(ticketId);
+      setActiveSection('soc');
+    } else if (pillar === 'hd') {
+      useHelpdeskStore.getState().selectTicket(ticketId);
+      setActiveSection('helpdesk');
+    } else {
+      useSysadminStore.getState().selectTicket(ticketId);
+      setActiveSection('sysadmin');
     }
   };
 
@@ -1406,6 +1433,9 @@ export default function App() {
             else if (troubleshootingId.startsWith('TS-SOC-')) setActiveSection('troubleshooting-soc');
             else setActiveSection('troubleshooting-hd');
           }}
+          // V17.1 — "IAM-4003" / "phishing" en Ctrl+K llevan directo al ticket
+          // del simulador correspondiente (216 tickets indexados).
+          onSelectSimTicket={handleOpenSimTicket}
           // BLOQUE 5 — command palette dispatch (new note / open X / backup / etc.)
           onSelectCommand={(commandId) => {
             handleCommandPalette(commandId);
@@ -1439,6 +1469,14 @@ export default function App() {
         <QuickCaptureModal
           isOpen
           onClose={() => setIsQuickCaptureOpen(false)}
+        />
+      )}
+
+      {/* ShortcutsDialog — referencia de atajos + sintaxis de búsqueda (V17.1) */}
+      {isShortcutsOpen && (
+        <ShortcutsDialog
+          open
+          onClose={() => setIsShortcutsOpen(false)}
         />
       )}
 

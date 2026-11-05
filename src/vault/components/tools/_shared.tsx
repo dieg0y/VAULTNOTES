@@ -13,7 +13,7 @@ import { db } from '../../db';
 
 /* ---------- shared Tailwind class strings ---------- */
 export const inputCls =
-  'w-full bg-[#161616] border border-[#262626] rounded px-3 py-2 text-xs text-white font-mono placeholder:text-[#555] focus:outline-none focus:border-blue-500';
+  'w-full bg-[#161616] border border-[#262626] rounded px-3 py-2 text-xs text-white font-mono placeholder:text-[#828282] focus:outline-none focus:border-blue-500';
 
 export const taCls = inputCls + ' resize-y min-h-[80px] font-mono';
 
@@ -39,7 +39,7 @@ export const CopyBtn: React.FC<{ text: string; label?: string }> = ({ text, labe
           setTimeout(() => setCopied(false), 1500);
         });
       }}
-      className="p-1 rounded text-[#666] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0 inline-flex items-center gap-1"
+      className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0 inline-flex items-center gap-1"
       title={label || 'Copiar'}
       disabled={!text}
     >
@@ -51,9 +51,9 @@ export const CopyBtn: React.FC<{ text: string; label?: string }> = ({ text, labe
 /* ---------- Field: label + control wrapper ---------- */
 export const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string }> = ({ label, children, hint }) => (
   <div className="space-y-1">
-    <label className="text-[10px] font-bold uppercase tracking-widest text-[#555]">{label}</label>
+    <label className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">{label}</label>
     {children}
-    {hint && <p className="text-[10px] text-[#666]">{hint}</p>}
+    {hint && <p className="text-[10px] text-[#858585]">{hint}</p>}
   </div>
 );
 
@@ -69,11 +69,11 @@ export const Row: React.FC<{ label: string; value: React.ReactNode; mono?: boole
 export const CodeBlock: React.FC<{ code: string; lang?: string; label?: string }> = ({ code, lang, label }) => (
   <div className="bg-[#0A0A0A] border border-[#262626] rounded p-2.5 font-mono text-[10px] text-green-300 break-all flex items-start justify-between gap-2">
     <div className="flex-1 min-w-0">
-      {label && <div className="text-[9px] text-[#666] uppercase mb-1">{label}</div>}
+      {label && <div className="text-[9px] text-[#858585] uppercase mb-1">{label}</div>}
       <pre className="whitespace-pre-wrap break-all">{code}</pre>
     </div>
     <div className="flex items-center gap-1 shrink-0">
-      {lang && <span className="text-[9px] text-[#444] uppercase">{lang}</span>}
+      {lang && <span className="text-[9px] text-[#808080] uppercase">{lang}</span>}
       <CopyBtn text={code} />
     </div>
   </div>
@@ -212,7 +212,7 @@ export function fuzzyMatch(haystack: string, needle: string): boolean {
 /* ---------- Drawer section (mirrors DetailSection from ToolsView) ---------- */
 export const DrawerSection: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
   <section className="space-y-1.5">
-    <h4 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+    <h4 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">
       {icon}{title}
     </h4>
     <div className="text-xs text-[#CCC] leading-relaxed space-y-1.5">{children}</div>

@@ -443,6 +443,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0A0A0A]">
+      {/* Encabezado de página para lectores de pantalla / jerarquía h1-h2:
+          el Dashboard es la única vista que empezaba en h2. */}
+      <h1 className="sr-only">Panel — resumen de tu vault</h1>
       {/* ============================================================ */}
       {/* SECTION 1 — KNOWLEDGE                                        */}
       {/* ============================================================ */}
@@ -452,13 +455,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <BookOpen className="w-4 h-4 text-blue-400" />
             <h2 className="text-sm font-bold text-white">Knowledge</h2>
           </div>
-          <span className="text-[10px] font-mono text-[#555]">Vault local · 100% offline</span>
+          <span className="text-[10px] font-mono text-[#828282]">Vault local · 100% offline</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Notes */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 hover:border-blue-500/40 transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Apuntes</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Apuntes</span>
               <div className="w-7 h-7 rounded bg-blue-500/10 text-blue-400 flex items-center justify-center">
                 <FileText className="w-3.5 h-3.5" />
               </div>
@@ -473,7 +476,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Labs */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 hover:border-green-500/40 transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Labs</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Labs</span>
               <div className="w-7 h-7 rounded bg-green-500/10 text-green-400 flex items-center justify-center">
                 <FlaskConical className="w-3.5 h-3.5" />
               </div>
@@ -491,7 +494,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Glossary */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 hover:border-purple-500/40 transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Glosario</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Glosario</span>
               <div className="w-7 h-7 rounded bg-purple-500/10 text-purple-400 flex items-center justify-center">
                 <BookOpen className="w-3.5 h-3.5" />
               </div>
@@ -509,14 +512,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* References */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 hover:border-amber-500/40 transition-colors">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Referencias</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Referencias</span>
               <div className="w-7 h-7 rounded bg-amber-500/10 text-amber-400 flex items-center justify-center">
                 <Bookmark className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="flex items-end justify-between">
               <span className="text-2xl font-bold text-white font-mono">{referencesCount}</span>
-              <span className="text-[10px] font-mono text-[#555]">{lastEditTime}</span>
+              <span className="text-[10px] font-mono text-[#828282]">{lastEditTime}</span>
             </div>
           </div>
         </div>
@@ -541,14 +544,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             title="Abrir el checklist del Roadmap Junior IAM / Identity Security Analyst"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Roadmap IAM</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Roadmap IAM</span>
               <RoadmapIcon className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="flex items-end justify-between gap-2">
               <span className="text-2xl font-bold text-white font-mono">
-                {roadmapPct}<span className="text-sm text-[#666]">%</span>
+                {roadmapPct}<span className="text-sm text-[#858585]">%</span>
               </span>
-              <span className="text-[10px] font-mono text-[#666] shrink-0">
+              <span className="text-[10px] font-mono text-[#858585] shrink-0">
                 {roadmapDone}/{roadmapTotal}
               </span>
             </div>
@@ -558,7 +561,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 style={{ width: `${roadmapPct}%` }}
               />
             </div>
-            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+            <p className="text-[10px] text-[#858585] mt-2 leading-relaxed">
               {roadmapPct === 100
                 ? '¡Roadmap completado! Exporta el checklist como evidencia.'
                 : roadmapDone > 0
@@ -578,14 +581,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             title="Abrir el simulador IAM: cola de tickets (JML · Access · PAM · Gobernanza), Semana de Access Review y Base de Conocimiento"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Simulador IAM</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Simulador IAM</span>
               <Fingerprint className="w-3.5 h-3.5 text-violet-400" />
             </div>
             <div className="flex items-end justify-between gap-2">
               <span className="text-2xl font-bold text-white font-mono">
-                {iamWorked}<span className="text-sm text-[#666]">/{iamTotal}</span>
+                {iamWorked}<span className="text-sm text-[#858585]">/{iamTotal}</span>
               </span>
-              <span className="text-[10px] font-mono text-[#666] shrink-0">
+              <span className="text-[10px] font-mono text-[#858585] shrink-0">
                 {iamOpen} abiert{iamOpen === 1 ? 'o' : 'os'} · AR {iamFinalDone}/10
               </span>
             </div>
@@ -595,7 +598,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 style={{ width: `${iamPct}%` }}
               />
             </div>
-            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+            <p className="text-[10px] text-[#858585] mt-2 leading-relaxed">
               {iamPct === 100
                 ? '¡Simulador IAM completado! Exporta tus tickets como evidencia de práctica.'
                 : iamWorked > 0
@@ -615,14 +618,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             title="Abrir el pilar SOC: roadmap Blue Team, runbooks de detección y respuesta y troubleshooting"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">SOC / Blue Team</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">SOC / Blue Team</span>
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="flex items-end justify-between gap-2">
               <span className="text-2xl font-bold text-white font-mono">
-                {socRoadmapDone}<span className="text-sm text-[#666]">/{ROADMAP_SOC_ALL_ITEM_IDS.length}</span>
+                {socRoadmapDone}<span className="text-sm text-[#858585]">/{ROADMAP_SOC_ALL_ITEM_IDS.length}</span>
               </span>
-              <span className="text-[10px] font-mono text-[#666] shrink-0">
+              <span className="text-[10px] font-mono text-[#858585] shrink-0">
                 RB {RUNBOOKS_SOC_COUNT} · TS {TROUBLESHOOTING_SOC_COUNT}
               </span>
             </div>
@@ -632,7 +635,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 style={{ width: `${socRoadmapPct}%` }}
               />
             </div>
-            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+            <p className="text-[10px] text-[#858585] mt-2 leading-relaxed">
               {socRoadmapPct === 100
                 ? '¡Roadmap SOC completado! Exporta el checklist como evidencia.'
                 : socRoadmapDone > 0
@@ -653,14 +656,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             title="Abrir el simulador L1: cola de tickets, proyecto final y Base de Conocimiento"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Service Desk</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Service Desk</span>
               <Headset className="w-3.5 h-3.5 text-fuchsia-400" />
             </div>
             <div className="flex items-end justify-between gap-2">
               <span className="text-2xl font-bold text-white font-mono">
-                {hdWorked}<span className="text-sm text-[#666]">/{hdTotal}</span>
+                {hdWorked}<span className="text-sm text-[#858585]">/{hdTotal}</span>
               </span>
-              <span className="text-[10px] font-mono text-[#666] shrink-0">
+              <span className="text-[10px] font-mono text-[#858585] shrink-0">
                 {hdOpen} abiert{hdOpen === 1 ? 'o' : 'os'} · PF {hdFinalDone}/30
               </span>
             </div>
@@ -670,7 +673,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 style={{ width: `${hdPct}%` }}
               />
             </div>
-            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+            <p className="text-[10px] text-[#858585] mt-2 leading-relaxed">
               {hdPct === 100
                 ? '¡Simulador completado! Exporta tus tickets como evidencia de práctica.'
                 : hdWorked > 0
@@ -691,14 +694,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             title="Abrir el simulador de guardia: cola de tickets de Infraestructura, semana de guardia y Base de Conocimiento"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">SysAdmin Ops</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">SysAdmin Ops</span>
               <Server className="w-3.5 h-3.5 text-cyan-400" />
             </div>
             <div className="flex items-end justify-between gap-2">
               <span className="text-2xl font-bold text-white font-mono">
-                {saWorked}<span className="text-sm text-[#666]">/{saTotal}</span>
+                {saWorked}<span className="text-sm text-[#858585]">/{saTotal}</span>
               </span>
-              <span className="text-[10px] font-mono text-[#666] shrink-0">
+              <span className="text-[10px] font-mono text-[#858585] shrink-0">
                 {saOpen} abiert{saOpen === 1 ? 'o' : 'os'} · guardia {saFinalDone}/30
               </span>
             </div>
@@ -708,7 +711,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 style={{ width: `${saPct}%` }}
               />
             </div>
-            <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+            <p className="text-[10px] text-[#858585] mt-2 leading-relaxed">
               {saPct === 100
                 ? '¡Semana de guardia completada! Exporta tus tickets como evidencia.'
                 : saWorked > 0
@@ -720,13 +723,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Weak Concepts */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Weak Concepts</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Weak Concepts</span>
               <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
             </div>
             {weakConcepts.length === 0 ? (
               <div className="flex-1 flex flex-col items-start justify-center">
                 <span className="text-2xl font-bold text-white font-mono">—</span>
-                <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
+                <p className="text-[10px] text-[#858585] mt-2 leading-relaxed">
                   Coming soon — estudia flashcards de glosario para que VaultNotes detecte los términos que fallas más.
                 </p>
               </div>
@@ -754,12 +757,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Recent Labs */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Recent Labs</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Recent Labs</span>
               <FlaskConical className="w-3.5 h-3.5 text-green-400" />
             </div>
             {recentLabs.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
-                <span className="text-[11px] text-[#666]">Sin labs todavía.</span>
+                <span className="text-[11px] text-[#858585]">Sin labs todavía.</span>
               </div>
             ) : (
               <div className="flex-1 flex flex-col gap-1">
@@ -770,7 +773,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     className="flex items-center justify-between gap-2 text-[11px] text-left hover:text-blue-400 transition-colors"
                   >
                     <span className="truncate text-white">{l.title}</span>
-                    <span className="font-mono text-[10px] text-[#555] shrink-0">{relTime(l.updatedAt)}</span>
+                    <span className="font-mono text-[10px] text-[#828282] shrink-0">{relTime(l.updatedAt)}</span>
                   </button>
                 ))}
               </div>
@@ -804,12 +807,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70 flex items-center gap-1">
                 <Star className="w-3 h-3 fill-amber-500/70" /> Favorite Tools
               </span>
-              <span className="text-[10px] font-mono text-[#555]">{favoriteTools.length}</span>
+              <span className="text-[10px] font-mono text-[#828282]">{favoriteTools.length}</span>
             </div>
             {favoriteTools.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center py-4 text-center">
                 <Star className="w-6 h-6 text-[#333] mb-1.5" />
-                <p className="text-[11px] text-[#666]">Marca herramientas con ★ para tenerlas a mano.</p>
+                <p className="text-[11px] text-[#858585]">Marca herramientas con ★ para tenerlas a mano.</p>
               </div>
             ) : (
               <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
@@ -832,15 +835,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Recently Used */}
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-4 flex flex-col">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282] flex items-center gap-1">
                 <History className="w-3 h-3" /> Recently Used
               </span>
-              <span className="text-[10px] font-mono text-[#555]">{recentTools.length}</span>
+              <span className="text-[10px] font-mono text-[#828282]">{recentTools.length}</span>
             </div>
             {recentTools.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center py-4 text-center">
                 <History className="w-6 h-6 text-[#333] mb-1.5" />
-                <p className="text-[11px] text-[#666]">Aún no has usado ninguna herramienta.</p>
+                <p className="text-[11px] text-[#858585]">Aún no has usado ninguna herramienta.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-1">
@@ -851,10 +854,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     className="flex items-center gap-2 px-2 py-1.5 rounded text-[11px] hover:bg-[#161616] hover:text-white transition-colors cursor-pointer text-left"
                     title={t.desc}
                   >
-                    <span className="font-mono text-[9px] text-[#444] w-3 shrink-0">{idx + 1}</span>
+                    <span className="font-mono text-[9px] text-[#808080] w-3 shrink-0">{idx + 1}</span>
                     {renderToolIcon(t.id)}
                     <span className="truncate text-[#DDD]">{t.name}</span>
-                    <span className="ml-auto text-[9px] font-mono text-[#555] shrink-0">{t.cat}</span>
+                    <span className="ml-auto text-[9px] font-mono text-[#828282] shrink-0">{t.cat}</span>
                   </button>
                 ))}
               </div>
@@ -878,7 +881,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <FileText className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
             <span className="text-xs font-semibold text-white">+ Note</span>
-            <span className="text-[9px] text-[#666] font-mono">Ctrl+Shift+N</span>
+            <span className="text-[9px] text-[#858585] font-mono">Ctrl+Shift+N</span>
           </button>
           <button
             onClick={() => handleQuickNew('lab')}
@@ -886,7 +889,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <FlaskConical className="w-4 h-4 text-green-400 group-hover:scale-110 transition-transform" />
             <span className="text-xs font-semibold text-white">+ Lab</span>
-            <span className="text-[9px] text-[#666] font-mono">Ctrl+Shift+L</span>
+            <span className="text-[9px] text-[#858585] font-mono">Ctrl+Shift+L</span>
           </button>
           <button
             onClick={() => handleQuickNew('glossary')}
@@ -894,7 +897,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <BookOpen className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
             <span className="text-xs font-semibold text-white">+ Glossary</span>
-            <span className="text-[9px] text-[#666] font-mono">Glosario</span>
+            <span className="text-[9px] text-[#858585] font-mono">Glosario</span>
           </button>
           <button
             onClick={handleQuickIOC}
@@ -902,12 +905,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <Network className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
             <span className="text-xs font-semibold text-white">+ IOC</span>
-            <span className="text-[9px] text-[#666] font-mono">IoC Extractor</span>
+            <span className="text-[9px] text-[#858585] font-mono">IoC Extractor</span>
           </button>
           <button
             disabled
             title="Coming soon"
-            className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-[#0D0D0D] border border-[#1a1a1a] text-[#555] cursor-not-allowed opacity-60"
+            className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md bg-[#0D0D0D] border border-[#1a1a1a] text-[#828282] cursor-not-allowed opacity-60"
           >
             <Briefcase className="w-4 h-4" />
             <span className="text-xs font-semibold">+ Case</span>
@@ -923,11 +926,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex items-center gap-2 mb-3">
           <Activity className="w-4 h-4 text-blue-400" />
           <h2 className="text-sm font-bold text-white">Recent Activity</h2>
-          <span className="text-[10px] font-mono text-[#555]">últimos 5</span>
+          <span className="text-[10px] font-mono text-[#828282]">últimos 5</span>
         </div>
         <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-3">
           {recentActivity.length === 0 ? (
-            <div className="p-8 text-center text-[#666] flex flex-col items-center justify-center gap-2">
+            <div className="p-8 text-center text-[#858585] flex flex-col items-center justify-center gap-2">
               <FolderOpen className="w-8 h-8 text-[#333]" />
               <span className="text-xs">Aún no tienes contenido. Empieza con un Quick Action arriba.</span>
             </div>
@@ -974,10 +977,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <div className="flex items-center gap-2 mb-0.5">
                           {kindBadge}
                           {item.kind === 'note' && (
-                            <span className="text-[9px] font-mono text-[#555] truncate">{item.platform}</span>
+                            <span className="text-[9px] font-mono text-[#828282] truncate">{item.platform}</span>
                           )}
                           {item.kind === 'lab' && (
-                            <span className="text-[9px] font-mono text-[#555] truncate">{item.organization}</span>
+                            <span className="text-[9px] font-mono text-[#828282] truncate">{item.organization}</span>
                           )}
                         </div>
                         <span className="font-semibold text-sm text-white group-hover:text-blue-400 transition-colors truncate block">
@@ -985,7 +988,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs font-mono text-[#666] shrink-0 ml-2">{relTime(item.updatedAt)}</span>
+                    <span className="text-xs font-mono text-[#858585] shrink-0 ml-2">{relTime(item.updatedAt)}</span>
                   </button>
                 );
               })}
@@ -1015,7 +1018,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {studyDeck.length === 0 ? (
-          <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-5 flex flex-col items-center justify-center text-center text-[#666]">
+          <div className="bg-[#0D0D0D] border border-[#262626] rounded-md p-5 flex flex-col items-center justify-center text-center text-[#858585]">
             <HelpCircle className="w-8 h-8 text-[#333] mb-2" />
             <p className="text-xs">Agrega términos al glosario para generar flashcards.</p>
             <button
@@ -1070,7 +1073,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <span className="text-red-400">✗ {currentCard?.unknown || 0}</span>
                     </span>
                   )}
-                  <span className="absolute bottom-3 text-[10px] text-[#666]">
+                  <span className="absolute bottom-3 text-[10px] text-[#858585]">
                     Clic para girar →
                   </span>
                 </div>

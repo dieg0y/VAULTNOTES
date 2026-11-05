@@ -379,7 +379,7 @@ const EVENT_ROWS: Array<[string, string, string]> = [
 /* ---------- subcomponentes ---------- */
 
 const H3: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">{children}</div>
+  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">{children}</div>
 );
 
 /* ---------- componente principal ---------- */
@@ -418,7 +418,7 @@ export const HdAdAccountTool: React.FC = () => {
             >
               <span className={path === p.id ? 'text-blue-400' : 'text-[#888]'}>{p.icon}</span>
               <span className="text-xs font-semibold">“{p.label}”</span>
-              <ArrowRight className="w-3 h-3 ml-auto text-[#555]" />
+              <ArrowRight className="w-3 h-3 ml-auto text-[#828282]" />
             </button>
           ))}
         </div>
@@ -493,7 +493,7 @@ export const HdAdAccountTool: React.FC = () => {
 
           {/* Comandos PowerShell */}
           <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">
               <Terminal className="w-3 h-3" />
               Comandos PowerShell de referencia ({current.commands.length})
             </div>
@@ -507,7 +507,7 @@ export const HdAdAccountTool: React.FC = () => {
 
           {/* Sub-decisión */}
           <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">
               <AlertTriangle className="w-3 h-3" />
               Sub-decisión dentro del camino
             </div>
@@ -543,7 +543,7 @@ export const HdAdAccountTool: React.FC = () => {
 
           {/* Escalación a IAM */}
           <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#828282]">
               <ShieldAlert className="w-3 h-3" />
               Cuándo escalar a IAM
             </div>
@@ -609,7 +609,7 @@ export const HdAdAccountTool: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-              <p className="text-[10px] text-[#777] leading-relaxed">
+              <p className="text-[10px] text-[#868686] leading-relaxed">
                 Regla práctica: si el usuario entra en la web (Entra) pero no on-prem → AD lockout; si
                 entra en el equipo pero la web le rechaza con 50053 → Smart Lockout (desbloquea
                 Identity admin desde el portal Entra, L1 no tiene cmdlet).
@@ -622,7 +622,7 @@ export const HdAdAccountTool: React.FC = () => {
             <H3>
               <MonitorSmartphone className="w-3 h-3" /> Contexto de la cuenta: memberOf · OU · GPO
             </H3>
-            <p className="text-[10px] text-[#777] leading-relaxed">
+            <p className="text-[10px] text-[#868686] leading-relaxed">
               Cuando el síntoma es «no me llega X» (permiso, unidad, directiva): el problema casi nunca
               es la contraseña — es el CONTEXTO de la cuenta (grupos, OU, GPO). Y recuerda: el token de
               grupos se emite al iniciar sesión, un grupo recién añadido exige re-logon.

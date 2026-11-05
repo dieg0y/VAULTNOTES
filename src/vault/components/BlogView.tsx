@@ -119,7 +119,7 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
         {isOn ? (
           <CheckSquare className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
         ) : (
-          <Square className="w-4 h-4 text-[#555] shrink-0 mt-0.5" />
+          <Square className="w-4 h-4 text-[#828282] shrink-0 mt-0.5" />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -130,8 +130,8 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
             )}
             <span className={`text-xs font-semibold truncate ${isOn ? 'text-white' : 'text-[#DDD]'}`}>{title}</span>
           </div>
-          <p className="text-[10px] text-[#777] mt-0.5 truncate">{meta}</p>
-          {extra && <p className="text-[10px] text-[#666] italic mt-0.5">{extra}</p>}
+          <p className="text-[10px] text-[#868686] mt-0.5 truncate">{meta}</p>
+          {extra && <p className="text-[10px] text-[#858585] italic mt-0.5">{extra}</p>}
         </div>
       </button>
     );
@@ -192,15 +192,15 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {totalItems === 0 ? (
-              <div className="p-6 text-center text-xs text-[#666] space-y-2">
+              <div className="p-6 text-center text-xs text-[#858585] space-y-2">
                 <FileCode className="w-8 h-8 text-[#333] mx-auto" />
                 <p>Aún no tienes apuntes ni labs.</p>
-                <p className="text-[#555]">Crea contenido y vuelve aquí para generarlo.</p>
+                <p className="text-[#828282]">Crea contenido y vuelve aquí para generarlo.</p>
               </div>
             ) : (
               <>
                 {topLevelNotes.length > 0 && (
-                  <p className="px-1 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-[#555]">Apuntes</p>
+                  <p className="px-1 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-[#828282]">Apuntes</p>
                 )}
                 {topLevelNotes.map((n) => {
                   const subs = subnoteCount(n.id);
@@ -217,7 +217,7 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
                 })}
 
                 {activeLabs.length > 0 && (
-                  <p className="px-1 pt-3 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-[#555]">Hands-On / Labs</p>
+                  <p className="px-1 pt-3 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-[#828282]">Hands-On / Labs</p>
                 )}
                 {activeLabs.map((l) => (
                   <SelectionRow
@@ -252,7 +252,7 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
             </div>
 
             {selected.size === 0 ? (
-              <div className="p-10 text-center text-[#666] space-y-2 border border-dashed border-[#262626] rounded-md">
+              <div className="p-10 text-center text-[#858585] space-y-2 border border-dashed border-[#262626] rounded-md">
                 <FileCode className="w-10 h-10 text-[#2a2a2a] mx-auto" />
                 <p className="text-sm text-[#888] font-medium">Nada seleccionado todavía</p>
                 <p className="text-xs">
@@ -262,8 +262,8 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
             ) : (
               <div className="bg-[#0D0D0D] border border-[#262626] rounded-md overflow-hidden">
                 <div className="px-4 py-2 border-b border-[#262626] bg-[#111] flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-[#777] uppercase tracking-widest">Preview · Markdown</span>
-                  <span className="text-[10px] font-mono text-[#555]">
+                  <span className="text-[10px] font-mono text-[#868686] uppercase tracking-widest">Preview · Markdown</span>
+                  <span className="text-[10px] font-mono text-[#828282]">
                     {markdown.length.toLocaleString('es')} caracteres · {selected.size} elemento{selected.size === 1 ? '' : 's'}
                   </span>
                 </div>
@@ -274,7 +274,7 @@ export const BlogView: React.FC<BlogViewProps> = ({ notes, labs }) => {
             )}
 
             {/* Workflow hint */}
-            <div className="text-[11px] text-[#666] bg-[#0D0D0D] border border-[#262626] rounded-md p-3.5 leading-relaxed">
+            <div className="text-[11px] text-[#858585] bg-[#0D0D0D] border border-[#262626] rounded-md p-3.5 leading-relaxed">
               <strong className="text-[#888]">Flujo recomendado:</strong> selecciona el contenido → <em>Copiar</em> (o <em>Descargar .md</em>) → pégaselo a tu IA favorita con el prompt incluido arriba → la IA te devuelve el artículo → publícalo en tu portfolio. Las subpáginas de cada apunte seleccionado se incluyen automáticamente.
             </div>
           </div>

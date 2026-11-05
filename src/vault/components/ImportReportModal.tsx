@@ -22,7 +22,7 @@ const Row: React.FC<{
       {icon}
       <span className={dim ? '' : 'text-[#E5E5E5]'}>{label}</span>
     </div>
-    <span className={`font-mono ${valueClass || 'text-[#666]'}`}>{value}</span>
+    <span className={`font-mono ${valueClass || 'text-[#858585]'}`}>{value}</span>
   </div>
 );
 
@@ -95,7 +95,7 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
           {/* Notes */}
           <Row icon={<FileText className="w-3.5 h-3.5" />} color="text-blue-400" label="Apuntes nuevos" value={summary.addedNotes} valueClass="font-semibold text-green-400" />
           <Row icon={<RefreshCw className="w-3.5 h-3.5" />} color="text-blue-400" label="Apuntes actualizados" value={summary.updatedNotes || 0} valueClass="font-semibold text-blue-400" />
-          <Row icon={<FileText className="w-3.5 h-3.5" />} color="text-[#666]" label="Apuntes sin cambios" value={summary.skippedNotes} dim />
+          <Row icon={<FileText className="w-3.5 h-3.5" />} color="text-[#858585]" label="Apuntes sin cambios" value={summary.skippedNotes} dim />
           {summary.conflictNotes > 0 && (
             <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Apuntes en conflicto (versión local más nueva)" value={summary.conflictNotes} valueClass="font-semibold text-amber-400" />
           )}
@@ -108,7 +108,7 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
           {/* Labs */}
           <Row icon={<FlaskConical className="w-3.5 h-3.5" />} color="text-emerald-400" label="Labs nuevos" value={summary.addedLabs || 0} valueClass="font-semibold text-green-400" />
           <Row icon={<RefreshCw className="w-3.5 h-3.5" />} color="text-emerald-400" label="Labs actualizados" value={summary.updatedLabs || 0} valueClass="font-semibold text-blue-400" />
-          <Row icon={<FlaskConical className="w-3.5 h-3.5" />} color="text-[#666]" label="Labs sin cambios" value={summary.skippedLabs || 0} dim />
+          <Row icon={<FlaskConical className="w-3.5 h-3.5" />} color="text-[#858585]" label="Labs sin cambios" value={summary.skippedLabs || 0} dim />
           {summary.conflictLabs > 0 && (
             <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Labs en conflicto (versión local más nueva)" value={summary.conflictLabs} valueClass="font-semibold text-amber-400" />
           )}
@@ -121,7 +121,7 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
           {/* Terms */}
           <Row icon={<BookOpen className="w-3.5 h-3.5" />} color="text-purple-400" label="Términos nuevos" value={summary.addedTerms} valueClass="font-semibold text-green-400" />
           <Row icon={<RefreshCw className="w-3.5 h-3.5" />} color="text-purple-400" label="Términos actualizados" value={summary.updatedTerms || 0} valueClass="font-semibold text-blue-400" />
-          <Row icon={<BookOpen className="w-3.5 h-3.5" />} color="text-[#666]" label="Términos sin cambios" value={summary.skippedTerms} dim />
+          <Row icon={<BookOpen className="w-3.5 h-3.5" />} color="text-[#858585]" label="Términos sin cambios" value={summary.skippedTerms} dim />
           {summary.conflictTerms > 0 && (
             <Row icon={<ShieldAlert className="w-3.5 h-3.5" />} color="text-amber-400" label="Términos en conflicto (versión local más nueva)" value={summary.conflictTerms} valueClass="font-semibold text-amber-400" />
           )}
@@ -235,7 +235,7 @@ export const ImportReportModal: React.FC<ImportReportModalProps> = ({ isOpen, on
           )}
         </div>
 
-        <p className="text-[10px] text-[#666] mb-3 leading-relaxed">
+        <p className="text-[10px] text-[#858585] mb-3 leading-relaxed">
           Los elementos nuevos se agregan, los que cambiaron se actualizan individualmente y los idénticos se omiten.
           {totalConflicts > 0 && ' Cuando la versión local es más reciente, se preserva (no se sobrescribe).'}
           {totalInvalid > 0 && ' Las filas con esquema incorrecto se rechazan antes de insertarse (validación Zod).'}

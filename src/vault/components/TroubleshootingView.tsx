@@ -115,7 +115,7 @@ const CheckRow: React.FC<{ check: DecisionCheck; index: number; isLast: boolean 
       {/* Contenido */}
       <div className="flex flex-col gap-1.5 pb-4 min-w-0 flex-1">
         <p className="text-xs text-white font-medium leading-relaxed">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] mr-1.5">Check:</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] mr-1.5">Check:</span>
           {check.check}
         </p>
         {check.command && (
@@ -131,7 +131,7 @@ const CheckRow: React.FC<{ check: DecisionCheck; index: number; isLast: boolean 
                   setTimeout(() => setCopied(false), 1500);
                 });
               }}
-              className="p-1 rounded text-[#666] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0 cursor-pointer"
+              className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0 cursor-pointer"
               title="Copiar comando"
               aria-label="Copiar comando"
             >
@@ -159,7 +159,7 @@ const GuideDetail: React.FC<{ guide: PillarTroubleshooting }> = ({ guide }) => (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[10px] font-mono text-[#888]">{guide.id}</span>
-        <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border bg-[#161616] text-[#777] border-[#262626]">
+        <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border bg-[#161616] text-[#868686] border-[#262626]">
           {guide.level}
         </span>
       </div>
@@ -181,7 +181,7 @@ const GuideDetail: React.FC<{ guide: PillarTroubleshooting }> = ({ guide }) => (
 
     {/* Escalera de decisión */}
     <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3.5">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1.5 mb-3">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282] flex items-center gap-1.5 mb-3">
         <GitBranch className="w-3.5 h-3.5" /> Escalera de decisión
       </span>
       {guide.checks.map((c, i) => (
@@ -192,7 +192,7 @@ const GuideDetail: React.FC<{ guide: PillarTroubleshooting }> = ({ guide }) => (
     {/* Remedición + verificación */}
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-[#555] flex items-center gap-1.5 mb-1">
+        <span className="text-[9px] font-bold uppercase tracking-widest text-[#828282] flex items-center gap-1.5 mb-1">
           <Gauge className="w-3 h-3" /> Dónde suele estar
         </span>
         <p className="text-[10.5px] text-[#BBB] leading-relaxed">{guide.remediation}</p>
@@ -253,27 +253,27 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
             </div>
             <div className="flex flex-col min-w-0">
               <h1 className="text-base font-bold text-white tracking-tight leading-tight truncate">{cfg.label}</h1>
-              <p className="text-[11px] text-[#666] font-mono">
+              <p className="text-[11px] text-[#858585] font-mono">
                 {cfg.count} guías · Check → Resultado → Siguiente
               </p>
             </div>
           </div>
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-[#828282] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar problema: «dns», «vpn», «gpo», «sign-in»…"
               aria-label="Buscar en las guías de troubleshooting"
-              className={`w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-8 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none ${cfg.accentRing}`}
+              className={`w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-8 py-2 text-xs text-white placeholder:text-[#828282] focus:outline-none ${cfg.accentRing}`}
             />
             {query && (
               <button
                 type="button"
                 onClick={() => setQuery('')}
                 aria-label="Limpiar búsqueda"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#555] hover:text-white cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#828282] hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -290,7 +290,7 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
               className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
                 category === null
                   ? `${cfg.accentBg} ${cfg.accentText} ${cfg.accentBorder}`
-                  : 'text-[#777] border-[#262626] hover:text-white hover:border-[#333]'
+                  : 'text-[#868686] border-[#262626] hover:text-white hover:border-[#333]'
               }`}
             >
               Todos
@@ -303,7 +303,7 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
                 className={`px-2 py-1 rounded text-[10px] font-semibold border transition-colors cursor-pointer ${
                   category === c
                     ? `${cfg.accentBg} ${cfg.accentText} ${cfg.accentBorder}`
-                    : 'text-[#777] border-[#262626] hover:text-white hover:border-[#333]'
+                    : 'text-[#868686] border-[#262626] hover:text-white hover:border-[#333]'
                 }`}
                 title={c}
               >
@@ -311,14 +311,14 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-[#666]">{filtered.length} de {cfg.count} guías</p>
+          <p className="text-[11px] text-[#858585]">{filtered.length} de {cfg.count} guías</p>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-[#555] gap-2 text-center px-4">
+            <div className="flex flex-col items-center justify-center py-16 text-[#828282] gap-2 text-center px-4">
               <AlertTriangle className="w-10 h-10 text-[#2a2a2a]" />
-              <p className="text-xs text-[#777]">Sin resultados para «{query}»</p>
+              <p className="text-xs text-[#868686]">Sin resultados para «{query}»</p>
             </div>
           ) : (
             filtered.map((g) => (
@@ -333,12 +333,12 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[9px] font-mono text-[#555]">{g.id}</span>
+                  <span className="text-[9px] font-mono text-[#828282]">{g.id}</span>
                 </div>
                 <p className={`text-xs leading-snug ${selectedId === g.id ? 'text-white font-medium' : 'text-[#BBB]'}`}>
                   {g.title}
                 </p>
-                <p className="text-[10px] text-[#666] leading-snug mt-0.5 truncate">{g.problem}</p>
+                <p className="text-[10px] text-[#858585] leading-snug mt-0.5 truncate">{g.problem}</p>
               </button>
             ))
           )}
@@ -357,7 +357,7 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Volver
               </button>
-              <span className="text-[11px] text-[#666] font-mono hidden md:block truncate">
+              <span className="text-[11px] text-[#858585] font-mono hidden md:block truncate">
                 {selected.id} · {selected.title}
               </span>
             </div>
@@ -366,10 +366,10 @@ export const TroubleshootingView: React.FC<TroubleshootingViewProps> = ({
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-[#555] gap-3 p-8 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-[#828282] gap-3 p-8 text-center">
             <GitBranch className="w-12 h-12 text-[#2a2a2a]" />
-            <p className="text-sm text-[#777]">Selecciona una guía de decisión</p>
-            <p className="text-xs text-[#555] max-w-sm leading-relaxed">
+            <p className="text-sm text-[#868686]">Selecciona una guía de decisión</p>
+            <p className="text-xs text-[#828282] max-w-sm leading-relaxed">
               Cada guía es una escalera: check barato primero, y según el resultado, la siguiente acción.
             </p>
           </div>

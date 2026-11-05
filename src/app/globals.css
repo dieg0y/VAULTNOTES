@@ -220,7 +220,7 @@
 .vault-editor-content:empty::before,
 .vault-editor-content > p:only-child:empty::before {
   content: 'Escribe aquí tus apuntes...';
-  color: #444;
+  color: #808080;
   pointer-events: none;
 }
 

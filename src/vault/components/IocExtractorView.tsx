@@ -376,7 +376,7 @@ const scoreColor = (s: IocFinding['score']) =>
   s === 'alta' ? 'bg-red-500/15 text-red-300 border-red-500/30'
   : s === 'media' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
   : s === 'baja' ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
-  : 'bg-[#161616] text-[#666] border-[#262626]';
+  : 'bg-[#161616] text-[#858585] border-[#262626]';
 
 /* ---------- Export formatters ---------- */
 const toTSV = (findings: IocFinding[]): string => {
@@ -603,7 +603,7 @@ const extractIoCs = (rawText: string, wl: Whitelist): IocFinding[] => {
 };
 
 /* ---------- Small UI atoms (mirror ToolsView style) ---------- */
-const inputCls = 'w-full bg-[#161616] border border-[#262626] rounded px-3 py-2 text-xs text-white font-mono placeholder:text-[#555] focus:outline-none focus:border-blue-500';
+const inputCls = 'w-full bg-[#161616] border border-[#262626] rounded px-3 py-2 text-xs text-white font-mono placeholder:text-[#828282] focus:outline-none focus:border-blue-500';
 const taCls = inputCls + ' resize-y min-h-[140px]';
 
 const CopyBtn: React.FC<{ text: string; label?: string }> = ({ text, label }) => {
@@ -627,7 +627,7 @@ const ExportBlock: React.FC<{ label: string; code: string; lang?: string }> = ({
       <CopyBtn text={code} />
     </div>
     <pre className="font-mono text-[10px] text-green-300 whitespace-pre-wrap break-all">{code}</pre>
-    {lang && <div className="text-[9px] text-[#444] uppercase mt-1">{lang}</div>}
+    {lang && <div className="text-[9px] text-[#808080] uppercase mt-1">{lang}</div>}
   </div>
 );
 
@@ -639,7 +639,7 @@ const WhitelistModal: React.FC<{ wl: Whitelist; onSave: (wl: Whitelist) => void;
       <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-[#0D0D0D] border-b border-[#262626] px-5 py-3 flex items-center justify-between">
           <div className="font-bold text-white text-sm flex items-center gap-2"><Settings className="w-4 h-4 text-blue-400" /> Whitelist de dominios legítimos</div>
-          <button onClick={onClose} className="p-1 rounded text-[#666] hover:text-white hover:bg-[#161616] cursor-pointer"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-1 rounded text-[#858585] hover:text-white hover:bg-[#161616] cursor-pointer"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-5 space-y-3 text-xs text-[#E5E5E5]">
           <p className="text-[11px] text-[#888] leading-relaxed">
@@ -872,21 +872,21 @@ export const IocExtractorView: React.FC = () => {
             return (
               <div key={f.type + i + f.value} className="bg-[#0D0D0D] border border-[#262626] rounded p-2.5 hover:border-[#333] transition-colors">
                 <div className="flex items-start gap-2 flex-wrap">
-                  <span className="text-[#666] mt-0.5 shrink-0">{icon}</span>
+                  <span className="text-[#858585] mt-0.5 shrink-0">{icon}</span>
                   <span className={`font-mono text-[11px] flex-1 min-w-0 break-all ${f.score === 'alta' ? 'text-red-300' : f.score === 'media' ? 'text-amber-300' : 'text-[#CCC]'}`}>
                     {displayValue(f.value)}
                     {f.hashKind && <span className="ml-2 text-[9px] text-purple-400 font-sans">{f.hashKind}</span>}
-                    {f.count > 1 && <span className="ml-2 text-[9px] text-[#666] font-sans">×{f.count}</span>}
+                    {f.count > 1 && <span className="ml-2 text-[9px] text-[#858585] font-sans">×{f.count}</span>}
                   </span>
                   <span className={`text-[9px] px-1.5 py-0.5 rounded border shrink-0 ${scoreColor(f.score)}`}>{f.score}</span>
                   <CopyBtn text={defangOn ? defang(f.value) : f.value} />
                 </div>
                 <div className="text-[10px] text-[#888] mt-1 ml-6">
-                  <span className="text-[#666] uppercase mr-1.5">{f.type}</span>
+                  <span className="text-[#858585] uppercase mr-1.5">{f.type}</span>
                   {f.classification}
                 </div>
                 {f.context && (
-                  <div className="text-[10px] text-[#666] mt-0.5 ml-6 font-mono bg-[#0A0A0A] border border-[#1A1A1A] rounded px-2 py-1 break-all">
+                  <div className="text-[10px] text-[#858585] mt-0.5 ml-6 font-mono bg-[#0A0A0A] border border-[#1A1A1A] rounded px-2 py-1 break-all">
                     {f.context}
                   </div>
                 )}
@@ -897,12 +897,12 @@ export const IocExtractorView: React.FC = () => {
       )}
 
       {!busy && text.trim() && findings.length === 0 && (
-        <p className="text-xs text-[#666] italic">No se encontraron IoCs. Recuerda: el extractor hace refang automático (hxxp→http, [.]→.).</p>
+        <p className="text-xs text-[#858585] italic">No se encontraron IoCs. Recuerda: el extractor hace refang automático (hxxp→http, [.]→.).</p>
       )}
 
       {/* Type counts summary */}
       {findings.length > 0 && (
-        <div className="flex gap-1.5 flex-wrap text-[9px] text-[#666] border-t border-[#1A1A1A] pt-2">
+        <div className="flex gap-1.5 flex-wrap text-[9px] text-[#858585] border-t border-[#1A1A1A] pt-2">
           {Array.from(counts.entries()).map(([type, n]) => (
             <span key={type} className="px-1.5 py-0.5 rounded bg-[#0D0D0D] border border-[#1A1A1A]">{type}: {n}</span>
           ))}
@@ -933,6 +933,6 @@ const typeIcon = (t: IocType): React.ReactNode => {
       return <ShieldAlert className="w-3 h-3 text-red-400" />;
     case 'guid': return <KeyRound className="w-3 h-3 text-indigo-400" />;
     case 'btc': return <Database className="w-3 h-3 text-orange-400" />;
-    default: return <Terminal className="w-3 h-3 text-[#666]" />;
+    default: return <Terminal className="w-3 h-3 text-[#858585]" />;
   }
 };

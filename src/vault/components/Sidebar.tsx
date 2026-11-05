@@ -63,6 +63,10 @@ interface NavItemDef {
   label: string;
   icon: React.ReactNode;
   title?: string;
+  /** Nombre accesible explícito — desambigua labels repetidos entre grupos
+   *  (p. ej. los 4 "Troubleshooting" / "Runbooks") para lectores de pantalla
+   *  y navegación por nombre; el label visible no cambia. */
+  ariaLabel?: string;
   /** Badge: número fijo (conteo) o null. */
   badge?: number | null;
   /** Clase extra del badge (color). */
@@ -92,13 +96,14 @@ const NavButton: React.FC<{
         : 'text-[#888] hover:bg-[#161616] hover:text-white'
     }`}
     title={def.title}
+    aria-label={def.ariaLabel || undefined}
   >
     <span className="flex items-center gap-2 min-w-0">
       {def.icon}
       <span className="truncate">{def.label}</span>
     </span>
     {def.badge != null && def.badge > 0 && (
-      <span className={`text-[10px] font-mono shrink-0 ml-2 ${def.badgeClass ?? 'text-[#555]'}`}>
+      <span className={`text-[10px] font-mono shrink-0 ml-2 ${def.badgeClass ?? 'text-[#828282]'}`}>
         {def.badge}
       </span>
     )}
@@ -268,6 +273,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           label: 'Herramientas',
           icon: <Wrench className={SIDEBAR_ICON} />,
           title: 'Catálogo unificado: cada tool aparece UNA vez, etiquetada con su rol (IAM / SOC / Service Desk / SysAdmin / Global)',
+          ariaLabel: 'Catálogo de Herramientas',
         },
       ],
     },
@@ -308,7 +314,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <RoadmapIcon className={SIDEBAR_ICON} />,
           title: 'Checklist del roadmap Junior IAM / Identity Security Analyst (Tier 1-3 + proyecto final)',
           badge: roadmapPct,
-          badgeClass: roadmapPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+          badgeClass: roadmapPct > 0 ? 'text-emerald-400' : 'text-[#828282]',
         },
         {
           section: 'troubleshooting-iam',
@@ -316,6 +322,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <GitBranch className={SIDEBAR_ICON} />,
           title: 'Escaleras de decisión IAM: Problema → Síntoma → Check → Resultado → Siguiente acción',
           badge: pillarCounts.tsIam,
+          ariaLabel: 'Troubleshooting IAM',
         },
         {
           section: 'runbooks-iam',
@@ -323,6 +330,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
           title: 'Runbooks IAM: JML, Access, PAM y Gobernanza — paso a paso universal + respuesta en inglés copiable',
           badge: pillarCounts.runbooksIam,
+          ariaLabel: 'Runbooks IAM',
         },
       ],
     },
@@ -344,7 +352,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <Shield className={SIDEBAR_ICON} />,
           title: 'Checklist del roadmap SOC Analyst L1 / Blue Team (Tier 1-3 + proyecto final)',
           badge: roadmapSocPct,
-          badgeClass: roadmapSocPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+          badgeClass: roadmapSocPct > 0 ? 'text-emerald-400' : 'text-[#828282]',
         },
         {
           section: 'troubleshooting-soc',
@@ -352,6 +360,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <GitBranch className={SIDEBAR_ICON} />,
           title: 'Escaleras de decisión de detección: Problema → Síntoma → Check → Resultado → Siguiente acción',
           badge: pillarCounts.tsSoc,
+          ariaLabel: 'Troubleshooting SOC',
         },
         {
           section: 'runbooks-soc',
@@ -359,6 +368,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
           title: 'Runbooks SOC: Detection → Investigation → Evidence → Containment → Remediation → Verification → Escalation (incluye los quick-fixes ex-CheatSheet)',
           badge: pillarCounts.runbooksSoc,
+          ariaLabel: 'Runbooks SOC',
         },
       ],
     },
@@ -380,7 +390,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <GraduationCap className={SIDEBAR_ICON} />,
           title: 'Checklist del roadmap HelpDesk / IT Support → IAM (Tier 1-3 + proyecto final de 30 tickets)',
           badge: roadmapHdPct,
-          badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+          badgeClass: roadmapHdPct > 0 ? 'text-emerald-400' : 'text-[#828282]',
         },
         {
           section: 'troubleshooting-hd',
@@ -388,6 +398,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <GitBranch className={SIDEBAR_ICON} />,
           title: 'Escaleras de decisión: Problema → Síntoma → Check → Resultado → Siguiente acción',
           badge: pillarCounts.tsHd,
+          ariaLabel: 'Troubleshooting Service Desk',
         },
         {
           section: 'runbooks-hd',
@@ -395,6 +406,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
           title: 'Runbooks completos: ticket real + paso a paso universal + respuesta en inglés copiable (incluye los quick-fixes ex-CheatSheet)',
           badge: pillarCounts.runbooksHd,
+          ariaLabel: 'Runbooks Service Desk',
         },
       ],
     },
@@ -416,7 +428,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <Milestone className={SIDEBAR_ICON} />,
           title: 'Checklist del roadmap SysAdmin / Infra & Ops → SRE (Tier 1-3 + semana de guardia de 30 tickets)',
           badge: roadmapSaPct,
-          badgeClass: roadmapSaPct > 0 ? 'text-emerald-400' : 'text-[#555]',
+          badgeClass: roadmapSaPct > 0 ? 'text-emerald-400' : 'text-[#828282]',
         },
         {
           section: 'troubleshooting-sa',
@@ -424,6 +436,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <GitBranch className={SIDEBAR_ICON} />,
           title: 'Escaleras de decisión de infra: Problema → Síntoma → Check → Resultado → Siguiente acción',
           badge: pillarCounts.tsSa,
+          ariaLabel: 'Troubleshooting SysAdmin',
         },
         {
           section: 'runbooks-sa',
@@ -431,6 +444,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <LifeBuoy className={SIDEBAR_ICON} />,
           title: 'Runbooks de infra con ticket real + paso a paso universal + respuesta en inglés copiable (incluye los quick-fixes ex-CheatSheet)',
           badge: pillarCounts.runbooksSa,
+          ariaLabel: 'Runbooks SysAdmin',
         },
       ],
     },
@@ -544,11 +558,11 @@ const SidebarBase: React.FC<SidebarProps> = ({
           aria-label={isCollapsed ? `Desplegar grupo ${g.label}` : `Plegar grupo ${g.label}`}
           className="flex items-center gap-1.5 min-w-0 text-left cursor-pointer"
         >
-          <ChevronDown className={`w-3 h-3 text-[#4a4a4a] transition-transform shrink-0 ${isCollapsed ? '-rotate-90' : ''}`} />
-          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#4a4a4a]">{g.label}</span>
+          <ChevronDown className={`w-3 h-3 text-[#808080] transition-transform shrink-0 ${isCollapsed ? '-rotate-90' : ''}`} />
+          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#808080]">{g.label}</span>
         </button>
         {isCollapsed && (
-          <span className="text-[9px] font-mono text-[#555] shrink-0" title={`${itemCount} apartados`}>
+          <span className="text-[9px] font-mono text-[#828282] shrink-0" title={`${itemCount} apartados`}>
             {itemCount}
           </span>
         )}
@@ -678,7 +692,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
             <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-green-400" />
             <span className="truncate">Local-first · 100% Offline</span>
           </div>
-          <span className="font-mono text-[9px] text-[#555] shrink-0 ml-2">Dexie</span>
+          <span className="font-mono text-[9px] text-[#828282] shrink-0 ml-2">Dexie</span>
         </div>
       </div>
     </>

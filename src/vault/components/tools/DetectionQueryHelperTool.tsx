@@ -192,7 +192,7 @@ const Section: React.FC<{
   children: React.ReactNode;
 }> = ({ label, icon, children }) => (
   <div className="space-y-1.5">
-    <div className="text-[10px] font-bold uppercase tracking-widest text-[#555] inline-flex items-center gap-1.5">
+    <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282] inline-flex items-center gap-1.5">
       {icon}
       {label}
     </div>

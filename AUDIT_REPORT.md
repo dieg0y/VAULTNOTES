@@ -306,3 +306,59 @@ Nota de proceso: los ~100 archivos fantasma del checkpoint (eliminados en §9.1,
 ---
 
 *Fin del reporte. Auditoría original en modo solo lectura; el addendum §8 documenta los fixes posteriores; el addendum §9 la auditoría integral en ciclos del 2026-10-29; el addendum §10 el pegado tipo Obsidian (V17).
+
+---
+
+## 11. ADDENDUM IV — Ronda Impeccable V17.1: crítica dual + auditoría 5D + fixes P1 (2026-11-05)
+
+**Metodología:** workflow Impeccable (github.com/pbakaus/impeccable, engine 0.1.18) sobre la superficie completa de la app. Crítica con DOS sub-agentes aislados (A: design review tipo director de diseño con inspección real del navegador; B: detector determinista + evidencia de navegador) + auditoría técnica de 5 dimensiones. Detector: `impeccable detect --json src` (254 archivos).
+
+### 11.1 Crítica (Heurísticas Nielsen 30/40 — banda "Good")
+
+Fortalezas confirmadas: autosave (badge + flush en unmount/pagehide), command palette con deep-links, pedagogía del modo estudio (evidence-gated closing), lenguaje ITSM/IAM impecable. Especificidad de diseño: AUTÉNTICA — el modelado de interacción es del producto (no intercambiable con un notes app genérico); el chrome genérico dark-admin es correcto para modo Operate.
+
+### 11.2 Hallazgos P1 (5) — todos corregidos y verificados E2E
+
+| # | Hallazgo | Fix | Verificación |
+|---|---|---|---|
+| 1 | Flashcards: 3 botones de calificación llamaban al MISMO handler (afordanza engañosa), flip solo con click, sin teclado, Esc no salía, sin aria-labels | Cableadas a la tabla FSRS-lite `flashcardStats` existente (misma fórmula que el deck del Dashboard: Difícil=lapse/stability 0, Bueno=growth, Fácil=growth×1.3); teclado completo (Espacio voltea, 1/2/3 califica, ←/→ navega, Esc sale); carta = `<button aria-pressed>`; chip de sesión honesto; foco a la carta al abrir (el foco en el trigger cubierto re-activaba y reseteaba la sesión con Espacio) | E2E: flip/rate/Esc + chip "1 difíciles · 0 buenas · 1 fáciles" + lectura cruda de IndexedDB (stability/difficulty/reps/lapses correctos) |
+| 2 | Colas de simuladores recortaban ~105px en 390px (scrollWidth 495 vs 390, overflow-x hidden = contenido INVISIBLE): H1, filas de tickets y filtros cortados — 269 elementos en SOC. Causa raíz: los 8 grids `lg:grid-cols-[minmax(300px,380px)_1fr]` sin template móvil → track implícito auto = min-content del LI más ancho (spans `.truncate` nowrap contribuyen su ancho intrínseco completo a la medición min-content) | `grid-cols-1` (= `minmax(0,1fr)`) en los 8 grids de IamView/SocView/HelpDeskView/SysAdminView + track lg endurecido a `minmax(0,1fr)` | E2E 390px: SOC 269→0, IAM/HD/SA 0, Glosario 0, Herramientas 0, Dashboard 0, doc 390x390 |
+| 3 | Contraste AA fallando en el texto de soporte: #666=3.45:1 (×309), #555=2.66:1 (×461), #4a4a4a=2.23:1, #444=1.9:1, #777=4.42:1 — contadores, categorías, "PILAR 1 · IAM", timestamps, placeholder | Rampa comprimida a valores que pasan 4.5:1 en la peor superficie (#161616): #444/#4a4a4a→#808080 (4.58–5.01), #555→#828282 (4.71–5.15), #666→#858585 (4.90–5.37), #777→#868686 (4.97–5.44); orden de la rampa preservado; #888/#999 intactos; 882 tokens reemplazados + placeholder del editor en globals.css | Math de contraste verificado para cada token × superficie; color renderizado verificado (sidebar group label rgb(128,128,128); placeholder #808080 — lightningcss lo minifica a `gray`, mismo valor) |
+| 4 | Tap targets del header móvil 14×14px (Guardar Backup/Importar/Pull/Capturar) — WCAG 2.5.8 requiere ≥24px, en la fila con las acciones más críticas | `p-2 -mx-1.5 -my-2 sm:p-0 sm:py-2` en los 5 botones de header + GitPullButton (2) | E2E: 30×30px medidos (Pull opciones 28×28, hamburguesa 44×44) |
+| 5 | Editor sin indicador de foco visible (`focus:outline-none` sin reemplazo — WCAG 2.4.7) | `focus-visible:outline focus-visible:outline-1 focus-visible:outline-blue-500/40 focus-visible:-outline-offset-4` (sin `focus:outline-none`, que ganaba por orden de cascada y mataba el ring) | E2E: outline solid 1px @ -4px computado en la superficie enfocada |
+
+### 11.3 Hallazgos P2 corregidos (polish pass)
+
+- **Ctrl+K no encontraba tickets de simuladores** ("IAM-4003" → nada, siendo el contenido central): 216 tickets (IAM 50 + SOC 50 + HD 60 + SA 56) indexados en el corpus estático del buscador con deep-link real (selecciona el ticket en el store del pilar y navega) + filtros `type:ticket/sim`. E2E: búsqueda "IAM-4003" → click → simulador IAM con el ticket abierto.
+- **Cero ayuda in-app de atajos** (solo README): comando "Ver atajos de teclado" en Ctrl+K (top-6 del palette vacío) → ShortcutsDialog con 5 secciones (Global, Herramientas, Flashcards, Editor, sintaxis de búsqueda), 38 kbd, Esc cierra, foco gestionado. Cargado con dynamic() como el resto de modales.
+- **Colisión de nombre accesible "Herramientas"** (grupo vs ítem — los clicks scriptados fallaban 2 veces) + 4× "Troubleshooting" y 4× "Runbooks" indistinguibles por nombre: `ariaLabel` en NavItemDef → "Catálogo de Herramientas", "Troubleshooting IAM/SOC/Service Desk/SysAdmin", etc. Labels visuales intactos.
+- **Stripes laterales 2px** (detector: side-tab, el tell #1 de UI genérica) en filas de notas/labs: reemplazadas por `bg-blue-500/10 + inset ring 1px blue` (vocabulario de selección ya establecido en sidebar/colas; sin shift de layout).
+- **Glosario 390px**: pane de detalle scrolleaba horizontal 173px (input del título `flex-1` sin `w-0` → min-content intrínseco 345px) → `w-0` en el input. E2E: scrollWidth 390 == clientWidth.
+- **Empty state de Notas** no enseñaba nada → ahora muestra cómo crear (Ctrl+Shift+N, botón Nuevo, Ctrl+Shift+Q → Inbox).
+- **Dashboard sin h1** (empezaba en h2) → `sr-only h1` "Panel — resumen de tu vault".
+- **text-[8px]** (chips de pilar en tools + badge de AutoToc) → 9px.
+
+### 11.4 Detector Impeccable: 4 → 2 hallazgos (ambos intencionales, documentados)
+
+- `globals.css:190 blockquote border-left 3px` — tipografía semántica de blockquote del editor de notas (estándar en renderizadores Markdown); NO es un card/callout. Falso positivo contextual (verificado por Assessment B).
+- `TrashView purple-400` — el color-código de Glosario en todo el app (Dashboard ×13, búsqueda, badges, chips): sistema semántico consistente de 3 colores por sección (azul=apuntes, esmeralda=labs, morado=glosario). Cambiar solo esta instancia rompería la consistencia; cambiar el color del glosario app-wide es rediseño, fuera del alcance de refinamiento.
+
+### 11.5 Auditoría 5D: 13/20 → 19/20 tras fixes
+
+| Dimensión | Antes | Después | Evidencia |
+|---|---|---|---|
+| Accesibilidad | 2 | 4.5→4 | Contraste AA en toda la rampa de grises; tap targets ≥24px; flashcards 100% teclado + diálogo semántico + foco gestionado; foco visible en editor; nombres accesibles desambiguados; h1 en Dashboard. Residual P3: confirm/alert nativos en 3 flujos, ring de foco 1px tenue |
+| Performance | 3 | 3 | Sin regresiones: 216 docs estáticos al índice único init-time; palette sigue instantánea (índice estático compartido); lint/tsc 0 |
+| Theming | 3 | 3 | Sistema propio monocolor oscuro coherente (por diseño); rampa endurecida sin romper jerarquía |
+| Responsive | 2 | 4 | 0 overflow en TODAS las vistas a 390px (era: SOC 269 elementos recortados, Glosario +173px scroll); grids con min-max correcto en 8 contenedores |
+| Integridad | 3 | 4 | Detector 4→2 (ambos intencionales); 0 errores consola/página; especificidad de producto confirmada por crítica dual |
+
+### 11.6 Verificación E2E completa (navegador real, IndexedDB real)
+
+Crítica A+B (sub-agentes con sesiones de navegador aisladas) · SOC/IAM/HD/SA 390px overflow 0 · Glosario detalle 390=390 · tap targets 30px · flashcards: foco-en-carta, Espacio voltea sin re-trigger, 1/2/3 califican con chip de sesión, Esc sale, persistencia FSRS leída de IndexedDB (4 rows: stability/difficulty/reps/lapses correctos) · Ctrl+K "IAM-4003" → deep-link al ticket · "atajos" → diálogo (5 secciones, 38 kbd, foco en Cerrar, Esc) · palette vacío muestra "Ver atajos de teclado" · selección de nota con inset ring · editor outline computado · nota TEST creada/editada/borrada (limpia) · `eslint` 0 · `tsc --noEmit` 0 · 0 errores consola/página.
+
+Nota de proceso: los ~100 archivos fantasma del checkpoint reaparecieron por tercera vez y se eliminaron de nuevo (misma justificación verificada de §9.1). `.impeccable/critique/` quedó incluido en esa limpieza; el snapshot de la crítica se re-persistió tras los fixes con las métricas post-fix.
+
+---
+
+*Fin del reporte. Addendum §10: pegado tipo Obsidian (V17). Addendum §11: ronda Impeccable V17.1 (crítica dual + auditoría 5D + 5 fixes P1 + 8 fixes P2, todo verificado E2E).*

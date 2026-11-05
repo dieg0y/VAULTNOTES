@@ -234,14 +234,14 @@ export const LabsView: React.FC<LabsViewProps> = ({
                         </div>
                         <span className="truncate">{org}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-[#555]">{count}</span>
+                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
                     </label>
                   );
                 })}
 
                 {/* No organizations yet? helpful empty hint */}
                 {allOrganizations.length === 0 && (
-                  <span className="text-[10px] text-[#666] italic pl-1">
+                  <span className="text-[10px] text-[#858585] italic pl-1">
                     Aparecen automáticamente cuando crees labs.
                   </span>
                 )}
@@ -288,7 +288,7 @@ export const LabsView: React.FC<LabsViewProps> = ({
                         </div>
                         <span className="truncate max-w-[140px]">{topic}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-[#555]">{count}</span>
+                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
                     </label>
                   );
                 })}
@@ -341,7 +341,7 @@ export const LabsView: React.FC<LabsViewProps> = ({
                         </div>
                         <span className={`truncate ${color}`}>{status}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-[#555]">{count}</span>
+                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
                     </label>
                   );
                 })}
@@ -394,7 +394,7 @@ export const LabsView: React.FC<LabsViewProps> = ({
                         </div>
                         <span className={`truncate ${diffColor}`}>{diff}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-[#555]">{count}</span>
+                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
                     </label>
                   );
                 })}
@@ -423,13 +423,13 @@ export const LabsView: React.FC<LabsViewProps> = ({
           </div>
 
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-[#828282] absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Buscar labs, IoCs, comandos..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-2.5 py-1 text-xs text-[#E5E5E5] placeholder:text-[#555] focus:outline-none focus:border-blue-500"
+              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-2.5 py-1 text-xs text-[#E5E5E5] placeholder:text-[#828282] focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -439,16 +439,16 @@ export const LabsView: React.FC<LabsViewProps> = ({
           {filteredLabs.length === 0 ? (
             labs.length === 0 ? (
               /* V9 — Labs vacío INTENCIONAL: sin seeds, sin fixtures. */
-              <div className="p-12 text-center text-[#666] space-y-3 flex flex-col items-center justify-center">
+              <div className="p-12 text-center text-[#858585] space-y-3 flex flex-col items-center justify-center">
                 <FlaskConical className="w-10 h-10 text-[#333] mx-auto" />
                 <p className="text-sm text-[#888] font-medium">Sin labs — Tú decides qué hacer después.</p>
-                <p className="text-[11px] text-[#555] max-w-sm leading-relaxed">
+                <p className="text-[11px] text-[#828282] max-w-sm leading-relaxed">
                   Los roadmaps, runbooks, cheatsheets y simuladores de los 3 pilares ya traen la
                   práctica guiada. Este espacio queda libre para tus propios labs.
                 </p>
               </div>
             ) : (
-            <div className="p-8 text-center text-[#666] space-y-2">
+            <div className="p-8 text-center text-[#858585] space-y-2">
               <FlaskConical className="w-8 h-8 text-[#333] mx-auto" />
               <p className="text-xs">No hay labs con estos filtros.</p>
               <button
@@ -468,14 +468,11 @@ export const LabsView: React.FC<LabsViewProps> = ({
                   key={lab.id}
                   onClick={() => onSelectLab(lab.id)}
                   className={`p-3 relative cursor-pointer transition-colors ${
-                    isSelected ? 'bg-[#161616]' : 'hover:bg-[#111111]'
+                    isSelected
+                      ? 'bg-blue-500/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.35)]'
+                      : 'hover:bg-[#111111]'
                   }`}
                 >
-                  {/* Left indicator bar */}
-                  {isSelected && (
-                    <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />
-                  )}
-
                   {/* Top row: Title + External Link */}
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <h3
@@ -491,7 +488,7 @@ export const LabsView: React.FC<LabsViewProps> = ({
                         target="_blank"
                         rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[#666] hover:text-blue-400 transition-colors p-0.5"
+                        className="text-[#858585] hover:text-blue-400 transition-colors p-0.5"
                         title="Abrir enlace del lab"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -536,8 +533,8 @@ export const LabsView: React.FC<LabsViewProps> = ({
                         </>
                       ) : (
                         <>
-                          <Clock className="w-3 h-3 text-[#666]" />
-                          <span className="text-[#666]">No iniciado</span>
+                          <Clock className="w-3 h-3 text-[#858585]" />
+                          <span className="text-[#858585]">No iniciado</span>
                         </>
                       )}
                     </div>
@@ -574,11 +571,11 @@ export const LabsView: React.FC<LabsViewProps> = ({
             onDeleteLab={() => onDeleteLab(currentLab.id)}
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#555] space-y-4">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#828282] space-y-4">
             <FlaskConical className="w-12 h-12 text-[#262626]" />
             <div>
               <h3 className="text-base font-bold text-white">Selecciona o crea un Lab de práctica</h3>
-              <p className="text-xs text-[#777] mt-1">
+              <p className="text-xs text-[#868686] mt-1">
                 Estructura tus investigaciones de SOC / IAM con partes interactivas, herramientas, IoCs y mitigación.
               </p>
             </div>
@@ -802,7 +799,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               triggerAutoSave();
             }}
             placeholder="Título del Lab (ej. Phishing Analysis - Case #42)..."
-            className="w-full bg-transparent text-xl md:text-2xl font-bold text-white focus:outline-none border-none placeholder:text-[#444] tracking-tight"
+            className="w-full bg-transparent text-xl md:text-2xl font-bold text-white focus:outline-none border-none placeholder:text-[#808080] tracking-tight"
           />
 
           <div className="flex items-center gap-2 shrink-0">
@@ -851,7 +848,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               className={`p-1.5 rounded transition-colors ${
                 isFavorite
                   ? 'text-yellow-400 bg-yellow-500/10'
-                  : 'text-[#666] hover:text-white hover:bg-[#161616]'
+                  : 'text-[#858585] hover:text-white hover:bg-[#161616]'
               }`}
               title={isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
             >
@@ -861,7 +858,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
             {/* Delete button */}
             <button
               onClick={onDeleteLab}
-              className="p-1.5 rounded text-[#666] hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              className="p-1.5 rounded text-[#858585] hover:text-red-400 hover:bg-red-500/10 transition-colors"
               title="Mover a la papelera"
             >
               <Trash2 className="w-4 h-4" />
@@ -873,7 +870,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
         <div className="flex flex-wrap items-center gap-2.5 text-xs text-[#888]">
           {/* Organization */}
           <div className="flex items-center bg-[#161616] rounded px-2.5 py-1 border border-[#262626] gap-1.5">
-            <span className="text-[10px] uppercase font-bold text-[#555]">Org:</span>
+            <span className="text-[10px] uppercase font-bold text-[#828282]">Org:</span>
             <input
               type="text"
               value={organization}
@@ -882,13 +879,13 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                 triggerAutoSave();
               }}
               placeholder="Organización (ej. LetsDefend)"
-              className="bg-transparent border-none text-white font-semibold text-xs focus:outline-none w-28 placeholder:text-[#555]"
+              className="bg-transparent border-none text-white font-semibold text-xs focus:outline-none w-28 placeholder:text-[#828282]"
             />
           </div>
 
           {/* Topic / Theme */}
           <div className="flex items-center bg-[#161616] rounded px-2.5 py-1 border border-[#262626] gap-1.5">
-            <span className="text-[10px] uppercase font-bold text-[#555]">Tema:</span>
+            <span className="text-[10px] uppercase font-bold text-[#828282]">Tema:</span>
             <input
               type="text"
               list="lab-topics-datalist"
@@ -898,7 +895,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                 triggerAutoSave();
               }}
               placeholder="Tema / Especialidad..."
-              className="bg-transparent border-none text-blue-400 font-semibold text-xs focus:outline-none w-44 placeholder:text-[#555]"
+              className="bg-transparent border-none text-blue-400 font-semibold text-xs focus:outline-none w-44 placeholder:text-[#828282]"
             />
             <datalist id="lab-topics-datalist">
               {topics.map((cat) => (
@@ -909,7 +906,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
 
           {/* Subtopic (Optional) */}
           <div className="flex items-center bg-[#161616] rounded px-2.5 py-1 border border-[#262626] gap-1.5">
-            <span className="text-[10px] uppercase font-bold text-[#555]">Subtema:</span>
+            <span className="text-[10px] uppercase font-bold text-[#828282]">Subtema:</span>
             <input
               type="text"
               value={subtopic}
@@ -918,13 +915,13 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                 triggerAutoSave();
               }}
               placeholder="Subtema (ej. Headers)"
-              className="bg-transparent border-none text-[#BBB] text-xs focus:outline-none w-28 placeholder:text-[#555]"
+              className="bg-transparent border-none text-[#BBB] text-xs focus:outline-none w-28 placeholder:text-[#828282]"
             />
           </div>
 
           {/* Difficulty Dropdown */}
           <div className="flex items-center bg-[#161616] rounded px-2.5 py-1 border border-[#262626] gap-1.5">
-            <span className="text-[10px] uppercase font-bold text-[#555]">Dificultad:</span>
+            <span className="text-[10px] uppercase font-bold text-[#828282]">Dificultad:</span>
             <select
               value={difficulty}
               onChange={(e) => {
@@ -947,7 +944,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
 
           {/* Status Dropdown */}
           <div className="flex items-center bg-[#161616] rounded px-2.5 py-1 border border-[#262626] gap-1.5">
-            <span className="text-[10px] uppercase font-bold text-[#555]">Estado:</span>
+            <span className="text-[10px] uppercase font-bold text-[#828282]">Estado:</span>
             <select
               value={status}
               onChange={(e) => {
@@ -970,7 +967,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
 
           {/* Time Spent */}
           <div className="flex items-center bg-[#161616] rounded px-2.5 py-1 border border-[#262626] gap-1.5">
-            <Clock className="w-3 h-3 text-[#666]" />
+            <Clock className="w-3 h-3 text-[#858585]" />
             <input
               type="text"
               value={timeSpent}
@@ -979,13 +976,13 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                 triggerAutoSave();
               }}
               placeholder="Tiempo (ej. 45m)"
-              className="bg-transparent border-none text-white text-xs focus:outline-none w-20 font-mono placeholder:text-[#555]"
+              className="bg-transparent border-none text-white text-xs focus:outline-none w-20 font-mono placeholder:text-[#828282]"
             />
           </div>
 
           {/* Source Link URL */}
           <div className="flex items-center bg-[#161616] rounded px-2.5 py-1 border border-[#262626] gap-1.5 ml-auto">
-            <ExternalLink className="w-3 h-3 text-[#666]" />
+            <ExternalLink className="w-3 h-3 text-[#858585]" />
             <input
               type="text"
               value={sourceLink}
@@ -994,7 +991,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                 triggerAutoSave();
               }}
               placeholder="URL del Lab..."
-              className="bg-transparent border-none text-blue-400 text-xs focus:outline-none w-36 placeholder:text-[#555]"
+              className="bg-transparent border-none text-blue-400 text-xs focus:outline-none w-36 placeholder:text-[#828282]"
             />
             {sourceLink && (
               <a
@@ -1029,7 +1026,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
 
         {/* Parts Accordions */}
         {parts.length === 0 ? (
-          <div className="p-8 text-center rounded border border-dashed border-[#262626] bg-[#0D0D0D] text-[#666] space-y-2">
+          <div className="p-8 text-center rounded border border-dashed border-[#262626] bg-[#0D0D0D] text-[#858585] space-y-2">
             <p className="text-xs">No hay partes agregadas en este lab todavía.</p>
             <button
               onClick={handleAddPart}
@@ -1086,7 +1083,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                       <button
                         disabled={index === 0}
                         onClick={() => handleMovePart(index, 'up')}
-                        className="p-1 text-[#666] hover:text-white disabled:opacity-30 disabled:hover:text-[#666]"
+                        className="p-1 text-[#858585] hover:text-white disabled:opacity-30 disabled:hover:text-[#858585]"
                         title="Mover arriba"
                       >
                         <ChevronUp className="w-3.5 h-3.5" />
@@ -1094,7 +1091,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                       <button
                         disabled={index === parts.length - 1}
                         onClick={() => handleMovePart(index, 'down')}
-                        className="p-1 text-[#666] hover:text-white disabled:opacity-30 disabled:hover:text-[#666]"
+                        className="p-1 text-[#858585] hover:text-white disabled:opacity-30 disabled:hover:text-[#858585]"
                         title="Mover abajo"
                       >
                         <ChevronDown className="w-3.5 h-3.5" />
@@ -1103,7 +1100,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                       {/* Delete Part */}
                       <button
                         onClick={() => handleDeletePart(part.id)}
-                        className="p-1 text-[#666] hover:text-red-400"
+                        className="p-1 text-[#858585] hover:text-red-400"
                         title="Eliminar parte"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1145,7 +1142,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               <Wrench className="w-4 h-4 text-blue-400" />
               <h3 className="font-bold text-sm text-white">Herramientas Usadas</h3>
             </div>
-            <span className="text-[10px] font-mono text-[#666]">{tools.length} herramienta{tools.length === 1 ? '' : 's'}</span>
+            <span className="text-[10px] font-mono text-[#858585]">{tools.length} herramienta{tools.length === 1 ? '' : 's'}</span>
           </div>
           <div className="min-h-[44px] bg-[#161616] border border-[#262626] rounded p-2 flex flex-wrap gap-1.5 items-center">
             {tools.map((t) => (
@@ -1153,11 +1150,11 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                 key={t}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#222] text-xs font-mono text-blue-400 border border-[#2c2c2c]"
               >
-                <Wrench className="w-3 h-3 text-[#777]" />
+                <Wrench className="w-3 h-3 text-[#868686]" />
                 <span>{t}</span>
                 <button
                   onClick={() => handleRemoveTool(t)}
-                  className="text-[#666] hover:text-red-400 ml-0.5"
+                  className="text-[#858585] hover:text-red-400 ml-0.5"
                   title="Eliminar herramienta"
                 >
                   ✕
@@ -1170,7 +1167,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               value={toolInput}
               onChange={(e) => setToolInput(e.target.value)}
               onKeyDown={handleAddTool}
-              className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[140px] px-1 placeholder:text-[#555]"
+              className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[140px] px-1 placeholder:text-[#828282]"
             />
           </div>
         </div>
@@ -1202,11 +1199,11 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                     className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-[#0D0D0D] text-xs font-mono text-blue-300 border border-[#2c2c2c] max-w-full group/cmd"
                     title={cmd}
                   >
-                    <Terminal className="w-3 h-3 text-[#555] shrink-0" />
+                    <Terminal className="w-3 h-3 text-[#828282] shrink-0" />
                     <span className="truncate max-w-[420px]">{cmd}</span>
                     <button
                       onClick={() => handleRemoveCommand(cmd)}
-                      className="text-[#666] hover:text-red-400 ml-0.5 shrink-0"
+                      className="text-[#858585] hover:text-red-400 ml-0.5 shrink-0"
                       title="Eliminar comando"
                     >
                       ✕
@@ -1221,7 +1218,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
               onKeyDown={handleAddCommand}
-              className="w-full bg-transparent border-none outline-none text-xs font-mono text-blue-300 placeholder:text-[#555] px-1 placeholder:font-sans"
+              className="w-full bg-transparent border-none outline-none text-xs font-mono text-blue-300 placeholder:text-[#828282] px-1 placeholder:font-sans"
             />
           </div>
         </div>
@@ -1248,7 +1245,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                   triggerAutoSave();
                 }}
                 placeholder="Documenta IPs maliciosas, hashes SHA256, dominios C2, o vulnerabilidades identificadas..."
-                className="w-full bg-[#161616] border border-[#262626] rounded p-3 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-amber-500/40 resize-y leading-relaxed font-sans"
+                className="w-full bg-[#161616] border border-[#262626] rounded p-3 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-amber-500/40 resize-y leading-relaxed font-sans"
               />
             </div>
 
@@ -1266,7 +1263,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                   triggerAutoSave();
                 }}
                 placeholder="Acciones correctivas tomadas (bloqueos en Firewall, cambio de credenciales, reglas SIEM/YARA)..."
-                className="w-full bg-[#161616] border border-[#262626] rounded p-3 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-green-500/40 resize-y leading-relaxed"
+                className="w-full bg-[#161616] border border-[#262626] rounded p-3 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-green-500/40 resize-y leading-relaxed"
               />
             </div>
           </div>
@@ -1409,7 +1406,7 @@ const PartRichEditor: React.FC<PartRichEditorProps> = ({ labId, initialHtml, onC
       <div class="my-4 rounded-lg overflow-hidden border border-[#262626] bg-[#161616] font-mono text-xs vault-code-block">
         <div class="bg-[#0D0D0D] px-3 py-1.5 border-b border-[#262626] text-[11px] text-blue-400 font-semibold flex items-center justify-between select-none">
           <span class="uppercase tracking-wider font-semibold text-blue-400">${lang}</span>
-          <span class="vault-code-copy text-[#666] hover:text-blue-300 text-[10px] cursor-pointer flex items-center gap-0.5" contenteditable="false" role="button" tabindex="-1">📋 Copiar</span>
+          <span class="vault-code-copy text-[#858585] hover:text-blue-300 text-[10px] cursor-pointer flex items-center gap-0.5" contenteditable="false" role="button" tabindex="-1">📋 Copiar</span>
         </div>
         <pre class="p-4 text-blue-300 overflow-x-auto whitespace-pre"><code class="language-${lang}"># Escribe tu comando o log aquí...</code></pre>
       </div>

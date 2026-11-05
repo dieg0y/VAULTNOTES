@@ -60,7 +60,7 @@ const CERT_STATUSES = ['En proceso', 'Planificada', 'Obtenida'] as const;
 const LANG_LEVELS = ['Nativo', 'C2', 'C1', 'B2+', 'B2', 'B1', 'A2', 'A1'] as const;
 
 const inputCls =
-  'w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500/50 transition-colors';
+  'w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-1.5 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500/50 transition-colors';
 
 const statusColor = (status: string): string => {
   switch (status) {
@@ -95,7 +95,7 @@ const DeleteBtn: React.FC<{ onClick: () => void; label: string }> = ({ onClick, 
   <button
     type="button"
     onClick={onClick}
-    className="text-[#666] hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-[#1d1d1d] shrink-0"
+    className="text-[#858585] hover:text-red-400 transition-colors cursor-pointer p-1 rounded hover:bg-[#1d1d1d] shrink-0"
     title={label}
     aria-label={label}
   >
@@ -116,7 +116,7 @@ const SectionCard: React.FC<{
       <h2 className="text-sm font-bold text-white flex items-center gap-2">
         {icon}
         {title}
-        {typeof count === 'number' && <span className="text-[10px] font-mono text-[#555]">({count})</span>}
+        {typeof count === 'number' && <span className="text-[10px] font-mono text-[#828282]">({count})</span>}
       </h2>
       {action}
     </header>
@@ -134,7 +134,7 @@ const Field: React.FC<{
   className?: string;
 }> = ({ label, value, onChange, placeholder, type = 'text', className = '' }) => (
   <label className={`flex flex-col gap-1 min-w-0 ${className}`}>
-    {label && <span className="text-[10px] font-semibold text-[#777] uppercase tracking-wide">{label}</span>}
+    {label && <span className="text-[10px] font-semibold text-[#868686] uppercase tracking-wide">{label}</span>}
     <input
       type={type}
       value={value}
@@ -199,7 +199,7 @@ const ChipsEditor: React.FC<{
               <button
                 type="button"
                 onClick={() => onChange(items.filter((_, i) => i !== idx))}
-                className="text-[#666] hover:text-red-400 transition-colors cursor-pointer shrink-0"
+                className="text-[#858585] hover:text-red-400 transition-colors cursor-pointer shrink-0"
                 aria-label={`Quitar ${it}`}
               >
                 <X className="w-3 h-3" />
@@ -521,7 +521,7 @@ export const ProfileView: React.FC = () => {
   if (!sortedProfiles || !current) {
     return (
       <div className="flex-1 h-[calc(100vh-48px)] flex items-center justify-center bg-[#0A0A0A]">
-        <div className="flex flex-col items-center gap-3 text-[#666]">
+        <div className="flex flex-col items-center gap-3 text-[#858585]">
           <ProfileIcon className="w-8 h-8 animate-pulse" />
           <p className="text-xs">Cargando perfil profesional…</p>
         </div>
@@ -672,9 +672,9 @@ export const ProfileView: React.FC = () => {
             onChange={(e) => patch({ summary: e.target.value })}
             rows={6}
             placeholder="Párrafo de 3-6 líneas: quién eres, tu especialidad IAM, herramientas y logros."
-            className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
+            className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
           />
-          <p className="text-[10px] text-[#555]">{current.summary.trim().length} caracteres · {current.summary.trim().split(/\s+/).filter(Boolean).length} palabras</p>
+          <p className="text-[10px] text-[#828282]">{current.summary.trim().length} caracteres · {current.summary.trim().split(/\s+/).filter(Boolean).length} palabras</p>
         </SectionCard>
 
         {/* 4. Skills */}
@@ -787,7 +787,7 @@ export const ProfileView: React.FC = () => {
         <SectionCard icon={<Briefcase className="w-4 h-4 text-blue-400" />} title="Experiencia" count={current.experience.length}>
           <div className="flex flex-col gap-3">
             {current.experience.length === 0 && (
-              <p className="text-[11px] text-[#666] p-3 rounded border border-dashed border-[#333]">
+              <p className="text-[11px] text-[#858585] p-3 rounded border border-dashed border-[#333]">
                 Sin experiencia registrada. Añade empleos, prácticas o proyectos — hasta los labs cuentan.
               </p>
             )}
@@ -797,7 +797,7 @@ export const ProfileView: React.FC = () => {
                   <Field label="Rol" value={e.role} onChange={(v) => updateExp(e.id, { role: v })} placeholder="P. ej. IAM Analyst" />
                   <Field label="Empresa / Proyecto" value={e.company} onChange={(v) => updateExp(e.id, { company: v })} placeholder="Empresa" />
                   <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-[10px] font-semibold text-[#777] uppercase tracking-wide">Tipo</span>
+                    <span className="text-[10px] font-semibold text-[#868686] uppercase tracking-wide">Tipo</span>
                     <div className="flex gap-2">
                       <select
                         value={e.type || 'Empleo'}
@@ -815,7 +815,7 @@ export const ProfileView: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-[10px] font-semibold text-[#777] uppercase tracking-wide">Fechas (YYYY-MM)</span>
+                    <span className="text-[10px] font-semibold text-[#868686] uppercase tracking-wide">Fechas (YYYY-MM)</span>
                     <div className="flex items-center gap-2">
                       <input
                         value={e.startDate || ''}
@@ -845,13 +845,13 @@ export const ProfileView: React.FC = () => {
                   Trabajo aquí actualmente
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold text-[#777] uppercase tracking-wide">Logros (una línea por bullet)</span>
+                  <span className="text-[10px] font-semibold text-[#868686] uppercase tracking-wide">Logros (una línea por bullet)</span>
                   <textarea
                     value={e.bullets.join('\n')}
                     onChange={(ev) => updateExp(e.id, { bullets: ev.target.value.split('\n') })}
                     rows={4}
                     placeholder={'P. ej.\nEjecuté campañas trimestrales de access reviews en Entra ID (300+ cuentas)\nReduje cuentas huérfanas un 40% con reportes PowerShell de AD'}
-                    className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
+                    className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
                   />
                 </label>
                 <div className="flex justify-end">
@@ -1020,7 +1020,7 @@ export const ProfileView: React.FC = () => {
                   placeholder="Qué hace, qué tecnologías, qué demuestra (2-4 líneas)."
                   onChange={(e) => updateProject(p.id, { description: e.target.value })}
                   rows={3}
-                  className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
+                  className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
                   aria-label="Descripción del proyecto"
                 />
                 <Field label="Link" value={p.link || ''} onChange={(v) => updateProject(p.id, { link: v })} placeholder="github.com/… (opcional)" />
@@ -1052,7 +1052,7 @@ export const ProfileView: React.FC = () => {
             onChange={(e) => patch({ jobSearchNotes: e.target.value })}
             rows={4}
             placeholder="Portales, títulos probados, feedback de entrevistas, contactos…"
-            className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
+            className="w-full bg-[#161616] border border-[#262626] rounded px-2.5 py-2 text-xs text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500/50 transition-colors resize-y leading-relaxed"
             aria-label="Notas de estrategia de búsqueda"
           />
         </SectionCard>
@@ -1087,7 +1087,7 @@ export const ProfileView: React.FC = () => {
                 <FileText className="w-4 h-4 text-blue-400 shrink-0" />
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-white truncate">Markdown que recibirá la IA</h3>
-                  <p className="text-[10px] text-[#777]">{previewMd.split('\n').length} líneas · {previewMd.length} caracteres</p>
+                  <p className="text-[10px] text-[#868686]">{previewMd.split('\n').length} líneas · {previewMd.length} caracteres</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">

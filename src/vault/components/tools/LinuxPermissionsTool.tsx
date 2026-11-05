@@ -320,17 +320,17 @@ export const LinuxPermissionsTool: React.FC = () => {
           <div className="bg-[#0D0D0D] border border-[#262626] rounded p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <span className="text-[10px] uppercase tracking-widest text-[#555]">Octal</span>
+                <span className="text-[10px] uppercase tracking-widest text-[#828282]">Octal</span>
                 <code className="ml-2 text-2xl font-mono font-bold text-blue-300">{octalStr}</code>
               </div>
               <div className="text-right">
-                <span className="text-[10px] uppercase tracking-widest text-[#555]">Symbolic</span>
+                <span className="text-[10px] uppercase tracking-widest text-[#828282]">Symbolic</span>
                 <code className="ml-2 text-2xl font-mono font-bold text-green-300">{symbolic}</code>
               </div>
               <button
                 type="button"
                 onClick={handleCopyOctal}
-                className="p-1 rounded text-[#666] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0"
+                className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0"
                 title="Copiar octal"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -353,7 +353,7 @@ export const LinuxPermissionsTool: React.FC = () => {
                 <div key={row.label} className="flex items-center gap-3 py-1">
                   <span className="text-[11px] text-[#888] uppercase tracking-widest w-16 shrink-0">{row.label}</span>
                   <code className="text-sm font-mono text-white w-12">{octalToRwx(row.digit)}</code>
-                  <span className="text-[10px] text-[#555]">
+                  <span className="text-[10px] text-[#828282]">
                     ({row.digit} = {
                       (row.digit & 4 ? 'r' : '') +
                       (row.digit & 2 ? 'w' : '') +
@@ -361,9 +361,9 @@ export const LinuxPermissionsTool: React.FC = () => {
                     || '---'})
                   </span>
                   <div className="flex gap-1 ml-auto">
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${row.digit & 4 ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-[#161616] border-[#262626] text-[#444]'}`}>read</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${row.digit & 2 ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-[#161616] border-[#262626] text-[#444]'}`}>write</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${row.digit & 1 ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-[#161616] border-[#262626] text-[#444]'}`}>exec</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${row.digit & 4 ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-[#161616] border-[#262626] text-[#808080]'}`}>read</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${row.digit & 2 ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-[#161616] border-[#262626] text-[#808080]'}`}>write</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded border ${row.digit & 1 ? 'bg-blue-500/10 border-blue-500/30 text-blue-300' : 'bg-[#161616] border-[#262626] text-[#808080]'}`}>exec</span>
                   </div>
                 </div>
               ))}
@@ -377,21 +377,21 @@ export const LinuxPermissionsTool: React.FC = () => {
               Bits Especiales (SUID / SGID / Sticky)
             </h3>
             <div className="grid grid-cols-3 gap-2">
-              <div className={`text-center px-2 py-2 rounded border ${breakdown.special & 4 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-[#161616] border-[#262626] text-[#555]'}`}>
+              <div className={`text-center px-2 py-2 rounded border ${breakdown.special & 4 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-[#161616] border-[#262626] text-[#828282]'}`}>
                 <div className="text-[11px] font-bold uppercase">SUID</div>
                 <div className="text-[10px] font-mono">{breakdown.special & 4 ? 'Enabled' : 'Disabled'}</div>
                 <div className="text-[9px] mt-1 leading-tight">
                   {breakdown.special & 4 ? 'Se ejecuta como el owner del archivo.' : '—'}
                 </div>
               </div>
-              <div className={`text-center px-2 py-2 rounded border ${breakdown.special & 2 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-[#161616] border-[#262626] text-[#555]'}`}>
+              <div className={`text-center px-2 py-2 rounded border ${breakdown.special & 2 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-[#161616] border-[#262626] text-[#828282]'}`}>
                 <div className="text-[11px] font-bold uppercase">SGID</div>
                 <div className="text-[10px] font-mono">{breakdown.special & 2 ? 'Enabled' : 'Disabled'}</div>
                 <div className="text-[9px] mt-1 leading-tight">
                   {breakdown.special & 2 ? 'Se ejecuta como el group del archivo.' : '—'}
                 </div>
               </div>
-              <div className={`text-center px-2 py-2 rounded border ${breakdown.special & 1 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-[#161616] border-[#262626] text-[#555]'}`}>
+              <div className={`text-center px-2 py-2 rounded border ${breakdown.special & 1 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-[#161616] border-[#262626] text-[#828282]'}`}>
                 <div className="text-[11px] font-bold uppercase">Sticky</div>
                 <div className="text-[10px] font-mono">{breakdown.special & 1 ? 'Enabled' : 'Disabled'}</div>
                 <div className="text-[9px] mt-1 leading-tight">
@@ -431,7 +431,7 @@ export const LinuxPermissionsTool: React.FC = () => {
               Comando chmod Equivalente
             </h3>
             <CodeBlock code={`chmod ${octalStr} archivo.txt`} lang="bash" />
-            <p className="text-[10px] text-[#666] leading-relaxed">
+            <p className="text-[10px] text-[#858585] leading-relaxed">
               Equivalente simbólico: <code className="text-blue-300">chmod u={octalToRwx(breakdown.owner).replace(/-/g, '')},g={octalToRwx(breakdown.group).replace(/-/g, '')},o={octalToRwx(breakdown.other).replace(/-/g, '')} archivo.txt</code>
               {(breakdown.special & 4) && ' + u+s'}
               {(breakdown.special & 2) && ' + g+s'}

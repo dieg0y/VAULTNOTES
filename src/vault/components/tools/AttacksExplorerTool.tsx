@@ -68,9 +68,9 @@ const CheckList: React.FC<{ items: string[]; done: Set<number>; onToggle: (idx: 
           >
             {checked
               ? <CheckSquare className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" />
-              : <Square className="w-3.5 h-3.5 text-[#555] group-hover:text-blue-400 shrink-0 mt-0.5" />}
-            <span className={`text-xs leading-relaxed ${checked ? 'line-through text-[#666]' : 'text-[#CCC]'}`}>
-              <span className="font-mono text-[#555] mr-1">{idx + 1}.</span>{step}
+              : <Square className="w-3.5 h-3.5 text-[#828282] group-hover:text-blue-400 shrink-0 mt-0.5" />}
+            <span className={`text-xs leading-relaxed ${checked ? 'line-through text-[#858585]' : 'text-[#CCC]'}`}>
+              <span className="font-mono text-[#828282] mr-1">{idx + 1}.</span>{step}
             </span>
           </button>
         </li>
@@ -212,7 +212,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
 
       {/* Search box */}
       <div className="relative">
-        <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <Search className="w-3.5 h-3.5 text-[#828282] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           className={inputCls + ' pl-8 pr-8'}
           value={q}
@@ -224,7 +224,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
           <button
             type="button"
             onClick={() => setQ('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#555] hover:text-white cursor-pointer"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[#828282] hover:text-white cursor-pointer"
             aria-label="Limpiar búsqueda"
           >
             <X className="w-3.5 h-3.5" />
@@ -298,7 +298,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
 
       {/* Result counter */}
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[10px] text-[#555]">
+        <div className="text-[10px] text-[#828282]">
           {filtered.length} de {ATTACKS.length} ataques. Click para abrir el detalle.
         </div>
         {activeFilters && (
@@ -332,10 +332,10 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
               <div className="text-[10px] text-[#888] mt-0.5 truncate">{a.descripcion_tecnica}</div>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 {a.mitre_attack.map((t) => (
-                  <span key={t} className="text-[9px] font-mono px-1 py-0.5 rounded bg-[#161616] text-[#666]">{t}</span>
+                  <span key={t} className="text-[9px] font-mono px-1 py-0.5 rounded bg-[#161616] text-[#858585]">{t}</span>
                 ))}
                 {a.alias?.map((al) => (
-                  <span key={al} className="text-[9px] px-1 py-0.5 rounded bg-[#161616] text-[#666] italic">{al}</span>
+                  <span key={al} className="text-[9px] px-1 py-0.5 rounded bg-[#161616] text-[#858585] italic">{al}</span>
                 ))}
                 {a.cve_ejemplo?.map((cve) => (
                   <span key={cve} className="text-[9px] font-mono px-1 py-0.5 rounded bg-red-500/10 text-red-300">{cve}</span>
@@ -345,7 +345,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
           </button>
         ))}
         {filtered.length === 0 && (
-          <div className="text-center py-8 text-xs text-[#666]">
+          <div className="text-center py-8 text-xs text-[#858585]">
             Sin resultados para &quot;{q}&quot;{activeFilters ? ' con los filtros activos' : ''}.
           </div>
         )}
@@ -378,14 +378,14 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
                 </h3>
                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                   {selected.alias && selected.alias.length > 0 && (
-                    <span className="text-[10px] text-[#666]">alias:</span>
+                    <span className="text-[10px] text-[#858585]">alias:</span>
                   )}
                   {selected.alias?.map((al) => (
                     <span key={al} className="text-[9px] font-mono px-1 py-0.5 rounded bg-[#161616] text-[#888] italic">{al}</span>
                   ))}
                 </div>
                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                  <span className="text-[10px] text-[#666]">MITRE:</span>
+                  <span className="text-[10px] text-[#858585]">MITRE:</span>
                   {selected.mitre_attack.map((t) => (
                     <span key={t} className="text-[9px] font-mono px-1 py-0.5 rounded bg-[#161616] text-blue-300">{t}</span>
                   ))}
@@ -397,7 +397,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="p-1.5 rounded text-[#666] hover:text-white hover:bg-[#161616] transition-colors cursor-pointer shrink-0"
+                className="p-1.5 rounded text-[#858585] hover:text-white hover:bg-[#161616] transition-colors cursor-pointer shrink-0"
                 aria-label="Cerrar detalle"
               >
                 <X className="w-4 h-4" />
@@ -446,7 +446,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
                   onToggle={(idx) => toggleStep(selected.id, idx)}
                 />
                 {(doneSteps[selected.id]?.size ?? 0) > 0 && (
-                  <div className="text-[10px] text-[#666] pt-1">
+                  <div className="text-[10px] text-[#858585] pt-1">
                     {doneSteps[selected.id].size}/{selected.mitigacion.length} pasos completados (solo esta sesión).
                   </div>
                 )}
@@ -460,7 +460,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
                 <ul className="space-y-1">
                   {selected.referencias.map((ref, i) => (
                     <li key={i} className="flex items-start gap-1.5">
-                      <ExternalLink className="w-3 h-3 text-[#555] mt-0.5 shrink-0" />
+                      <ExternalLink className="w-3 h-3 text-[#828282] mt-0.5 shrink-0" />
                       <a
                         href={ref.startsWith('http') ? ref : undefined}
                         target={ref.startsWith('http') ? '_blank' : undefined}
@@ -480,7 +480,7 @@ export const AttacksExplorerTool: React.FC<AttacksExplorerProps> = ({ autoOpenId
                   text={[`${selected.id} — ${selected.nombre} (${selected.severidad})`, '', 'MITIGACIÓN / HARDENING:', ...selected.mitigacion.map((s, i) => `${i + 1}. ${s}`), '', 'CÓMO FUNCIONA (IOCs/comportamiento):', ...selected.como_funciona.map((s) => `- ${s}`)].join('\n')}
                   label="Copiar plan de mitigación completo"
                 />
-                <span className="text-[10px] text-[#666] flex items-center gap-1">
+                <span className="text-[10px] text-[#858585] flex items-center gap-1">
                   <Copy className="w-3 h-3" /> Copiar plan completo (mitigación + comportamiento)
                 </span>
               </div>

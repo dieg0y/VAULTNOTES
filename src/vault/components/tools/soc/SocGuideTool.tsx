@@ -33,7 +33,7 @@ const GuideRenderer: React.FC<{ guide: SocToolGuide }> = ({ guide }) => (
       </div>
       {guide.whenToUse.length > 0 && (
         <div className="flex flex-col gap-1.5 pl-1">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Cuándo usarla</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Cuándo usarla</span>
           <ul className="flex flex-col gap-1">
             {guide.whenToUse.map((w, i) => (
               <li key={i} className="text-[11px] text-[#BBB] leading-relaxed flex items-start gap-2">

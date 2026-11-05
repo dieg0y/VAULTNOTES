@@ -329,11 +329,11 @@ export const HdSanitizerTool: React.FC = () => {
         <div className="space-y-3">
           {/* información detectada, agrupada por categoría */}
           <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">
               Información sensible detectada ({totalDetected} hallazgos)
             </div>
             {totalDetected === 0 && (
-              <p className="text-[11px] text-[#666]">
+              <p className="text-[11px] text-[#858585]">
                 Sin hallazgos: o el texto ya está limpio, o usa formatos no
                 cubiertos. Revisa a mano antes de compartir.
               </p>
@@ -351,7 +351,7 @@ export const HdSanitizerTool: React.FC = () => {
                 />
                 <label htmlFor={`san-${c.id}`} className="text-[11px] text-[#DDD] cursor-pointer flex-1">
                   {c.label}
-                  <span className="text-[#666] text-[10px] ml-1.5">— {c.desc}</span>
+                  <span className="text-[#858585] text-[10px] ml-1.5">— {c.desc}</span>
                 </label>
                 <span className="text-[10px] font-mono text-blue-300 shrink-0">
                   {rawCounts[c.id]} × {c.ph(1).replace('-1', '-n')}
@@ -364,17 +364,17 @@ export const HdSanitizerTool: React.FC = () => {
           {/* reemplazos antes → después */}
           {replacementRows.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">
                 Campos eliminados / reemplazados
               </div>
               <div className="bg-[#0D0D0D] border border-[#262626] rounded divide-y divide-[#1A1A1A]">
                 {replacementRows.map((r) => (
                   <div key={r.ph} className="px-2.5 py-1.5 flex items-center gap-2 flex-wrap">
                     <code className="text-[10px] font-mono text-[#AAA] break-all">{r.value}</code>
-                    <span className="text-[10px] text-[#555] shrink-0">→</span>
+                    <span className="text-[10px] text-[#828282] shrink-0">→</span>
                     <code className="text-[10px] font-mono text-blue-300 shrink-0">{r.ph}</code>
                     {r.count > 1 && (
-                      <span className="text-[9px] text-[#666] shrink-0">×{r.count} ocurrencias</span>
+                      <span className="text-[9px] text-[#858585] shrink-0">×{r.count} ocurrencias</span>
                     )}
                   </div>
                 ))}
@@ -384,11 +384,11 @@ export const HdSanitizerTool: React.FC = () => {
 
           {/* salida sanitizada */}
           <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#555]">Salida sanitizada</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">Salida sanitizada</div>
             {active.length > 0 ? (
               <CodeBlock code={sanitized} label="Texto listo para compartir" lang="txt" />
             ) : (
-              <p className="text-[11px] text-[#666]">
+              <p className="text-[11px] text-[#858585]">
                 Nada que reemplazar con las categorías activas: las privadas se
                 mantienen y el resto de categorías están desmarcadas o sin
                 hallazgos.

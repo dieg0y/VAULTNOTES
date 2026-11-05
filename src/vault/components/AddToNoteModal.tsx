@@ -134,7 +134,7 @@ const AddToNoteContent: React.FC<{
         <div className="p-3.5 space-y-3">
           {/* Preview of the content being added */}
           <div className="bg-[#161616] border border-[#262626] rounded p-2.5">
-            <p className="text-[10px] uppercase tracking-widest text-[#555] mb-1">
+            <p className="text-[10px] uppercase tracking-widest text-[#828282] mb-1">
               Contenido a añadir
             </p>
             <p className="text-[11px] text-[#AAA] font-mono line-clamp-3 break-words">
@@ -171,13 +171,13 @@ const AddToNoteContent: React.FC<{
             <div className="space-y-2">
               {/* Search input */}
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-[#666] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-[#858585] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar por título..."
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-1.5 text-[11px] text-white placeholder:text-[#555] focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-1.5 text-[11px] text-white placeholder:text-[#828282] focus:outline-none focus:border-blue-500 transition-colors"
                   autoFocus
                 />
               </div>
@@ -185,7 +185,7 @@ const AddToNoteContent: React.FC<{
               {/* Notes list (max height + scroll, custom scrollbar via globals.css) */}
               <div className="max-h-64 overflow-y-auto">
                 {filteredNotes.length === 0 ? (
-                  <div className="text-center py-6 text-[11px] text-[#666]">
+                  <div className="text-center py-6 text-[11px] text-[#858585]">
                     {search.trim()
                       ? 'Sin coincidencias.'
                       : 'No hay notas. Crea una nota nueva.'}
@@ -199,17 +199,17 @@ const AddToNoteContent: React.FC<{
                           onClick={() => onAppendToExistingNote(n.id)}
                           className="w-full flex items-start gap-2 text-left px-2.5 py-2 rounded-md hover:bg-[#1A1A1A] border border-transparent hover:border-[#333] transition-colors cursor-pointer group"
                         >
-                          <FileText className="w-3.5 h-3.5 text-[#666] group-hover:text-blue-400 mt-0.5 shrink-0" />
+                          <FileText className="w-3.5 h-3.5 text-[#858585] group-hover:text-blue-400 mt-0.5 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <p className="text-xs text-white truncate">
                               {n.title || '(sin título)'}
                               {n.parentId && (
-                                <span className="text-[10px] text-[#666] ml-1.5">
+                                <span className="text-[10px] text-[#858585] ml-1.5">
                                   · sub-página
                                 </span>
                               )}
                             </p>
-                            <p className="text-[10px] text-[#666] font-mono truncate">
+                            <p className="text-[10px] text-[#858585] font-mono truncate">
                               {n.platform || '—'} · {n.category || '—'}
                             </p>
                           </div>
@@ -225,7 +225,7 @@ const AddToNoteContent: React.FC<{
 
         {/* Footer */}
         <div className="p-3 border-t border-[#262626] flex items-center justify-between bg-[#0D0D0D]">
-          <span className="text-[10px] text-[#555] font-mono">ESC para cerrar</span>
+          <span className="text-[10px] text-[#828282] font-mono">ESC para cerrar</span>
           <button
             type="button"
             onClick={onClose}

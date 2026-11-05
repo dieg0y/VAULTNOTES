@@ -270,7 +270,7 @@ export const FileHashAnalyzerTool: React.FC = () => {
         />
         <Upload
           className={`w-7 h-7 mx-auto mb-2 transition-colors ${
-            isDragging ? 'text-blue-400' : 'text-[#666]'
+            isDragging ? 'text-blue-400' : 'text-[#858585]'
           }`}
         />
         <div className="text-xs font-semibold text-white">
@@ -330,7 +330,7 @@ export const FileHashAnalyzerTool: React.FC = () => {
                 Hashes
               </span>
             </div>
-            <span className="text-[10px] text-[#666] font-mono">
+            <span className="text-[10px] text-[#858585] font-mono">
               SHA-1 / 256 / 384 / 512
             </span>
           </div>
@@ -367,7 +367,7 @@ export const FileHashAnalyzerTool: React.FC = () => {
 
       {/* Empty state hint */}
       {!meta && !error && (
-        <div className="text-[11px] text-[#666] leading-relaxed">
+        <div className="text-[11px] text-[#858585] leading-relaxed">
           Carga un archivo para calcular automáticamente SHA-1, SHA-256,
           SHA-384 y SHA-512. Soporta archivos de hasta ~50 MB (más grandes
           pueden tardar o fallar).
@@ -402,7 +402,7 @@ export const FileHashAnalyzerTool: React.FC = () => {
       )}
 
       {/* Validation reference — collapsible, helps users verify their hashes. */}
-      <details className="text-[10px] text-[#666]">
+      <details className="text-[10px] text-[#858585]">
         <summary className="cursor-pointer hover:text-[#AAA] transition-colors">
           Verificación SHA-256 (referencia)
         </summary>

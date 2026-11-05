@@ -211,11 +211,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
         <div
           onClick={() => handleRowClick(note.id)}
           className={`p-3 relative cursor-pointer transition-colors ${
-            isSelected ? 'bg-[#161616]' : 'hover:bg-[#111111]'
+            isSelected
+              ? 'bg-blue-500/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.35)]'
+              : 'hover:bg-[#111111]'
           }`}
           style={{ paddingLeft: `${12 + depth * 16}px` }}
         >
-          {isSelected && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />}
           <div className="flex items-center justify-between gap-1 mb-1">
             {note.parentId ? (
               <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-[#222] text-[#999] border border-[#2c2c2c] truncate max-w-[170px] flex items-center gap-1">
@@ -236,7 +237,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                     toggleExpand(note.id);
                   }}
                   className={`flex items-center gap-0.5 text-[10px] font-mono px-1 py-0.5 rounded transition-colors ${
-                    expanded ? 'text-blue-400 bg-blue-500/10' : 'text-[#777] hover:text-blue-400 hover:bg-[#222]'
+                    expanded ? 'text-blue-400 bg-blue-500/10' : 'text-[#868686] hover:text-blue-400 hover:bg-[#222]'
                   }`}
                   title={expanded ? 'Colapsar subpáginas' : 'Expandir subpáginas'}
                 >
@@ -271,13 +272,13 @@ export const NotesView: React.FC<NotesViewProps> = ({
         className="bg-[#0D0D0D] border-b md:border-b-0 md:border-r border-[#262626] flex flex-col shrink-0 overflow-y-auto w-full md:w-[var(--panel-w)] max-h-[30vh] md:max-h-none"
       >
         <div className="p-3 border-b border-[#262626] flex items-center justify-between">
-          <h2 className="font-bold text-[10px] uppercase tracking-widest text-[#555] flex items-center gap-1.5">
+          <h2 className="font-bold text-[10px] uppercase tracking-widest text-[#828282] flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-[#888]" />
             Plataformas
           </h2>
           <button
             onClick={() => setIsAddingPlatform((v) => !v)}
-            className="p-1 rounded text-[#777] hover:text-blue-400 hover:bg-[#161616] transition-colors"
+            className="p-1 rounded text-[#868686] hover:text-blue-400 hover:bg-[#161616] transition-colors"
             title="Agregar plataforma"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -299,7 +300,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 }
               }}
               placeholder="Nombre de la plataforma..."
-              className="w-full bg-[#0D0D0D] border border-[#333] rounded px-2 py-1 text-xs text-white placeholder:text-[#555] focus:border-blue-500 focus:outline-none"
+              className="w-full bg-[#0D0D0D] border border-[#333] rounded px-2 py-1 text-xs text-white placeholder:text-[#828282] focus:border-blue-500 focus:outline-none"
             />
           </div>
         )}
@@ -314,7 +315,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
             }`}
           >
             <span>Todas</span>
-            <span className="font-mono text-[10px] text-[#555]">{topLevelNotes.length}</span>
+            <span className="font-mono text-[10px] text-[#828282]">{topLevelNotes.length}</span>
           </button>
           {platforms.map((p) => (
             <div
@@ -331,11 +332,11 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 title={p.name}
               >
                 <span className="truncate">{p.name}</span>
-                <span className="font-mono text-[10px] text-[#555] shrink-0 ml-1">{platformCounts.get(p.name) || 0}</span>
+                <span className="font-mono text-[10px] text-[#828282] shrink-0 ml-1">{platformCounts.get(p.name) || 0}</span>
               </button>
               <button
                 onClick={() => handleDeletePlatform(p)}
-                className="p-1 mr-1 rounded text-[#555] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all shrink-0"
+                className="p-1 mr-1 rounded text-[#828282] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all shrink-0"
                 title={`Eliminar plataforma "${p.name}"`}
               >
                 <Trash2 className="w-3 h-3" />
@@ -368,13 +369,13 @@ export const NotesView: React.FC<NotesViewProps> = ({
           </div>
 
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-[#555] absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-[#828282] absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Buscar en apuntes..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-2.5 py-1 text-xs text-[#E5E5E5] placeholder:text-[#555] focus:outline-none focus:border-blue-500"
+              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-2.5 py-1 text-xs text-[#E5E5E5] placeholder:text-[#828282] focus:outline-none focus:border-blue-500"
             />
           </div>
 
@@ -392,9 +393,14 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
         <div className="flex-1 overflow-y-auto divide-y divide-[#161616]">
           {filteredNotes.length === 0 ? (
-            <div className="p-8 text-center text-[#666] space-y-2">
+            <div className="p-8 text-center text-[#858585] space-y-2">
               <FileText className="w-8 h-8 text-[#333] mx-auto" />
               <p className="text-xs">No hay apuntes en esta vista.</p>
+              <p className="text-[10px] leading-relaxed">
+                Crea uno con <span className="font-mono text-[#858585]">Ctrl+Shift+N</span>, el botón
+                Nuevo del header, o captura una idea al vuelo con{' '}
+                <span className="font-mono text-[#858585]">Ctrl+Shift+Q</span> y organízala después desde el Inbox.
+              </p>
             </div>
           ) : (
             filteredNotes.map((note) => renderNoteItem(note, 0))
@@ -420,7 +426,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
             onCreateSubnote={() => onCreateSubnote(currentNote.id)}
           />
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-[#666] gap-3 p-8">
+          <div className="flex-1 flex flex-col items-center justify-center text-[#858585] gap-3 p-8">
             <FileText className="w-12 h-12 text-[#2a2a2a]" />
             <div className="text-center space-y-1">
               <p className="text-sm font-medium text-[#888]">No hay ningún apunte seleccionado</p>

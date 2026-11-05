@@ -242,9 +242,9 @@ const RevealCard: React.FC<{
       <span className="w-6 h-6 rounded bg-[#161616] border border-[#262626] flex items-center justify-center shrink-0 text-amber-400">{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-bold text-white">{title}</span>
-        {!open && <span className="block text-[10px] text-[#777] mt-0.5 italic">{closedHint}</span>}
+        {!open && <span className="block text-[10px] text-[#868686] mt-0.5 italic">{closedHint}</span>}
       </span>
-      {open ? <EyeOff className="w-4 h-4 text-[#555] shrink-0" /> : <Eye className="w-4 h-4 text-amber-400/80 shrink-0" />}
+      {open ? <EyeOff className="w-4 h-4 text-[#828282] shrink-0" /> : <Eye className="w-4 h-4 text-amber-400/80 shrink-0" />}
     </button>
     {open && <div className="px-3.5 pb-3.5 pt-1 border-t border-[#1a1a1a] flex flex-col gap-2">{children}</div>}
   </section>
@@ -283,7 +283,7 @@ const TicketRow: React.FC<{ ticket: IamTicket; active: boolean; onSelect: () => 
         </span>
       </span>
       <span className={`text-xs leading-snug line-clamp-2 ${active ? 'text-white' : 'text-[#CCC]'}`}>{ticket.title}</span>
-      <span className="text-[10px] text-[#555] truncate">
+      <span className="text-[10px] text-[#828282] truncate">
         {ticket.requester} · {ticket.category.replace('IAM - ', '')}
       </span>
     </button>
@@ -424,7 +424,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
           )}
         </div>
         <h2 className="text-sm sm:text-base font-bold text-white leading-snug">{ticket.title}</h2>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#666]">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#858585]">
           <span>
             Solicitante: <span className="text-[#999]">{ticket.requester}</span>
           </span>
@@ -440,20 +440,20 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
       {/* Lo que el usuario reporta — lo que VE al abrir el ticket */}
       <section className="flex flex-col gap-2.5">
         <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1.5 flex items-center gap-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1.5 flex items-center gap-1.5">
             <FileTextIcon className="w-3 h-3" /> Lo que reporta el usuario
           </p>
           <p className="text-xs text-[#BBB] italic leading-relaxed">&ldquo;{ticket.description}&rdquo;</p>
         </div>
         <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1.5 flex items-center gap-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1.5 flex items-center gap-1.5">
             <CircleAlert className="w-3 h-3" /> Síntomas observables
           </p>
           <p className="text-xs text-[#CCC] leading-relaxed">{ticket.symptoms}</p>
         </div>
         {ticket.dataAvailable && (
           <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3.5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1.5 flex items-center gap-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1.5 flex items-center gap-1.5">
               <Database className="w-3 h-3" /> Datos disponibles
             </p>
             <p className="text-xs text-[#CCC] leading-relaxed">{ticket.dataAvailable}</p>
@@ -467,7 +467,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
           <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
           <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/80">Modo estudio</p>
         </div>
-        <p className="text-[10px] text-[#777] leading-relaxed px-1 -mt-1.5">
+        <p className="text-[10px] text-[#868686] leading-relaxed px-1 -mt-1.5">
           Intenta resolver el ticket con lo que ves arriba (y tu criterio de analista IAM) ANTES de abrir la guía. Cuando creas tener el diagnóstico,
           ábrela y contrasta paso a paso.
         </p>
@@ -483,7 +483,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
               {ticket.troubleshooting.split('\n').map((line, i) =>
                 line.trim() ? (
                   <li key={i} className="text-xs text-[#CCC] leading-relaxed flex gap-2">
-                    <span className="text-[10px] font-mono text-[#555] shrink-0 mt-0.5">{i + 1}.</span>
+                    <span className="text-[10px] font-mono text-[#828282] shrink-0 mt-0.5">{i + 1}.</span>
                     <span>
                       <LineWithCommands text={line.replace(/^\d+\.\s*/, '')} />
                     </span>
@@ -519,13 +519,13 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
           <div className="grid sm:grid-cols-2 gap-2.5">
             {ticket.skill && (
               <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1">Habilidad que entrena</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1">Habilidad que entrena</p>
                 <p className="text-[11px] text-[#CCC] leading-relaxed">{ticket.skill}</p>
               </div>
             )}
             {ticket.evidence && (
               <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1">Evidencia a registrar</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1">Evidencia a registrar</p>
                 <p className="text-[11px] text-[#CCC] leading-relaxed">{ticket.evidence}</p>
               </div>
             )}
@@ -543,12 +543,12 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
               <span className="block text-[10px] font-bold uppercase tracking-widest text-emerald-400/80">KB relacionada</span>
               <span className="block text-xs text-[#CCC] truncate">{kb.title}</span>
             </span>
-            <ChevronRight className="w-4 h-4 text-[#555] group-hover:text-emerald-400 shrink-0 transition-colors" />
+            <ChevronRight className="w-4 h-4 text-[#828282] group-hover:text-emerald-400 shrink-0 transition-colors" />
           </button>
         )}
         {kb?.relatedTerms && kb.relatedTerms.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 px-1">
-            <span className="text-[10px] text-[#555]">Glosario:</span>
+            <span className="text-[10px] text-[#828282]">Glosario:</span>
             {kb.relatedTerms.map((name) => {
               const termId = glossaryByName.get(name);
               return termId ? (
@@ -562,7 +562,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
                   {name}
                 </button>
               ) : (
-                <span key={name} className="text-[10px] px-1.5 py-0.5 rounded border border-[#222] bg-[#111] text-[#777]">
+                <span key={name} className="text-[10px] px-1.5 py-0.5 rounded border border-[#222] bg-[#111] text-[#868686]">
                   {name}
                 </span>
               );
@@ -638,7 +638,7 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
 
           {/* Nota de cierre */}
           <div className="flex flex-col gap-1.5">
-            <label htmlFor={`iam-note-${ticket.id}`} className="text-[10px] font-bold uppercase tracking-widest text-[#555]">
+            <label htmlFor={`iam-note-${ticket.id}`} className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">
               {isWorked || ticket.statusNote ? 'Nota de cierre (tu evidencia)' : 'Nota de cierre — requerida para resolver o escalar'}
             </label>
             <textarea
@@ -651,10 +651,10 @@ const TicketDetail: React.FC<TicketDetailProps> = ({
               placeholder="Causa raíz encontrada, pasos que seguiste, comando clave, verificación final, hora… como si el líder del equipo IAM o un auditor fuera a leerlo sin preguntarte nada."
               rows={3}
               maxLength={4000}
-              className="w-full bg-[#161616] border border-[#262626] rounded-md px-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-cyan-500/50 resize-y font-mono"
+              className="w-full bg-[#161616] border border-[#262626] rounded-md px-3 py-2 text-xs text-[#DDD] placeholder:text-[#828282] focus:outline-none focus:border-cyan-500/50 resize-y font-mono"
             />
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] text-[#555]">{noteDraft.trim().length}/4000 · mínimo 10 para cerrar</span>
+              <span className="text-[10px] text-[#828282]">{noteDraft.trim().length}/4000 · mínimo 10 para cerrar</span>
               <button
                 type="button"
                 onClick={handleSaveNote}
@@ -728,22 +728,22 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
   const selected = selectedKbId ? IAM_KB_BY_ID.get(selectedKbId) : undefined;
 
   return (
-    <div className="flex-1 min-h-0 grid lg:grid-cols-[minmax(300px,380px)_1fr]">
+    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
       {/* Lista */}
       <div className={`flex flex-col min-h-0 border-r border-[#262626] ${selected ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-3 border-b border-[#1a1a1a]">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#555]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#828282]" />
             <input
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar artículo (síntomas, causa…)"
               aria-label="Buscar en la Base de Conocimiento"
-              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-cyan-500/50"
+              className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#828282] focus:outline-none focus:border-cyan-500/50"
             />
           </div>
-          <p className="text-[10px] text-[#555] mt-2">
+          <p className="text-[10px] text-[#828282] mt-2">
             {filtered.length} de {IAM_KB_ARTICLES.length} artículos
           </p>
         </div>
@@ -760,13 +760,13 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
               >
                 <span className="block text-xs text-[#CCC] leading-snug">{a.title}</span>
                 <span className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] text-[#555]">{a.category.replace('IAM - ', '')}</span>
+                  <span className="text-[10px] text-[#828282]">{a.category.replace('IAM - ', '')}</span>
                   <KbEnvChip env={a.environment} />
                 </span>
               </button>
             </li>
           ))}
-          {filtered.length === 0 && <li className="text-xs text-[#777] p-3 text-center">Sin resultados para &ldquo;{q}&rdquo;</li>}
+          {filtered.length === 0 && <li className="text-xs text-[#868686] p-3 text-center">Sin resultados para &ldquo;{q}&rdquo;</li>}
         </ul>
       </div>
 
@@ -792,27 +792,27 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
             </header>
 
             <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1.5 flex items-center gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1.5 flex items-center gap-1.5">
                 <CircleAlert className="w-3 h-3" /> Cuándo aplica (síntomas)
               </p>
               <p className="text-xs text-[#CCC] leading-relaxed">{selected.symptoms}</p>
             </div>
             <div className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1.5 flex items-center gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1.5 flex items-center gap-1.5">
                 <Lightbulb className="w-3 h-3" /> Causa típica
               </p>
               <p className="text-xs text-[#CCC] leading-relaxed">{selected.cause}</p>
             </div>
 
             <section className="flex flex-col gap-2" aria-label="Pasos">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#555] px-1 flex items-center gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#828282] px-1 flex items-center gap-1.5">
                 <Wrench className="w-3 h-3" /> Pasos ({selected.steps.length})
               </p>
               <ol className="flex flex-col gap-2">
                 {selected.steps.map((s, i) => (
                   <li key={i} className="bg-[#0D0D0D] border border-[#262626] rounded-lg p-3 flex flex-col gap-1.5">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-[10px] font-mono font-bold text-[#555] shrink-0">{i + 1}.</span>
+                      <span className="text-[10px] font-mono font-bold text-[#828282] shrink-0">{i + 1}.</span>
                       <span className="text-xs font-semibold text-white leading-snug">{s.title}</span>
                     </div>
                     {s.detail && <p className="text-xs text-[#BBB] leading-relaxed pl-5">{s.detail}</p>}
@@ -841,7 +841,7 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
 
             {selected.relatedTerms && selected.relatedTerms.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 px-1">
-                <span className="text-[10px] text-[#555]">Glosario:</span>
+                <span className="text-[10px] text-[#828282]">Glosario:</span>
                 {selected.relatedTerms.map((name) => {
                   const termId = glossaryByName.get(name);
                   return termId ? (
@@ -855,7 +855,7 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
                       {name}
                     </button>
                   ) : (
-                    <span key={name} className="text-[10px] px-1.5 py-0.5 rounded border border-[#222] bg-[#111] text-[#777]">
+                    <span key={name} className="text-[10px] px-1.5 py-0.5 rounded border border-[#222] bg-[#111] text-[#868686]">
                       {name}
                     </span>
                   );
@@ -865,7 +865,7 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
 
             {selected.relatedTickets && selected.relatedTickets.length > 0 && (
               <div className="flex flex-col gap-1.5 px-1">
-                <span className="text-[10px] text-[#555]">Tickets del dataset que usan este artículo:</span>
+                <span className="text-[10px] text-[#828282]">Tickets del dataset que usan este artículo:</span>
                 <div className="flex flex-col gap-1">
                   {selected.relatedTickets.map((tid) => {
                     const t = ticketsById.get(tid);
@@ -890,7 +890,7 @@ const KbTab: React.FC<KbTabProps> = ({ selectedKbId, onSelectKb, onOpenTicket, o
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
             <BookOpen className="w-8 h-8 text-[#333]" />
-            <p className="text-xs text-[#777]">Selecciona un artículo de la Base de Conocimiento</p>
+            <p className="text-xs text-[#868686]">Selecciona un artículo de la Base de Conocimiento</p>
           </div>
         )}
       </div>
@@ -1078,7 +1078,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
       }`}
     >
       {label}
-      {typeof count === 'number' && <span className="ml-1 font-mono text-[#666]">{count}</span>}
+      {typeof count === 'number' && <span className="ml-1 font-mono text-[#858585]">{count}</span>}
     </button>
   );
 
@@ -1095,7 +1095,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
             Nexora S.A. — Equipo IAM (empresa ficticia) · {stats.total} tickets · trabajados {stats.worked} ({stats.total > 0 ? Math.round((stats.worked / stats.total) * 100) : 0}%) · abiertos {stats.open} · Access Review {stats.finalDone}/{stats.finalTotal}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[10px] font-mono text-[#555]">
+        <div className="flex items-center gap-2 text-[10px] font-mono text-[#828282]">
           <span className="px-2 py-1 rounded border border-[#262626] bg-[#161616]" title="Práctica 100% local — los tickets son material de estudio">
             100% offline · dataset de estudio
           </span>
@@ -1119,26 +1119,26 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
           >
             {t.icon}
             {t.label}
-            {t.id === 'kb' && <span className="text-[9px] font-mono text-[#555]">{IAM_KB_ARTICLES.length}</span>}
+            {t.id === 'kb' && <span className="text-[9px] font-mono text-[#828282]">{IAM_KB_ARTICLES.length}</span>}
           </button>
         ))}
       </div>
 
       {/* Contenido */}
       {tab === 'queue' && (
-        <div role="tabpanel" className="flex-1 min-h-0 grid lg:grid-cols-[minmax(300px,380px)_1fr]">
+        <div role="tabpanel" className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
           {/* Columna lista */}
           <div className={`flex flex-col min-h-0 border-r border-[#262626] ${selectedTicket ? 'hidden lg:flex' : 'flex'}`}>
             <div className="p-3 border-b border-[#1a1a1a] flex flex-col gap-2.5 shrink-0">
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#555]" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#828282]" />
                 <input
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar ticket (número, título, solicitante…)"
                   aria-label="Buscar en la cola IAM"
-                  className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#555] focus:outline-none focus:border-cyan-500/50"
+                  className="w-full bg-[#161616] border border-[#262626] rounded-md pl-8 pr-3 py-2 text-xs text-[#DDD] placeholder:text-[#828282] focus:outline-none focus:border-cyan-500/50"
                 />
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -1165,7 +1165,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
               {/* Filtro de ENTORNO (torre tecnológica) — multi-selección; el
                   chip activo toma el color de su entorno (ENV_META). */}
               <div className="flex flex-wrap gap-1.5 items-center">
-                <span className="text-[10px] text-[#555] shrink-0">Entorno:</span>
+                <span className="text-[10px] text-[#828282] shrink-0">Entorno:</span>
                 {filterChip('Todos los entornos', envFilter.size === 0, () => setEnvFilter(new Set()))}
                 {ENVIRONMENTS.map((env) => {
                   const meta = ENV_META[env];
@@ -1181,13 +1181,13 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
                       }`}
                     >
                       {meta.label}
-                      <span className="ml-1 font-mono text-[#666]">{stats.byEnvironment[env]}</span>
+                      <span className="ml-1 font-mono text-[#858585]">{stats.byEnvironment[env]}</span>
                     </button>
                   );
                 })}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[#555] shrink-0">Orden:</span>
+                <span className="text-[10px] text-[#828282] shrink-0">Orden:</span>
                 {filterChip('Nº', sortMode === 'number', () => setSortMode('number'))}
                 {filterChip('Prioridad', sortMode === 'priority', () => setSortMode('priority'))}
               </div>
@@ -1209,7 +1209,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
                   ))}
                 </select>
               </div>
-              <p className="text-[10px] text-[#555]">
+              <p className="text-[10px] text-[#828282]">
                 {filteredTickets.length} ticket{filteredTickets.length !== 1 ? 's' : ''} en la vista
               </p>
             </div>
@@ -1218,7 +1218,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
                 <TicketRow key={t.id} ticket={t} active={t.id === selectedTicketId} onSelect={() => selectTicket(t.id)} />
               ))}
               {filteredTickets.length === 0 && (
-                <li className="text-xs text-[#777] p-4 text-center leading-relaxed">
+                <li className="text-xs text-[#868686] p-4 text-center leading-relaxed">
                   Ningún ticket coincide con los filtros.
                   <br />
                   <button
@@ -1257,8 +1257,8 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
                 <TicketIcon className="w-8 h-8 text-[#333]" />
-                <p className="text-xs text-[#777]">Selecciona un ticket de la cola para trabajarlo</p>
-                <p className="text-[10px] text-[#555] max-w-xs leading-relaxed">
+                <p className="text-xs text-[#868686]">Selecciona un ticket de la cola para trabajarlo</p>
+                <p className="text-[10px] text-[#828282] max-w-xs leading-relaxed">
                   El flujo es el de un día real de IAM: leer la solicitud → diagnosticar → resolver o escalar → documentar la nota de cierre.
                 </p>
               </div>
@@ -1275,7 +1275,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
               <div className="flex items-end justify-between gap-4 flex-wrap">
                 <div>
                   <h2 className="text-sm font-bold text-white">Semana de Access Review — tu primera campaña de certificación</h2>
-                  <p className="text-[11px] text-[#777] mt-0.5 leading-relaxed max-w-xl">
+                  <p className="text-[11px] text-[#868686] mt-0.5 leading-relaxed max-w-xl">
                     10 tickets (iam-041..iam-050, 2 por día × 5 días) que simulan tu primera campaña trimestral de certificación de accesos en el equipo
                     IAM de Nexora: del kickoff del día 1 a los terceros y leavers del día 2, las combinaciones SoD del día 3, la auditoría de acceso
                     privilegiado del día 4 y el cierre con firma, KPIs y postmortem del día 5. Trabájalos en orden — cada día sube la dificultad y la nota
@@ -1284,7 +1284,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
                 </div>
                 <span className="text-2xl font-mono font-bold text-fuchsia-400">
                   {stats.finalDone}
-                  <span className="text-sm text-[#666]">/{stats.finalTotal}</span>
+                  <span className="text-sm text-[#858585]">/{stats.finalTotal}</span>
                 </span>
               </div>
               <ProgressBar done={stats.finalDone} total={stats.finalTotal} barCls="bg-fuchsia-500" className="h-2" />
@@ -1319,7 +1319,7 @@ export const IamView: React.FC<IamViewProps> = ({ glossaryTerms, onOpenGlossaryT
               );
             })}
 
-            <p className="text-[10px] text-[#555] pb-2">
+            <p className="text-[10px] text-[#828282] pb-2">
               Tu progreso se guarda en la base de datos local (viaja en los backups ZIP). La nota de cierre de cada ticket es tu evidencia de práctica.
             </p>
           </div>

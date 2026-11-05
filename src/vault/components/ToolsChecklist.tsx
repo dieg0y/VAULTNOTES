@@ -55,7 +55,7 @@ export const ToolsChecklist: React.FC<ToolsChecklistProps> = ({
       {/* Search & Add button */}
       <div className="p-2 border-b border-[#262626] bg-[#121212] flex items-center justify-between gap-2">
         <div className="relative flex-1">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#666]" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#858585]" />
           <input
             type="text"
             value={filterQuery}
@@ -147,7 +147,7 @@ export const ToolsChecklist: React.FC<ToolsChecklistProps> = ({
       {/* Selected badges */}
       {selectedTools.length > 0 && (
         <div className="p-2 bg-[#121212] border-t border-[#262626] flex items-center flex-wrap gap-1.5 text-xs">
-          <span className="text-[10px] uppercase font-bold text-[#777] mr-1">Seleccionadas ({selectedTools.length}):</span>
+          <span className="text-[10px] uppercase font-bold text-[#868686] mr-1">Seleccionadas ({selectedTools.length}):</span>
           {selectedTools.map(toolName => (
             <span
               key={toolName}

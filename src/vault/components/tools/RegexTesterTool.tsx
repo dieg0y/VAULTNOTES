@@ -153,7 +153,7 @@ export const RegexTesterTool: React.FC = () => {
 
       {/* Presets */}
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-[#555] mb-1.5">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-[#828282] mb-1.5">
           Presets
         </div>
         <div className="flex flex-wrap gap-1.5">
@@ -264,7 +264,7 @@ export const RegexTesterTool: React.FC = () => {
                             <span className="text-[#888]">Group {gi + 1}:</span>
                             <code className="font-mono text-amber-300 bg-[#161616] px-1.5 py-0.5 rounded break-all whitespace-pre-wrap">
                               {g === '' ? (
-                                <span className="text-[#666] italic">(empty)</span>
+                                <span className="text-[#858585] italic">(empty)</span>
                               ) : (
                                 g
                               )}

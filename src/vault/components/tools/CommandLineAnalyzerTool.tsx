@@ -687,7 +687,7 @@ export const CommandLineAnalyzerTool: React.FC = () => {
                   <div key={i} className="flex items-center justify-between gap-2 py-1 border-b border-[#1a1a1a] last:border-b-0">
                     <div className="flex items-center gap-2 flex-wrap min-w-0">
                       <code className="font-mono text-green-300 bg-green-500/10 border border-green-500/30 px-1.5 py-0.5 rounded break-all">{d.command}</code>
-                      <ChevronRight className="w-3 h-3 text-[#666] shrink-0" />
+                      <ChevronRight className="w-3 h-3 text-[#858585] shrink-0" />
                       <span className="text-[11px] text-white">{d.meaning}</span>
                     </div>
                     <code className="font-mono text-[10px] text-amber-300 shrink-0">{d.mitreId}</code>

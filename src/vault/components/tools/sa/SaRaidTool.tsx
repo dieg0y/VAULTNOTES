@@ -279,7 +279,7 @@ export const SaRaidTool: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-[10px] border-collapse min-w-[720px]">
                 <thead>
-                  <tr className="text-[9px] uppercase tracking-wider text-[#555]">
+                  <tr className="text-[9px] uppercase tracking-wider text-[#828282]">
                     <th className="border-b border-[#262626] px-2 py-1.5 text-left">Nivel</th>
                     <th className="border-b border-[#262626] px-2 py-1.5 text-left">Mín. discos</th>
                     <th className="border-b border-[#262626] px-2 py-1.5 text-right">Capacidad usable</th>
@@ -303,19 +303,19 @@ export const SaRaidTool: React.FC = () => {
                           <span className="text-red-400">✗ {r.requirement}</span>
                         )}
                       </td>
-                      <td className={`px-2 py-1.5 text-right font-mono ${r.valid ? 'text-white' : 'text-[#444]'}`}>{fmtGB(r.usableGB)}</td>
-                      <td className={`px-2 py-1.5 text-center ${r.valid ? 'text-white' : 'text-[#444]'}`}>{r.fault}</td>
-                      <td className={`px-2 py-1.5 ${r.valid ? 'text-[#AAA]' : 'text-[#444]'}`}>
+                      <td className={`px-2 py-1.5 text-right font-mono ${r.valid ? 'text-white' : 'text-[#808080]'}`}>{fmtGB(r.usableGB)}</td>
+                      <td className={`px-2 py-1.5 text-center ${r.valid ? 'text-white' : 'text-[#808080]'}`}>{r.fault}</td>
+                      <td className={`px-2 py-1.5 ${r.valid ? 'text-[#AAA]' : 'text-[#808080]'}`}>
                         <span className="text-green-300">L:</span> {r.readNote} · <span className="text-orange-300">E:</span> {r.writeNote}
                       </td>
-                      <td className={`px-2 py-1.5 text-right font-mono ${r.valid ? 'text-white' : 'text-[#444]'}`}>{fmtPct(r.overheadPct)}</td>
-                      <td className={`px-2 py-1.5 ${r.valid ? 'text-[#888]' : 'text-[#444]'}`}>{r.risk}</td>
+                      <td className={`px-2 py-1.5 text-right font-mono ${r.valid ? 'text-white' : 'text-[#808080]'}`}>{fmtPct(r.overheadPct)}</td>
+                      <td className={`px-2 py-1.5 ${r.valid ? 'text-[#888]' : 'text-[#808080]'}`}>{r.risk}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <p className="text-[10px] text-[#666] leading-relaxed">
+            <p className="text-[10px] text-[#858585] leading-relaxed">
               Overhead = capacidad de datos − capacidad usable. Los spares quedan FUERA del cálculo: no almacenan datos ni paridad — permanecen vacíos hasta que un disco falla.
             </p>
           </div>
@@ -331,7 +331,7 @@ export const SaRaidTool: React.FC = () => {
               <p className="text-[10px] text-[#888] leading-relaxed">
                 <span className="text-yellow-400">Etiqueta APROXIMADA.</span> El rebuild lee TODO el contenido de los discos supervivientes mientras el array sigue sirviendo I/O de producción: el throughput de cada disco se reparte entre reconstrucción y usuarios. Con varios TB el array pasa HORAS en estado degradado — esa es la ventana de riesgo.
               </p>
-              <p className="text-[10px] text-[#666] leading-relaxed">
+              <p className="text-[10px] text-[#858585] leading-relaxed">
                 mdadm regula la velocidad en <code className="text-blue-300">/proc/sys/dev/raid/speed_limit_min</code> (1.000 KB/s) y <code className="text-blue-300">speed_limit_max</code> (200.000 KB/s): sube el máximo para acelerar a costa del I/O de producción.
               </p>
             </div>

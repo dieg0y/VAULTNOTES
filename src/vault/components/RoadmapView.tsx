@@ -101,7 +101,7 @@ const RoadmapItemRow: React.FC<{ item: RoadmapItemDef; done: boolean; onToggle: 
               {item.label}:
             </span>
           )}
-          <span className={`text-xs leading-relaxed ${done ? 'text-[#777] line-through decoration-[#444]' : 'text-[#CCC]'}`}>
+          <span className={`text-xs leading-relaxed ${done ? 'text-[#868686] line-through decoration-[#444]' : 'text-[#CCC]'}`}>
             {item.text}
           </span>
         </span>
@@ -138,13 +138,13 @@ const PhaseCard: React.FC<{ phase: RoadmapPhaseDef; doneMap: Map<string, boolean
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2 flex-wrap">
             <span className={`text-xs font-bold ${complete ? 'text-emerald-400' : 'text-white'}`}>{phase.title}</span>
-            <span className="text-[10px] font-mono text-[#555]">
+            <span className="text-[10px] font-mono text-[#828282]">
               {done}/{total}
             </span>
           </span>
           <ProgressBar done={done} total={total} className="mt-1.5 max-w-[280px]" barCls={complete ? 'bg-emerald-500' : 'bg-blue-600'} />
         </span>
-        <ChevronDown className={`w-4 h-4 text-[#555] shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+        <ChevronDown className={`w-4 h-4 text-[#828282] shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
       </button>
       {open && (
         <div className="px-3 pb-3 pt-1 flex flex-col gap-1.5 border-t border-[#1a1a1a]">
@@ -191,7 +191,7 @@ const TierSection: React.FC<{ tier: RoadmapTierDef; doneMap: Map<string, boolean
           </span>
           <ProgressBar done={done} total={total} barCls={accent.bar} className="w-full" />
         </div>
-        <ChevronDown className={`w-4 h-4 text-[#777] shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+        <ChevronDown className={`w-4 h-4 text-[#868686] shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
       </button>
       {open && (
         <div className="flex flex-col gap-3 pl-1 sm:pl-2 border-l border-[#1e1e1e] ml-2">
@@ -343,7 +343,7 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({ variant = 'iam' }) => 
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-sm font-bold text-white">Progreso global</h2>
-              <p className="text-[11px] text-[#777] mt-0.5">
+              <p className="text-[11px] text-[#868686] mt-0.5">
                 {done} de {total} ítems completados
               </p>
             </div>
@@ -358,7 +358,7 @@ export const RoadmapView: React.FC<RoadmapViewProps> = ({ variant = 'iam' }) => 
           <TierSection key={tier.id} tier={tier} doneMap={doneMap} onToggle={handleToggle} />
         ))}
 
-        <p className="text-[10px] text-[#555] pb-2">
+        <p className="text-[10px] text-[#828282] pb-2">
           El progreso se guarda en la base de datos local (viaja en los backups ZIP) y nunca se resetea al actualizar la app.
         </p>
       </div>

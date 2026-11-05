@@ -238,10 +238,10 @@ export const SaLvmTool: React.FC = () => {
         </h3>
         {pvs.map((pv, i) => (
           <div key={pv.id} className="flex gap-2 items-center">
-            <span className="text-[10px] text-[#555] font-mono w-5 shrink-0">{i + 1}.</span>
+            <span className="text-[10px] text-[#828282] font-mono w-5 shrink-0">{i + 1}.</span>
             <input className={inputCls + ' flex-1'} value={pv.dev} onChange={(e) => updPv(pv.id, 'dev', e.target.value)} placeholder="/dev/sdb" spellCheck={false} />
             <input className={inputCls + ' w-24'} value={pv.sizeGB} onChange={(e) => updPv(pv.id, 'sizeGB', e.target.value)} placeholder="100" inputMode="decimal" />
-            <span className="text-[9px] text-[#555] shrink-0">GB</span>
+            <span className="text-[9px] text-[#828282] shrink-0">GB</span>
             {rmBtn(() => delPv(pv.id), pvs.length <= 1)}
           </div>
         ))}
@@ -271,13 +271,13 @@ export const SaLvmTool: React.FC = () => {
           {lvs.map((lv, i) => (
             <div key={lv.id} className="border border-[#262626] rounded p-2 space-y-2 bg-[#0A0A0A]">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[#555] font-mono shrink-0">{i + 1}.</span>
+                <span className="text-[10px] text-[#828282] font-mono shrink-0">{i + 1}.</span>
                 <input className={inputCls + ' flex-1'} value={lv.name} onChange={(e) => updLv(lv.id, 'name', e.target.value)} placeholder="lv_datos" spellCheck={false} />
                 {rmBtn(() => delLv(lv.id), lvs.length <= 1)}
               </div>
               <div className="flex gap-2">
                 <input className={inputCls + ' w-20'} value={lv.sizeGB} onChange={(e) => updLv(lv.id, 'sizeGB', e.target.value)} placeholder="20" inputMode="decimal" />
-                <span className="text-[9px] text-[#555] shrink-0 self-center">GB</span>
+                <span className="text-[9px] text-[#828282] shrink-0 self-center">GB</span>
                 <select className={inputCls + ' w-20'} value={lv.fs} onChange={(e) => updLv(lv.id, 'fs', e.target.value)}>
                   <option value="ext4">ext4</option>
                   <option value="xfs">xfs</option>
@@ -316,7 +316,7 @@ export const SaLvmTool: React.FC = () => {
                 <div className="h-full bg-cyan-500/80" style={{ width: `${allocPct}%` }} title={`Asignado: ${plan.allocExtents} extents`} />
                 <div className="h-full flex-1 bg-[#222]" title={`Libre: ${plan.freeExtents} extents`} />
               </div>
-              <p className="text-[9px] text-[#555] mt-1">
+              <p className="text-[9px] text-[#828282] mt-1">
                 {allocPct.toFixed(0)}% asignado — los extents libres se usan con lvextend sin interrupción de servicio.
               </p>
             </div>
@@ -330,7 +330,7 @@ export const SaLvmTool: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-[10px] border-collapse">
                 <thead>
-                  <tr className="text-[9px] uppercase tracking-wider text-[#555]">
+                  <tr className="text-[9px] uppercase tracking-wider text-[#828282]">
                     <th className="border-b border-[#262626] px-2 py-1.5 text-left">LV</th>
                     <th className="border-b border-[#262626] px-2 py-1.5 text-right">Solicitado</th>
                     <th className="border-b border-[#262626] px-2 py-1.5 text-right">Extents</th>
@@ -368,7 +368,7 @@ export const SaLvmTool: React.FC = () => {
                 </tbody>
               </table>
             </div>
-            <p className="text-[10px] text-[#666] leading-relaxed">
+            <p className="text-[10px] text-[#858585] leading-relaxed">
               Extents = ceil(GB × 1024 / PE). Un LV solo puede ser múltiplo del PE: 1 GB con PE de 32 MiB son exactamente 32 extents, pero 10,1 GB son 323 extents (10,09 GB) → se redondean a 324 (10,25 GB efectivos).
             </p>
           </div>
@@ -383,7 +383,7 @@ export const SaLvmTool: React.FC = () => {
                 <p className="text-[11px] font-semibold text-white">
                   <span className="text-cyan-400 font-mono">Paso {i + 1}</span> — {s.title}
                 </p>
-                <p className="text-[10px] text-[#666] leading-relaxed">{s.why}</p>
+                <p className="text-[10px] text-[#858585] leading-relaxed">{s.why}</p>
                 <CodeBlock code={s.code} label={i === 6 ? '/etc/fstab (añadir al final)' : 'bash'} />
               </div>
             ))}

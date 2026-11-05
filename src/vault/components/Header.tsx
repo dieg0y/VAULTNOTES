@@ -101,7 +101,7 @@ const HeaderBase: React.FC<HeaderProps> = ({
           className="w-full bg-[#161616] border border-[#262626] hover:border-blue-500/50 rounded-md py-1.5 pl-3 pr-2.5 text-xs text-[#888] flex items-center justify-between gap-2 transition-colors group cursor-text text-left"
         >
           <div className="flex items-center gap-2 min-w-0">
-            <Search className="w-3.5 h-3.5 text-[#555] group-hover:text-blue-400 transition-colors shrink-0" />
+            <Search className="w-3.5 h-3.5 text-[#828282] group-hover:text-blue-400 transition-colors shrink-0" />
             <span className="text-[#888] group-hover:text-[#E5E5E5] transition-colors truncate">
               <span className="hidden sm:inline">Buscar en todo el vault (Ctrl+K)...</span>
               <span className="sm:hidden">Buscar...</span>
@@ -125,19 +125,19 @@ const HeaderBase: React.FC<HeaderProps> = ({
         <button
           onClick={onExport}
           disabled={isExporting}
-          className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-white transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+          className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-white transition-colors disabled:opacity-50 cursor-pointer shrink-0 p-2 -mx-1.5 -my-2 sm:p-0 sm:mx-0 sm:my-0 sm:py-2 rounded"
           title="Guardar backup: la primera vez eliges dónde (ej. Documentos); luego SIEMPRE reemplaza ese mismo archivo — como un guardado normal"
         >
-          <Save className="w-3.5 h-3.5 text-[#888]" />
+          <Save className="w-3.5 h-3.5 text-[#888] shrink-0" />
           <span className="hidden sm:inline">{isExporting ? 'Guardando...' : 'Guardar Backup'}</span>
         </button>
 
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-white transition-colors cursor-pointer shrink-0"
+          className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-white transition-colors cursor-pointer shrink-0 p-2 -mx-1.5 -my-2 sm:p-0 sm:mx-0 sm:my-0 sm:py-2 rounded"
           title="Importar backup (.zip o .json): agrega lo nuevo, actualiza solo lo que cambió y omite lo idéntico"
         >
-          <UploadCloud className="w-3.5 h-3.5 text-[#888]" />
+          <UploadCloud className="w-3.5 h-3.5 text-[#888] shrink-0" />
           <span className="hidden sm:inline">Importar</span>
         </button>
 
@@ -149,10 +149,10 @@ const HeaderBase: React.FC<HeaderProps> = ({
         {onOpenQuickCapture && (
           <button
             onClick={onOpenQuickCapture}
-            className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-blue-400 transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 text-xs font-medium text-[#888] hover:text-blue-400 transition-colors cursor-pointer shrink-0 p-2 -mx-1.5 -my-2 sm:p-0 sm:mx-0 sm:my-0 sm:py-2 rounded"
             title="Captura rápida al Inbox (Ctrl+Shift+Q)"
           >
-            <Zap className="w-3.5 h-3.5" />
+            <Zap className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Capturar</span>
           </button>
         )}
@@ -160,7 +160,7 @@ const HeaderBase: React.FC<HeaderProps> = ({
         {/* Contextual New Button */}
         <button
           onClick={() => onOpenNewItem(btnConfig.tab)}
-          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 whitespace-nowrap"
+          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 sm:py-1.5 rounded transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 whitespace-nowrap"
         >
           {btnConfig.icon}
           <span>{btnConfig.label}</span>
