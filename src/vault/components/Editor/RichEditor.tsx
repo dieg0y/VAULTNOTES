@@ -512,6 +512,16 @@ export const RichEditor: React.FC<RichEditorProps> = ({
               {saveStatus === 'saved' && (<><Check className="w-3 h-3 text-green-400" /><span className="text-green-400">Guardado</span></>)}
               {saveStatus === 'saving' && (<><span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" /><span className="text-blue-400">Guardando...</span></>)}
               {saveStatus === 'unsaved' && (<><span className="w-1.5 h-1.5 rounded-full bg-amber-400" /><span className="text-[#888]">Editado</span></>)}
+              {saveStatus === 'error' && (
+                <button
+                  type="button"
+                  onClick={triggerAutoSave}
+                  className="text-red-400 hover:text-red-300"
+                  title="Error al guardar. Pulsa para reintentar."
+                >
+                  Error al guardar · Reintentar
+                </button>
+              )}
             </div>
             <button
               onClick={() => { const nf = !isFavorite; setIsFavorite(nf); triggerAutoSave(); }}

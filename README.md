@@ -36,6 +36,7 @@ Calidad (0 errores esperados):
 ```bash
 bun run lint
 bun run typecheck
+bun run test
 ```
 
 ## Tus datos
@@ -71,7 +72,7 @@ Copia la carpeta COMPLETA del proyecto (con `node_modules/` y `.next/`) a la USB
 - **[Enrich Online]** (Ticket Triage del Service Desk) — envía el texto del ticket al backend local solo tras consentimiento; el análisis offline funciona al 100% sin él.
 - **Pegar páginas con imágenes** — al pegar contenido web con imágenes/GIFs en línea, estas se descargan vía el backend local (consentimiento único la primera vez; si cancelas, quedan como enlaces). Ninguna imagen queda jamás referenciada a una web externa: siempre se guardan localmente.
 
-El service worker cachea el shell para uso offline en producción (no se registra en dev). Todo HTML persistido se sanitiza con **DOMPurify**.
+Las rutas locales rechazan solicitudes cross-site y limitan el tamaño de los datos JSON; el proxy de imágenes valida esquema, host y redirecciones. El service worker cachea el shell para uso offline en producción (no se registra en dev). Todo HTML persistido se sanitiza con **DOMPurify**.
 
 ## Stack
 

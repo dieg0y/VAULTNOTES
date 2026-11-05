@@ -1,9 +1,9 @@
 /**
- * useDebouncedAutoSave — the shared debounced-autosave machinery used by
- * RichEditor (notes) and PartRichEditor (labs).
+ * useDebouncedAutoSave — the shared debounce and flush logic for notes,
+ * labs, and professional profiles.
  *
  * Owns everything the two editors used to duplicate (~90 lines each):
- *  - the `saveStatus` state ('saved' | 'saving' | 'unsaved');
+ *  - the `saveStatus` state ('saved' | 'saving' | 'unsaved' | 'error');
  *  - the 1500ms debounce timer (`triggerAutoSave` resets it on every edit);
  *  - the latest-callback ref pattern so the timer always invokes the LATEST
  *    `flushFn` closure (the caller reads its current field values from a
@@ -19,13 +19,12 @@
  * (timer firing with one-keystroke-old state) is structurally impossible
  * with this shape.
  *
- * Status transitions replicate the original editors exactly:
- * trigger → 'unsaved'; flush start → 'saving'; flush success → 'saved'
- * (a rejected flush leaves 'saving', exactly like before).
+ * A failed flush leaves an explicit error state instead of an unhandled
+ * rejection or a permanent "saving" indicator. A new edit retries normally.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type SaveStatus = 'saved' | 'saving' | 'unsaved';
+type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error';
 
 export function useDebouncedAutoSave(
   flushFn: () => Promise<void>,
@@ -33,27 +32,68 @@ export function useDebouncedAutoSave(
 ): { saveStatus: SaveStatus; triggerAutoSave: () => void } {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushInFlightRef = useRef<Promise<void> | null>(null);
+  const flushRequestedRef = useRef(false);
+  const hasPendingChangesRef = useRef(false);
 
   // Latest-callback ref pattern (canonical way to expose a stable timer
   // callback that sees the LATEST closure; the lint rule has a known false
   // positive on this exact pattern — see
   // https://github.com/facebook/react/issues/31194).
-  const flushSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const flushSaveRef = useRef(flushFn);
   useEffect(() => {
-    flushSaveRef.current = async () => {
-      setSaveStatus('saving');
-      await flushFn();
-      setSaveStatus('saved');
-    };
+    flushSaveRef.current = flushFn;
   }, [flushFn]);
 
+  const flushNow = useCallback(async () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (flushInFlightRef.current) {
+      flushRequestedRef.current = true;
+      await flushInFlightRef.current;
+      return;
+    }
+
+    const operation = async () => {
+      let failed = false;
+      do {
+        flushRequestedRef.current = false;
+        hasPendingChangesRef.current = false;
+        setSaveStatus('saving');
+        try {
+          await flushSaveRef.current();
+        } catch (error) {
+          console.error('[autosave] No se pudieron guardar los cambios.', error);
+          hasPendingChangesRef.current = true;
+          failed = true;
+          break;
+        }
+      } while (flushRequestedRef.current);
+
+      setSaveStatus(failed ? 'error' : hasPendingChangesRef.current ? 'unsaved' : 'saved');
+    };
+
+    const pending = operation();
+    flushInFlightRef.current = pending;
+    try {
+      await pending;
+    } finally {
+      if (flushInFlightRef.current === pending) flushInFlightRef.current = null;
+    }
+  }, []);
+
   const triggerAutoSave = useCallback(() => {
+    hasPendingChangesRef.current = true;
     setSaveStatus('unsaved');
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      void flushSaveRef.current?.();
+      timerRef.current = null;
+      void flushNow();
     }, delayMs);
-  }, [delayMs]);
+  }, [delayMs, flushNow]);
 
   // Flush the pending autosave when the timer is still armed:
   //  - on `pagehide` (reload / tab close / navigate away) — otherwise the
@@ -62,19 +102,15 @@ export function useDebouncedAutoSave(
   //  - on React unmount (note/lab switch / view change) — the same flush via
   //    the effect cleanup covers SPA navigation.
   useEffect(() => {
-    const flushNow = () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-        void flushSaveRef.current?.();
-      }
+    const flushPending = () => {
+      if (timerRef.current) void flushNow();
     };
-    window.addEventListener('pagehide', flushNow);
+    window.addEventListener('pagehide', flushPending);
     return () => {
-      window.removeEventListener('pagehide', flushNow);
-      flushNow();
+      window.removeEventListener('pagehide', flushPending);
+      if (timerRef.current) void flushNow();
     };
-  }, []);
+  }, [flushNow]);
 
   return { saveStatus, triggerAutoSave };
 }

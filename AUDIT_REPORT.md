@@ -422,4 +422,28 @@ P0: 0 · P1: 0 · P2: 0 pendientes. Residual P3 conocido (confirm/alert nativos 
 
 ---
 
-*Fin del reporte. Addendum §10: pegado tipo Obsidian (V17). §11: ronda Impeccable V17.1. §12: cierre final (limpieza de repo + accesibilidad + deps de seguridad + React Compiler compliance + re-verificación E2E integral).*
+*Addenda históricos §10–§12 documentan auditorías anteriores; el estado vigente se actualiza en §13.*
+
+## 13. ADDENDUM VI — Auditoría de calidad integral (2026-11-05)
+
+### Alcance y cambios
+
+Revisados el manejo de solicitudes de las tres rutas API, sanitización y render HTML, flujo de autosave, búsquedas, ciclo de vida de listeners, persistencia y documentación. Se verificaron lint, TypeScript, build de producción y pruebas del nuevo comando `bun run test`.
+
+| Área | Hallazgo | Corrección |
+|---|---|---|
+| Seguridad | Las rutas locales aceptaban solicitudes iniciadas desde otros sitios. `git/pull` incluye un modo espejo que puede descartar cambios de código locales y sus errores podían incluir credenciales del remoto. | Comprobación compartida de `Origin` y `Sec-Fetch-Site` en las tres rutas; las solicitudes sin metadatos también se rechazan. Se redactan credenciales y tokens conocidos de los errores de Git antes de mostrarlos. |
+| Seguridad / memoria | Los cuerpos JSON de enriquecimiento y pull se parseaban sin límite de bytes. | Lector de streaming con topes de 16 KiB y 1 KiB, rechazo de JSON malformado y HTTP 413 al exceder el límite. |
+| Datos / UX | Un error de autosave dejaba la interfaz permanentemente en “Guardando…” y generaba una promesa rechazada sin manejar. | Estado visible “Error al guardar” con reintento; fallos registrados sin descartar los cambios pendientes. |
+| Rendimiento / ciclo de vida | El temporizador de debounce conservaba un identificador tras dispararse y podía producir escrituras repetidas; un nuevo flush durante una escritura podía solaparse. | Identificador limpiado al disparar y flush serializado que repite la escritura si se acumularon cambios mientras guardaba. |
+| Mantenibilidad | El drag-resize podía mantener listeners globales y estilos del documento al desmontar el panel o perder foco. | Limpieza idempotente en mouseup, pérdida de foco y desmontaje; el ancho final se conserva. |
+| Pruebas | No había suite de pruebas automatizadas. | Añadidas pruebas Bun para guardas de origen y límites del parser JSON, integradas como `bun run test`. |
+
+### Validación y límites conocidos
+
+- `bun run test`, `bun run lint`, `bun run typecheck` y `bun run build`: correctos.
+- Las rutas locales están protegidas contra invocaciones cross-site en navegadores que envían `Origin`/Fetch Metadata; clientes sin ambos metadatos no pueden invocarlas.
+- El proxy rechaza direcciones privadas tanto en la URL como en las respuestas DNS, y fija la conexión HTTP/TLS a la IP pública validada para evitar DNS rebinding. Revalida cada redirección y limita la cadena a cinco saltos.
+- No se identificaron datos de autenticación de usuarios guardados en el código ni una fuga XSS adicional en los sinks revisados. Las operaciones online existentes siguen requiriendo acción explícita del usuario.
+
+*Este addendum reemplaza el estado de cierre de §12 para los puntos aquí auditados; no afirma que sea posible garantizar ausencia absoluta de defectos en toda combinación de navegador y datos.*

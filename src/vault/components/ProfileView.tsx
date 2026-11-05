@@ -536,9 +536,21 @@ export const ProfileView: React.FC = () => {
   };
 
   const saveLabel =
-    saveStatus === 'saved' ? 'Guardado' : saveStatus === 'saving' ? 'Guardando…' : 'Cambios sin guardar';
+    saveStatus === 'saved'
+      ? 'Guardado'
+      : saveStatus === 'saving'
+        ? 'Guardando…'
+        : saveStatus === 'error'
+          ? 'Error al guardar · Reintentar'
+          : 'Cambios sin guardar';
   const saveDot =
-    saveStatus === 'saved' ? 'bg-green-400' : saveStatus === 'saving' ? 'bg-amber-400 animate-pulse' : 'bg-blue-400';
+    saveStatus === 'saved'
+      ? 'bg-green-400'
+      : saveStatus === 'saving'
+        ? 'bg-amber-400 animate-pulse'
+        : saveStatus === 'error'
+          ? 'bg-red-400'
+          : 'bg-blue-400';
 
   return (
     <div className="flex flex-col flex-1 h-[calc(100vh-48px)] overflow-hidden bg-[#0A0A0A] relative">
@@ -560,7 +572,16 @@ export const ProfileView: React.FC = () => {
             title={`Dominadas: ${counts.dominadas} · En proceso: ${counts.enProceso} · Por aprender: ${counts.porAprender}`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${saveDot}`} />
-            {saveLabel}
+            {saveStatus === 'error' ? (
+              <button
+                type="button"
+                onClick={triggerAutoSave}
+                title="Pulsa para reintentar el guardado"
+                className="text-red-400 hover:text-red-300"
+              >
+                {saveLabel}
+              </button>
+            ) : saveLabel}
           </div>
           <button
             onClick={() => void handleOpenPreview()}

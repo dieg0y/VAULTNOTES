@@ -823,6 +823,16 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
                   <span className="text-[#888]">Editado</span>
                 </>
               )}
+              {saveStatus === 'error' && (
+                <button
+                  type="button"
+                  onClick={triggerAutoSave}
+                  className="text-red-400 hover:text-red-300"
+                  title="Error al guardar. Pulsa para reintentar."
+                >
+                  Error al guardar · Reintentar
+                </button>
+              )}
             </div>
 
             {/* Mark as completed button */}

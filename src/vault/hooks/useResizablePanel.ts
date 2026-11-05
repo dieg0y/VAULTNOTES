@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 interface ResizablePanelOptions {
   /** localStorage key to persist the width between sessions */
@@ -37,6 +37,9 @@ export function useResizablePanel({
       return defaultWidth;
     }
   });
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => dragCleanupRef.current?.(), []);
 
   // Viewport clamp — starts unclamped (matches SSR/first paint) and is
   // applied + re-applied on mount and on every window resize, with cleanup.
@@ -77,21 +80,39 @@ export function useResizablePanel({
       const startX = e.clientX;
       const startW = width;
       const clamp = (w: number) => Math.max(minWidth, Math.min(maxWidth, w));
+      dragCleanupRef.current?.();
+      let currentWidth = startW;
+      const previousCursor = document.body.style.cursor;
+      const previousUserSelect = document.body.style.userSelect;
 
       const onMove = (ev: MouseEvent) => {
-        setBaseWidth(clamp(startW + (ev.clientX - startX)));
+        currentWidth = clamp(startW + (ev.clientX - startX));
+        setBaseWidth(currentWidth);
       };
-      const onUp = (ev: MouseEvent) => {
+      const cleanup = () => {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
-        persist(clamp(startW + (ev.clientX - startX)));
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
+        window.removeEventListener('blur', onCancel);
+        persist(currentWidth);
+        document.body.style.cursor = previousCursor;
+        document.body.style.userSelect = previousUserSelect;
+        if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
       };
+      const onUp = (ev: MouseEvent) => {
+        currentWidth = clamp(startW + (ev.clientX - startX));
+        setBaseWidth(currentWidth);
+        cleanup();
+      };
+      const onCancel = () => {
+        cleanup();
+      };
+
+      dragCleanupRef.current = cleanup;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
+      window.addEventListener('blur', onCancel);
     },
     [width, minWidth, maxWidth, persist]
   );

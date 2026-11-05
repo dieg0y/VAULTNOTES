@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import ZAI from 'z-ai-web-dev-sdk';
+import { ApiRequestError, isSameOriginRequest, readJsonRequest } from '../requestSecurity';
 
 /**
  * POST /api/enrich-ticket — Enriquecimiento ONLINE opcional del Ticket
@@ -42,8 +43,12 @@ Tu trabajo es devolver un ENRIQUECIMIENTO de triage como JSON EXACTO con esta fo
 Responde SOLO el JSON válido (sin markdown, sin explicaciones). Usa español.`;
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ ok: false, error: 'Solicitud de otro sitio rechazada.' }, { status: 403 });
+  }
+
   try {
-    const body = await request.json();
+    const body = await readJsonRequest(request, 16 * 1024);
     const parsed = EnrichRequest.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -105,9 +110,15 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, enrichment: result.data });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
+    if (err instanceof ApiRequestError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
+    console.error(
+      '[api/enrich-ticket] Falló el proveedor de enriquecimiento:',
+      err instanceof Error ? err.name : 'error desconocido',
+    );
     return NextResponse.json(
-      { ok: false, error: `Enriquecimiento online falló: ${message}` },
+      { ok: false, error: 'Enriquecimiento online falló. Revisa la conexión e inténtalo de nuevo.' },
       { status: 502 }
     );
   }

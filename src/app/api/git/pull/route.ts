@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { ApiRequestError, isSameOriginRequest, readJsonRequest } from '../../requestSecurity';
 
 /**
  * POST /api/git/pull — Pull de actualizaciones de código desde GitHub.
@@ -79,7 +80,11 @@ function describeError(err: unknown): string {
   const e = err as GitFailure;
   if (e?.killed) return 'El comando tardó demasiado (timeout) — revisa tu conexión e inténtalo de nuevo.';
   const raw = (e?.stderr || e?.stdout || e?.message || '').toString().trim();
-  const lines = raw.split('\n').filter(Boolean).slice(0, 6).join(' · ');
+  const sanitized = raw
+    .replace(/\b(https?:\/\/)[^/\s@]+@/gi, '$1[REDACTED]@')
+    .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,})\b/gi, '[REDACTED]')
+    .replace(/\b(Bearer|Basic)\s+\S+/gi, '$1 [REDACTED]');
+  const lines = sanitized.split('\n').filter(Boolean).slice(0, 6).join(' · ');
   return lines || 'Error desconocido ejecutando git';
 }
 
@@ -161,6 +166,9 @@ const fail = (status: number, body: Record<string, unknown>) =>
 /* ─────────────────────────── endpoint ─────────────────────────── */
 
 export async function POST(req: Request) {
+  if (!isSameOriginRequest(req)) {
+    return fail(403, { error: 'Solicitud de otro sitio rechazada.' });
+  }
   if (inFlight) {
     return fail(429, { error: 'Ya hay un pull en curso — espera a que termine.' });
   }
@@ -169,10 +177,13 @@ export async function POST(req: Request) {
   // 'mirror' (espejo exacto con GitHub — la UI SIEMPRE confirma antes).
   let mode: 'safe' | 'mirror' = 'safe';
   try {
-    const body = (await req.json()) as { mode?: unknown } | null;
+    const body = (await readJsonRequest(req, 1024)) as { mode?: unknown } | null;
     if (body && body.mode === 'mirror') mode = 'mirror';
-  } catch {
-    /* sin body o JSON inválido → safe */
+  } catch (err) {
+    if (err instanceof ApiRequestError) {
+      return fail(err.status, { error: err.message });
+    }
+    return fail(400, { error: 'No se pudo leer el cuerpo de la solicitud.' });
   }
 
   inFlight = true;
