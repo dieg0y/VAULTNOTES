@@ -274,12 +274,12 @@ El navegador no puede descargar imágenes cross-origin sin CORS (`fetch()` falla
 | Control | Verificación E2E |
 |---|---|
 | Esquema http/https único (`ftp:` → 400) | ✓ curl real |
-| SSRF: hosts privados bloqueados (loopback, RFC1918, link-local, ULA, CGNAT, .local) — `localhost:3000/secret` → 403 | ✓ curl real |
+| SSRF: hosts privados bloqueados (loopback, RFC1918, link-local IPv4/IPv6, ULA, CGNAT, multicast/reservados, .local) — `localhost:3000/secret` → 403 | ✓ curl real |
 | `Sec-Fetch-Site: cross-site` → 403 (DNS rebinding y uso como proxy desde webs de terceros) | diseño + header siempre presente en navegadores modernos |
 | Tope 25 MB **contado en streaming** (Content-Length mentiroso no desborda memoria) | diseño |
 | Timeout 15 s (AbortController) | diseño |
 | Content-Type `image/*` obligatorio (hotlink-blocked que devuelve text/html → 502/415 → el cliente degrada a enlace) | ✓ curl real (raw text → 502) |
-| Redirecciones: sigue fetch() (≤20 hops) — residual: una URL pública puede redirigir a host interno; solo lo provoca el propio usuario al pegar esa URL | documentado |
+| Redirecciones: seguimiento manual, cada destino revalida esquema y host, máximo 5 saltos; destinos internos bloqueados → 403 | verificado por build; DNS de nombres públicos no queda fijado a una IP |
 
 ### 10.2 Invariantes preservadas (todas re-verificadas en E2E)
 

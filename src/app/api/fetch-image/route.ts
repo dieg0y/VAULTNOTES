@@ -31,19 +31,26 @@ import { NextRequest, NextResponse } from 'next/server';
  *  · Timeout total 15 s (AbortController).
  *  · Content-Type solo image/* (un hotlink-blocked que devuelve text/html
  *    se rechaza y el cliente degrada esa imagen a enlace).
- *  · Redirecciones: fetch() las sigue (<= 20 hops del runtime). Riesgo
- *    residual documentado: una URL pública puede redirigir a un host
- *    interno; solo lo provoca el propio usuario al pegar esa URL.
+ *  · Redirecciones: cada destino se vuelve a validar antes de pedirlo;
+ *    máximo 5 saltos. Evita redirecciones directas a hosts internos bloqueados.
  */
 
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — mismo tope que el flujo legacy de imágenes
 const TIMEOUT_MS = 15_000;
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /** Hosts privados/internos — SSRF hardening (no escaneamos la LAN del usuario). */
 function isBlockedHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const isIpv6 = h.includes(':');
   if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h === '0.0.0.0') return true;
-  if (h === '::1' || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('fe80')) return true;
+  if (h === '::' || h === '::1') return true;
+  if (isIpv6) {
+    if (h.startsWith('::ffff:') || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('ff')) return true;
+    const firstIpv6Block = Number.parseInt(h.split(':')[0], 16);
+    if (Number.isFinite(firstIpv6Block) && (firstIpv6Block & 0xffc0) === 0xfe80) return true; // IPv6 link-local: fe80::/10
+  }
   const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (v4) {
     const a = Number(v4[1]);
@@ -53,6 +60,7 @@ function isBlockedHost(hostname: string): boolean {
     if (a === 192 && b === 168) return true; // RFC1918
     if (a === 169 && b === 254) return true; // link-local (incl. cloud metadata)
     if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+    if (a >= 224) return true; // multicast and reserved
   }
   return false;
 }
@@ -111,18 +119,40 @@ export async function GET(request: NextRequest) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const upstream = await fetch(target.toString(), {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: {
-        // UA de navegador genérico: evita bloqueos básicos de hotlinking.
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-        Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-      },
-      cache: 'no-store',
-    });
+    let upstream: Response;
+    for (let redirects = 0; ; redirects++) {
+      upstream = await fetch(target.toString(), {
+        signal: controller.signal,
+        redirect: 'manual',
+        headers: {
+          // UA de navegador genérico: evita bloqueos básicos de hotlinking.
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+          Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        },
+        cache: 'no-store',
+      });
+
+      if (!REDIRECT_STATUSES.has(upstream.status)) break;
+      const location = upstream.headers.get('location');
+      await upstream.body?.cancel().catch(() => undefined);
+      if (!location || redirects >= MAX_REDIRECTS) {
+        return NextResponse.json({ error: 'redirección inválida o límite excedido' }, { status: 502 });
+      }
+
+      try {
+        target = new URL(location, target);
+      } catch {
+        return NextResponse.json({ error: 'URL de redirección inválida' }, { status: 502 });
+      }
+      if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+        return NextResponse.json({ error: 'solo http/https' }, { status: 400 });
+      }
+      if (isBlockedHost(target.hostname)) {
+        return NextResponse.json({ error: 'host interno bloqueado' }, { status: 403 });
+      }
+    }
 
     if (!upstream.ok) {
       return NextResponse.json({ error: `upstream ${upstream.status}` }, { status: 502 });
