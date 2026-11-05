@@ -516,6 +516,9 @@ export const RichEditor: React.FC<RichEditorProps> = ({
             <button
               onClick={() => { const nf = !isFavorite; setIsFavorite(nf); triggerAutoSave(); }}
               className={`p-1.5 rounded transition-colors cursor-pointer ${isFavorite ? 'text-yellow-400 bg-yellow-500/10' : 'text-[#858585] hover:text-white hover:bg-[#161616]'}`}
+              title={isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+              aria-label={isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+              aria-pressed={isFavorite}
             >
               <Star className="w-4 h-4" fill={isFavorite ? 'currentColor' : 'none'} />
             </button>

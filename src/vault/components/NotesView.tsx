@@ -278,8 +278,9 @@ export const NotesView: React.FC<NotesViewProps> = ({
           </h2>
           <button
             onClick={() => setIsAddingPlatform((v) => !v)}
-            className="p-1 rounded text-[#868686] hover:text-blue-400 hover:bg-[#161616] transition-colors"
+            className="p-1.5 rounded text-[#868686] hover:text-blue-400 hover:bg-[#161616] transition-colors"
             title="Agregar plataforma"
+            aria-label="Agregar plataforma"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
@@ -336,10 +337,11 @@ export const NotesView: React.FC<NotesViewProps> = ({
               </button>
               <button
                 onClick={() => handleDeletePlatform(p)}
-                className="p-1 mr-1 rounded text-[#828282] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all shrink-0"
+                className="p-1.5 mr-1 rounded text-[#828282] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 pointer-coarse:opacity-100 transition-all shrink-0"
                 title={`Eliminar plataforma "${p.name}"`}
+                aria-label={`Eliminar plataforma "${p.name}"`}
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}

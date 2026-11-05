@@ -361,4 +361,41 @@ Nota de proceso: los ~100 archivos fantasma del checkpoint reaparecieron por ter
 
 ---
 
-*Fin del reporte. Addendum §10: pegado tipo Obsidian (V17). Addendum §11: ronda Impeccable V17.1 (crítica dual + auditoría 5D + 5 fixes P1 + 8 fixes P2, todo verificado E2E).*
+(*actualizado en §12*)
+
+## 12. ADDENDUM V — Cierre final: re-ejecución, limpieza de repo y accesibilidad (2026-11-05, HEAD `eab487d`)
+
+### 12.1 Limpieza del repositorio
+
+- **Commit fantasma eliminado** (`16627cd`): schema Prisma scaffold (User/Post) con mensaje UUID, nunca pusheado. VaultNotes es 100% Dexie/IndexedDB — 0 referencias a Prisma en `src/` (verificado con grep). El repo quedó en fast-forward limpio con `origin/main`.
+- **`push-pendiente.sh` eliminado**: obsoleto (referenciaba V11 y un token revocado; el remote ya lleva token embebido funcionando y todos los pushes posteriores salieron).
+- **`package-lock.json` eliminado**: redundante — el proyecto usa Bun exclusivamente (`bun.lock` es la fuente de verdad; `README` documenta `bun install`).
+- **`INVENTORY.md` eliminado**: doc de pre-implementación V9 con conteos ya falsos (41 tools vs 48 reales, 773 términos vs 862, "Roadmap SOC: NO EXISTE" vs 93 ítems). Preservado en historial git; mantenerlo en la raíz era engañoso.
+- **Código muerto: 0** — los 22 módulos de `utils/` + 4 hooks verificados con grep de importadores (zipBackup se carga vía `import()` dinámico — falso positivo del escaneo estático).
+
+### 12.2 Accesibilidad — 3 fixes (hallazgos nuevos, no cubiertos por §11)
+
+| # | Hallazgo | Fix | E2E |
+|---|---|---|---|
+| 1 | Botones "Eliminar plataforma" del sidebar de Apuntes a 20×20px (< 24px WCAG 2.5.8) y sin `aria-label`; invisible en táctil (`opacity-0 group-hover`) | `p-1.5` + icono 3.5 → 26×26px, `aria-label` añadido, `pointer-coarse:opacity-100` (siempre visible en táctil) | Medido 26×26 en navegador |
+| 2 | Botón "Agregar plataforma" a 22×22px, sin `aria-label` | `p-1.5` → 26×26px + `aria-label` | Medido 26×26 |
+| 3 | Botón favorito (★) del editor sin nombre accesible | `aria-label` dinámico ("Marcar/Quitar de favoritos") + `title` + `aria-pressed` | Escaneo: 0 botones solo-icono sin nombre en toda la app |
+
+### 12.3 Re-verificación E2E completa (navegador real, tras los fixes)
+
+- **Pegado tipo Obsidian (addendum §10)**: HTML de "web completa" con PNG+GIF remotos pegado en el editor → placeholders instantáneos → descarga vía `/api/fetch-image` (mockeada) → ambas imágenes parcheadas a data-URL local, **0 src remotos**, formato (h2/strong) intacto. **Persistencia**: tras reload completo, 2 imágenes locales + contenido intacto.
+- **Camino de fallo**: imagen rota (upstream 502) → degrada a **enlace visible**, 0 marcadores pendientes colgados.
+- **Sonda XSS por pegado**: `<script>`, `<iframe>`, `onerror`, `javascript:` y src remoto — todo neutralizado por el pipeline DOMPurify; el texto legítimo se conserva. El intento contra `evil.com` pasó por el proxy real y devolvió 502 (SSRF-guard íntegro: hosts privados bloqueados, content-type validado).
+- **Backup ZIP**: construido y "Descargado: VaultNotes-Backup.zip" (fallback clásico al `showSaveFilePicker` bloqueado en headless — comportamiento Firefox/Safari por diseño; en navegador real con gesto de usuario usa el picker).
+- **Navegación completa**: Glosario 862 · Labs · Simulador IAM (Nexora) · Roadmap IAM 373 · Dashboard — **0 errores de consola, 0 errores de página** en todo el ciclo.
+- **Móvil 390px**: 0 overflow horizontal (scrollWidth 390 == clientWidth).
+- Nota de prueba E2E creada, verificada y **borrada** (vault limpio).
+- `eslint` 0 · `tsc --noEmit` 0 · `dev.log` limpio (todas las rutas 200).
+
+### 12.4 Estado final
+
+P0: 0 · P1: 0 · P2: 0 pendientes. Residual P3 conocido (confirm/alert nativos en 3 flujos, ring de foco 1px tenue — heredado de §11, aceptado).
+
+---
+
+*Fin del reporte. Addendum §10: pegado tipo Obsidian (V17). §11: ronda Impeccable V17.1. §12: cierre final (limpieza de repo + accesibilidad + re-verificación E2E integral).*
