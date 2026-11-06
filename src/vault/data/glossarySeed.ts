@@ -2,7 +2,8 @@
  * glossarySeed — seed completo del Glosario (auditoría v2).
  * Capas: base (180, curada: sin relleno ni duplicados) + ampliación IAM
  * (glossarySeedMore.ts, 193) + especialización HelpDesk
- * (glossarySeedHelpDesk.ts, 219 términos L1/L2 depurados) +
+ * (glossarySeedHelpDesk.ts, 257 términos L1/L2 depurados — v25 incluye
+ * macOS/Linux/móvil, Cloud/SaaS y Herramientas/Monitoreo) +
  * especialización SysAdmin (glossarySeedSysAdmin.ts, 131, Infra & Ops) +
  * capa de plataformas y vendors IAM/PAM (glossarySeedIam.ts, 77: Okta,
  * SailPoint, Ping, ForgeRock, IBM, Oracle, CyberArk, One Identity,

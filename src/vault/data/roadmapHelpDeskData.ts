@@ -186,6 +186,16 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'El paquete de escalamiento como plantilla fija: sintoma verificable, datos del equipo/usuario, pasos hechos con su resultado, hipotesis actual, impacto y usuario avisado. Llenala ANTES de escalar: "te paso el caso" sin paquete no es escalar, es botar la pelota — y el L2 te lo devuelve con menos contexto del que salio.',
           },
+          {
+            id: 'rmhd-f6-6',
+            label: 'Práctica',
+            text: 'Las plataformas reales del mercado: ServiceNow (incidente, catalogo, work notes vs comments, assignment group, SLA timer) y Jira Service Management/Confluence — la interfaz cambia, el ciclo no (RB-HD-062). En el lab: monta el flujo completo de un incidente en cualquier tablero de prueba (GLPI gratuito vale) y documentalo con capturas para el portafolio: la entrevista pregunta por la herramienta, evalua el metodo.',
+          },
+          {
+            id: 'rmhd-f6-7',
+            label: 'Práctica',
+            text: 'IA como copiloto del soporte (la competencia que ya piden las ofertas): redactar respuestas y resumos con IA, traducir tecnico-a-usuario y usuario-a-tecnico, generar borradores de KB. Las reglas que te contratan por cumplir: verificar SIEMPRE antes de enviar (la IA inventa con seguridad), nunca pegar datos sensibles (nombres, tickets, IPs, credenciales) en herramientas no aprobadas, y el juicio final es tuyo — el ticket firma el tecnico, no la IA.',
+          },
         ],
       },
       {
@@ -444,6 +454,11 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'Un primer reporte: exportar usuarios bloqueados/inactivos o equipos sin contacto en semanas a CSV — el puente natural hacia tareas de IAM. Higiene operativa incluida: nunca ejecutar un script que no entiendes en produccion.',
           },
+          {
+            id: 'rmhd-f15-3',
+            label: 'Conceptos Clave',
+            text: 'Mas alla de PowerShell: Bash de sobrevivencia para los equipos Linux del parque (systemctl status, journalctl -u, df -h, grep) y Python basico para automatizar lo repetitivo del soporte (leer un CSV, llamar una API, generar un reporte) — el lenguaje cambia, la logica no. Meta honesta de L1/L2: leer y modificar scripts existentes con criterio, no escribirlos de cero.',
+          },
         ],
       },
       {
@@ -557,6 +572,110 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
           },
         ],
       },
+      {
+        id: 'rmhd-f26',
+        number: 20,
+        title: 'Soporte Multiplataforma: macOS, Linux y Movil',
+        note: 'El parque mixto es la norma de las ofertas actuales (Windows + macOS + Linux + moviles): quien solo sabe Windows atiende la mitad de la empresa.',
+        items: [
+          {
+            id: 'rmhd-f26-1',
+            label: 'Conceptos Clave',
+            text: 'macOS en la empresa: cuenta local vs cuenta sincronizada (Company Portal/Entra), el Keychain (llavero) como cofre de credenciales que NO se entera de los resets corporativos, FileVault como BitLocker de Mac y Gatekeeper como control de ejecucion. El reflejo mac: la mayoria de tickets mac son la misma cuenta corporativa y el mismo metodo de siempre visto desde otro sistema operativo.',
+          },
+          {
+            id: 'rmhd-f26-2',
+            label: 'Práctica',
+            text: 'La escalera macOS con los runbooks: login/llavero en bucle (RB-HD-057) y lento/disco lleno/Gatekeeper (RB-HD-058) — comandos reales: fdesetup status, system_profiler SPHardwareDataType, df -h /, softwareupdate -l. Si no tienes un Mac: la maquina virtual de macOS en VirtualBox/VMware o el Mac de un conocido con permiso, ejecutando el diagnostico de cada capa.',
+          },
+          {
+            id: 'rmhd-f26-3',
+            label: 'Conceptos Clave',
+            text: 'Linux de escritorio para soporte: distros que veras (Ubuntu/Debian en empresas modernas, RHEL family en corporativos), apt vs dnf, systemd (systemctl status) y journalctl como pareja diagnostica, permisos y el home del usuario (~/.config) como perfil. La regla L1: leer y escalar con salidas exactas — instalar/cambiar es del admin.',
+          },
+          {
+            id: 'rmhd-f26-4',
+            label: 'Práctica',
+            text: 'La escalera Linux L1 (RB-HD-059) montada en una VM gratuita de Ubuntu: TTY (Ctrl+Alt+F3) para separar sistema de escritorio, lanzar app desde terminal para ver el error real, systemctl/journalctl de un servicio, df -h / free -h. Documenta las 4 salidas en un ticket simulado: ese paquete de texto es lo que el equipo Linux quiere recibir.',
+          },
+          {
+            id: 'rmhd-f26-5',
+            label: 'Práctica',
+            text: 'Movil corporativo (RB-HD-067): Android/iOS con el correo de la empresa, el caso numero uno (contrasena vencida guardada en el movil), compliance de MDM y Conditional Access, y la decision critica del ciclo de vida: retire (wipe selectivo, BYOD-safe) vs wipe (total, solo equipos corporativos). Monta el caso con tu propio telefono + cuenta de prueba si puedes.',
+          },
+        ],
+      },
+      {
+        id: 'rmhd-f27',
+        number: 21,
+        title: 'Cloud y SaaS Administration: Google Workspace, AWS/OCI y SaaS',
+        note: 'Las ofertas ya no dicen solo Microsoft 365: piden administrar CUALQUIER SaaS y hablar el idioma cloud con propiedad.',
+        items: [
+          {
+            id: 'rmhd-f27-1',
+            label: 'Conceptos Clave',
+            text: 'Google Workspace para soporte: la Admin console (Directorio > Usuarios), el Email Log Search como message trace de Google, el re-registro de 2FA del usuario, el almacenamiento compartido Gmail/Drive y los permisos de archivos. Metodo diagnostico identico al de M365: alcance → busquedas del usuario → herramientas de admin → estado del servicio.',
+          },
+          {
+            id: 'rmhd-f27-2',
+            label: 'Práctica',
+            text: 'Los dos runbooks Workspace en un tenant de prueba (el trial gratuito de 14 dias alcanza): correo que no llega/no sale con busquedas avanzadas y Email Log Search (RB-HD-060) y lockout por 2FA perdido con el reset de admin y los codigos de respaldo (RB-HD-061). Documenta el flujo con capturas para el portafolio.',
+          },
+          {
+            id: 'rmhd-f27-3',
+            label: 'Conceptos Clave',
+            text: 'Cloud basico para soporte (AWS/Azure/OCI): que es una region, un servicio, una instancia y un grupo de seguridad; el modelo de responsabilidad compartida (que arregla el proveedor y que el cliente) y como se lee un status page y se abre un caso con el proveedor. El L1 no administra la nube: la entiende y escala bien.',
+          },
+          {
+            id: 'rmhd-f27-4',
+            label: 'Conceptos Clave',
+            text: 'Administracion SaaS generica (la competencia transferible): toda consola de admin tiene lo mismo — usuarios, licencias/planes, roles de admin, SSO, logs de actividad y estado del servicio. El metodo universal del "SaaS X no funciona": alcance → SSO/credencial → licencia → logs de admin → status page → soporte del proveedor. Dominarlo una vez vale para todos.',
+          },
+          {
+            id: 'rmhd-f27-5',
+            label: 'Evidencia',
+            text: 'Mini-runbook propio de un SaaS real: elige un SaaS gratuito (Trello, Notion, el que sea), monta el flujo completo (alta de usuario, licencia, rol, un problema simulado y su diagnostico por el metodo universal) y escribelo en VaultNotes con capturas — la demostracion de que el metodo es transferible es la respuesta ganadora a "¿conoces la plataforma X que usamos?".',
+          },
+        ],
+      },
+      {
+        id: 'rmhd-f28',
+        number: 22,
+        title: 'MSP, Monitoreo, Bases de Datos y APIs',
+        note: 'El kit del Technical Support Engineer y del MSP Support: multi-cliente, alertas, la base de datos de la app y sus APIs.',
+        items: [
+          {
+            id: 'rmhd-f28-1',
+            label: 'Conceptos Clave',
+            text: 'Que es trabajar en un MSP: multiples clientes (tenants) con un solo equipo, el PSA (tickets por cliente, cada contrato con SU SLA) y el RMM (agentes, alertas y acceso remoto). La disciplina que te contrata: la segregacion estricta por cliente (credenciales, documentacion, evidencia) — mezclar datos de dos clientes es la falta que termina contratos.',
+          },
+          {
+            id: 'rmhd-f28-2',
+            label: 'Práctica',
+            text: 'El reflejo multi-tenant (RB-HD-063): el mismo sintoma en N clientes → aislar la capa comun (la herramienta del MSP o el proveedor) antes de diagnosticar N veces; el ticket SIEMPRE en el tenant correcto. Simula el incidente: 5 clientes con el mismo sintoma, tu mapa de alcance, tu anuncio multi-cliente y tu verificacion de segregacion — ese ejercicio es entrevista de MSP superada.',
+          },
+          {
+            id: 'rmhd-f28-3',
+            label: 'Conceptos Clave',
+            text: 'Monitoreo para soporte: la triada availability (¿responde?), performance (¿que tan bien?) y capacity (¿cuanto queda?), las alertas como tickets automaticos con su protocolo (leerla entera, ack/reclamarla, verificarla independiente, correlacionar, accionar, cerrar CON causa — nunca silenciar sin explicar). El vocabulario del tablero: umbral, check, falso positivo, on-call (RB-HD-064).',
+          },
+          {
+            id: 'rmhd-f28-4',
+            label: 'Práctica',
+            text: 'PostgreSQL de solo lectura (RB-HD-065) en una VM o Docker: instalar, crear una base de prueba y ejecutar la escalera — systemctl status postgresql, pg_isready, SELECT count(*) FROM pg_stat_activity, journalctl -u postgresql, df -h. La regla de oro grabada: el L1 LEE y entrega; escribir/reiniciar es del DBA. Pega las 5 salidas en un ticket simulado con tu veredicto.',
+          },
+          {
+            id: 'rmhd-f28-5',
+            label: 'Conceptos Clave',
+            text: 'APIs y webhooks para soporte: que es una API REST (verbos, endpoints, JSON), los codigos HTTP que veras en tu vida (200 OK, 401/403 acceso, 404 ruta, 500 app rota, 502/503/504 pasarela/backend), que es un webhook (el aviso automatico de un sistema a otro) y el trace id que une la pantalla del usuario con la linea del log.',
+          },
+          {
+            id: 'rmhd-f28-6',
+            label: 'Práctica',
+            text: 'Los dos runbooks de aplicacion: app/API caida con codigos HTTP y paquete completo a desarrollo (RB-HD-066, con curl -I practicado de verdad) e importacion de archivos fallida con validaciones de encoding/estructura (RB-HD-068). Simula ambos: una API publica de prueba con curl leyendo su codigo, y un CSV con los 3 defectos clasicos (delimitador, BOM, fila malformada) que diagnosticas con el runbook.',
+          },
+        ],
+      },
     ],
   },
   {
@@ -567,7 +686,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
     phases: [
       {
         id: 'rmhd-f18',
-        number: 20,
+        number: 23,
         title: 'Ciclo de Vida de Cuentas (JML desde Soporte)',
         items: [
           {
@@ -589,7 +708,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f19',
-        number: 21,
+        number: 24,
         title: 'Grupos & RBAC Operativo',
         items: [
           {
@@ -611,7 +730,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f20',
-        number: 22,
+        number: 25,
         title: 'Puente a la Gobernanza de Identidad',
         note: 'Vocabulario y reflejos de IAM — la profundidad (reviews, PIM, IGA) vive en el roadmap principal.',
         items: [
@@ -634,7 +753,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f21',
-        number: 23,
+        number: 26,
         title: 'Auditoría, Evidencia & Trazabilidad',
         items: [
           {
@@ -656,7 +775,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
       },
       {
         id: 'rmhd-f22',
-        number: 24,
+        number: 27,
         title: 'Escalamiento a SOC & Security Handoff',
         items: [
           {
@@ -686,7 +805,7 @@ export const ROADMAP_HD_TIERS: RoadmapTierDef[] = [
     phases: [
       {
         id: 'rmhd-f23',
-        number: 25,
+        number: 28,
         title: 'Primera Semana en Nexora (30 tickets)',
         items: [
           {

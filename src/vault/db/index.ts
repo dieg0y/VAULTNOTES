@@ -611,6 +611,11 @@ const MASTER_CATEGORIES_LIST: string[] = [
   'HelpDesk - Microsoft 365',
   'HelpDesk - AD / Identidad',
   'HelpDesk - Seguridad para Soporte',
+  // v25 (auditoría de empleo) — cobertura macOS/Linux/móvil, Cloud/SaaS
+  // y herramientas empresariales/monitoreo. Aditivas.
+  'HelpDesk - Multiplataforma (macOS/Linux/Móvil)',
+  'HelpDesk - Cloud y SaaS',
+  'HelpDesk - Herramientas y Monitoreo',
   // v21 (SYSADMIN) — rama de Infraestructura & Operaciones (aditiva).
   'SysAdmin - Linux / Unix',
   'SysAdmin - Windows Server',
@@ -894,9 +899,10 @@ async function doInitializeDatabase() {
   });
   if (toInsert.length > 0) await db.categories.bulkAdd(toInsert);
 
-  // --- GLOSARIO SEMBRADO (v18+): los 639 términos curados (base 194 +
-  // ampliación IAM 195 + HelpDesk 250) de data/glossarySeed*.ts ya vienen
-  // DE FÁBRICA — sin importar nada.
+  // --- GLOSARIO SEMBRADO (v18+): los términos curados de data/glossarySeed*.ts
+  // (base 180 + ampliación IAM 193 + HelpDesk 257 [v25: +38 multiplataforma/
+  // cloud/herramientas] + SysAdmin 131 + IAM vendors 77 + auditoría 62) ya
+  // vienen DE FÁBRICA — sin importar nada.
   // Seeding ADITIVO y NO destructivo: dedupe por nombre normalizado contra
   // TODO el glosario (incluidos soft-deleted, para no revivir borrados con
   // otro id) + nombres descartados definitivamente (SEED_DISMISSED_KEY).

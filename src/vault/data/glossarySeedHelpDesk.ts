@@ -2,8 +2,15 @@
  * glossarySeedHelpDesk — especialización HelpDesk L1/L2 del seed del glosario.
  * (Auditada v2: 219 términos tras retirar relleno de "computing 101",
  * soft skills y duplicados contra SysAdmin — ahora se mantiene a mano.)
+ * (v25 auditoría de empleo: +38 términos para las competencias más pedidas
+ * en ofertas reales de Help Desk / IT Support / Service Desk / Technical
+ * Support / MSP Support — macOS/Linux/móvil, Google Workspace/Cloud/SaaS
+ * y Herramientas empresariales/Monitoreo — en 3 categorías nuevas.)
  *
- * Distribución: Fundamentos IT: 36 · Service Desk / ITSM: 33 · Windows / Endpoint: 50 · Redes (Networking): 42 · Microsoft 365: 26 · AD / Identidad: 14 · Seguridad para Soporte: 18.
+ * Distribución (257): Fundamentos IT: 36 · Service Desk / ITSM: 33 ·
+ * Windows / Endpoint: 50 · Redes: 42 · Microsoft 365: 26 · AD / Identidad:
+ * 14 · Seguridad para Soporte: 18 · Multiplataforma (macOS/Linux/Móvil): 14 ·
+ * Cloud y SaaS: 8 · Herramientas y Monitoreo: 16.
  *
  * Se siembran vía glossarySeed.ts (GLOSSARY_SEED_TERMS) con el mismo
  * mecanismo idempotente del glosario base: dedupe por nombre normalizado
@@ -1816,5 +1823,322 @@ export const GLOSSARY_SEED_HELPDESK_TERMS: SeedTerm[] = [
     "shortDefinition": "Sin contraseñas, códigos MFA ni documentos sensibles en el ticket: es un registro compartido y auditable.",
     "longDefinition": "El ticket lo lee más gente de la que se piensa (otros niveles, auditoría, proveedores) y se retiene años, así que hay contenido prohibido: contraseñas (ni temporales, aunque el usuario las dicte), códigos MFA, capturas con documentos sensibles o datos de terceros, números de cuentas bancarias, y datos de salud o personales que no aportan al caso. Si el usuario pega su contraseña en el chat: no reenviarla, borrarla del canal si es posible, forzar su cambio y anotar en el ticket solo 'el usuario compartió credenciales por error; se forzó el cambio'. Los documentos delicados se referencian por su ubicación ('carpeta X del caso') en vez de adjuntarlos. Menos datos personales, menos superficie para el propio incidente y para el RGPD.",
     "example": "Un usuario pega su contraseña temporal en el chat de soporte: el técnico no la repite en el ticket, marca 'credencial expuesta por chat', fuerza el cambio inmediato y deja una nota educativa; el ticket queda limpio de secretos."
+  },
+{
+    "id": "seed-hd-macos-empresa",
+    "term": "macOS en la empresa",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El Mac corporativo: misma cuenta y mismos flujos de soporte vistos desde otro sistema operativo.",
+    "longDefinition": "El Mac del parque mixto comparte la columna vertebral del soporte con Windows: la cuenta corporativa (AD/Entra), el correo M365, el MDM y las políticas de seguridad; lo que cambia es el vocabulario local. Equivalencias que todo L1 de parque mixto debe tener a mano: Active Directory o Entra conectan vía Company Portal; BitLocker se llama FileVault; el almacén de credenciales es el Keychain (llavero); el control de ejecución de apps es Gatekeeper; el cifrado se verifica con fdesetup y el serial se saca con system_profiler. La mayoría de tickets Mac (login, correo, lentitud) son los casos de siempre con otros nombres: la clasificación por capas (cuenta vs perfil vs equipo) funciona igual.",
+    "example": "Ticket 'el MacBook de la diseñadora no acepta la contraseña': el L1 clasifica igual que en Windows — la cuenta falla en la web también (reset corporativo normal) o solo en el Mac (perfil local/llavero) — y aplica la escalera macOS en vez de 'reinstalar'."
+  },
+{
+    "id": "seed-hd-keychain",
+    "term": "Keychain (llavero)",
+    "acronym": "Keychain",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El cofre de contraseñas de macOS: cifrado con la contraseña de la cuenta y ajeno a los resets externos.",
+    "longDefinition": "El llavero de login (login.keychain-db) guarda las contraseñas del usuario (wifi, correo, apps) cifradas con la contraseña que la cuenta tenía al crearlo. Cuando la contraseña corporativa se resetea por otra vía (AD/Entra, SSPR), la cuenta cambia pero el llavero conserva la vieja: resultado típico, las apps piden 'la contraseña del llavero' en bucle. Fix limpio: Acceso a Llaveros > Editar > Cambiar contraseña del llavero, usando la vieja como puente (conserva todo lo guardado). Si la vieja se desconoce: renombrar login.keychain-db (backup en el Escritorio) y dejar que macOS cree uno nuevo vacío — las contraseñas guardadas se pierden, por eso el fix con puente es siempre el primero.",
+    "example": "Tras un reset obligatorio, el usuario entra al Mac pero cada app pide la contraseña anterior: el soporte cambia la contraseña del llavero con la vieja como puente y el bucle muere sin perder las credenciales guardadas."
+  },
+{
+    "id": "seed-hd-gatekeeper",
+    "term": "Gatekeeper",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El control de ejecución de macOS: bloquea apps sin firma/notarización de desarrolladores verificados.",
+    "longDefinition": "Gatekeeper es la primera línea de macOS contra ejecutables sin cadena de confianza: al abrir una app descargada (no de la App Store), verifica la firma del desarrollador y la notarización de Apple; si falla, muestra 'no se puede abrir porque proviene de un desarrollador no identificado'. Para el soporte, Gatekeeper NUNCA se desactiva: la vía legítima para software de empresa es la excepción documentada (Configuración > Privacidad y seguridad > Abrir de todos modos), que aprueba la app concreta y queda registrada. La app que no está en la lista aprobada de la empresa va por el canal de solicitud de software — el 'bypass' enseñado al usuario es la puerta trasera que la política prohíbe.",
+    "example": "Un analista descarga una app interna sin notarización y macOS la bloquea: el L1 verifica que está en la lista aprobada, aplica la excepción documentada en Configuración > Privacidad y seguridad y anota app, versión y aprobador en el ticket."
+  },
+{
+    "id": "seed-hd-filevault",
+    "term": "FileVault",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El cifrado de disco completo de macOS: el BitLocker del Mac, con su clave de recuperación propia.",
+    "longDefinition": "FileVault cifra el disco de arranque del Mac y pide su contraseña ANTES del login del usuario (la primera pantalla del arranque cifrado). Dos consecuencias operativas para soporte: tras un reset de cuenta por otra vía, la contraseña de FileVault NO cambia y el usuario que teclea la nueva en esa primera pantalla recibe un rechazo que parece 'login roto'; y la clave de recuperación de FileVault (que el MDM suele custodiar: Intune o Jamf la escrowan) es la única salida del disco cifrado con contraseña perdida — sin escrow y sin clave, la decisión de borrado o descifrado es del dueño del parque, no del L1. Se verifica con fdesetup status.",
+    "example": "Un MacBook pide contraseña 'al encender' tras un cambio corporativo: es FileVault con la contraseña vieja — el L1 la identifica (fdesetup status: On), recupera la clave del MDM y desbloquea sin borrar nada."
+  },
+{
+    "id": "seed-hd-jamf",
+    "term": "Jamf Pro",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El MDM líder para parque Apple: gestión de Macs, iPhones e iPads corporativos.",
+    "longDefinition": "Jamf Pro es la plataforma de gestión de dispositivos Apple más usada en empresas (la contraparte de Intune para el mundo Apple, con la que también se integra). Desde el soporte se usa para: ver el inventario y el estado de un Mac/iPhone (compliance, última conexión), empujar apps y perfiles (correo, wifi, certificados), ejecutar acciones remotas (bloqueo, borrado) y custodiar las claves de recuperación de FileVault. El L1 de parque mixto con Jamf debe saber localizar un dispositivo por su serial o por su usuario, leer su estado de gestión y escalar al administrador de Jamf cuando el problema es del perfil o del enrollment — sin intentar 'desinstalar Jamf', que es la vía del problema, no del fix.",
+    "example": "Un iPhone corporativo no recibe las apps de la empresa: el L1 ve en Jamf que el dispositivo lleva semanas sin check-in y lo re-sincroniza; si el perfil sigue roto, escala al admin de Jamf con el serial y el último check-in documentados."
+  },
+{
+    "id": "seed-hd-abm-dep",
+    "term": "Apple Business Manager (ABM/DEP)",
+    "acronym": "ABM",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El portal de Apple que automatiza el registro de dispositivos comprados: el Autopilot del mundo Apple.",
+    "longDefinition": "Apple Business Manager (antes DEP, Device Enrollment Program) es el portal corporativo de Apple donde los dispositivos comprados a proveedores autorizados aparecen automáticamente asociados a la empresa. Conectado con el MDM (Jamf/Intune), permite el despliegue sin manos: el equipo nuevo se enciende, detecta que es corporativo y se enrola solo con los perfiles de la empresa — el equivalente a Autopilot de Microsoft. Para el L1: el equipo nuevo Apple que NO aparece en ABM (comprado por retail) no puede tener el enrollment automático, y el flujo es el manual; y los números de serie gestionados en ABM son los que el MDM ve 'de fábrica'.",
+    "example": "Llegan 20 iPads para un proyecto: como se compraron por canal autorizado, ya están en ABM asignados al MDM; el L1 solo los enciende y el enrolamiento corporativo corre solo — la entrega es cuestión de minutos por equipo."
+  },
+{
+    "id": "seed-hd-vpp",
+    "term": "VPP (Volume Purchase Program)",
+    "acronym": "VPP",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "La compra por volumen de apps de Apple: licencias de App Store administradas y revocables.",
+    "longDefinition": "El Volume Purchase Program (hoy Apps and Books dentro de ABM) permite a la empresa comprar licencias de apps de la App Store por volumen y asignarlas/reclamarlas desde el MDM. La diferencia clave con la app comprada por un usuario: la licencia VPP pertenece a la EMPRESA — se asigna al dispositivo para el trabajo y se recupera cuando el equipo se retira o la persona se va (a diferencia de la app personal atada a la cuenta Apple del usuario). En soporte aparece en: 'la app X no está en mi iPad' (asignación VPP pendiente o licencias agotadas — se revisa en el MDM/ABM) y en el retiro de equipos (reclamar las licencias antes del wipe).",
+    "example": "Un nuevo iPad de campo no tiene la app de órdenes: el L1 verifica en el MDM que el grupo del dispositivo tiene la app VPP asignada y que quedan licencias disponibles; la app llega al siguiente check-in sin tocar la App Store."
+  },
+{
+    "id": "seed-hd-wipe-selectivo",
+    "term": "Wipe selectivo (retire) vs wipe total",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "Borrar solo lo corporativo (retire) o todo el dispositivo (wipe): la decisión que protege lo personal del usuario.",
+    "longDefinition": "Las dos acciones de borrado del MDM y la decisión más crítica del soporte móvil. Retire (wipe selectivo) elimina únicamente los datos y apps corporativas: el perfil de trabajo en Android, las cuentas y apps gestionadas en iOS/Windows — el contenido personal (fotos, cuentas, apps del usuario) sobrevive. Wipe (total) devuelve el dispositivo a fábrica: TODO desaparece. La regla operativa: BYOD (equipo del usuario) NUNCA recibe wipe total — su uso es la destrucción de propiedad privada con consecuencias legales y de RRHH; el wipe total es para dispositivos corporativos (perdidos sin recuperación o reasignados). Ambas acciones quedan documentadas en el ticket con quien las autorizó y la razón.",
+    "example": "Un consultor se va de la empresa y su teléfono es BYOD: el L1 ejecuta retire desde Intune — el contenedor corporativo desaparece esa tarde y las fotos familiares del usuario siguen intactas; el ticket documenta la autorización del área."
+  },
+{
+    "id": "seed-hd-perfil-trabajo",
+    "term": "Perfil de trabajo (work profile)",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El contenedor estanco de Android Enterprise: lo corporativo vive separado de lo personal en el mismo teléfono.",
+    "longDefinition": "El perfil de trabajo es el mecanismo de Android Enterprise que divide el BYOD en dos mundos: un espacio corporativo (apps, correo, cuentas gestionadas por MDM, marcado con el maletín en el icono) y el espacio personal del usuario que la empresa no ve ni toca. Para el soporte significa tres cosas: los problemas 'del correo del móvil' suelen ser del perfil (re-crear el perfil es el fix limpio); las acciones remotas (retire) afectan solo el contenedor corporativo; y la política (PIN del perfil, apps permitidas) se aplica al contenedor, no al teléfono entero. El usuario que borra su perfil de trabajo 'para hacer espacio' pierde el acceso corporativo — se re-crea desde el Company Portal sin drama.",
+    "example": "El correo corporativo dejó de sincronizar en el Android del usuario: el L1 comprueba el estado del perfil de trabajo en el portal MDM, lo re-crea (retire + re-enroll del contenedor) y el acceso vuelve sin tocar las apps personales."
+  },
+{
+    "id": "seed-hd-linux-escritorio",
+    "term": "Linux de escritorio en soporte",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "Ubuntu/Debian/RHEL en el puesto de trabajo: mismos casos de soporte, herramientas propias.",
+    "longDefinition": "El escritorio Linux corporativo (Ubuntu/Debian en empresas modernas, RHEL family en corporativos tradicionales) recibe los mismos tickets de siempre con herramientas propias. El kit mínimo del L1 Linux: cat /etc/os-release (qué distro es), la pareja systemctl status + journalctl -u (estado y logs de cualquier servicio), df -h y free -h (los recursos de siempre), lanzar la app desde terminal (el error real que el icono esconde) y el home del usuario (~/.config) como equivalente del perfil de Windows. La regla de oro: el L1 LEE y escala con salidas exactas; instalar, actualizar o tocar la configuración del sistema es del admin Linux.",
+    "example": "La app interna no abre en el Ubuntu de un desarrollador: el L1 la lanza desde la terminal, captura el error de la librería que falta y escala al equipo Linux con la salida exacta — el ticket se resuelve en una pasada."
+  },
+{
+    "id": "seed-hd-tty",
+    "term": "TTY (consola de texto)",
+    "acronym": "TTY",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "La consola fuera del entorno gráfico: separa el sistema vivo del escritorio colgado en un paso.",
+    "longDefinition": "Los TTY (Ctrl+Alt+F1..F6 en la mayoría de distros) son consolas de texto del kernel que funcionan aunque el entorno gráfico (Gnome/KDE) esté muerto. Es la navaja suiza del soporte Linux: si el usuario entra por TTY, el sistema y su cuenta están sanos y el problema es del escritorio (reiniciar el gestor de sesión o el diagnóstico del perfil); si el TTY tampoco responde, el problema es del sistema o del hardware. Desde el TTY se puede revisar recursos (df, free), leer logs y reiniciar la sesión gráfica sin apagar el equipo a ciegas — el equivalente de 'entrar en modo seguro' para acotar capas.",
+    "example": "Pantalla negra al iniciar sesión en un equipo con Fedora: el L1 pide Ctrl+Alt+F3, el usuario entra por la consola — sistema vivo, escritorio roto; desde el TTY revisan el espacio del disco (lleno al 97%) y limpian lo justo para que la sesión gráfica vuelva."
+  },
+{
+    "id": "seed-hd-android-empresarial",
+    "term": "Android empresarial (Android Enterprise)",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "El conjunto de APIs y modos de gestión de Android: perfil de trabajo (BYOD) o dispositivo totalmente gestionado.",
+    "longDefinition": "Android Enterprise es la capa de Google para la gestión corporativa de Android, con dos modos principales que el soporte distingue siempre: perfil de trabajo (BYOD — contenedor corporativo dentro del teléfono personal, separación estanca de datos) y dispositivo totalmente gestionado (corporativo — la empresa gestiona todo el equipo). El modo decide qué puede hacer el soporte: en BYOD las acciones se limitan al perfil (retire borra lo corporativo), en el gestionado el ciclo completo está disponible (wipe total incluido). Los modos se configuran enrolando el dispositivo por el MDM (Intune accede a Android Enterprise vía afiliación con Google) — el 'modo' correcto se elige al enrolar, y el mal elegido produce los típicos tickets de 'me borran lo personal' o 'no puedo gestionar nada'.",
+    "example": "RRHH pregunta si pueden 'ver los chats personales' del teléfono BYOD de un empleado: no — el perfil de trabajo de Android Enterprise aísla lo corporativo; lo que el MDM ve y gestiona es solo el contenedor de la empresa."
+  },
+{
+    "id": "seed-hd-ios-empresarial",
+    "term": "iOS empresarial",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "iPhone/iPad corporativo: gestión por MDM con ABM/DEP, VPP y el ciclo BYOD vs corporativo.",
+    "longDefinition": "La gestión corporativa de iPhone/iPad descansa en tres piezas: Apple Business Manager (los seriales comprados se asocian a la empresa y se enrolan automáticamente al MDM), el MDM (Jamf/Intune — perfiles, apps, políticas y acciones remotas) y VPP (licencias de apps propiedad de la empresa). Los tickets típicos: el correo/Outlook no sincroniza (credencial vencida — la causa número uno universal), el dispositivo 'no conforme' (SO viejo, sin PIN) que pierde acceso por Conditional Access, y el retiro de equipos (reclamar licencias VPP + retire o wipe según propiedad). El equivalence mental del L1: iPhone + Apple ID gestivo + MDM ≈ Android + perfil de trabajo + Intune — mismos flujos, piezas con otro nombre.",
+    "example": "Un iPad de punto de venta deja de abrir la app corporativa: el L1 revisa en el MDM el estado (compliant, última conexión) y las licencias VPP del grupo, re-asigna lo que falta y el quiosco vuelve a funcionar en el siguiente check-in."
+  },
+{
+    "id": "seed-hd-terminal-mac",
+    "term": "Terminal (macOS/Linux)",
+    "category": "HelpDesk - Multiplataforma (macOS/Linux/Móvil)",
+    "shortDefinition": "La consola de comandos de macOS y Linux: donde el error real se ve y los comandos de diagnóstico viven.",
+    "longDefinition": "La Terminal (aplicación Terminal en macOS, la consola en Linux) es el equivalente de PowerShell/CMD: la interfaz de texto donde se ejecuta el diagnóstico y donde las apps 'gritan' el error que el icono esconde. Comandos de soporte que todo L1 de parque mixto reconoce: df -h (espacio), free -h (memoria, Linux), top/Activity Monitor (procesos), systemctl status (servicios, Linux), softwareupdate -l (updates de macOS), system_profiler (hardware y serial del Mac), ping/curl (red). Dos costumbres de oro: lanzar la app gráfica desde la terminal para capturar su stderr, y pegar las SALIDAS en el ticket (texto) en vez de capturas de la pantalla de la terminal.",
+    "example": "Una app de diseño no abre en el Mac: el L1 la lanza desde la Terminal y el stderr muestra la licencia vencida — el diagnóstico que el doble clic de icono nunca mostró, en la primera pasada."
+  },
+{
+    "id": "seed-hd-gw-admin-console",
+    "term": "Admin Console de Google Workspace",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "El centro de administración del tenant de Google: usuarios, grupos, seguridad, informes y correo.",
+    "longDefinition": "La Admin Console (admin.google.com) es el corazón administrativo del tenant de Google Workspace: Directorio (usuarios, grupos, unidades compartidas), Seguridad (verificación en 2 pasos, contexto de acceso), Informes (el Email Log Search para rastrear mensajes y los logs de actividad de la cuenta) y las apps (Gmail, Drive, Calendar con sus ajustes). Desde el soporte se usa para el re-registro de 2FA (Usuarios > usuario > Seguridad > Reiniciar), suspender/reactivar cuentas, ver el almacenamiento y las licencias/asientos del tenant. Es el equivalente del Centro de administración de Microsoft 365: misma lógica, otra casa — y las mismas dos preguntas de siempre: qué puedo hacer el L1 (según delegación) y qué es del admin.",
+    "example": "Un usuario pierde el teléfono con el autenticador: el L1 (con la identidad verificada) pide al admin de Workspace el reinicio de la verificación en 2 pasos desde la Admin Console y acompaña el re-registro con códigos de respaldo nuevos."
+  },
+{
+    "id": "seed-hd-email-log-search",
+    "term": "Email Log Search",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "El message trace de Google Workspace: cada mensaje hacia/desde el dominio con su resultado de entrega.",
+    "longDefinition": "El Email Log Search (Admin Console > Reporting > Email Log Search) rastrea los mensajes que entran, salen o atraviesan el dominio: remitente, destinatario, asunto, fecha y el resultado (delivered, rejected, bounced) con su razón. Es la herramienta que CIERRA el debate del 'no me llegó el correo': delivered significa que Gmail cumplió (el problema es clasificación/filtros del buzón), rejected muestra la causa exacta (cuota, SPF/DKIM/DMARC del emisor, bloqueo) y la ausencia del mensaje en el log significa que nunca llegó a Google (el problema es del remitente). Necesita los datos duros del caso: remitente exacto, destinatario y ventana horaria — sin eso la búsqueda no arranca.",
+    "example": "Un directivo jura que el cliente le envió un contrato que nunca llegó: el Email Log Search muestra el mensaje rejected por el remitente (su dominio sin SPF válido) — el L1 entrega la evidencia con la hora exacta y el caso pasa al remitente."
+  },
+{
+    "id": "seed-hd-drive-escritorio",
+    "term": "Google Drive para escritorio",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "El cliente de sincronización de Drive: archivos de Workspace en el equipo y en la nube a la vez.",
+    "longDefinition": "Drive para escritorio es el cliente que sincroniza Google Drive (y las unidades compartidas) con el equipo: espejo o streaming de archivos según la configuración. Los tickets típicos del soporte: no sincroniza (sesión caducada — el re-login con la cuenta del dominio es el fix de la mitad de los casos), la app pide login en bucle (la cuenta personal configurada por error), archivos con estado de error (conflicto de sincronización, archivo abierto/dañado) y el límite de almacenamiento compartido de Workspace (Gmail/Drive/Fotos comparten cuota — lleno el storage, nada sube y el correo también se bloquea). El equivalente mental del OneDrive de M365: mismo concepto, mismos síntomas, otra casa.",
+    "example": "Los archivos del equipo dejaron de subir a la unidad compartida: el L1 ve el icono de Drive en pausa por sesión expirada, re-autentica con la cuenta corporativa y verifica subiendo un archivo de prueba con el usuario."
+  },
+{
+    "id": "seed-hd-saas-admin",
+    "term": "Administración SaaS",
+    "acronym": "SaaS",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "Gestionar plataformas en la nube ajenas: usuarios, licencias, roles, SSO y soporte al proveedor.",
+    "longDefinition": "Administrar SaaS es la competencia transversal de las ofertas actuales: la empresa usa decenas de plataformas (CRM, ERP, HR, ticketing, productividad) y el soporte mantiene a los usuarios funcionando en todas. Toda consola de administración SaaS comparte el mismo esqueleto: usuarios y grupos, licencias/asientos, roles de administrador, integración SSO, logs de actividad y estado del servicio. El método universal de diagnóstico que lo atraviesa todo: alcance (¿un usuario o todos?) → SSO/credencial → licencia/asiento → logs de la plataforma → status page → soporte del proveedor. Quien domina el método en una plataforma lo ejecuta en cualquiera — y esa transferibilidad es exactamente lo que las entrevistas evalúan con '¿conoces la plataforma X que usamos?'.",
+    "example": "La nueva empresa usa un CRM que el técnico nunca vio: aplica el método universal — alcance (solo un usuario), SSO (el login redirige bien), licencia (el asiento venció en la reorganización) — el caso se cierra sin haber usado antes esa plataforma."
+  },
+{
+    "id": "seed-hd-status-page",
+    "term": "Status page (página de estado)",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "La página pública del estado del servicio del proveedor: la primera consulta antes de diagnosticar la nube.",
+    "longDefinition": "La status page es el tablero público donde cada proveedor (Microsoft 365, Google, AWS, Slack, el SaaS del negocio) reporta el estado de sus servicios y los incidentes en curso. Para el soporte es EL primer paso del diagnóstico cloud/SaaS: si el incidente del proveedor ya está publicado, el trabajo del técnico es comunicar y gestionar la espera (con la referencia del incidente), no diagnosticar un problema que ya tiene dueño y solución en camino. La costumbre profesional: antes de abrir un caso de 'el servicio no funciona', la status page del proveedor — y el ticket que cita la referencia del incidente público ('a las 09:14 AWS reporta degradación en us-east-1') es el ticket que se cierra solo.",
+    "example": "Media empresa no puede abrir una plataforma de diseño: el L1 revisa la status page del proveedor antes que nada — hay un incidente activo con ETA; comunica a los usuarios con la referencia y el caso se resuelve solo cuando el proveedor cierra su incidente."
+  },
+{
+    "id": "seed-hd-oci",
+    "term": "OCI (Oracle Cloud Infrastructure)",
+    "acronym": "OCI",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "La nube de Oracle: regiones, instancias y consola — el mismo modelo cloud, la casa de Oracle.",
+    "longDefinition": "OCI es la plataforma cloud de Oracle: compute (instancias), almacenamiento, red (VCN — la red virtual), bases de datos (el Autonomous Database es su producto estrella) y una consola de administración con su identidad (IAM de OCI) y su soporte (los SR — Service Requests — por el portal de Oracle). Para el soporte que ya conoce el modelo cloud, OCI es el mismo mapa con otro nombre: región/availability domain, instancias, grupos de seguridad (listas de seguridad y NSG), imágenes y el ciclo de vida del caso con el proveedor (abrir SR con la evidencia). Aparece en las ofertas de empresas con stack Oracle (el ERP/BPM que corre en OCI) y en los entornos LATAM con fuerte presencia de Oracle.",
+    "example": "La app interna que corre en OCI no responde: el L1 no diagnostica la infraestructura — verifica la status page de Oracle, confirma que el SR del incidente ya está abierto y comunica la referencia; el caso interno queda a la espera del proveedor con la trazabilidad completa."
+  },
+{
+    "id": "seed-hd-region-cloud",
+    "term": "Región (cloud)",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "La ubicación geográfica de los datacenters del proveedor: '¿en qué región corre?' cambia el diagnóstico.",
+    "longDefinition": "Una región cloud es el conjunto de datacenters de un proveedor en una ubicación geográfica (us-east-1 de AWS, eastus de Azure, sa-santiago de OCI), cada una con zonas de disponibilidad aisladas dentro de ella. Para el soporte importa por tres cosas: los incidentes del proveedor suelen ser POR REGIÓN (la status page nombra la región afectada — saber 'en cuál corremos' convierte el incidente publicado en diagnóstico cerrado); la latencia y la legislación de datos (los datos de la UE o de Colombia pueden tener requisitos de residencia) y el despliegue ('la app está en dos regiones' explica por qué a unos les funciona y a otros no durante un incidente). La pregunta de contexto que el técnico cloud hace sin pensar: ¿qué región?",
+    "example": "Incidente global de un proveedor: la status page muestra caída solo en una región europea; los usuarios de LATAM no reportan nada — la región de la empresa salva la mañana, y el ticket lo documenta para el post-mortem del servicio."
+  },
+{
+    "id": "seed-hd-aws-soporte",
+    "term": "AWS para soporte",
+    "acronym": "AWS",
+    "category": "HelpDesk - Cloud y SaaS",
+    "shortDefinition": "Lo que el L1/L2 necesita de Amazon Web Services: leer consola, status page y abrir caso con el proveedor.",
+    "longDefinition": "AWS es la nube más usada del mercado y aparece en soporte de dos formas: las apps internas que corren ahí y los servicios que la empresa consume. El nivel de soporte que las ofertas piden NO es el de ingeniero cloud: es vocabulario y navegación — qué es una instancia EC2, un grupo de seguridad (el firewall de la instancia), un RDS (la base de datos gestionada) y CloudWatch (monitoreo y alarmas); encontrar el recurso por nombre/tag en la consola; leer la status page por región; y abrir un caso de soporte (support case) con la evidencia correcta. El L1 de empresa cloud sabe qué escala al equipo cloud interno y qué es caso del proveedor — y su ticket trae el nombre del recurso, la región y el ID cuando existe.",
+    "example": "La app interna 'no deja guardar' y corre en AWS: el L1 ve en CloudWatch la alarma de la base de datos y en la status page nada publicado — escala al equipo cloud interno con el recurso, la región y la hora exacta de la alarma."
+  },
+{
+    "id": "seed-hd-jira-sm",
+    "term": "Jira Service Management",
+    "acronym": "JSM",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La plataforma ITSM de Atlassian: la alternativa más común a ServiceNow en ticketing de soporte.",
+    "longDefinition": "Jira Service Management (JSM) es la plataforma de gestión de servicio de Atlassian — la respuesta natural para las empresas que ya viven en el ecosistema (Jira para desarrollo, Confluence para la base de conocimiento). Conceptos equivalentes que el técnico que conoce ServiceNow mapea en minutos: las colas (queues) por equipo, el request type del portal como el catálogo de servicios, los SLA por prioridad con sus timers, y los comentarios público/interno que hacen el mismo trabajo que additional comments/work notes. JSM destaca en la integración con desarrollo (el bug que se crea desde el ticket de soporte enlaza el incidente con el issue de Jira Software — el flujo soporte→dev en una sola plataforma) y su base de conocimiento es Confluence.",
+    "example": "Un técnico entra a una empresa que usa JSM en vez de ServiceNow: mapea las equivalencias el primer día (cola = assignment group, comentario interno = work notes) y trabaja la misma disciplina del ciclo del incidente sin curva de una semana."
+  },
+{
+    "id": "seed-hd-psa",
+    "term": "PSA (Professional Services Automation)",
+    "acronym": "PSA",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "El sistema de gestión del MSP: tickets y contratos POR CLIENTE, facturación de tiempo y SLA por contrato.",
+    "longDefinition": "El PSA es la columna vertebral operativa del MSP: la plataforma donde vive el negocio del servicio (los clásicos: ConnectWise, Autotask, HaloPSA, Atera que lo combina con RMM). Su diferencia con el ticketing de empresa interna: todo está segmentado por CLIENTE (tenant) y por CONTRATO — cada cliente con sus acuerdos, sus SLA, sus tarifas y su facturación; el mismo incidente técnico vive en el registro del cliente correcto con su SLA corriendo. El PSA también automatiza el negocio: el tiempo registrado en el ticket factura, las horas del contrato se consumen visiblemente y los reportes por cliente alimentan las reuniones de servicio. Para el técnico: el PSA bien usado es la prueba de que el trabajo se hizo — el ticket es la factura.",
+    "example": "Un incidente de plataforma del MSP golpea a 6 clientes: el técnico abre el ticket maestro interno Y el registro en el PSA de cada cliente con su SLA — al cierre del mes, el reporte por contrato muestra la respuesta de cada uno sin reconstruir nada."
+  },
+{
+    "id": "seed-hd-rmm",
+    "term": "RMM (Remote Monitoring and Management)",
+    "acronym": "RMM",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La herramienta del MSP/administrador: un agente en cada equipo gestiona, monitoriza y da acceso remoto.",
+    "longDefinition": "El RMM (Datto, NinjaOne, Atera, ConnectWise RMM, Syncro) es la plataforma que instala un agente en los equipos gestionados y desde un solo tablero permite: ver el estado de todos (inventario, salud, alertas), ejecutar mantenimiento (parches, scripts), tomar control remoto del equipo con el usuario presente y desplegar software. Es el multiplicador del MSP: un técnico opera cientos de máquinas que nunca toca físicamente. Para el soporte, el RMM define el flujo: la alerta del tablero genera el ticket (en el PSA integrado), el diagnóstico se hace desde el panel (recursos, servicios, logs) y el acceso remoto pide consentimiento cuando hay usuario delante. El equivalente parcial en empresa interna: Intune + SCCM, con el tablero unificado de más.",
+    "example": "La alerta del RMM marca disco al 91% en el server de un cliente: el técnico ve el histórico de crecimiento desde el panel, limpia lo que la política permite y agenda la ampliación con el cliente — todo sin desplazarse y con el ticket naciendo de la propia alerta."
+  },
+{
+    "id": "seed-hd-msp",
+    "term": "MSP (Managed Service Provider)",
+    "acronym": "MSP",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La empresa que administra la TI de varios clientes bajo contrato: multi-cliente, SLA por contrato, PSA y RMM.",
+    "longDefinition": "El MSP administra la infraestructura y el soporte de múltiples empresas cliente bajo contrato (las Pymes que no tienen TI interna propia). Las consecuencias operativas que definen el trabajo: se atienden VARIOS entornos a la vez (cada cliente con su red, sus políticas, sus peculiaridades — la misma solución no vale igual en dos tenants), el SLA es por CONTRATO (cada cliente con su ventana de respuesta y sus horas incluidas) y la documentación es el activo principal (lo que no está documentado por cliente no existe para el próximo técnico). El stack típico: PSA (tickets/facturación) + RMM (gestión/monitoreo) + bóveda de credenciales segregada. Las ofertas de 'MSP Support' evalúan exactamente esto: capacidad multi-tenant, disciplina de segregación y documentación impecable.",
+    "example": "El lunes el técnico del MSP atiende: impresora en el cliente A (fábrica), VPN en el cliente B (contadora) y onboarding en el cliente C (startup) — tres entornos, tres contratos, tres documentos de 'cómo se hace aquí'; su valor es ejecutar los tres sin mezclarlos."
+  },
+{
+    "id": "seed-hd-multi-tenant",
+    "term": "Multi-tenant (multi-cliente)",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "Varios clientes compartiendo plataforma con aislamiento estricto: cada tenant con sus datos, su acceso y su traza.",
+    "longDefinition": "Multi-tenant describe el modelo donde una misma plataforma/servicio aloja a múltiples clientes (tenants) con separación lógica de sus datos: el SaaS (todos los clientes de un proveedor en la misma infraestructura, aislados por software) y el MSP (el tablero del técnico con N clientes en un mismo RMM/PSA). La disciplina operativa del multi-tenant: la segregación estricta por tenant — credenciales en bóvedas separadas, documentación etiquetada por cliente, evidencia jamás mezclada entre tenants y el doble chequeo del nombre del cliente antes de cada acción. La contaminación cruzada (datos del cliente A visibles en el contexto del cliente B) es el incidente de confidencialidad del mundo MSP — reportable, con consecuencias de contrato.",
+    "example": "El técnico con 10 pestañas abiertas de 10 clientes copia una IP del portapapeles... al ticket del cliente equivocado: el doble chequeo del nombre en el encabezado (la costumbre entrenada) lo detiene a tiempo — en el MSP sin esa costumbre, ese paste es el incidente del mes."
+  },
+{
+    "id": "seed-hd-monitor-availability",
+    "term": "Monitoreo de disponibilidad (availability)",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "Vigilar si el servicio responde: el check que pregunta '¿está arriba?' y dispara la alerta roja.",
+    "longDefinition": "El monitoreo de disponibilidad es la capa que responde '¿el servicio está arriba?': checks periódicos (ping, puerto, URL, servicio) contra un umbral de fallo que disparan la alerta cuando el objetivo no responde. Es la más urgente de la triada (la caída total del servicio es el incidente visible para todo el negocio) y la más proclive a falsos positivos (el check roto que reporta caído lo que está sano — credencial vencida del monitor, firewall que bloquea solo al monitor). El protocolo L1 ante una alerta de availability: leerla entera, reclamarla (ack), verificarla INDEPENDIENTEMENTE (curl/ping/la página real — las alertas también mienten), correlacionar y accionar según el runbook del servicio.",
+    "example": "La alerta 'Service DOWN' del ERP llega a las 07:02: el L1 la reclama, verifica con curl que la URL real responde 200 (el check de login era el roto — credencial del monitor vencida) y abre el ticket del MONITOR, no del servicio — el falso positivo documentado evita que la próxima alerta real se ignore."
+  },
+{
+    "id": "seed-hd-monitor-performance",
+    "term": "Monitoreo de rendimiento (performance)",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "Vigilar qué tan bien atiende el servicio: latencia, CPU, colas — el amarillo de 'funciona, pero lento'.",
+    "longDefinition": "El monitoreo de rendimiento mide la CALIDAD de la respuesta cuando el servicio está arriba: tiempo de respuesta de la URL, CPU/memoria sostenidas, profundidad de colas, tasas de error parciales. Sus alertas son las amarillas (degradado pero atiende) y su lectura correcta exige contexto: ¿degradado comparado con QUÉ? — la línea base (baseline) del propio servicio define lo normal, y el técnico que no la conoce llama 'incidente' a un lunes normal de fin de mes. La correlación es el paso clave del performance: la degradación que empieza con el despliegue de ayer, con el pico de usuarios de la campaña o con el vecino ruidoso del mismo servidor. La métrica huérfana (CPU alta sin línea base ni contexto) es el ticket que vuelve con preguntas.",
+    "example": "La app interna 'está lenta' según tres usuarios: el L1 revisa el tablero — latencia x3 desde las 14:00, exactamente cuando empezó el proceso masivo de cierre de mes; documenta la correlación y el caso se gestiona como carga esperada, no como incidente."
+  },
+{
+    "id": "seed-hd-monitor-capacity",
+    "term": "Monitoreo de capacidad (capacity)",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "Vigilar cuánto queda: disco, licencias, certificados — el incidente anunciado con semanas de aviso.",
+    "longDefinition": "El monitoreo de capacidad observa las TENDENCIAS hacia los límites: disco que crece, licencias que se agotan, conexiones que se acumulan, certificados y contraseñas que vencen. Es el monitoreo más agradecido y el más ignorado: sus alertas no son urgentes HOY (el disco al 85% funciona perfecto) y por eso se posponen hasta que el límite llega y se convierte en el incidente del viernes noche. La lectura profesional de una alerta de capacity es la proyección: al ritmo de crecimiento actual, ¿cuánto queda? — 'el disco llega al 100% en 3 semanas' es un proyecto de ampliación, no un ticket de emergencia. Cerrar la alerta de capacity exige la acción planificada con el dueño (ampliar, limpiar, renovar), no el silencio.",
+    "example": "La alerta 'disco al 88%' lleva un mes silenciada: el L1 proyecta con el histórico (2% semanal) — quedan 6 semanas; abre el caso de ampliación con el dueño del server y cierra la alerta con la causa y el plan, no con el botón de mute."
+  },
+{
+    "id": "seed-hd-ack",
+    "term": "Ack (reconocer alerta)",
+    "acronym": "Ack",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "El botón que pone nombre y compromiso sobre la alerta: alguien la está trabajando desde ya.",
+    "longDefinition": "El ack (acknowledge) es la acción de reclamar una alerta en la herramienta de monitoreo: pasa de 'nueva/roja sin dueño' a 'reconocida por [técnico] a las [hora]' — visible para todo el equipo. Resuelve la tragedia de lo común del tablero: todos ven la alerta, nadie la trabaja porque 'alguien ya estará en ello'. El protocolo: ack inmediato al tomarla (no al resolverla), actualización del ticket asociado, y el un-ack honesto si el caso se suelta (la alerta vuelve a la bolsa del equipo). El ack con timestamp es además la métrica del servicio (MTTA — mean time to acknowledge): la velocidad de respuesta del equipo se mide desde la alerta hasta el ack, y esa velocidad es la primera evidencia de un service desk serio.",
+    "example": "Alerta mayor a las 03:15; el técnico de guardia la reclama a las 03:17 (ack con su nombre) y el tablero lo muestra: el equipo que se conecta a las 07:00 ve el caso tomado y con el ticket en progreso — nadie duplica el trabajo y el MTTA quedó registrado."
+  },
+{
+    "id": "seed-hd-postgresql-soporte",
+    "term": "PostgreSQL para soporte",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La base de datos open source que sostiene las apps: el L1 la LEE (estado, conexiones, logs) y nunca escribe.",
+    "longDefinition": "PostgreSQL es la base de datos relacional open source más usada por las aplicaciones modernas (y la que las ofertas de soporte de aplicaciones mencionan). El rol L1 es estrictamente de lectura: systemctl status postgresql (el servicio arriba), pg_isready (el puerto acepta), SELECT count(*) FROM pg_stat_activity (las conexiones activas vs el máximo), los logs del servicio (journalctl -u postgresql — cada rechazo con su razón) y df -h del volumen de datos (el disco lleno es la muerte silenciosa de la base). La regla de oro que separa al soporte profesional: el L1 no ejecuta operaciones de escritura (ni DELETE/UPDATE 'pequeños', ni reinicios, ni limpieza) — la base de datos es el activo más sensible de la empresa y su modificación es del DBA/dueño de la app.",
+    "example": "La app reporta 'could not connect to database': el L1 ejecuta la escalera de lectura — servicio arriba, puerto aceptando, logs limpios — y entrega el veredicto 'la base está sana, es la credencial de la app tras la rotación de ayer'; el caso pasa al dueño de la app con la mitad del diagnóstico hecha."
+  },
+{
+    "id": "seed-hd-log-app",
+    "term": "Log de aplicación",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La autobiografía del error de la app: la excepción con su timestamp y stack trace que el dev necesita ver.",
+    "longDefinition": "El log de aplicación es donde la app escribe lo que le pasa: cada error con su timestamp, la excepción y su stack trace, y cada evento relevante del negocio (login, transacción, job). Para el soporte es la fuente primaria del 'por qué' de los errores 5xx y de los comportamientos extraños — y el arte del L1 es saber DÓNDE vive (la ruta/archivo que cada área define, el sistema centralizado de logs o el dashboard) y COPIAR el extracto correcto: las líneas del rango del error, con el stack trace completo, pegadas en texto en el ticket. Las dos costumbres de oro: parafrasear el log es perder la evidencia (se pega textual), y el log se pide por RANGO de tiempo (la hora exacta del error del usuario), no 'los últimos mil líneas'.",
+    "example": "Error 500 intermitente en la app de nómina: el L1 toma la hora exacta del error del usuario, extrae el log de ese rango con el stack trace completo y lo pega en el escalamiento — el dev encuentra la línea en la primera lectura y el fix sale el mismo día."
+  },
+{
+    "id": "seed-hd-trace-id",
+    "term": "Trace ID (identificador de correlación)",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "El identificador único de una petición: une la pantalla del usuario con la línea exacta del log de cada sistema.",
+    "longDefinition": "El trace ID (o request ID / correlation ID) es el identificador único que las apps modernas asignan a cada petición y propagan por todos los sistemas que la tocan: el frontend lo muestra en el error ('Error XQ-4821'), la API lo registra en su log y el backend lo escribe en el suyo. Es el ADN del error distribuido: con el ID, el desarrollador encuentra en segundos la secuencia completa de la petición fallida a través de TODOS los sistemas (grep del ID en los logs). El soporte que captura el trace ID del error del usuario le regala al dev el acceso directo a la evidencia — sin él, la búsqueda es por hora y esperanza. La costumbre: cuando el error de la app muestra un código/ID, ese texto va AL TICKET completo y exacto (no 'había un código raro').",
+    "example": "El error de la app muestra 'Request ID: 7f3a9c-...': el L1 lo copia completo al ticket junto con la hora; el dev grepea el ID en los logs y obtiene la traza completa de la petición — el diagnóstico que antes tomaba un día de ida y vuelta toma veinte minutos."
+  },
+{
+    "id": "seed-hd-copiloto-ia",
+    "term": "Copiloto de IA para soporte",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La IA como asistente del técnico: redacta, resume y traduce — siempre verificada, nunca con datos sensibles.",
+    "longDefinition": "El uso profesional de IA en el service desk (la competencia que las ofertas ya piden): redactar respuestas al usuario en tono correcto, traducir técnico→humano y ES↔EN, resumir el historial de un ticket largo, generar borradores de KB y explicar errores/códigos desconocidos. Las reglas que separan el uso que CONTRATAN del que despiden: 1) verificar SIEMPRE antes de enviar (la IA inventa con total seguridad — comandos, event IDs y URLs incluidos); 2) nunca pegar datos sensibles (nombres de usuarios, tickets reales, IPs internas, credenciales, datos de clientes) en herramientas no aprobadas por la empresa; 3) el juicio y la firma son del técnico — el ticket firma el humano, no la IA. La IA acelera al que ya sabe (el borrador de lo que ibas a escribir) y delata al que no (la respuesta inventada con seguridad).",
+    "example": "El técnico usa IA para traducir su explicación técnica al inglés del cliente y para resumir 40 comentarios de un ticket largo antes de escalarlo — pero verifica el término técnico dudoso con la documentación y envía con las IPs sustituidas por placeholders: la IA redactó, el técnico firmó."
+  },
+{
+    "id": "seed-hd-import-archivos",
+    "term": "Importación de archivos (validaciones)",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La carga masiva de datos y sus validaciones: estructura, encoding, delimitadores y filas malformadas.",
+    "longDefinition": "Las importaciones masivas (el CSV de nómina, la lista de clientes, el inventario al sistema) fallan por causas predecibles que el soporte valida con método: lo básico (extensión esperada, tamaño contra el límite, nombre sin caracteres raros), la estructura (la cabecera contra la plantilla — la columna nueva del export del origen rompe el contrato), el encoding y delimitadores (UTF-8 vs ANSI, el BOM invisible, la coma vs punto y coma del Excel regional — los bytes que el ojo no ve) y las filas de datos (la fila N del error: campos sin comillas, fechas en texto libre, códigos que no están en el catálogo). Las reglas del soporte: el archivo REAL del usuario se adjunta al ticket (no una copia parecida), las correcciones de DATOS las hace el dueño del dato (el L1 señala la fila, no la edita), y la importación 'exitosa' se verifica CONTANDO filas (la que termina con menos filas de las enviadas es el fallo silencioso).",
+    "example": "El CSV de la nómina 'falla sin error claro': el L1 valida con el runbook — la cabecera coincide, pero el delimitador es punto y coma (el Excel es-CO del usuario) contra la coma que espera el sistema; corregido el export con el usuario, las 4.200 filas cargan y se cuentan."
+  },
+{
+    "id": "seed-hd-encoding-utf8",
+    "term": "Encoding (UTF-8, BOM y delimitadores)",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "La nacionalidad de los bytes del archivo: UTF-8 vs ANSI, el BOM invisible y la coma vs el punto y coma.",
+    "longDefinition": "El encoding define cómo se guardan los caracteres en bytes: el mismo 'á' son bytes distintos en UTF-8 que en ANSI/Windows-1252, y el sistema que espera uno y recibe el otro muestra basura o rechaza la línea (las tildes y eñes son las primeras víctimas). El BOM (Byte Order Mark) son 3 bytes invisibles al inicio de algunos archivos UTF-8 que los sistemas viejos leen como caracteres basura de la primera línea. Y el delimitador (coma, punto y coma, tab) es la trampa regional clásica: el Excel en español exporta CSV con punto y coma y el sistema que espera coma lee una sola columna gigante. El diagnóstico: abrir el archivo con un editor que muestre el encoding y los primeros bytes (o el comando de lectura de bytes) — lo que el ojo del usuario no ve y el sistema rechaza.",
+    "example": "La importación falla 'solo a veces': los archivos del equipo A cargan y los del B no — el B exporta con ANSI y el A con UTF-8; el L1 documenta la causa y el flujo del área B cambia el export: el caso muere para siempre."
+  },
+{
+    "id": "seed-hd-okta-helpdesk",
+    "term": "Okta desde el service desk",
+    "acronym": "Okta",
+    "category": "HelpDesk - Herramientas y Monitoreo",
+    "shortDefinition": "El IdP SaaS de acceso: resets, factores MFA y desbloqueos vistos desde soporte (mismo método, otra casa).",
+    "longDefinition": "Okta es el proveedor de identidad (IdP) SaaS que centraliza el acceso a las apps de la empresa (SSO + MFA + lifecycle). Desde el service desk, las operaciones diarias son las de siempre con otro nombre de consola: el reset de contraseña (con la verificación de identidad ANTES), el reset de factores MFA (el usuario cambia de teléfono: se borran los factores y se re-registran — igual que en Entra o Workspace), el desbloqueo de la cuenta y la lectura del problema de login en el mensaje de error del usuario (los códigos de Okta dicen si es credencial, factor o política). El diferencial de soporte en entornos Okta: el SSO significa que un problema de cuenta bloquea TODAS las apps a la vez (el impacto es mayor y la verificación de identidad más crítica), y el 'app assignment' (qué apps ve cada usuario) es la versión Okta de la licencia de M365.",
+    "example": "El usuario 'no puede entrar a ninguna app': su cuenta Okta quedó bloqueada por intentos fallidos; el L1 verifica la identidad por callback, desbloquea, re-registra el MFA del teléfono nuevo y el acceso a todo el ecosistema vuelve en un solo caso bien cerrado."
   }
 ];
