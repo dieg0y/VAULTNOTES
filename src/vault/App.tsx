@@ -1423,11 +1423,14 @@ export default function App() {
           //   RB-SOC-* / CS-SOC-* → runbooks-soc · RB-IAM-* → runbooks-iam
           //   TS-HD-* → troubleshooting-hd · TS-SA-* → troubleshooting-sa
           //   TS-SOC-* → troubleshooting-soc · TS-IAM-* → troubleshooting-iam
+          // MEGA-AUDITORÍA — laboratorios guiados (categoría 'Laboratorio'
+          // dentro de cada dataset RB): LAB-IAM-* / LAB-SOC-* / LAB-SA-* /
+          // LAB-HD-* → su pilar correspondiente.
           onSelectRunbook={(runbookId) => {
             setPendingRunbookId(runbookId);
-            if (runbookId.startsWith('RB-IAM-')) setActiveSection('runbooks-iam');
-            else if (runbookId.startsWith('RB-SA-') || runbookId.startsWith('CS-SA-')) setActiveSection('runbooks-sa');
-            else if (runbookId.startsWith('RB-SOC-') || runbookId.startsWith('CS-SOC-')) setActiveSection('runbooks-soc');
+            if (runbookId.startsWith('RB-IAM-') || runbookId.startsWith('LAB-IAM-')) setActiveSection('runbooks-iam');
+            else if (runbookId.startsWith('RB-SA-') || runbookId.startsWith('CS-SA-') || runbookId.startsWith('LAB-SA-')) setActiveSection('runbooks-sa');
+            else if (runbookId.startsWith('RB-SOC-') || runbookId.startsWith('CS-SOC-') || runbookId.startsWith('LAB-SOC-')) setActiveSection('runbooks-soc');
             else setActiveSection('runbooks-hd');
           }}
           onSelectTroubleshooting={(troubleshootingId) => {
