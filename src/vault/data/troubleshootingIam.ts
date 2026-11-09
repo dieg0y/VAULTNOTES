@@ -2,11 +2,14 @@
  * troubleshootingIam.ts — ESCALERAS DE DECISIÓN del PILAR 1 (IAM · Identity &
  * Access Management).
  *
- * Reestructuración Pilar IAM: 30 guías TS-IAM-001..TS-IAM-030. Núcleo Entra
+ * Reestructuración Pilar IAM: 33 guías TS-IAM-001..TS-IAM-033. Núcleo Entra
  * ID/AD (001..018) más el ecosistema enterprise IAM: Okta (019..020), SailPoint
  * (021..022), One Identity Safeguard (023), PingFederate (024), ForgeRock AM
  * (025), IBM Verify/ISAM/OAM (026), modelo de roles RBAC (027), LDAP/directory
- * services (028), FIDO2/passkeys (029) y access reviews (030). NO es una copia
+ * services (028), FIDO2/passkeys (029), access reviews (030) — y el bloque de
+ * la auditoría de competencias reales de empleo: AWS AccessDenied multi-capa
+ * con Policy Simulator (031), M2M/invalid_client del token endpoint (032) y
+ * la caída silenciosa Kerberos→NTLM con SPN/RBCD (033). NO es una copia
  * de los runbooks: el runbook describe el procedimiento completo de
  * remediación; aquí lo que importa es DIAGNOSTICAR (¿dónde está el problema?)
  * con la escalera
@@ -1565,6 +1568,159 @@ export const TROUBLESHOOTING_IAM: PillarTroubleshooting[] = [
     remediation: '30% la revocación quedó pendiente o falló en la fuente (conector o queue: nunca se ejecutó), 25% sesiones y tokens vivos con los grupos viejos (faltó revocar sesión o re-login), 20% la review terminó pero los resultados no se aplicaron (auto-apply apagado o apply manual olvidado), 15% el acceso llegaba por una segunda vía fuera del alcance de la review, 10% se revocó en el sistema equivocado (grupo sincronizado editado en la nube y revertido por el sync).',
     verification: 'Un login nuevo del usuario recibe denegación del recurso, la fuente (AD o la app) muestra la membresía retirada, el ítem de la review queda en estado aplicado o remediado y el re-test del auditor o de la próxima campaña ya no lo encuentra.',
     tags: ['access review', 'certificacion', 'revocacion', 'auto apply', 'apply results', 'revoke', 'tokens', 'klist', 'kerberos', 'cache', 'scope', 'sailpoint', 'entra'],
+  },
+  {
+    id: 'TS-IAM-031',
+    pillar: 'IAM',
+    title: 'AWS: "AccessDenied" — ¿cuál de las capas está negando?',
+    problem: 'Una operación de AWS falla con AccessDenied y el error no dice cuál capa negó: la política identidad, la permissions boundary, la SCP de la organización, el resource policy o una condición que no se cumple.',
+    symptoms: [
+      'La app o el usuario recibe "An error occurred (AccessDenied)" con la política "ya asignada".',
+      '"Le di permisos y sigue fallando" — la consola muestra la política adjunta correcta.',
+      'Funciona a veces o desde algunos contextos pero no desde otros (la condición que depende del contexto).',
+    ],
+    level: 'Identidad vs Boundary vs SCP vs Resource vs Condición',
+    checks: [
+      {
+        check: '¿Quién es el principal de la sesión que falla?',
+        command: 'aws sts get-caller-identity',
+        result: 'El ARN exacto de la identidad en uso (usuario, rol asumido o sesión federada).',
+        next: 'Si el ARN es un rol de ejecución (Lambda/ECS) o una sesión asumida: TODA la evaluación es contra ESE principal. Si estabas diagnosticando contra otro ARN (el usuario humano, la cuenta): el 50% de los "el simulador dice que sí pero falla" se explica aquí.',
+      },
+      {
+        check: '¿Qué operación exacta sobre qué recurso se negó?',
+        command: 'aws cloudtrail lookup-events --lookup-attributes AttributeKey=ErrorCode,AttributeValue=AccessDenied --max-results 10',
+        result: 'El evento denegado con eventName, eventSource y los recursos involucrados.',
+        next: 'Con la operación exacta: simular esa combinación (check siguiente). Si no hay evento en CloudTrail: el fallo no llegó al servicio (credenciales, endpoint, región) — revisar autenticación antes que permisos.',
+      },
+      {
+        check: '¿La permite la unión de políticas identidad (y la niega alguna explícita)?',
+        command: 'aws iam simulate-principal-policy --policy-source-arn {{ROLE_ARN}} --action-names {{OPERACION}} --resource-arns {{RECURSO}}',
+        result: 'allowed / explicitDeny / implicitDeny con el detalle de qué políticas decidieron.',
+        next: 'explicitDeny: hay un Deny en alguna política pegada al principal (buscarlo con get-account-authorization-details). implicitDeny: ninguna política permite — la operación está fuera de lo concedido (corregir la política identidad). allowed aquí pero falla en la práctica: el techo o la condición (checks siguientes).',
+      },
+      {
+        check: '¿El TECHO la permite? (boundary y SCP)',
+        command: 'aws iam get-role --role-name {{ROLE_NAME}} --query "Role.PermissionsBoundary.PermissionsBoundaryArn"',
+        result: 'La boundary del rol (o su ausencia) — y la revisión de los SCPs de la OU con organizations list-policies-for-target.',
+        next: 'Boundary que no incluye la operación: el Allow efectivo es identidad ∧ boundary — corregir la boundary (se diseña por perfil, no se copia). SCP que la niega en la OU: escalar al dueño de la organización — no se resuelve desde la cuenta.',
+      },
+      {
+        check: '¿La condición se cumple? (IP, MFA, región, tags)',
+        command: 'aws iam get-policy-version --policy-arn {{POLICY_ARN}} --version-id {{VERSION}} --query "PolicyVersion.Document"',
+        result: 'El documento con sus Condition blocks: aws:SourceIp, aws:MultiFactorAuthPresent, aws:RequestedRegion, tags del recurso.',
+        next: 'La condición que nunca se cumple es la política que nunca concede: el acceso desde el egress del proxy/VPN que no está en la lista, el acceso programático sin MFA, la región distinta. Cada Condition key contra el contexto REAL del evento de CloudTrail.',
+      },
+      {
+        check: '¿El resource policy la permite? (S3, KMS, SQS y los servicios con política de recurso)',
+        command: 'aws s3api get-bucket-policy --bucket {{BUCKET}} --output text',
+        result: 'La política del recurso: si niega al principal o simplemente no lo incluye.',
+        next: 'En S3/KMS el permiso final es la UNION de identidad y recurso (a diferencia de la intersección del techo): un Deny en el bucket gana sobre el Allow del rol. Y la cuenta que posee el recurso vs. la que llama: cross-account exige permiso en AMBOS lados (RB-IAM-052).',
+      },
+    ],
+    remediation: '40% la operación no está en la política identidad (o el ARN del recurso está mal escrito — sin /* en buckets), 25% el techo recorta (boundary copiada de otro perfil o SCP de la OU), 15% condición que no se cumple en el contexto real, 10% resource policy que niega o no incluye al principal, 10% el diagnóstico se hacía contra el principal equivocado (sesión vs usuario).',
+    verification: 'La operación antes denegada se ejecuta con éxito (evento exitoso en CloudTrail), la simulación reporta allowed para lo concedido y denied para las operaciones adyacentes probadas, y la corrección quedó versionada (política vN con fecha y justificación en el ticket).',
+    tags: ['aws', 'accessdenied', 'iam', 'policy', 'simulator', 'simulate-principal-policy', 'boundary', 'scp', 'cloudtrail', 'trust policy', 'condition', 'resource policy', 's3', 'permiso efectivo', 'cloud'],
+  },
+  {
+    id: 'TS-IAM-032',
+    pillar: 'IAM',
+    title: 'La integración M2M falla: 401/invalid_client del token endpoint',
+    problem: 'La integración servidor-a-servidor deja de autenticar: el token endpoint rechaza el client credentials con invalid_client, invalid_grant o un 401 seco, y la app no distingue si es la credencial, el endpoint, el scope o el tenant.',
+    symptoms: [
+      'La app reporta 401/AADSTS7000215 al pedir el token (o tras una rotación reciente del secret).',
+      'La integración funcionaba y dejó de funcionar "sola" (el secret venció mientras nadie miraba).',
+      'Tras registrar la app nueva, el token nunca funcionó (error desde el primer intento).',
+    ],
+    level: 'Credencial vs Tenant/Endpoint vs Scope vs App deshabilitada',
+    checks: [
+      {
+        check: 'El código de error exacto del token endpoint (la tabla determinista)',
+        command: "curl -s -X POST https://login.microsoftonline.com/{{TENANT}}/oauth2/v2.0/token -d grant_type=client_credentials -d client_id={{APP_ID}} -d client_secret={{SECRET}} -d scope={{SCOPE}}",
+        result: 'El JSON de error con su código AADSTS exacto (o el 200 con el access_token).',
+        next: 'AADSTS7000215: credencial inválida/expirada (check 2). AADSTS700016: app no encontrada EN ESE TENANT (check 3). AADSTS7000112: app deshabilitada. AADSTS90002/900144: endpoint o parámetros mal formados (check 4). El código dice qué check sigue: la tabla que convierte horas en minutos.',
+      },
+      {
+        check: 'La credencial: vencimiento, keyId y rotación',
+        command: 'Get-MgApplication -ApplicationId {{APP_OBJECT_ID}} -Property PasswordCredentials,KeyCredentials | Select-Object -ExpandProperty PasswordCredentials | Format-Table KeyId,DisplayName,StartDateTime,EndDateTime',
+        result: 'La tabla de credenciales de la app: la vigente (o la lista vacía de un secret que ya venció y se auto-eliminó).',
+        next: 'Secret vencido o ausente: crear la credencial nueva con solapamiento (nueva → desplegar consumidores → verificar → retirar la vieja — el orden del RB-IAM-057). Si la credencial es válida y la app usa certificado: validar la aserción (client_assertion firmada con la clave correcta y sin desfase de reloj).',
+      },
+      {
+        check: 'El tenant y el endpoint correctos (el clásico de las dos nubes)',
+        command: "curl -s https://login.microsoftonline.com/{{TENANT}}/v2.0/.well-known/openid-configuration | jq -r .issuer",
+        result: 'El documento de discovery del tenant: si responde, el tenant es válido y el endpoint correcto.',
+        next: '700016 "app not found in tenant": el client_id existe pero no EN ESE tenant (app multi-tenant pedida al tenant propio, o viceversa) — el token se pide al tenant donde la app está registrada o donde tiene el service principal. Endpoints mezclados (v1 vs v2): el scope se escribe distinto en cada uno.',
+      },
+      {
+        check: 'El scope del M2M (el .default y la audiencia)',
+        command: "curl -s -X POST https://login.microsoftonline.com/{{TENANT}}/oauth2/v2.0/token -d grant_type=client_credentials -d client_id={{APP_ID}} -d client_secret={{SECRET}} -d 'scope=https://graph.microsoft.com/.default'",
+        result: '200 con access_token del recurso pedido (o el error de scope correspondiente).',
+        next: 'M2M con Graph: scope RECURSO/.default (no un scope delegado de usuario — client credentials no tiene usuario delante). Para APIs propias: api://{{APP_ID}}/.default. El scope suelto tipo "User.Read.All" en M2M es el error de quien mezcló los dos mundos.',
+      },
+      {
+        check: 'Los permisos y el consentimiento de la app (¿la integración tiene el grant?)',
+        command: 'Get-MgServicePrincipalAppRoleAssignment -ServicePrincipalId {{SP_ID}} | Select-Object ResourceDisplayName,AppRoleDisplayName',
+        result: 'Los app roles concedidos a la app (o la lista vacía del consentimiento que nunca se dio).',
+        next: 'Lista vacía o sin el permiso que la API exige: falta el admin consent (los permisos de aplicación SIEMPRE lo requieren) — concederlo con la justificación documentada y el aprobador registrado (RB-IAM-057, paso 3).',
+      },
+    ],
+    remediation: '45% secret vencido o rotado sin solapamiento (algún consumidor con la credencial vieja), 20% tenant/endpoint equivocados (app pedida al tenant que no es), 15% scope mal formado (delegado en M2M o sin .default), 10% falta de admin consent en permisos de aplicación, 10% aserción de certificado mal firmada o con desfase de reloj.',
+    verification: 'El token endpoint responde 200 con el access_token del scope mínimo y la operación contra la API protegida se ejecuta con éxito; la tabla de credenciales de la app muestra la nueva activa con su vencimiento dentro de política y el registro de la rotación quedó en el expediente de la app.',
+    tags: ['oauth', 'client credentials', 'm2m', 'invalid_client', 'aadsts7000215', 'aadsts700016', 'token endpoint', 'secret', 'rotacion', 'scope', '.default', 'admin consent', 'app registration', 'certificado', 'client_assertion', 'integracion'],
+  },
+  {
+    id: 'TS-IAM-033',
+    pillar: 'IAM',
+    title: '"La app pide contraseña de repente": la caída silenciosa de Kerberos a NTLM',
+    problem: 'Una app con autenticación de Windows integrada empieza a pedir credenciales en formulario: Kerberos dejó de funcionar y la negociación cayó a NTLM en silencio — hay que encontrar por dónde se rompió la cadena del ticket.',
+    symptoms: [
+      'La app que abría sola ahora pide usuario/contraseña (y "con las credenciales igual entra").',
+      'El 4624 del servidor muestra Logon Process: NtLmSsp donde antes era Kerberos.',
+      'El doble hop perdió la identidad del usuario (el backend ve anónimo o la cuenta del app pool).',
+    ],
+    level: 'Cliente/Ticket vs SPN vs Canal vs Delegación',
+    checks: [
+      {
+        check: 'Confirmar la caída con el hecho consumado (el 4624)',
+        command: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 100 | Where-Object {$_.Message -match 'NtLmSsp'} | Measure-Object | Select-Object -ExpandProperty Count",
+        result: 'El conteo de logons NTLM en la ventana del servidor de la app.',
+        next: 'Conteo alto para la app que debería ser Kerberos: la caída está confirmada — el check siguiente busca el eslabón. Conteo cero y el formulario aparece igual: la app quizá nunca usó Kerberos (o el problema es de otra capa: la app en sí, el navegador).',
+      },
+      {
+        check: 'El SPN: existe y es ÚNICO (la llave servicio→cuenta)',
+        command: 'setspn -L {{SVC_ACCOUNT}}; setspn -X',
+        result: 'El SPN del servicio listado en la cuenta correcta — y el -X sin "duplicate SPN found".',
+        next: 'SPN ausente: registrarlo con setspn -S (la S verifica unicidad — la A duplica). SPN duplicado: el KDC no puede resolver a cuál cuenta emitir — quitarlo de la cuenta equivocada (el caso clásico del script de alta que copió el SPN "para que funcionara igual").',
+      },
+      {
+        check: 'El ticket del cliente: TGT presente y ticket de servicio emitido',
+        command: 'klist',
+        result: 'El TGT de la sesión y el ticket del servicio (HTTP/app.nexora.local) con sus flags.',
+        next: 'TGT sin ticket de servicio: el KDC no resolvió el SPN (check anterior) o el canal falló. Ninguno de los dos: la autenticación de dominio misma (hora del equipo — el desfase de 5 minutos mata Kerberos, NTP). Tickets presentes y la app igual pide contraseña: purgar (klist purge) y reintentar limpio antes de seguir.',
+      },
+      {
+        check: 'El canal: TLS y el endpoint que negocia',
+        command: "curl -v --negotiate -u : https://{{APP_HOST}}/ 2>&1 | Select-String -Pattern 'WWW-Authenticate|HTTP/'",
+        result: 'El header WWW-Authenticate del servidor: Negotiate (Kerberos/NTLM) vs Basic vs solo NTLM.',
+        next: 'El servidor que solo ofrece NTLM o Basic: la autenticación de Windows quedó mal configurada en el app pool/IIS (los providers del negotiation). Negotiate ofrecido y el cliente cae igual: el SPN del canal (el de la URL exacta que el usuario visita — el alias de DNS sin SPN es el caso fino).',
+      },
+      {
+        check: 'La delegación para el doble hop (cuando el backend pierde la identidad)',
+        command: "Get-ADObject {{BACKEND_DN}} -Properties msDS-AllowedToActOnBehalfOfOtherIdentity,msDS-AllowedToDelegateTo | fl Name,msDS-AllowedToDelegateTo",
+        result: 'La configuración de delegación del backend: RBCD (PrincipalsAllowed), KCD (AllowedToDelegateTo) o sin restricciones.',
+        next: 'Sin delegación con el front-end presentando identidad: configurar RBCD (el backend declara en quién confía — Set-ADComputer -PrincipalsAllowedToDelegateToAccount). Con "sin restricciones" descubierta: hallazgo de prioridad alta — plan de migración a RBCD (el compromiso del front-end arrastra el dominio).',
+      },
+      {
+        check: 'El alcance de la caída: ¿esta app, este usuario o el dominio?',
+        command: "Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-NTLM/Operational'; Id=8004} -MaxEvents 50 | Select-Object -First 5 TimeCreated",
+        result: 'Los eventos 8004 del cliente/servidor: qué flujos usan NTLM y desde cuándo.',
+        next: 'Solo esta app: el problema es su SPN/canal/delegación (checks 2-5). Múltiples apps de golpe: algo central cambió (GPO de hardening, un DC, la hora) — y el flujo 8003/8004 del Restrict NTLM en modo Audit construye el inventario del dominio para el plan de retiro por capas (RB-IAM-059).',
+      },
+    ],
+    remediation: '35% SPN ausente o duplicado (el script de alta que copia, el alias de DNS sin SPN), 25% delegación ausente o mal configurada para el doble hop, 20% configuración del app pool/IIS que dejó de ofrecer Negotiate, 10% desfase de reloj (NTP) que rompe los tickets, 10% la caída es crónica de años — el app legacy que nunca habló Kerberos y ahora entra al plan de retiro NTLM.',
+    verification: 'El 4624 del servidor vuelve a mostrar logon Kerberos (cero NtLmSsp en la ventana de prueba), klist del usuario de prueba contiene el ticket del servicio, el doble hop entrega la identidad real del usuario al backend (vía RBCD), y setspn -X no reporta duplicados en el bosque.',
+    tags: ['kerberos', 'ntlm', 'ntlmssp', '4624', 'spn', 'setspn', 'klist', 'delegacion', 'rbcd', 'kcd', 'doble hop', 'double hop', 'negotiate', 'spnego', 'app pool', 'iis', 'ntp', '8004', 'restrict ntlm', 'caida silenciosa'],
   },
 ];
 

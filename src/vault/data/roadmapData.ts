@@ -5,20 +5,25 @@
  * Ventaja Competitiva: SOC / Blue Team Background
  *
  * Estructura: 3 tiers de prioridad estratégica + proyecto final, 34 fases,
- * 373 ítems. Cobertura completa del dominio IAM: fundamentos técnicos
- * (Windows/Linux, redes, formatos y APIs), fundamentos de IAM y governance,
- * Active Directory y directory services (LDAP), Microsoft Entra ID + Graph,
- * SSO/federación/SCIM, MFA y autenticación moderna, identity life-cycle,
- * higiene de identidades, automatización (PowerShell + Python), troubleshooting
- * y métricas; modelo de roles + role engineering, granting/revoking, access
- * reviews, PAM (con Safeguard, CyberArk, BeyondTrust y Delinea en
- * profundidad), Okta, IGA (SailPoint/Saviynt), GRC y evidencias de auditoría,
- * plataformas enterprise (Ping, ForgeRock, IBM, Oracle), ITDR, cloud IAM
- * (AWS, Azure, GCP y Kubernetes), identidades no-humanas, Zero Trust
- * (incl. Global Secure Access), resiliencia y disaster recovery; y el
- * proyecto final: portfolio GitHub de 10 proyectos, laboratorio capstone
- * "InnovateCorp", certificación SC-300 y estrategia laboral + mercado
- * (búsqueda de empleo remoto desde Colombia).
+ * 384 ítems. Cobertura completa del dominio IAM: fundamentos técnicos
+ * (Windows/Linux, redes, formatos y APIs), fundamentos de IAM y governance
+ * (incl. RBAC/ABAC/PBAC/ReBAC, CIAM e Identity Fabric), Active Directory
+ * y directory services (LDAP, Entra Domain Services), Microsoft Entra ID
+ * + Graph, SSO/federación/SCIM, MFA y autenticación moderna, identity
+ * life-cycle (incl. Lifecycle Workflows), higiene de identidades,
+ * automatización (PowerShell + Python), troubleshooting y métricas;
+ * modelo de roles + role engineering, granting/revoking, access reviews
+ * (incl. SoD continuo), PAM (con Safeguard, CyberArk, BeyondTrust, Delinea
+ * y HashiCorp Vault en profundidad), Okta (incl. Authorization Servers),
+ * IGA (SailPoint/Saviynt/Omada), GRC y evidencias de auditoría (incl.
+ * SOX/HIPAA/GDPR/PCI DSS sectoriales), plataformas enterprise (Ping,
+ * ForgeRock, IBM, Oracle y OneLogin), ITDR, cloud IAM (AWS, Azure, GCP y
+ * Kubernetes, con automatización CLI/API y Terraform IAM as Code),
+ * identidades no-humanas, Zero Trust (incl. Global Secure Access),
+ * resiliencia y disaster recovery; y el proyecto final: portfolio GitHub
+ * de 10 proyectos, laboratorio capstone "InnovateCorp", certificación
+ * SC-300 y estrategia laboral + mercado (búsqueda de empleo remoto desde
+ * Colombia).
  *
  * El checklist (estado de cada ítem) vive en la tabla Dexie `roadmapItems`
  * (id + done + timestamps); este archivo es la FUENTE DE VERDAD del
@@ -44,7 +49,7 @@ export interface RoadmapItemDef {
 export interface RoadmapPhaseDef {
   /** Id estable: 'rm-f<numero>'. */
   id: string;
-  /** Número de fase visible (1-23). */
+  /** Número de fase visible (1-34). */
   number: number;
   title: string;
   /** Nota introductoria de la fase (opcional). */
@@ -226,6 +231,16 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             id: 'rm-f1-14',
             label: 'Conceptos Clave',
             text: 'Completar la caja de modelos y principios con los que faltan: ACL (interpretar listas de control de acceso asociadas a recursos — NTFS, shares y objetos de directorio, no solo Linux), Need to Know (restringir el acceso a información según necesidad legítima, más estricto que mínimo privilegio sobre datos sensibles), Just Enough Administration (delegar una capacidad administrativa ACOTADA a la tarea concreta, no el rol completo), Just-in-Time (permisos elevados solo por ventana limitada — la base de PIM) y Exception Management (toda desviación de política se documenta, aprueba, limita y revisa — la excepción sin vencimiento es privilegio disfrazado).',
+          },
+          {
+            id: 'rm-f1-15',
+            label: 'Conceptos Clave',
+            text: 'Cubrir ReBAC (Relationship-Based Access Control), el cuarto modelo que las ofertas senior ya citan: la autorización se decide por RELACIONES ("juan es editor DEL documento X", "ana es miembro DEL equipo que posee EL proyecto Y") en vez de por roles o atributos — el modelo de Google Zanzibar, OpenFGA y SpiceDB, y el que sostiene permisos finos de apps colaborativas (Notion, GitHub, Google Drive). Diferenciar cuándo ReBAC gana (recursos anidados, propiedad compartida, permisos por objeto) y cuándo es sobre-ingeniería (el RBAC por cargo de la empresa sigue siendo el 90% del uso corporativo) — y conocer su riesgo operativo: la recursión de relaciones es costosa y la delegación de permisos por objeto crea cadenas de confianza difíciles de auditar.',
+          },
+          {
+            id: 'rm-f1-16',
+            label: 'Conceptos Clave',
+            text: 'Distinguir CIAM (Customer Identity and Access Management) del IAM workforce y situar el Identity Fabric en la arquitectura moderna: CIAM gobierna identidades de CLIENTES con requisitos distintos (registro self-service, social login con Google/Apple/Microsoft, progressive profiling — pedir datos gradualmente y no en un formulario de 15 campos, consent management para privacidad GDPR, escalado a millones de usuarios y recuperación de cuenta sin helpdesk — con Entra External ID/B2C, Auth0 u Okta CIAM como referencias). Identity Fabric (Gartner/KuppingerCole) es el patrón de orquestación para empresas multi-IdP: una capa que orquesta identidades entre varios "autoritativos" (AD para legacy, Entra para cloud, Okta tras una fusión) con orquestación/dirección en vez de una migración big-bang imposible — entenderlo para responder "¿cómo integras dos organizaciones tras un M&A sin congelar el negocio?"',
           },
         ],
       },
@@ -438,6 +453,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             id: 'rm-f3-14',
             label: 'Conceptos Clave',
             text: 'Completar el mapa híbrido y de dispositivos: Entra Connect Sync vs. Entra Cloud Sync (el agente ligero moderno basado en Microsoft Graph — cuándo elegir cada uno), Entra Connect Health y el diagnóstico de errores de sincronización, grupos de seguridad vs. grupos de Microsoft 365 (y la asignación de licencias group-based), y los tres estados de dispositivo: registrado vs. unido a Entra vs. administrado con Intune — la escalera de confianza que después evalúan Conditional Access y Zero Trust. Prueba: explicar qué tipo de dispositivo conviene a un BYOD, a un portátil corporativo y a un quiosco compartido, y con qué controles cada uno.',
+          },
+          {
+            id: 'rm-f3-15',
+            label: 'Conceptos Clave',
+            text: 'Saber cuándo Entra Domain Services (el dominio gestionado en Azure) es respuesta y cuándo es deuda: lift-and-shift de apps legacy que exigen LDAPS, Kerberos/NTLM o uniones a dominio sin mantener DCs propios — el dominio gestionado con su OU única, sin Admin de esquema/bosque, y los límites que lo definen (no es "tu AD en la nube": es un dominio aparte con sincronización de usuarios unidireccional). Evaluar la alternativa moderna antes de adoptarlo (migrar la app a autenticación moderna/AAD-DS → Managed Identity/Entra) y su papel en entrevistas: la pregunta "app legacy que solo habla LDAP en Azure" tiene tres respuestas válidas y DS es solo una.',
           },
         ],
       },
@@ -1267,6 +1287,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             label: 'Entrevista',
             text: 'Preparar "¿cómo evitas que las campañas sean un trámite?": (1) carga limitada (<50 líneas por reviewer), (2) contexto por entitlement (última uso, justificación original), (3) justificación obligatoria en críticos, (4) métricas por reviewer visibles al comité (tasa de revocación, tiempo de respuesta, % aprobado sin leer — medido por muestreo), (5) revocación automática al cierre. Y el argumento de fondo: la campaña es el control DETECTIVO del acceso — tratarla como formulario es tirar el control.',
           },
+          {
+            id: 'rm-f21-13',
+            label: 'Práctica',
+            text: 'Implementar la detección CONTINUA de SoD en producción — no esperar a la campaña trimestral para descubrir el par tóxico: el scan programado de pares SoD contra los memberships actuales (PowerShell con la matriz de pares como data: grupo-creador-proveedores + grupo-aprobador-pagos = hallazgo), la alerta al detectar la combinación (nuevo acceso que crea conflicto — el control PREVENTIVO con el request workflow que bloquea o exige excepción firmada), y la distinción operativa: preventivo en el request (no se puede pedir lo que conflicta), detectivo en el scan (lo que ya existía o llegó por fuera del proceso). Documentar el diseño y correr el scan contra tu lab: es exactamente el motor del proyecto RBAC & SoD Policy Engine aplicado a producción.',
+          },
         ],
       },
       {
@@ -1398,6 +1423,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             label: 'Comparativa',
             text: 'Completar el mapa con Delinea (ex-Thycotic): Secret Server (la bóveda con discovery de cuentas, rotación programada y check-out con control), Privilege Manager (control de aplicaciones y elevación en el endpoint) y Connection Manager (la sesión proxied sin exponer el password) — el cuarto grande del mercado PAM, fuerte en despliegues medianos y time-to-value rápido. El mismo flujo que ya dominas de Safeguard (discovery → ingestión con owners → checkout → rotación → grabación) aplicado a su arquitectura. En entrevistas de plataforma, nombrar los CUATRO vendors (CyberArk, BeyondTrust, One Identity, Delinea) con un caso de uso cada uno ya te posiciona por encima del promedio.',
           },
+          {
+            id: 'rm-f27-12',
+            label: 'Práctica',
+            text: 'Operar HashiCorp Vault para secretos de workloads — el "quinto gran" que las ofertas modernas mencionan junto a los PAM clásicos (y el que conecta con DevSecOps): levantar el dev server, habilitar el KV v2 (secretos estáticos versionados con soft-delete), configurar dynamic secrets de base de datos (credenciales emitidas on-demand con TTL — la rotación que no se rota: se caduca), autenticar workloads con AppRole (y Kubernetes auth en clústeres), escribir la policy mínima por app, y habilitar el audit log. Cerrar con el posicionamiento que te distingue en entrevista: PAM para accesos de HUMANOS (vaulting de cuentas admin, sesiones grabadas), Vault para secretos de MÁQUINAS (emisión dinámica a workloads) — dos herramientas, dos problemas, un mismo principio de mínimo privilegio.',
+          },
         ],
       },
       {
@@ -1464,6 +1494,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             id: 'rm-f9-12',
             label: 'Escenario',
             text: 'Estudiar y presentar el caso Okta 2022 como lesson learned: compromiso del panel de soporte de un tercero → acceso a inquilinos de clientes → secuestro de tokens de super admin. Las lecciones que un analista debe extraer: phishing-resistant MFA para TODOS los admins (no solo usuarios), IP allowlist de la consola de administración, revisión de accesos de TERCEROS al tenant (soporte del vendor incluido), monitoreo de la actividad admin via System Log, y la pregunta incómoda: "¿QUIÉN puede administrar tu IdP y cómo lo verificas?".',
+          },
+          {
+            id: 'rm-f9-13',
+            label: 'Práctica',
+            text: 'Dominar los Authorization Servers de Okta — la capa que emite los tokens de TUS APIs y la que más se pregunta en roles integrator: la diferencia entre el org authorization server (emisor para apps OAuth de la galería) y los custom authorization servers (para tus propias APIs con claims/scopes propios); configurar un custom AS con sus scopes (resource-server, policías de acceso por cliente/grupo), los access policies (qué cliente, con qué token lifetime, desde qué red) y los claim mappings (perfil del usuario → claims del token). Practicar el flujo completo: register la SPA/API, obtener un access token del custom AS, validarlo (issuer, aud, exp, scp) en la API — y entender la relación con Entra App Registrations/Expose an API: el MISMO concepto en el otro dialecto.',
           },
         ],
       },
@@ -1537,6 +1572,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             label: 'Comandos',
             text: 'Manejar el vocabulario COMPLETO de plataforma IGA como checklist de evaluación: authoritative source, identity correlation, aggregation, provisioning, entitlement catalog, access request, approval workflow, birthright access, role engineering, role mining, access certification, reconciliation y exception management — para cada término, UNA frase de qué resuelve y qué artefacto lo demuestra. Recursos de profundización: SailPoint Developer Community y su API (developer.sailpoint.com — endpoints, colecciones Postman, documentación v3), la documentación de Saviynt Enterprise Identity Cloud y Microsoft Entra ID Governance. Criterio: abrir el glosario de CUALQUIERA de las tres plataformas y no encontrar un término nuevo.',
           },
+          {
+            id: 'rm-f10-14',
+            label: 'Comparativa',
+            text: 'Completar el mapa IGA con Omada Identity Suite, el tercer grande europeo que citan las ofertas (junto a SailPoint y Saviynt): su enfoque Identity-Centric de arquitectura configurable sobre AD/Entra (role-based access catalog, aceleradores para Microsoft), fuerte en mid-market nórdico/europeo y en organizaciones que quieren IGA "sobre lo que ya tienen" sin re-platformar el directorio. Ubicarlo en el mismo criterio de "reconocer, ubicar y no perderse" que aplicaste a las demás plataformas: cuándo Omada compite (entorno Microsoft-céntrico, time-to-value) y cuándo SailPoint/Saviynt siguen siendo la respuesta (complejidad de conectores, scale).',
+          },
         ],
       },
       {
@@ -1579,6 +1619,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             id: 'rm-f32-7',
             label: 'Práctica',
             text: 'Ejecutar una auto-auditoría formal contra TU propio lab actuando de auditor externo: seleccionar el marco (ISO 27001 A.5.15–A.5.18 o SOC 2 CC6.x), muestrear 5 accesos, verificar la cadena de aprobación completa (¿aprueba alguien distinto del solicitante? ¿hay evidencia firmada?), calificar cada control (implementado/parcial/no existe), redactar el informe con hallazgos numerados y severidad, y construir el plan de remediación con fechas. Practicar AMBOS lados de la mesa: hacer y recibir auditorías.',
+          },
+          {
+            id: 'rm-f32-8',
+            label: 'Conceptos Clave',
+            text: 'Mapear los marcos SECTORIALES que citan las vacantes reguladas — el complemento de ISO/SOC que ya dominas: SOX §404 (SoD en procesos financieros y evidencia de accesos a sistemas financieros — el origen de casi toda la disciplina IGA), HIPAA §164.312 (identificador único de usuario, control de sesión emergencia, auditoría de accesos a PHI), GDPR art. 5(1)(f)/32 (minimización de accesos a datos personales, seguridad del tratamiento — y la tensión "derecho al olvido vs pista de auditoría inmutable") y PCI DSS req. 7/8 (least privilege por puesto en el CDE y MFA para todo acceso administrativo). Para cada marco: qué control IAM lo satisface, qué evidencia exporta tu trabajo (reporte de accesos, certificaciones, logs) y qué pide el auditor típico del sector — la tabla que responde "¿cómo preparas una auditoría SOX de accesos?" en 90 segundos.',
           },
         ],
       },
@@ -1642,6 +1687,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             id: 'rm-f22-11',
             label: 'Escenario',
             text: 'Responder la consulta del cliente con stack Oracle EBS + OAM viejo: "¿migramos o mantenemos?": los costes de quedarse (middleware fuera de soporte, know-how que se jubila, MFA débil por capas extra), los de migrar (proyecto multi-año, riesgo de integración con el EBS, doble correr), y tu recomendación como analista: stranded risk por años + roadmap del vendor (el OAM clásico está en modo mantenimiento — el futuro es Oracle Access Management con OCI/Redwood) → plan híbrido: estabilizar (parches + MFA frontal) mientras se planifica la salida. La respuesta que vale es el CRITERIO, no la opinión.',
+          },
+          {
+            id: 'rm-f22-12',
+            label: 'Comparativa',
+            text: 'Ubicar OneLogin en el landscape de IdPs — el mid-market que la lista enterprise siempre nombra: SSO con conector universal (agentes para AD/LDAP sin federación compleja), SmartFactor MFA (autenticación adaptativa que aprende el patrón del usuario: dispositivo, red, comportamiento), y su posición actual tras la compra por One Identity (la casa de Safeguard: la jugada de unificar identidad + PAM en un solo vendor). El mismo criterio de "reconocer, ubicar y no perderse" que aplicaste a Ping/ForgeRock/IBM/Oracle: para qué segmento es respuesta (SMB/mid que quiere SSO+MFA sin la complejidad enterprise) y qué cambió tras la adquisición — el analista que sabe el estado del M&A del mercado cita mejoras de salario.',
           },
         ],
       },
@@ -1770,6 +1820,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             label: 'Escenario',
             text: 'Resolver el incidente de la access key filtrada en GitHub: detección (secret scanning del repo / alerta de GuardDuty), contención INMEDIATA (revocar la key, invalidar sesiones), investigación con CloudTrail (qué hizo el rol en la ventana — enumeración, exfiltración, criptominería), remediación (rotar todo lo que dependía, migrar a rol/Secrets Manager), prevención (guardrails: SCP que prohíbe la creación de users con keys, detective: GuardDuty + Access Analyzer), y el postmortem de una página con las lecciones. El caso real que TODO cloud security pregunta en entrevistas.',
           },
+          {
+            id: 'rm-f12-11',
+            label: 'Práctica',
+            text: 'Automatizar la higiene de AWS IAM con la CLI y la API (el mismo músculo de PowerShell/Graph aplicado a la nube): aws iam get-credential-report (el reporte de rotación/edad de credenciales que toda auditoría pide, decodificado y filtrado por keys >90 días), aws iam simulate-principal-policy por lote (validar políticas sin esperar a producción), aws iam list-roles/list-policies con jq para inventarios, y aws cloudtrail lookup-events para investigar quién hizo qué. Montar el script re-ejecutable contra la cuenta free tier, publicarlo en el repo de herramientas del portfolio y documentar qué control de auditoría cubre cada comando — la evidencia del "IAM Analyst que también opera cloud".',
+          },
         ],
       },
       {
@@ -1822,6 +1877,11 @@ export const ROADMAP_TIERS: RoadmapTierDef[] = [
             id: 'rm-f28-9',
             label: 'Evidencia (Exit Criteria)',
             text: 'Cerrar el lab multi-cloud mínimo: trial de Azure (un resource group con PIM para un rol, un SP con certificado), free tier de GCP (un binding creado con gcloud, la effective policy consultada con gcloud projects get-iam-policy), y el diagrama del lab completo: AD local → Entra → ambos clouds, con las identidades humanas y de workload dibujadas y la tabla comparativa AWS/Azure/GCP propia como anexo. Evidencia operativa: dos comandos ejecutados y capturados en cada cloud.',
+          },
+          {
+            id: 'rm-f28-10',
+            label: 'Conceptos Clave',
+            text: 'Adoptar IAM as Code con Terraform — la competencia que separa al IAM Engineer moderno del operador de portales: providers azuread (grupos, app registrations, custom roles de Entra) y aws_iam (policies/roles), el ciclo plan → review → apply (el "-WhatIf mental" de PowerShell hecho permanente: cada cambio de identidad pasa por un PR con diff legible), la gestión del ESTADO (backend remoto con locking — el state contiene el mapa de tu identidad y se protege como un secreto), la detección de deriva (terraform plan revela la intervención manual del portal) y el import para adoptar recursos existentes sin recrearlos. Delimitar el perímetro honesto: Terraform para la ESTRUCTURA (grupos base, apps del SSO, roles), el IGA para el day-to-day (membresías, aprobaciones) — "terraformizar todo" es la trampa del state inmanejable.',
           },
         ],
       },

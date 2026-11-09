@@ -188,6 +188,7 @@ const KB_ENV_CHIP: Record<IamKbEnvironment, string> = {
   'PAM / Privilegios': 'bg-violet-500/10 text-violet-400 border-violet-500/30',
   'Gobernanza': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   'Plataformas IAM': 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+  'Cloud IAM': 'bg-teal-500/10 text-teal-400 border-teal-500/30',
   'Multi': 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30',
 };
 const KbEnvChip: React.FC<{ env: IamKbEnvironment }> = ({ env }) => (

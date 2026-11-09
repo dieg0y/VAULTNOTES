@@ -2,7 +2,9 @@ import type { SeedTerm } from './glossarySeedBase';
 
 /**
  * glossarySeedIam — capa de plataformas y vendors IAM/PAM del seed del glosario
- * (77 términos tras la auditoría v2, ids iam-seed-101..180).
+ * (80 términos tras la auditoría de competencias, ids iam-seed-101..182 con
+ * huecos 132/138 retirados en la auditoría v2 — los ids son estables y no se
+ * reutilizan).
  *
  * Cuarto bloque del seed aditivo, alineado con la expansión masiva del pilar
  * IAM (KB de Okta, SailPoint, Ping, ForgeRock, IBM, Oracle, PAM, roles y LDAP).
@@ -729,5 +731,32 @@ export const GLOSSARY_SEED_IAM_TERMS: SeedTerm[] = [
     shortDefinition: "El diseño formal de roles de acceso: nombre, propósito, permisos incluidos, dueño y reglas de membresía, alineado a la estructura del negocio.",
     longDefinition: "El role model es la arquitectura que traduce la organización al lenguaje de accesos: cada rol (agente de soporte N2, analista de nómina, administrador de ERP) tiene definición de negocio, entitlements exactos, dueño que responde por él, reglas de asignación (birthright por puesto, por atributo, solicitable con aprobación) y relaciones entre roles (jerarquías, exclusiones por SoD, roles base + roles específicos). Se diseña en tres pasos: top-down (definiciones del negocio), bottom-up (role mining sobre permisos reales) y la reconciliación de ambos con criterios (¿el rol refleja el puesto real o el histórico acumulado?). Un role model sano es lo que hace escalable el JML: el nuevo de un puesto recibe SU rol, no una lista ad-hoc de grupos. El pitfall: roles-basura que replican el pasado ('Rol de Juan Pérez'), roles huérfanos sin dueño y la explosión de roles (más roles que personas); la métrica de salud es cuántos accesos se explican por rol vs. cuántos quedan como excepción.",
     example: "El nuevo analista de nómina entra y su onboarding es una sola acción: asignar el rol 'Analista de nómina N1' que arrastra 6 grupos de AD, 2 licencias y el acceso al ERP con perfil de consulta; el modelo de roles reemplazó la checklist manual de 15 líneas.",
+  },
+  {
+    id: "iam-seed-180",
+    term: "Identity Fabric",
+    acronym: undefined,
+    category: "IAM - IGA",
+    shortDefinition: "La capa de orquestación que gobierna identidades repartidas entre varios IdPs (AD, Entra, Okta heredado) sin migrarlas a una sola plataforma.",
+    longDefinition: "Identity Fabric (el término de Gartner/KuppingerCole) responde la pregunta incómoda de toda empresa multi-IdP: ¿qué hacemos con el AD del legacy, el Entra del cloud y el Okta que llegó con la adquisición? En vez de la migración big-bang imposible, el fabric es una capa de ORQUESTACIÓN sobre las fuentes: un directorio virtual/dirección de identidad (quién vive dónde), un orquestador del ciclo de vida que escribe el JML en TODAS las fuentes, y una capa de política común evaluada contra todos los IdPs. Se unifica el GOBIERNO, no necesariamente la plataforma. El pitfall del analista: creer que fabric es un producto que se compra — es un patrón de arquitectura que se implementa con las piezas del IGA, la federación y el aprovisionamiento; y su costo real es la complejidad de mantener la correspondencia entre fuentes (la correlación de la misma persona en tres directorios).",
+    example: "Tras la fusión, los 3.000 empleados de la adquirida siguen en su Okta y acceden a las apps de la matriz por federación cross-tenant con entitlements por aplicación; el JML de ambos lados lo orquesta el IGA único, mientras el roadmap de consolidación avanza por oleadas — el fabric es 'lo que hace vivir juntos a los dos mundos mientras tanto'.",
+  },
+  {
+    id: "iam-seed-181",
+    term: "Workday (y los HRIS que alimentan el IAM)",
+    acronym: undefined,
+    category: "IAM - IGA",
+    shortDefinition: "El HRIS de referencia empresarial: la fuente de autoridad de los empleados de la que nace (y muere) toda identidad del ciclo JML.",
+    longDefinition: "Workday es el HCM/HRIS que las grandes empresas usan como authoritative source del JML: el alta, la transferencia y la terminación en Workday son el EVENTO que dispara el aprovisionamiento en AD/Entra/IGA (por integración directa o por el pipeline HR→IGA). Su competencia típica: SAP SuccessFactors (el HCM de las empresas SAP) y BambooHR (el HRIS de las PYMES — el que citan las ofertas SMB). La competencia del analista no es operar Workday sino su INTEGRACIÓN: qué atributos alimentan (workerId, hireDate, manager, departamento, isContingentWorker), qué pasa con el reingreso (¿reactiva o crea?), la latencia del feed (¿el leaver de las 17:00 llega al IAM a las 17:05 o al job nocturno?) y el contrato de datos (UN atributo, UN dueño, UN significado). El pitfall: tratar el HRIS como 'solo otro conector' — la calidad del JML completo es la calidad del feed de RRHH, y los atributos sucios del HRIS son la causa raíz de las cuentas huérfanas y los onboardings a medias.",
+    example: "El leaver firma su salida en Workday a las 17:00 con fecha efectiva de hoy; la integración envía el evento al IGA que deshabilita la cuenta y revoca las asignaciones en el SLA acordado (30 minutos) — la pregunta de auditoría '¿la cuenta del que salió a las 17:00 seguía viva a las 18:00?' se responde con la traza completa del feed.",
+  },
+  {
+    id: "iam-seed-182",
+    term: "Zero Standing Privileges (ZSP)",
+    acronym: "ZSP",
+    category: "IAM - PAM",
+    shortDefinition: "El modelo donde NADIE tiene privilegios administrativos permanentes: todo acceso elevado se activa justo a tiempo (JIT) y muere al terminar la tarea.",
+    longDefinition: "ZSP es la evolución del PAM: del 'admin permanente con contraseña en la bóveda' al 'cualquier acceso privilegiado nace de una activación justificada, con aprobación, MFA y ventana temporal, y desaparece al cerrar la tarea'. Sus piezas: roles elegibles en PIM (el permiso existe pero nadie lo tiene ACTIVO), la activación bajo demanda con justificación/ticket/aprobación, la expiración automática de la ventana y el monitoreo de la sesión. La justificación defensiva: el robo de credenciales privilegiadas no sirve si las credenciales 'en reposo' no existen — el atacante que compromete la cuenta del admin encuentra una cuenta SIN privilegios hasta que el propio admin los active. El pitfall operativo: ZSP exige que la activación sea RÁPIDA (si elevar cuesta 20 minutos y fricción, el equipo vuelve a las cuentas permanentes 'de emergencia'); y la excepción eterna 'por si acaso' es exactamente el privilegio permanente que ZSP busca eliminar.",
+    example: "El admin de Exchange NO tiene permisos de Exchange en su día a día: para la tarea del ticket activa su rol elegible en PIM (aprobación del líder + MFA + ventana de 4 horas), ejecuta, y al terminar el permiso muere — el reporte trimestral muestra cero privilegios activos permanentes en el tenant.",
   },
 ];

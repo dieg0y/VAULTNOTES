@@ -1,19 +1,27 @@
 /**
- * iamKB — 50 artículos de la base de conocimiento IAM (SIMULADOS —
+ * iamKB — 60 artículos de la base de conocimiento IAM (SIMULADOS —
  * empresa ficticia Nexora S.A., equipo IAM "Identity & Access
  * Management"). Dataset ESTÁTICO de solo lectura (viene de fábrica, no
  * vive en Dexie ni en el backup). relatedTickets referencia tickets
  * plausibles del dataset iam-XXX (iam-001..iam-024 generales,
- * iam-027..iam-050 proyecto final "primera semana IAM").
+ * iam-027..iam-050 proyecto final "primera semana IAM", iam-051..056
+ * del bloque cloud/OAuth/Kerberos de la auditoría de competencias).
  *
  * Cobertura: ciclo JML y lifecycle, AD/LDAP y AD híbrido (Entra
  * Connect), MFA y SSO profundos, granting/revoking, access reviews y
- * SoD, PAM (CyberArk, Safeguard y comparativo) y modelo de roles.
- * Los artículos iam-kb-025..iam-kb-037 cubren el entorno 'Plataformas
- * IAM' con el conocimiento operativo de los vendors que Nexora opera
- * o evalúa (bóveda Safeguard en producción; Okta en piloto para el
- * portafolio SaaS; SailPoint, One Identity, ForgeRock, Ping, IBM y
- * Oracle en evaluación RFP para IGA/federación).
+ * SoD, PAM (CyberArk, Safeguard, HashiCorp Vault y comparativo) y
+ * modelo de roles. Los artículos iam-kb-025..iam-kb-037 cubren el
+ * entorno 'Plataformas IAM' con el conocimiento operativo de los
+ * vendors que Nexora opera o evalúa (bóveda Safeguard en producción;
+ * Okta en piloto para el portafolio SaaS; SailPoint, One Identity,
+ * ForgeRock, Ping, IBM y Oracle en evaluación RFP para IGA/federación).
+ * Los artículos iam-kb-051..iam-kb-060 cierran los huecos de la
+ * auditoría de competencias reales de empleo: flujos OAuth/OIDC y
+ * validación de tokens, modelos RBAC/ABAC/PBAC/ReBAC, Cloud IAM
+ * operativo (AWS, Azure RBAC/Managed Identities, GCP/WIF), Kerberos
+ * defensivo (SPN/delegaciones/caída a NTLM), CIAM e Identity Fabric,
+ * Terraform IAM as Code, HashiCorp Vault para workloads y compliance
+ * sectorial (SOX/HIPAA/GDPR/PCI DSS) — con la torre nueva 'Cloud IAM'.
  *
  * El contrato espeja 1:1 al de sysadminKB (SysAdminKbArticle): el
  * coordinator cableja la pestaña 'kb' de IamView con IAM_KB_ARTICLES +
@@ -30,6 +38,7 @@ export type IamEnvironment =
   | 'PAM / Privilegios'
   | 'Gobernanza'
   | 'Plataformas IAM'
+  | 'Cloud IAM'
   | 'Multi';
 
 /** Paso de un artículo de la KB IAM (uso interno de este módulo). */
@@ -2417,6 +2426,413 @@ export const IAM_KB_ARTICLES: IamKbArticle[] = [
     escalation: 'Líder de IAM + comité de arquitectura + Procurement (decisión de inversión en plataforma: el equipo aporta el mapa técnico, el gap y los criterios; la firma y el presupuesto son del comité)',
     relatedTerms: ['Identity Governance & Administration (IGA)', 'Modelo de madurez IAM', 'KPIs de IAM', 'Análisis de brechas (gap analysis)'],
     relatedTickets: ['iam-029', 'iam-023']
+  },
+  {
+    id: 'iam-kb-051',
+    title: 'OAuth 2.0/OIDC: los flujos (authorization code+PKCE, client credentials, device code) y la validación de tokens',
+    category: 'IAM - Federation / SSO',
+    environment: 'Aplicaciones SaaS',
+    symptoms: 'La app integrada falla con invalid_client, invalid_grant o un 401 sin explicación; el equipo de desarrollo pregunta "¿qué flujo usamos?" y nadie sabe si la app es pública o confidencial; o llega un access_token/id_token de un tercero y nadie sabe VALIDARLO (¿es de fiar? ¿es del usuario o de la app?). También el caso M2M: la integración servidor-a-servidor pide "un secret para siempre" y hay que proponer el flujo correcto y su rotación.',
+    cause: 'OAuth 2.0/OIDC se aprendió "por pedazos" (cada integración un copy-paste distinto) y quedaron los huecos típicos: confundir qué flujo corresponde a cada tipo de cliente (pública vs confidencial), no saber qué diferencia el access_token del id_token, y jamás haber validado un token del lado del recurso (la app confía porque "lo emitió el IdP" — sin validar aud/iss/exp cualquiera puede reutilizar tokens de otro contexto).',
+    steps: [
+      {
+        title: 'Elegir el flujo por el tipo de cliente (la decisión madre)',
+        detail: 'Authorization Code + PKCE: TODO lo que corre en navegador/móvil (SPA, apps nativas — públicas, no pueden guardar un secret). Client Credentials: servidor-a-servidor sin usuario (M2M — la app ES el principal). Device Code: dispositivos sin teclado (TV, consolas). On-Behalf-Of: una API llama a otra API con la identidad del usuario. Los deprecados que aún se ven: implicit (muerto por PKCE) y ROPC (password grant — jamás). El flujo equivocado es la raíz de la mitad de los "OAuth no funciona".',
+      },
+      {
+        title: 'Authorization Code + PKCE paso a paso (el flujo del 90% de las apps)',
+        detail: 'La app pública genera su code_verifier (aleatorio) y su code_challenge (S256 del verifier); redirige al /authorize con client_id, redirect_uri exacta, scope, state (anti-CSRF) y el challenge; el usuario autentica y consiente; vuelve con el code; la app canjea code+verifier en el /token. El secret nunca existió: lo que prueba la app es que conoce el verifier original — por eso PKCE mató al flujo implicit.',
+        command: "curl -s -X POST https://login.microsoftonline.com/{{TENANT}}/oauth2/v2.0/token -d grant_type=authorization_code -d client_id={{APP_ID}} -d code={{AUTH_CODE}} -d redirect_uri={{REDIRECT_URI}} -d code_verifier={{VERIFIER}}"
+      },
+      {
+        title: 'Client credentials (M2M) con credencial que no sea un secret eterno',
+        detail: 'La app confidencial autentica en el token endpoint con su credencial (certificado preferido: client_assertion JWT firmado; secret solo con vencimiento 90-180 días) y recibe el access_token del scope app-only (api://.../.default). El contrato mínimo del M2M sano: una app por integración, permisos de aplicación justificados con admin consent documentado, y la rotación con solapamiento (crear la nueva, desplegar consumidores, verificar, retirar la vieja).',
+        command: "curl -s -X POST https://login.microsoftonline.com/{{TENANT}}/oauth2/v2.0/token -d grant_type=client_credentials -d client_id={{APP_ID}} -d client_assertion_type='urn:ietf:params:oauth:client-assertion-type:jwt-bearer' -d client_assertion={{JWT}} -d scope=api://{{API}}/.default"
+      },
+      {
+        title: 'Validar un access_token/id_token del lado del RECURSO (lo que casi nadie hace)',
+        detail: 'El recurso recibe el Bearer y DEBE validar: firma contra las JWKS del issuer (/.well-known/openid-configuration → jwks_uri), iss (quién emitió — exacto, sin comodines), aud (PARA QUIÉN fue emitido: tu API, no otro), exp/nbf (vigencia) y los scopes/roles que la política exige. Un token válido de OTRO audience es un token inválido: la falla clásica de las APIs que "aceptan cualquier token del tenant".',
+        command: "curl -s https://login.microsoftonline.com/{{TENANT}}/v2.0/.well-known/openid-configuration | jq -r .jwks_uri"
+      },
+      {
+        title: 'Diagnosticar por código de error del token endpoint (la tabla determinista)',
+        detail: 'AADSTS7000215: secret inválido/expirado (rotación sin solapamiento o consumidor viejo cacheado). AADSTS700016: app no encontrada en el tenant (client_id errado o token pedido al tenant equivocado). AADSTS65001: permisos no concedidos (falta consent). AADSTS90094: se necesita admin consent. invalid_grant en auth code: code expirado/ya usado (los code son de un solo uso) o redirect_uri que no calza exacta. Cada código dice QUÉ revisar: la tabla que convierte 3 horas en 10 minutos.',
+      },
+      {
+        title: 'Cerrar con el inventario de credenciales y consentimientos (la gobernanza del parque OAuth)',
+        detail: 'El flujo correcto hoy es deuda en 90 días si nadie mira los vencimientos: el reporte de apps con PasswordCredentials/KeyCredentials y sus fechas (30/7/1 días), y la revisión de permisos delegados vs de aplicación por app. El M2M con permisos app-only amplios sin dueño es el activo perfecto para un atacante: no es usuario, no tiene MFA y su token atraviesa los datos sin huella de usuario.',
+        command: "Get-MgApplication -All -Property DisplayName,PasswordCredentials | ForEach-Object { $_.PasswordCredentials | ForEach-Object { [PSCustomObject]@{App=$_.DisplayName; Expira=$_.EndDateTime} } } | Where-Object {(($_.Expira - (Get-Date)).Days) -lt 30} | Sort-Object Expira"
+      }
+    ],
+    verification: 'La app usa el flujo correcto para su tipo de cliente (pública=PKCE, confidencial/M2M=client credentials con certificado o secret corto), el recurso valida los tokens que recibe (firma JWKS + iss + aud + exp + scopes — rechazando tokens de otro audience), y el inventario de credenciales OAuth del tenant existe con vencimientos dentro de política.',
+    escalation: 'Líder de IAM + security para decisiones de permisos app-only amplios (Directory.Read/Write.All, Mail.ReadWrite sin dueño claro). Dueño de la API para los cambios de audience/scopes (rompe consumidores). El equipo de desarrollo para migrar flujos deprecados (implicit/ROPC) — el IAM define el estándar, dev lo implementa.',
+    relatedTerms: ['OAuth 2.0', 'OpenID Connect (OIDC)', 'JSON Web Token (JWT)', 'Consentimiento OAuth (user y admin consent)', 'Endpoint well-known (OIDC discovery)', 'DPoP (Demonstrating Proof-of-Possession)'],
+    relatedTickets: ['iam-034', 'iam-054']
+  },
+  {
+    id: 'iam-kb-052',
+    title: 'Modelos de autorización: RBAC vs ABAC vs PBAC vs ReBAC — cuándo cada uno y por qué el 90% se resuelve con RBAC bien hecho',
+    category: 'IAM - Gobernanza',
+    environment: 'Gobernanza',
+    symptoms: 'La matriz de roles explotó (más roles que personas) y cada excepción crea un rol nuevo; el negocio pide permisos "por proyecto, por país, por etapa del contrato" y el RBAC no dobla; o la entrevista pregunta "¿qué harías cuando RBAC no escala?" y la respuesta corta es "ABAC" sin saber QUÉ es ABAC de verdad.',
+    cause: 'RBAC (permisos por rol/cargo) es el modelo corporativo natural, pero se aprendió como único: cuando aparece la variabilidad real (el mismo cargo con permisos distintos según país/cliente/sensibilidad), el parche es multiplicar roles en vez de subir de modelo. ABAC/PBAC/ReBAC existen exactamente para esa variabilidad — y elegirlos bien empieza por saber qué problema resuelve cada uno y qué cuesta operarlo.',
+    steps: [
+      {
+        title: 'RBAC: la base de todo (y sus límites matemáticos)',
+        detail: 'El usuario recibe roles; el rol agrupa permisos; el cargo define el rol. Sus virtudes: auditable (¿quién tiene el rol X?), gobernable (certificar roles, no personas×permisos) y comprensible por el negocio. Su límite: la explosión combinatoria — si el permiso real depende de atributos (país, cliente, ambiente), necesitas un rol por combinación (Rol-Analista-Clientes-España-Prod...). Síntoma de que toca subir de modelo: los roles que difieren en UN solo atributo entre sí.',
+        command: 'Get-ADPrincipalGroupMembership {{SAM}} | Select-Object Name | Sort-Object Name'
+      },
+      {
+        title: 'ABAC: decidir por ATRIBUTOS (el caso Entra Conditional Access y los IAM Conditions de GCP/AWS)',
+        detail: 'La decisión evalúa atributos del sujeto (departamento, clearance), del recurso (sensibilidad, dueño) y del contexto (IP, dispositivo, hora): "permitir lectura SI department=Finanzas AND país=CO AND dispositivo=compliant". En IAM real: las IAM Conditions de GCP (bindings con expresión sobre el recurso), los conditions de las AWS policies (aws:SourceIp, tags) y Entra CA son ABAC operativo. Su costo: la lógica deja de ser visible en una matriz — hay que TESTEARLA (¿qué ve realmente este usuario?), y el debugging de "¿por qué me negó?" es su talón de Aquiles.',
+      },
+      {
+        title: 'PBAC: POLÍTICAS externas al código (OPA/Rego, Cedar)',
+        detail: 'Policy-Based: las decisiones viven en documentos de política evaluados por un motor externo (Open Policy Agent con Rego, Cedar de AWS): la app pregunta "¿puede subject hacer action sobre resource?" y el motor responde con la política vigente. La ventaja sobre ABAC embebido: la política es un artefacto versionable, testeable y auditable por separado (git diff de QUÉ cambió en la decisión) — el patrón de las plataformas modernas (Kubernetes admission, AWS Verified Permissions, Styra).',
+        command: "opa eval -d policy.rego 'data.iam.allow with input as {\"subject\": {\"departamento\": \"finanzas\"}, \"action\": \"leer\", \"recurso\": {\"sensibilidad\": \"alta\"}}'"
+      },
+      {
+        title: 'ReBAC: decidir por RELACIONES (Zanzibar, OpenFGA) — el modelo de los permisos finos',
+        detail: 'La autorización se decide por el grafo de relaciones: "juan es editor DEL documento X", "ana es miembro DEL equipo que POSEE el proyecto Y" (y el permiso se HEREDA por la relación). Es el modelo de Google (Zanzibar), sus implementaciones open source (OpenFGA, SpiceDB) y el que sostiene apps colaborativas (GitHub, Notion, Drive) donde los permisos son POR OBJETO y compartidos. Su costo: la recursión de relaciones es cara de computar y el grafo es difícil de auditar ("¿quién puede ver esto?" puede requerir recorrer el grafo entero).',
+      },
+      {
+        title: 'La decisión híbrida que hacen las empresas reales',
+        detail: 'Casi nadie es puro: RBAC para el acceso por cargo (el 90%), ABAC/contexto para las variaciones (mismo rol distinto alcance por país/cliente), y ReBAC SOLO donde el recurso es colaborativo y anidado (una plataforma de documentos, un entorno multi-tenant). El error caro es empezar por ReBAC "porque es moderno": la complejidad de auditar un grafo en un proceso de accesos corporativo típico no se paga sola.',
+      },
+      {
+        title: 'Preguntarlo en entrevista: la respuesta de 60 segundos',
+        detail: '"RBAC es mi default por auditable y comprensible por el negocio; cuando la variabilidad por atributos explota la matriz, añado condiciones (ABAC) en los puntos donde ya viven (CA, cloud bindings); externalizo a políticas (PBAC/OPA) cuando la lógica debe versionarse y testearse aparte; y ReBAC solo en productos con permisos por objeto heredables. Y siempre mido: roles por persona, cobertura de acceso por rol vs excepción, y ¿puedo responder quién accede a X en menos de un minuto?"',
+      }
+    ],
+    verification: 'El modelo de cada dominio está decidido y documentado (RBAC base, con condiciones donde la variabilidad lo exige), la matriz de roles no crece con combinaciones atributales (los roles que difieren en un solo atributo se consolidaron), y la prueba de acceso real (¿qué puede hacer exactamente este usuario?) es ejecutable y responde en minutos.',
+    escalation: 'Líder de IAM + arquitectura para la decisión de adoptar un motor de políticas (OPA/OpenFGA) — es decisión de plataforma, no de un proceso puntual. El dueño del negocio para la definición de atributos (ABAC sin atributos limpios en la fuente de autoridad es ABAC roto). Security cuando el modelo actual genera exposición (roles compartidos imposibles de revocar con precisión).',
+    relatedTerms: ['Role-Based Access Control (RBAC)', 'Attribute-Based Access Control (ABAC)', 'ReBAC (Relationship-Based Access Control)', 'Open Policy Agent (OPA)', 'Role model (modelo de roles)', 'Principio de mínimo privilegio (Least Privilege)'],
+    relatedTickets: ['iam-009', 'iam-014']
+  },
+  {
+    id: 'iam-kb-053',
+    title: 'AWS IAM operativo: policies, roles, boundaries, SCPs y el diagnóstico del AccessDenied',
+    category: 'IAM - Cloud IAM',
+    environment: 'Cloud IAM',
+    symptoms: 'El rol de la aplicación recibe AccessDenied con la política "ya asignada"; piden permisos para la cuenta de datos y aparece la duda de cuánto conceder; o la auditoría pregunta por los usuarios con access keys viejas y no hay ni inventario. También la pregunta de entrevista: "¿cómo calculas el permiso efectivo en AWS?"',
+    cause: 'AWS IAM se aprendió por la consola (clic → adjuntar política → probar) y quedaron los huecos estructurales: no leer la política JSON como la lee el motor de evaluación, ignorar las capas de techo (SCP de la organización, permissions boundary), y no conocer las herramientas de diagnóstico (Policy Simulator, credential report, Access Analyzer) que convierten el misterio en un procedimiento.',
+    steps: [
+      {
+        title: 'Las piezas: users, groups, roles, policies (y por qué ROLES siempre que se pueda)',
+        detail: 'Users: identidades con credenciales permanentes (el last resort — cada access key es un secreto eterno). Groups: para agrupar permisos de usuarios. Roles: la identidad SIN credenciales permanentes que se ASUME (STS entrega temporales) — el patrón correcto para apps (rol de ejecución), humanos (federación/SSO) y cross-account. Policies: el documento JSON que concede/niega. La regla moderna: humanos por Identity Center (federación), workloads por rol, users casi nunca.',
+        command: 'aws iam get-account-authorization-details --output json > iam-snapshot.json'
+      },
+      {
+        title: 'Leer la policy como el motor: Effect, Action, Resource, Condition',
+        detail: 'El motor evalúa literal: Effect Allow/Deny, Action (servido:operación, con wildcards), Resource (el ARN exacto — un s3:GetObject sobre arn:aws:s3:::bucket sin /* NUNCA aplica a objetos), y Condition (la condición que nunca se cumple es la política que nunca concede). Y la regla de oro: un explicit Deny SIEMPRE gana; el permiso efectivo es la unión de los Allow menos los Deny, INTERSECTADA con los techos (boundary, SCP).',
+        command: 'aws iam get-role --role-name {{ROLE_NAME}} --query "Role.AssumeRolePolicyDocument"'
+      },
+      {
+        title: 'Los techos: permissions boundary y SCPs (el "pero si ya le di permiso")',
+        detail: 'Permissions boundary: el TECHO que ni la política del rol puede cruzar (Allow efectivo = intersección de identity policy ∧ boundary). SCPs: el techo de la ORGANIZACIÓN por OU (una SCP que niega la región o el servicio tumba la política más generosa de la cuenta). El AccessDenied que resiste suele vivir aquí: la política del rol está bien, el techo no acompaña.',
+        command: 'aws iam get-role --role-name {{ROLE_NAME}} --query "Role.PermissionsBoundary.PermissionsBoundaryArn"'
+      },
+      {
+        title: 'Diagnosticar AccessDenied con el simulador (el -WhatIf de AWS)',
+        detail: 'El evento denegado en CloudTrail dice QUÉ operación y QUÉ recurso; el Policy Simulator reproduce la decisión completa del motor contra el principal real (aws iam simulate-principal-policy) sin tocar producción; y simulate-custom-policy prueba el documento NUEVO antes de aplicarlo. La escalera: get-caller-identity (¿quién soy?) → CloudTrail (¿qué se negó?) → simulate (¿por qué?) → fix mínimo → simulate del fix → aplicar versionado.',
+        command: 'aws iam simulate-principal-policy --policy-source-arn arn:aws:iam::{{ACCOUNT_ID}}:role/{{ROLE_NAME}} --action-names s3:GetObject --resource-arns arn:aws:s3:::{{BUCKET}}/datos/*'
+      },
+      {
+        title: 'La higiene de la cuenta: credential report, Access Analyzer y least privilege real',
+        detail: 'El credential report (get-credential-report) es el inventario de higiene que toda auditoría pide: usuarios, edad de las keys, último uso (el usuario con key de hace 2 años sin uso es el hallazgo). IAM Access Analyzer encuentra los accesos EXTERNOS (resources compartidos con el mundo) y genera la política mínima desde el uso real de CloudTrail. La pareja: lo que existe (report) + lo que sobra (analyzer) — el before/after de todo hardening.',
+        command: 'aws iam get-credential-report --query "Content" --output text | base64 --decode | cut -d, -f1,4,5,11 | head -20'
+      },
+      {
+        title: 'IAM Identity Center: el SSO de workforce (el fin de los users locales)',
+        detail: 'Identity Center centraliza el acceso humano: usuarios federados del IdP corporativo (Entra/Okta vía SAML+SCIM), permission sets por perfil (no por persona), sesiones temporales acotadas y asignación por GRUPO. El patrón de adopción: habilitar con identity source externo → sincronizar grupos por SCIM → permission sets de la matriz de perfiles → asignar por grupo → retirar los users IAM locales y sus keys con el credential report como guía.',
+        command: 'aws sso-admin list-account-assignments --instance-arn {{INSTANCE_ARN}} --account-id {{ACCOUNT_ID}}'
+      }
+    ],
+    verification: 'El AccessDenied se diagnostica con la escalera (caller-identity → CloudTrail → simulate → fix mínimo → aplicar versionado), los permisos nuevos se validan en simulador antes de aplicar, el credential report no muestra keys sin uso/rotación, y el acceso humano pasa por Identity Center (cero users IAM locales activos).',
+    escalation: 'Equipo platform/landing zone cuando el techo que bloquea es un SCP de la organización (el cambio es de OU/policy de orgs, no de la cuenta). Security + dueño de la cuenta para cualquier política administrativa o de escritura amplia. Líder de IAM para la decisión de permission sets nuevos (la matriz de perfiles es del comité).',
+    relatedTerms: ['SCP (Service Control Policies)', 'CIEM (Cloud Infrastructure Entitlement Management)', 'Workload Identity Federation', 'Managed identity (identidad administrada)', 'Principio de mínimo privilegio (Least Privilege)'],
+    relatedTickets: ['iam-055']
+  },
+  {
+    id: 'iam-kb-054',
+    title: 'Azure RBAC y Managed Identities: custom roles, scopes, DataActions y la eliminación de secrets',
+    category: 'IAM - Cloud IAM',
+    environment: 'Cloud IAM',
+    symptoms: 'La suscripción acumula asignaciones Owner/Contributor heredadas; Operaciones necesita "operar sin poder romper" y ningún builtin calza; o la app autentica contra Key Vault/Graph con un client secret que hay que eliminar. También la confusión eterna: "¿Global Admin de Entra es lo mismo que Owner de la suscripción?" (no — son dos sistemas distintos).',
+    cause: 'Azure RBAC es el segundo sistema de permisos (junto a los roles de directorio de Entra) y suele aprenderse solo por los builtin: Contributor "para que funcione" y Owner "temporal" eterno. Faltan las piezas que hacen operable el least privilege real: la jerarquía de scopes, la anatomía del custom role (Actions/NotActions/DataActions), y la managed identity como reemplazo estructural del secret en las apps.',
+    steps: [
+      {
+        title: 'Separar los DOS sistemas: roles de Entra (directorio) vs Azure RBAC (recursos)',
+        detail: 'Los roles de Entra (Global Admin, User Admin) gobiernan el DIRECTORIO (usuarios, grupos, apps); los de Azure RBAC (Owner, Contributor, Reader + custom) gobiernan los RECURSOS (suscripciones, resource groups, recursos). Un Global Admin puede NO poder leer una storage account; un Owner de una suscripción puede NO poder crear usuarios. La matriz "quién puede qué" tiene DOS tablas — mezclarlas es el error de entrevista más común.',
+        command: 'Get-AzRoleAssignment -Scope /subscriptions/{{SUB_ID}} | Measure-Object | Select-Object -ExpandProperty Count'
+      },
+      {
+        title: 'La jerarquía de scopes y el custom role de mínimo privilegio',
+        detail: 'Los permisos se heredan hacia abajo: management group → suscripción → resource group → recurso (asignar en el scope MÍNIMO que sirva). El custom role define Actions (lo permitido), NotActions (el recorte dentro de lo permitido — NO es un Deny), DataActions (el plano de DATOS: blobs, colas — que Contributor NO da) y AssignableScopes (dónde puede usarse). El rol "Operador" nace de la lista de operaciones REALES del equipo (sus scripts/tickets), no de "todo menos lo peligroso".',
+        command: 'Get-AzRoleDefinition -Name "Contributor" | Select-Object -ExpandProperty Actions | Measure-Object'
+      },
+      {
+        title: 'Auditar las asignaciones y retirar las sobre-permisadas con proceso',
+        detail: 'El inventario (Get-AzRoleAssignment por scope, exportado a CSV) es la línea base de la conversación con los dueños: "estas 23 asignaciones Owner existen, ¿cuáles siguen justificadas?". El retiro con notificación y registro (qué, quién aprobó, cuándo) cierra el ciclo; la prueba negativa (el rol a medida NO puede administrar roles NI tocar red) es la mitad de la validación del custom role.',
+        command: 'Get-AzRoleAssignment -Scope /subscriptions/{{SUB_ID}} | Select-Object DisplayName,RoleDefinitionName,Scope | Export-Csv rbac.csv -NoTypeInformation'
+      },
+      {
+        title: 'Managed Identities: la identidad que la plataforma inyecta (cero secrets)',
+        detail: 'La app con managed identity NO tiene credencial: la plataforma entrega el token al recurso por el IMDS (169.254.169.254). System-assigned (nace y muere con el recurso) vs user-assigned (vida propia, compartible). La migración: habilitar la identidad → concederle los permisos MÍNIMOS del contrato del secret viejo (get/list en Key Vault, app roles exactos de Graph) → desplegar con DefaultAzureCredential → observar en coexistencia → RETIRAR el secret de todo (registro, settings, pipeline).',
+        command: "curl -s 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://vault.azure.net/' -H Metadata:true"
+      },
+      {
+        title: 'Deny assignments y PIM para recursos de Azure (los controles que nadie conoce)',
+        detail: 'Las deny assignments (creadas por Azure — blueprints, managed apps) BLOQUEAN aunque el RBAC permita: la causa exótica del "tengo Owner pero no puedo". Y para el privilegio administrativo: PIM también existe para recursos de Azure (elegible + activación con aprobación + ventana temporal) — el mismo patrón de Zero Standing Privileges del directorio aplicado a las suscripciones.',
+        command: 'Get-AzDenyAssignment -Scope /subscriptions/{{SUB_ID}}'
+      }
+    ],
+    verification: 'El inventario de asignaciones está exportado con la lista corta de Owner/Contributor justificada, el rol a medida opera con prueba negativa documentada (no administra roles, no toca red), la app corre con managed identity y el secret retirado de registro/settings/pipeline, y las deny assignments del scope están identificadas.',
+    escalation: 'Equipo platform para cambios en management groups o deny assignments que bloquean operación. Dueño de los datos para DataActions sobre datos regulados. Security + líder de cloud para cualquier rol con Microsoft.Authorization (administrar asignaciones) — es el perímetro de escalada.',
+    relatedTerms: ['Azure RBAC', 'Managed identity (identidad administrada)', 'Microsoft Entra PIM (Privileged Identity Management)', 'Principio de mínimo privilegio (Least Privilege)'],
+    relatedTickets: ['iam-054', 'iam-055']
+  },
+  {
+    id: 'iam-kb-055',
+    title: 'GCP IAM y federación de workloads: bindings con condiciones, service accounts sin keys y CIEM',
+    category: 'IAM - Cloud IAM',
+    environment: 'Cloud IAM',
+    symptoms: 'La integración de GCP usa una key JSON de service account versionada en el pipeline; hay que conceder acceso "solo al dataset X" y el rol de proyecto da demasiado; o la multinube exige responder "¿cuántos privilegios efectivos hay por persona en AWS+Azure+GCP?" y ninguna consola lo dice.',
+    cause: 'GCP IAM tiene su propio dialecto (bindings, no policies pegadas; condiciones en el binding; la service account como identidad first-class) y el atajo universal fue descargar la key JSON — el secreto eterno que no expira, no tiene MFA y viaja donde viaje el pipeline. Faltan las piezas del patrón keyless (Workload Identity Federation) y la visión unificada del privilegio multi-cloud (CIEM).',
+    steps: [
+      {
+        title: 'La jerarquía y los bindings: organización → folders → proyectos (y las condiciones)',
+        detail: 'Los permisos son BINDINGS de la forma member+role+resource (heredados hacia abajo por la jerarquía). GCP permite IAM Conditions EN el binding (la expresión sobre el recurso): dataViewer CON condición resource.name.startsWith(...) es el least privilege de verdad — sin la condición, el rol da TODO el proyecto. La unión de bindings define el acceso efectivo; las deny policies (recientes) y la organización configuran los límites.',
+        command: 'gcloud projects get-iam-policy {{PROJECT_ID}} --format=json'
+      },
+      {
+        title: 'Service accounts: la identidad no-humana — y la política que prohíbe sus keys',
+        detail: 'La SA es la identidad de workloads legítima; la KEY exportada es la deuda (no expira, filtrable, sin ciclo de vida). El control preventivo: la org policy constraints/iam.disableServiceAccountKeyCreation prohíbe crear keys (el "SCP de GCP"). El estado de destino del proyecto: service accounts sin NINGUNA key user-managed — las apps autentican por la plataforma o por federación.',
+        command: 'gcloud iam service-accounts keys list --iam-account={{SA_EMAIL}} --project={{PROJECT_ID}}'
+      },
+      {
+        title: 'Workload Identity Federation: autenticar workloads externos SIN ningún secreto exportado',
+        detail: 'El patrón keyless para lo que corre FUERA de GCP (GitHub Actions, otro cloud, on-prem): se crea un workload identity pool + un proveedor OIDC (el emisor externo: GitHub, Entra) con attribute mapping; el workload externo firma su OIDC de corta vida, lo intercambia por un token GCP que ACTÚA COMO una SA (impersonación). El binding roles/iam.workloadIdentityUser acota la impersonación al atributo mapeado (solo ESE repositorio puede actuar como la SA).',
+        command: 'gcloud auth print-access-token --impersonate-service-account={{SA_EMAIL}}'
+      },
+      {
+        title: 'La escalera del acceso cloud que reemplaza "descargar la key"',
+        detail: '1) ¿Corre DENTRO de GCP? La SA adjunta al recurso (Compute, Cloud Run, Functions) — sin keys. 2) ¿Corre en Kubernetes? La SA de workload con la anotación de identidad. 3) ¿Corre FUERA (CI/CD, otro cloud)? Workload Identity Federation. 4) ¿El sistema legado no soporta nada de esto? Credencial con rotación AUTOMÁTICA y monitoreo, documentada como excepción con vencimiento — nunca la key manual eterna.',
+      },
+      {
+        title: 'CIEM: el privilegio efectivo multi-cloud (la pregunta que ninguna consola responde)',
+        detail: 'Cloud Infrastructure Entitlement Management es la disciplina/herramienta que inventaría y calcularía el privilegio EFECTIVO por identidad a través de las tres nubes (identidad + bindings + techo + condiciones) y detectara las toxic combinations cloud (la SA que puede crear keys Y el usuario que puede usarlas; el rol que puede escalar a admin). La pregunta de auditoría "¿quién puede tocar datos de producción en la nube?" no tiene respuesta en ninguna consola individual — el CIEM (Wiz, Prisma, Defenders del mundo) es la respuesta emergente, y el analista que sabe plantearla ya va adelante.',
+      }
+    ],
+    verification: 'Los bindings usan condiciones para acotar por recurso donde el rol de proyecto da de más, la org policy prohíbe crear keys y el proyecto tiene 0 keys user-managed, los workloads externos autentican por federación OIDC sin credenciales almacenadas, y el modelo de privilegio cloud (identidades, bindings, techos) está mapeado por cuenta/proyecto.',
+    escalation: 'Equipo platform/GCP para cambios de org policy de la organización (afecta todos los proyectos). Dueño de los datos para permisos de escritura en datasets. Security para el inventario CIEM multi-cloud (la vista unificada es programa, no tarea puntual).',
+    relatedTerms: ['Workload Identity Federation', 'CIEM (Cloud Infrastructure Entitlement Management)', 'Identidades no humanas (NHI)', 'Service account', 'SCP (Service Control Policies)'],
+    relatedTickets: ['iam-055']
+  },
+  {
+    id: 'iam-kb-056',
+    title: 'Kerberos defensivo: TGT/TGS, SPN, delegaciones (KCD/RBCD) y la caída silenciosa a NTLM',
+    category: 'IAM - Infra IAM',
+    environment: 'Active Directory',
+    symptoms: 'La intranet "de repente" pide usuario y contraseña (antes abría sola); el pentest reporta SPN duplicado, delegación sin restricciones o "Kerberoasting posible"; el evento 4624 del servidor muestra NtLmSsp donde debería haber Kerberos; o la app de dos capas pierde la identidad del usuario en el salto al backend (el doble hop).',
+    cause: 'Kerberos se conoce "de nombre" (el protocolo del dominio) pero no operativamente: qué es el TGT vs el TGS, por qué el SPN es la llave que resuelve servicio→cuenta, qué hace la delegación (y por qué la sin restricciones es el hallazgo temido), y el detalle que arruina auditorías: cuando Kerberos falla, Windows cae a NTLM EN SILENCIO — la app sigue funcionando y nadie nota que viaja el protocolo viejo.',
+    steps: [
+      {
+        title: 'El flujo en 30 segundos: AS-REQ → TGT → TGS-REQ → ticket de servicio',
+        detail: 'El usuario autentica contra el KDC (DC) y recibe su TGT (el "pasaporte" cifrado con la clave de krbtgt); al tocar un servicio, pide al KDC el ticket DEL servicio (TGS) presentando el TGT — y el KDC solo puede emitirlo si resuelve el SPN del servicio a UNA cuenta. Todo el diagnóstico gira alrededor de esa cadena: ¿hay TGT? ¿se resolvió el SPN? ¿el ticket llegó?',
+        command: 'klist'
+      },
+      {
+        title: 'El SPN: la llave servicio→cuenta (y su higiene)',
+        detail: 'El SPN (HTTP/app.nexora.local, MSSQLSvc/sql01:1433) es el nombre Kerberos del servicio registrado EN la cuenta que lo corre. Las dos fallas clásicas: SPN ausente (el KDC no resuelve → cae a NTLM) y SPN DUPLICADO (dos cuentas lo reclaman → resolución ambigua → cae a NTLM o errores intermitentes). La higiene: setspn -S (verifica unicidad, nunca -A que duplica) y setspn -X (el detector de duplicados del bosque).',
+        command: 'setspn -L {{SVC_ACCOUNT}}; setspn -X'
+      },
+      {
+        title: 'La caída silenciosa a NTLM: detectarla en el 4624',
+        detail: 'Cuando Kerberos falla (SPN, hora, canal), la negociación SPNEGO cae a NTLM sin error visible para el usuario: la app "funciona". La detección es el campo Logon Process del 4624: Kerberos = salud, NtLmSsp = la caída. El conteo de NtLmSsp por servidor es la métrica del retiro NTLM (la auditoría de Restrict NTLM con eventos 8001-8004 completa el inventario de por qué cae).',
+        command: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 100 | Where-Object {$_.Message -match 'NtLmSsp'} | Measure-Object | Select-Object -ExpandProperty Count"
+      },
+      {
+        title: 'El doble hop y las delegaciones: KCD clásica vs RBCD',
+        detail: 'El ticket del usuario autoriza usuario→front-end, no front-end→backend: para que la identidad viaje el segundo salto se necesita delegación explícita. Unconstrained (la del 2003: el servidor puede pedir ticket de CUALQUIER servicio con la identidad del usuario — el sueño del atacante que compromete ese servidor), KCD (lista fija de servicios), y RBCD (la moderna: es el BACKEND quien declara en quién confía, PrincipalsAllowedToDelegateToAccount — el comprometimiento del front-end no arrastra el dominio).',
+        command: 'Set-ADComputer -Identity "{{BACKEND_HOST}}" -PrincipalsAllowedToDelegateToAccount "{{SVC_FRONT_ACCOUNT}}"'
+      },
+      {
+        title: 'Kerberoasting y las señales de abuso (la visión defensiva)',
+        detail: 'Kerberoasting: cualquier usuario de dominio puede pedir un ticket de un servicio (el TGS-REQ del 4769) y crackearlo offline si la clave de la cuenta de servicio es débil. Señales: 4769 con encryption 0x17 (RC4) en horarios anómalos/volumen alto desde estaciones que no son servidores. Mitigación: gMSA (claves largas automáticas), cuentas de servicio sin privilegio, y el monitoreo del patrón de solicitudes de tickets.',
+        command: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4769} -MaxEvents 200 | Where-Object {$_.Message -match '0x17'} | Measure-Object | Select-Object -ExpandProperty Count"
+      },
+      {
+        title: 'El endurecimiento por capas (el checklist que cierra el dominio)',
+        detail: 'La lista de las verificaciones que el auditor espera ver hechas: SPNs únicos (setspn -X limpio), cero delegación sin restricciones, cuentas de servicio como gMSA sin privilegio, Protected Users donde aplique (sin NTLM, sin delegación), la auditoría NTLM encendida (Restrict NTLM en Audit) con el plan de bloqueo por capas, y los eventos 4768/4769/4771 fluyendo al SIEM. Cada capa tiene su evento testigo: el dominio se audita con su propio telemetría.',
+      }
+    ],
+    verification: 'Los servicios con SPN único en la cuenta correcta (setspn -X sin duplicados), el conteo de NtLmSsp en 4624 bajo control (o en plan documentado de retiro NTLM), cero delegación sin restricciones, las cuentas de servicio en gMSA sin privilegio, y el monitoreo de 4769/0x17 (kerberoasting) operativo.',
+    escalation: 'Dueño de la app para corregir SPN/delegación de servicios en producción (toca disponibilidad — coordinar ventana). Security + líder de IAM para la delegación sin restricciones descubierta (es hallazgo de prioridad alta con plan de migración a RBCD). El plan de bloqueo NTLM por capas al comité (las excepciones las decide el comité, no el equipo de la app).',
+    relatedTerms: ['Kerberos (TGT / ST)', 'NTLM', 'RBCD (delegación restringida basada en recursos)', 'Delegación Kerberos sin restricciones', 'SPNEGO (login integrado HTTP con Kerberos)', 'Cuenta krbtgt', 'NTLM Relay'],
+    relatedTickets: ['iam-052']
+  },
+  {
+    id: 'iam-kb-057',
+    title: 'CIAM e Identity Fabric: identidad de clientes y la orquestación multi-IdP',
+    category: 'IAM - Plataformas',
+    environment: 'Plataformas IAM',
+    symptoms: 'El negocio quiere "login con Google" para el portal de clientes y recuperar cuentas sin helpdesk; el equipo confunde CIAM con el SSO corporativo; o la pregunta de arquitectura post-M&A: "tenemos dos IdPs tras la fusión, ¿migramos todo a uno? cómo conviven mientras tanto".',
+    cause: 'El IAM corporativo (workforce) domina el día a día y CIAM queda como "otra cosa con login" — cuando es un dominio con requisitos INVERSOS: millones de usuarios desconocidos, registro self-service, social login, consentimiento para privacidad y recuperación sin soporte. Y el Identity Fabric ni siquiera aparece en la conversación aunque responde la pregunta que toda empresa multi-IdP tiene abierta.',
+    steps: [
+      {
+        title: 'CIAM vs workforce: los requisitos invertidos',
+        detail: 'Workforce: población conocida y finita, identidad creada por RRHH, confianza alta, MFA obligatorio, soporte interno. CIAM: millones de identities desconocidas que SE REGISTRAN solas, conversión y fricción como métrica de negocio (cada paso del registro pierde clientes), social login (Google/Apple/Microsoft — el usuario no crea OTRA contraseña), consent management (GDPR: qué aceptó, cuándo, cómo lo revoca) y recuperación de cuenta SIN helpdesk (el costo del ticket no escala a millones).',
+      },
+      {
+        title: 'Los flujos que definen un CIAM (y cómo se evalúan)',
+        detail: 'Registro con progressive profiling (pedir lo mínimo para entrar y completar datos gradualmente — el formulario de 15 campos mata la conversión); login social con account linking (el mismo usuario con Google y con email debe ser UNA cuenta); MFA y risk-based step-up solo donde importa; recuperación por email/magic link/push; y el consentimiento versionado como artefacto auditable. La evaluación de plataforma CIAM se hace contra estos flujos con números de conversión, no con checkboxes de features.',
+        command: 'Get-MgUser -UserId {{CUSTOMER_UPN}} -Property DisplayName,Identities | fl'
+      },
+      {
+        title: 'Las plataformas: Entra External ID/B2C, Auth0, Okta CIAM, Ping/ForgeRock',
+        detail: 'Microsoft Entra External ID (la evolución de B2C — customer tenants con flujos de usuario y social login), Auth0 (el estándar developer-first que Okta compró — rules/actions, universal login), Okta CIAM (la fusión de ambos mundos), Ping/ForgeRock (CIAM enterprise con journeys complejos). El criterio de selección real: quién lo opera (dev team con Auth0 vs el equipo IAM con Entra), los journeys de autoservicio requeridos, y el costo por MAU (monthly active user) — el modelo de licenciamiento de CIAM es el inverso del workforce.',
+      },
+      {
+        title: 'Identity Fabric: la orquestación cuando hay VARIOS IdPs y no se puede migrar',
+        detail: 'El patrón de Gartner/KuppingerCole para la realidad multi-IdP (M&A, multi-región, legacy que no muere): una capa de ORQUESTACIÓN sobre las fuentes de identidad (AD para las apps legacy, Entra para M365, Okta heredado de la adquirida) que direcciona y orquesta en vez de forzar la migración big-bang. Sus piezas: el directorio virtual/dirección de identidad (quién vive dónde), el orquestador del ciclo de vida (JML que escribe en TODAS las fuentes) y la capa de política común (una política de acceso evaluada contra todos los IdPs). Es la respuesta adulta a "¿unificamos?": se unifica el GOBIERNO, no necesariamente la plataforma.',
+      },
+      {
+        title: 'El caso de uso que lo une todo: el M&A de 90 días',
+        detail: 'La fusión llega y preguntan "¿cómo entran los 3000 empleados de la adquirida a NUESTRAS apps mañana?" — sin migrar su HRIS ni su AD. La respuesta fabric: cross-tenant access/federación entre los dos IdPs (B2B con entitlements controlados), el acceso granulado por aplicación (no "todo o nada"), el plan de consolidación en oleadas (mientras tanto, ambos lados viven), y la métrica del riesgo de la transición. El analista que sabe responder esto con el vocabulario correcto (fabric, orquestación, cross-tenant) marca la diferencia de seniority.',
+      }
+    ],
+    verification: 'El dominio CIAM está separado del workforce con sus requisitos documentados (registro, social, consentimiento, recuperación sin soporte), la plataforma evaluada contra flujos con métricas de conversión, y el caso multi-IdP tiene su respuesta de arquitectura (orquestación/federación) en vez de "migrar todo" como única opción.',
+    escalation: 'Arquitectura + líder de IAM para la decisión de plataforma CIAM (es decisión de portfolio, no de un flujo). Legal/privacidad para el consentimiento y retención de datos de clientes (GDPR en CIAM es restricción de diseño, no parche). El comité post-M&A para la estrategia fabric (el roadmap de consolidación es decisión de negocio con el riesgo técnico documentado).',
+    relatedTerms: ['CIAM (Customer IAM)', 'Social login', 'Home Realm Discovery (HRD)', 'Identity Governance & Administration (IGA)', 'Zero Trust'],
+    relatedTickets: ['iam-040']
+  },
+  {
+    id: 'iam-kb-058',
+    title: 'IAM as Code con Terraform: identidad declarativa, estado protegido y deriva bajo control',
+    category: 'IAM - Cloud IAM',
+    environment: 'Cloud IAM',
+    symptoms: 'Nadie sabe quién creó el grupo/aplicación/rol ni por qué; un cambio manual "rápido" rompió el SSO y no hay forma de saber qué había antes; el entorno real y la matriz documentada divergen cada mes; o la oferta de empleo exige "IAM as code" y la herramienta solo se conoce de nombre.',
+    cause: 'La identidad se opera por portales: el cambio no deja diff, no es revertible y el estado "documentado" envejece al ritmo del último mantenimiento. Terraform aplica a la identidad el mismo principio que a la infraestructura: descripción declarativa versionada, cambios por PR con revisión, y un estado que sabe exactamente qué existe — repetible, auditable y revertible.',
+    steps: [
+      {
+        title: 'Los providers de identidad: azuread, aws_iam, google (el vocabulario mínimo)',
+        detail: 'El provider azuread gestiona grupos, usuarios, app registrations y custom roles de Entra; aws_iam gestiona policies, roles y usuarios de AWS; google el proyecto/org de GCP. El primer recurso del learning: el grupo de acceso declarado (display_name, description, owners) con su descripción marcando "gestionado por Terraform" — el contrato visual que previene el cambio manual que genera deriva.',
+        command: 'terraform init && terraform plan -out=iam.tfplan'
+      },
+      {
+        title: 'El ciclo plan → review → apply (el control real)',
+        detail: 'terraform plan produce el diff legible de lo que haría (create/update/destroy — en IAM el destroy es EL peligro: borrar el grupo equivocado tumba accesos en producción); el PR con el plan es la revisión de otro humano; terraform apply iam.tfplan aplica EXACTAMENTE lo revisado (no recalcula). Es el "-WhatIf mental" de PowerShell hecho permanente: la cadena de custodia del cambio.',
+        command: 'terraform apply iam.tfplan'
+      },
+      {
+        title: 'El estado: dónde vive, qué contiene y por qué se protege como un secreto',
+        detail: 'El state es la memoria de Terraform: el mapa de qué existe y sus valores actuales (miembros, IDs — y según el recurso, material sensible). Reglas: backend remoto con locking (S3/Azure Storage/Terraform Cloud — JAMÁS el .tfstate en el repo), ACL por equipo, y terraform state list como la respuesta rápida a "¿qué gestionamos por código?". Perderlo es perder la gestión; filtrarlo es exponer el mapa de la identidad.',
+        command: 'terraform state list'
+      },
+      {
+        title: 'La deriva: el portal siempre está disponible y alguien SIEMPRE tiene prisa',
+        detail: 'La intervención manual (crear/editar por portal) rompe la correspondencia código-realidad: el próximo plan la revela (drift) y la resolución es una de dos: revertir lo manual (apply vuelve al declarado) o actualizar el código (lo manual era correcto). La disciplina es que CADA deriva termina en una decisión registrada — el plan programado del pipeline es el detector que evita reconstruir la realidad desde cero.',
+        command: 'terraform plan -detailed-exitcode'
+      },
+      {
+        title: 'Adoptar lo existente: import (sin recrear NADA)',
+        detail: 'El error de adopción sería recrear la identidad existente "por código" (duplicando o borrando). El import trae el recurso EXISTENTE al estado sin tocarlo: terraform import azuread_group.erp_readers {{OBJECT_ID}}, después se escribe el código que describa su estado actual, y a partir de ahí los cambios pasan por PR. La adopción madura: primero la estructura nueva, luego los import por oleadas.',
+        command: 'terraform import azuread_group.erp_readers {{OBJECT_ID}}'
+      },
+      {
+        title: 'El perímetro honesto: qué SÍ y qué NO va al código',
+        detail: 'Terraform para la ESTRUCTURA (grupos base, apps del SSO, custom roles, permission sets) que cambia por decisión; el IGA para el day-to-day (membresías dinámicas, accesos solicitables, aprobaciones, certificaciones) que cambia por operación. "Terraformizar todo" termina en un state gigantesco que nadie se atreve a tocar — el perímetro explícito es la arquitectura que sobrevive.',
+      }
+    ],
+    verification: 'Los recursos de identidad estructurales están declarados como código con sus cambios fluyendo por PR (diff + revisión + apply), el estado vive en backend remoto con locking y acceso restringido, la deriva se detecta en cada plan (y cada una termina en decisión registrada), y el perímetro código/IGA está documentado.',
+    escalation: 'Líder de IAM para la adopción (el flujo PR con revisión es política del equipo, no preferencia). Security si hay sospecha de compromiso del estado (rotar lo que contiene y reconstruir desde los recursos con el plan como guía). Equipo platform para el backend del estado y el pipeline (la infraestructura del IaC es de plataforma).',
+    relatedTerms: ['Terraform', 'Identity Governance & Administration (IGA)', 'SCIM', 'Principio de mínimo privilegio (Least Privilege)'],
+    relatedTickets: ['iam-054']
+  },
+  {
+    id: 'iam-kb-059',
+    title: 'HashiCorp Vault para secretos de workloads: KV v2, dynamic secrets y AppRole (y su frontera con el PAM)',
+    category: 'IAM - PAM',
+    environment: 'PAM / Privilegios',
+    symptoms: 'Las apps comparten credenciales de BD "que no se pueden rotar porque rompen"; los secrets viven en variables de entorno, archivos de config o el gestor de contraseñas del equipo; la auditoría pregunta "¿quién tiene acceso a la base de datos?" y no hay respuesta de sistema; o la oferta exige Vault y solo se conoce de nombre.',
+    cause: 'Los secretos de aplicaciones se gestionan como configuración (mismo repo/pipeline que el código) en vez de como identidades con ciclo de vida. Vault introduce las tres piezas que cambian el juego: secretos versionados (KV v2), credenciales DINÁMICAS que caducan (la rotación que no se rota: se expira), y autenticación de workloads (AppRole/Kubernetes) — y todo lo demás es least privilege aplicado a máquinas.',
+    steps: [
+      {
+        title: 'Posicionarlo bien: Vault para workloads, PAM para humanos',
+        detail: 'La confusión del mercado: Vault no reemplaza al PAM (CyberArk/Safeguard gobiernan accesos de HUMANOS: vaulting de cuentas admin, sesiones grabadas, checkout auditado); Vault gobierna secretos de MÁQUINAS: la app pide SU credencial efímera al arrancar. Dos herramientas, dos problemas, un mismo principio. La pregunta de entrevista "¿Vault o PAM?" se responde con esta frontera.',
+      },
+      {
+        title: 'KV v2: el secreto estático bien gestionado (versionado y soft-delete)',
+        detail: 'Para lo que no puede ser dinámico (la API key del tercero, el token del proveedor): el KV v2 guarda versiones (qué valor había antes del incidente), permite soft-delete (recuperar el error de sobre-escritura) y metadata completa. Reemplaza la variable de entorno/archivo por un path con identidad, historial y acceso controlado por policy.',
+        command: 'vault kv put secret/{{APP}}/config api-key="{{API_KEY}}" && vault kv get secret/{{APP}}/config'
+      },
+      {
+        title: 'Dynamic secrets: la credencial que NADIE conocía antes de la app',
+        detail: 'El engine database conecta a la BD y emite credenciales on-demand: cada instancia de la app recibe SU usuario/password con TTL de 1h y permisos mínimos (el creation statement del rol: CREATE ROLE ... GRANT SELECT ON ...). La "rotación" desaparece como tarea (la credencial caduca), la shared credential muere (cada instancia la suya), y el lease deja la auditoría de qué app tuvo acceso y cuándo. Es el cierre estructural del "no se puede rotar porque rompe".',
+        command: 'vault read database/creds/{{APP}}-ro'
+      },
+      {
+        title: 'AppRole y Kubernetes auth: cómo se autentica la app (el huevo y la gallina)',
+        detail: 'La app necesita credencial ANTES de poder autenticarse en cualquier lado: AppRole lo resuelve con role_id (público) + secret_id (corto, entregado por el deploy) — y en Kubernetes, el kube auth usa la ServiceAccount del pod como identidad (cero secret_ids). El token que recibe la app tiene TTL corto y SU policy: el ciclo completo de "la app no tiene nada eterno".',
+        command: 'vault write -f -field=secret_id auth/approle/role/{{APP}}/new-secret-id'
+      },
+      {
+        title: 'La policy mínima y el audit log (least privilege y evidencia para máquinas)',
+        detail: 'La policy del AppRole define EXACTAMENTE qué paths puede leer la app (sus secretos, SU rol de BD, la renovación de su lease) — la prueba negativa (permission denied fuera de scope) valida el control. Y el audit device registra cada request autenticada: quién/token, qué path, cuándo — la respuesta de sistema a "¿quién accedió a qué secreto?".',
+        command: 'vault audit enable file file_path=/var/log/vault_audit.log'
+      },
+      {
+        title: 'El roadmap de adopción (y lo que NO toca Vault)',
+        detail: 'La adopción honesta: primero las credenciales de BD dinámicas de UNA app piloto, después el KV de sus secretos estáticos, luego AppRole/policies — nunca "migremos todos los secretos en un fin de semana". Y lo que sigue fuera: las cuentas admin de los humanos (PAM), los accesos de negocio (IGA) y las API keys de terceros sin endpoint dinámico (KV con rotación programada y su riesgo documentado).',
+      }
+    ],
+    verification: 'La app piloto autentica por AppRole/Kubernetes con policy mínima (negada fuera de sus paths), consume credenciales de BD dinámicas con TTL (cada instancia la suya, permisos mínimos) y config del KV v2 — sin ninguna credencial estática de BD en el despliegue, con el audit log registrando cada acceso.',
+    escalation: 'Equipo de plataforma para Vault en producción (HA, unseal con key shares, PKI — decisiones de security, no de la app). Dueño de la BD para el rol de credenciales dinámicas (el creation statement toca permisos del motor). Security para la custodia de los unseal keys shares (el "quién puede abrir el vault" es decisión de comité).',
+    relatedTerms: ['HashiCorp Vault', 'Identidades no humanas (NHI)', 'Service account', 'Monitoreo y grabación de sesiones', 'gMSA (cuenta de servicio administrada de grupo)'],
+    relatedTickets: ['iam-020', 'iam-035']
+  },
+  {
+    id: 'iam-kb-060',
+    title: 'Compliance sectorial aplicado a IAM: SOX, HIPAA, GDPR y PCI DSS (qué exigen, qué evidencia exporta tu trabajo)',
+    category: 'IAM - GRC',
+    environment: 'Gobernanza',
+    symptoms: 'La vacante es de empresa regulada (finanzas, salud, retail con tarjetas) y el entrevistador pregunta "¿cómo preparas una auditoría SOX de accesos?"; o llega la auditoría real preguntando por controles específicos que suenan a siglas; o el equipo confunde "cumplir GDPR" con el aviso de cookies cuando toca accesos.',
+    cause: 'Los marcos genéricos (ISO 27001, SOC 2) se conocen, pero los SECTORIALES citan requisitos concretos sobre identidad y accesos que el IAM debe satisfacer con evidencia: SoD financiera, identificador único de usuario en salud, minimización de datos personales, MFA en el entorno de tarjetas. Sin el mapeo marco→control IAM→evidencia, la auditoría se sufre en vez de operarse.',
+    steps: [
+      {
+        title: 'SOX §404: SoD financiera y la evidencia del ciclo (el origen de toda la disciplina IGA)',
+        detail: 'Sarbanes-Oxley exige controles internos sobre el reporte financiero: para IAM eso es SoD en los procesos financieros (quien crea proveedores ≠ quien aprueba pagos ≠ quien ejecuta transferencias), accesos a sistemas financieros con aprobación y revisión periódica, y evidencia del ciclo completo. El artefacto típico del auditor: la matriz SoD del proceso purchase-to-pay, las certificaciones de accesos ejecutadas y el reporte de "quién tiene acceso a qué" en los sistemas financieros — con fechas y firmas.',
+        command: 'Get-ADGroupMember GG-FIN-ERP-APROBADOR -Recursive | Export-Csv sod-financiera.csv -NoTypeInformation'
+      },
+      {
+        title: 'HIPAA §164.312: identificador único y control de accesos a PHI',
+        detail: 'La norma de salud de EE.UU. exige identificación ÚNICA de usuario (nada de cuentas compartidas en el hospital), control de sesión de emergencia, y auditoría de accesos a la información de salud protegida (PHI): quién entró, a qué registro, cuándo. Para IAM: cero cuentas compartidas documentadas, el break-glass con su revisión post-uso (la "sesión de emergencia" es un control HIPAA con nombre), y el log de accesos a PHI exportable por rango y usuario.',
+        command: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 500 | Where-Object {$_.Message -match 'GG-HIS-PHI'} | Select-Object -First 5 TimeCreated"
+      },
+      {
+        title: 'GDPR art. 5(1)(f)/32: minimización de accesos a datos personales (y la tensión del borrado)',
+        detail: 'El reglamento europeo exige seguridad del tratamiento y minimización: para IAM, acceso a datos personales solo por rol justificado (el acceso SIN necesidad de negocio ya es hallazgo), MFA donde el riesgo lo pida, y registros de quién accedió (la pista de auditoría es obligación). Y la tensión famosa: el "derecho al olvido" (supresión) contra la pista de auditoría inmutable — la respuesta operativa: los datos de IDENTIDAD del usuario se suprimen, los registros de ACCESO se retienen desidentificados (la obligación de auditoría también es GDPR).',
+      },
+      {
+        title: 'PCI DSS req. 7/8: least privilege por puesto y MFA en el CDE',
+        detail: 'El estándar de tarjetas es el más prescriptivo: req. 7 (acceso al Cardholder Data Environment solo por necesidad de negocio conocida y asignada — la matriz de accesos del CDE es artefacto obligatorio) y req. 8 (identificación única, MFA para TODO acceso administrativo y al CDE, y sin cuentas compartidas: las genéricas solo con control documentado). Su valor de estudio: es el checklist que, aplicado, deja el entorno listo para CUALQUIER auditoría de accesos.',
+        command: "Get-MgUser -All -Property DisplayName,AccountEnabled,AssignedLicenses | Where-Object {$_.DisplayName -like '*cde*'} | Measure-Object | Select-Object -ExpandProperty Count"
+      },
+      {
+        title: 'La tabla marco → control IAM → evidencia (la que responde en 90 segundos)',
+        detail: 'SOX: SoD financiera → matriz SoD + certificaciones + reporte de accesos a sistemas financieros. HIPAA: usuario único + auditoría PHI → reporte de cuentas compartidas (vacío) + log de accesos a PHI. GDPR: minimización + seguridad → revisión de accesos a datos personales + pista de auditoría. PCI: least privilege CDE + MFA → matriz de accesos del CDE + reporte de MFA. Cada fila: qué exige, qué control lo satisface, QUÉ exporta tu trabajo — y qué pide el auditor típico (siempre la misma triada: aprobación, revisión periódica, evidencia con fecha).',
+      },
+      {
+        title: 'Operar la auditoría en vez de sufrirla (el calendario del IAM regulado)',
+        detail: 'La empresa regulada no "se prepara" para la auditoría: la OPERA todo el año: certificaciones trimestrales ejecutadas con evidencia archivada, el reporte de accesos por sistema generado en minutos (no en semanas de exports manuales), las excepciones con vencimiento gestionadas, y el comité de accesos con actas. Cuando llega el auditor, la respuesta es "está todo aquí con fecha" — la diferencia entre el hallazgo y el cierre limpio.',
+        command: "Get-ADGroup -Filter 'Name -like \"GG-FIN-*\"' -Properties Member | Select-Object Name,@{n='Miembros';e={$_.Member.Count}} | Format-Table"
+      }
+    ],
+    verification: 'La matriz marco→control→evidencia existe para el marco aplicable a la organización, las certificaciones y reportes de accesos se generan en minutos con evidencia fechada, las cuentas compartidas están eliminadas (o documentadas como control PCI con custodia), y las excepciones tienen vencimiento gestionado por el comité.',
+    escalation: 'Compliance/legal para la interpretación de requisitos (el mapa técnico lo aporta IAM, la interpretación regulatoria es de ellos). Líder de IAM + dueños de sistema para las remediaciones que el mapeo destape (SoD violada, cuentas compartidas, acceso sin justificación). El comité de accesos para las excepciones (firmadas y con vencimiento — nunca "mientras tanto" indefinido).',
+    relatedTerms: ['SOX / ITGC (controles de acceso)', 'Identity Governance & Administration (IGA)', 'Zero Trust', 'NIST SP 800-63 (IAL / AAL / FAL)', 'Microsoft Entra PIM (Privileged Identity Management)'],
+    relatedTickets: ['iam-025', 'iam-027']
   },
 ];
 

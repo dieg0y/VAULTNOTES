@@ -5,7 +5,7 @@
  * (glossarySeedHelpDesk.ts, 257 términos L1/L2 depurados — v25 incluye
  * macOS/Linux/móvil, Cloud/SaaS y Herramientas/Monitoreo) +
  * especialización SysAdmin (glossarySeedSysAdmin.ts, 131, Infra & Ops) +
- * capa de plataformas y vendors IAM/PAM (glossarySeedIam.ts, 77: Okta,
+ * capa de plataformas y vendors IAM/PAM (glossarySeedIam.ts, 80: Okta,
  * SailPoint, Ping, ForgeRock, IBM, Oracle, CyberArk, One Identity,
  * Keycloak, protocolos, directory services, gobernanza y ataques a
  * identidad) + capa de auditoría (glossarySeedAdditions.ts, 62: herramientas

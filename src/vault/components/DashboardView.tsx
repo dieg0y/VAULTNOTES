@@ -603,7 +603,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 ? '¡Simulador IAM completado! Exporta tus tickets como evidencia de práctica.'
                 : iamWorked > 0
                   ? 'Vas avanzando en la cola del equipo IAM — clic para seguir trabajando tickets.'
-                  : 'Simulador IAM: 50 tickets de Nexora (JML, Access, PAM, Gobernanza) + Semana de Access Review.'}
+                  : 'Simulador IAM: 56 tickets de Nexora (JML, Access, PAM, Gobernanza, Cloud IAM) + Semana de Access Review.'}
             </p>
           </div>
 

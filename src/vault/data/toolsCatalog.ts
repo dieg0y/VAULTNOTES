@@ -75,7 +75,7 @@ export interface ToolCatalogEntry {
 }
 
 /**
- * The full catalog of 29 tools. The `cat` field uses the user-facing
+ * The full catalog of 48 tools. The `cat` field uses the user-facing
  * category labels (Red, IAM, Datos, Web, SOC, LINUX, SECURITY).
  *
  * Tags include both English and Spanish keywords to maximize recall in
