@@ -216,6 +216,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'ss e ip hasta el fondo: ss -tulpn (quiénes escuchan y en qué interfaz), ss -tnp state established (conexiones vivas con su proceso dueño), ip -br addr (resumen legible), ip route get 8.8.8.8 (por dónde saldría ese paquete), ip neigh y mtr 8.8.8.8 para latencia salto a salto. Con estas cinco salidas resuelves el 80% de los "no hay conectividad" en Linux sin abrir un solo archivo de configuración.',
           },
+          {
+            id: 'rmsa-f4-9',
+            label: 'Conceptos Clave',
+            text: 'Túneles VPN del SysAdmin: site-to-site (IPSec entre sedes/firewalls — cómo se negocia por fases IKE y qué rompe un túnel: NAT, MTU, rekey) y acceso remoto (el usuario entra a la red: RRAS + NPS con directivas RADIUS y el perfil Always On VPN del cliente, o el SSL VPN del firewall). Split tunneling vs full tunnel y el diagnóstico por código de error: 809 es red (UDP 500/4500 bloqueado), 691 es credencial, 812 es la directiva del NPS rechazando. Laboratorio: túnel entre dos nodos del lab con el runbook de VPN como guía.',
+          },
         ],
       },
       {
@@ -348,6 +353,16 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'Salud del servidor Windows: los eventos del canal System que anticipan la falla: 41 Kernel-Power (apagón sin dump), 55 NTFS (corrupción), 153/129 disco (storahci/stornvme), 7000/7031/7034 (servicio que no arranca o muere), WHEA-Logger 17/18 (hardware: CPU/memoria/buses). Monta un data collector set de Performance Monitor y haz la revisión semanal con Get-WinEvent -FilterHashtable @{LogName="System"; Level=1,2} sobre el DC del lab: la salud se revisa antes de que sea incidente.',
           },
+          {
+            id: 'rmsa-f7-9',
+            label: 'Conceptos Clave',
+            text: 'Versiones y ciclo de vida de Windows Server (lo que preguntan en entrevista): 2019, 2022 y 2025 son canal LTSC con ~10 años de soporte (2019 hasta enero 2029, 2022 hasta octubre 2031, 2025 hasta octubre 2034), Server Core como opción por defecto del despliegue moderno, hotpatching (recibir parches sin reiniciar, 2025 Azure Edition) y Nano Server ya solo como contenedor. La disciplina profesional: revisar el fin de soporte ANTES de planificar el upgrade — desplegar hoy una versión a dos años de su EOL es deuda con fecha.',
+          },
+          {
+            id: 'rmsa-f7-10',
+            label: 'Práctica',
+            text: 'DFS Namespaces (DFSN) para el file server: un namespace UNC estable (\\dominio\datos) que esconde qué servidor responde — el usuario nunca reaprende rutas tras un failover. Distinto de DFSR (que replica contenido): DFSN enruta rutas con referrals site-aware. Laboratorio: raíz de dominio con dos targets sobre los shares del lab, falla el primario (target Offline) y documenta que el acceso no se cae — luego rompe el mapeo de subred→sitio y observa cómo el cliente empieza a caer al remoto.',
+          },
         ],
       },
       {
@@ -390,6 +405,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             id: 'rmsa-f8-7',
             label: 'Práctica',
             text: 'Verificación automatizada de backups: restic check (o borg verify) como paso del job, un manifiesto con hashes de cada respaldo, alerta cuando el job no termina (el monitoreo de la fase 10 ya la tiene) y el drill trimestral de restauración agendado en el calendario con el RTO medido. La prueba de fuego es simple: el día que tengas que restaurar de verdad, la diferencia entre pánico y rutina es si alguna vez lo hiciste con calma.',
+          },
+          {
+            id: 'rmsa-f8-8',
+            label: 'Conceptos Clave',
+            text: 'El DRP como documento vivo (más allá de los backups): escenarios de desastre por servicio (hipervisor perdido, ransomware cifrando el datastore, sede fuera), RTO/RPO por servicio heredados del negocio, quién DECLARA el desastre y con qué criterio, el orden de recuperación (DNS/DC → hipervisor/storage → servidor de backup → apps críticas) y el drill semestral con tiempos medidos. Escribe el DRP de una página para tu lab con el runbook de activación como anexo: el día que lo necesites, nadie va a poder pensar.',
           },
         ],
       },
@@ -467,6 +487,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'Logging centralizado: rsyslog reenviando de todos los hosts del lab a un punto único (o Loki + Promtail con Grafana si prefieres el stack moderno), logrotate con retención definida por política y la búsqueda multi-host como rutina: ¿a qué hora empezó esto en TODOS los servidores a la vez? Sin logs centralizados, cada incidente grande empieza abriendo SSH en seis máquinas para después preguntar lo que una query responde en segundos.',
           },
+          {
+            id: 'rmsa-f10-7',
+            label: 'Conceptos Clave',
+            text: 'El ecosistema de monitoreo que vas a encontrar en las ofertas (más allá de tu lab): Nagios/Icinga (los clásicos de checks activos con herencia de notificaciones), PRTG (sensor-based, el rey de PyMEs y MSPs), Datadog y sus rivales SaaS (agente + dashboards + APM, el estándar cloud-native) y Check MK. La buena noticia: el modelo es SIEMPRE el mismo (métrica → umbral → alerta → runbook) y quien dominó Zabbix + Prometheus aprende cualquiera en días. Ejercicio: lee la documentación de dos de ellos y escribe cómo replicarías tus 5 alertas del lab en cada uno — ese es exactamente el trabajo del primer mes en un puesto nuevo.',
+          },
         ],
       },
     ],
@@ -523,6 +548,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'Playbooks que no fallan a las 3 AM: handlers con notify (la acción corre solo si algo cambió), blocks con rescue/always, variables y su precedencia (extra-vars gana sobre todo), plantillas Jinja2 con template, when para condicionales, tags para ejecutar pedazos y ansible-lint en pre-commit. La prueba de idempotencia es ejecutable: corre dos veces seguidas y el segundo run debe reportar changed=0.',
           },
+          {
+            id: 'rmsa-f11-9',
+            label: 'Práctica',
+            text: 'Python para infraestructura (el tercer idioma del SysAdmin): requests para llamar APIs (Graph, nube, ticketing), subprocess para orquestar comandos, paramiko/fabric para SSH programático, csv/json como pegamento y argparse para que tus scripts tengan --help decente. La regla de decisión: Bash para la máquina donde estás, PowerShell para Windows a escala, Python cuando hay APIs de por medio o el script cruza plataformas. Caso práctico: reescribe en Python el reporte semanal de parcheo/servicios que ya hiciste en PowerShell — el mismo reporte para los Linux Y los Windows del lab, leyendo el inventario de un CSV.',
+          },
         ],
       },
       {
@@ -575,6 +605,11 @@ export const ROADMAP_SA_TIERS: RoadmapTierDef[] = [
             id: 'rmsa-f12-9',
             label: 'Práctica',
             text: 'Compose operacional: compose.yaml con healthcheck (test, interval, retries) y depends_on con condition: service_healthy; up -d --wait como despliegue estándar; logs -f --tail=50 para el diagnóstico; pull && up -d como rutina de actualización con rollback de tag; y respeto por down -v (se lleva los volúmenes y sus datos). Monta app + base de datos + proxy y rompe el healthcheck a propósito para ver el apagado en orden.',
+          },
+          {
+            id: 'rmsa-f12-10',
+            label: 'Práctica',
+            text: 'Azure por servicios (la lista literal de las ofertas de Infra Engineer): VM con discos managed y tamaños de serie, Storage Accounts (blob para backups y archivos, tiers Hot/Cool/Archive), NSG (el firewall de la subred: reglas de entrada/salida con prioridad — la misma lógica de tu firewalld con otro nombre), Azure Backup (Recovery Services Vault + política, y el restore PROBADO) y Azure Monitor (métricas + Log Analytics con KQL básico, el mismo dialecto que ya usas en Sentinel). Mapa mental: cada servicio tiene su equivalente on-prem (VM=hipervisor, NSG=firewall, Vault=tu repositorio de backups). Laboratorio con cuenta gratuita: una VM con su NSG, un backup con restore verificado y una alerta de Azure Monitor — tres piezas de tu lab replicadas en la nube.',
           },
         ],
       },

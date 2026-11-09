@@ -1,8 +1,9 @@
 /**
  * glossarySeedSysAdmin — especialización SysAdmin / Infraestructura.
  *
- * 131 términos SysAdmin/Infra (auditada v2): Linux/Unix 30 · Windows Server 12 · Redes & Firewalls 17 ·
- * Storage & Backup 20 · Virtualización 8 · Cloud/Contenedores 17 · Monitoreo & Observabilidad 13 ·
+ * 141 términos SysAdmin/Infra (auditada v3 — competencias laborales SysAdmin /
+ * Infra Engineer): Linux/Unix 30 · Windows Server 14 · Redes & Firewalls 19 ·
+ * Storage & Backup 23 · Virtualización 8 · Cloud/Contenedores 17 · Monitoreo & Observabilidad 16 ·
  * Automatización 8 · Seguridad & Hardening 6. Español es-CO, tono práctico del día a día.
  * Los nombres obligatorios referenciados por la KB SysAdmin (sakb-*) van con su nombre
  * canónico exacto (systemd, journalctl, LVM, RAID, hot spare, Snapshot, DNS, GPO, etc.).
@@ -1197,5 +1198,95 @@ export const GLOSSARY_SEED_SYSADMIN_TERMS: SeedTerm[] = [
     shortDefinition: "Guía de configuración segura por producto (OS, base de datos, cloud, hipervisor) del Center for Internet Security: checklist auditable por niveles.",
     longDefinition: "Cada benchmark CIS define cientos de controles por producto y versión, organizados en niveles: Nivel 1 (seguridad razonable sin romper el funcionamiento) y Nivel 2 (defensa más fuerte con posible impacto operativo); funciona como fuente de requisitos del hardening, se automatiza (Ansible, GPO) y se audita con herramientas que puntúan el cumplimiento control por control. Por qué importa: es el estándar de facto para responder 'qué tan seguro debe estar un servidor': auditores y clientes lo citan, los scanners lo miden y el equipo lo usa como mapa; trabajar contra CIS convierte el hardening de criterio personal a checklist versionado con puntaje medible en el tiempo. Trampa: aplicarlo ciegas al 100% (el Nivel 2 rompe aplicaciones heredadas: controles que exigen configuraciones que un sistema de hace 15 años no tolera) sin proceso de excepción documentado, y perseguir el puntaje del scanner como meta en vez de evidencia del riesgo real: el score es el síntoma, no el objetivo.",
     example: "El proyecto de hardening adopta CIS Nivel 1 para RHEL y Ubuntu: el rol Ansible implementa los controles, el scanner trimestral puntúa 94% y las 6 excepciones de aplicaciones heredadas tienen justificación firmada con fecha de remediación: el informe de auditoría se arma casi solo."
+  },
+  {
+    id: "seed-sa-ad-sites",
+    term: "Sitios de AD (Sites and Services)",
+    acronym: undefined,
+    category: "SysAdmin - Windows Server",
+    shortDefinition: "El mapa lógico-físico de Active Directory: sitios (sedes), subredes asociadas y site links que definen por dónde y cada cuánto replica el directorio.",
+    longDefinition: "AD Sites and Services (dssite.msc) modela la geografía del dominio: cada sitio representa una ubicación con conectividad rápida (una sede) y agrupa sus DCs; las subredes IP se asocian a sitios para que el DC locator mande cada equipo al DC más cercano, y los site links (con costo y frecuencia de replicación, por defecto 180 minutos) definen la réplica intersitio a través del WAN, calculada por el KCC/ISTG. Por qué importa: una subred sin asociar deja a una sede entera autenticándose contra el DC de la central (logons lentos que cruzan el WAN) y la réplica rezagada produce bloqueos de cuenta y GPOs inconsistentes entre sedes. Trampa clásica: dejar todo en Default-First-Site-Name porque 'funciona': funciona hasta que el enlace de la sede se satura con logons y replicación que no tenían por qué cruzarlo.",
+    example: "La sede norte se queja de logons lentos: nltest /dsgetsite en un equipo de allá devuelve Default-First-Site-Name — su subred 192.168.50.0/24 nunca se asoció; New-ADReplicationSubnet la crea y la liga al sitio de la sede, el KCC recalcula y a la hora los usuarios autentican local."
+  },
+  {
+    id: "seed-sa-ad-trust",
+    term: "Confianza de AD (trust)",
+    acronym: undefined,
+    category: "SysAdmin - Windows Server",
+    shortDefinition: "Relación de autenticación entre dominios o bosques: los usuarios de uno acceden a recursos del otro sin cuentas duplicadas.",
+    longDefinition: "Una confianza conecta dos dominios o bosques: puede ser unidireccional o bidireccional, y de tipo external (entre dominios de bosques distintos, con SID filtering activo por defecto) o forest (entre raíces de bosque, que habilita la enumeración y el enrutamiento de autenticación a escala del bosque). El canal seguro de la confianza se protege con una contraseña que rota; netdom trust /verify y nltest /sc_verify comprueban su salud, y el firewall entre ambos lados debe permitir Kerberos (88), LDAP (389), SMB (445) y RPC (135 + rango dinámico). Por qué importa: fusiones, adquisiciones y proveedores viven de confianzas — y una confianza mal endurecida o rota es tanto un hallazgo de auditoría (SID filtering off) como una caída total de la colaboración. Trampa: restaurar un DC de un backup viejo desincroniza la contraseña de la confianza y 'sin cambiar nada' los usuarios del otro dominio dejan de entrar.",
+    example: "Tras una fusión, los usuarios del bosque partner no acceden a los shares compartidos: netdom trust /verify falla y el evento 4625 se llena de cuentas externas; la confianza se elimina y recrea en ventana coordinada con el otro equipo (contraseña nueva negociada de ambos lados) y el acceso vuelve."
+  },
+  {
+    id: "seed-sa-dfsn",
+    term: "DFS Namespaces",
+    acronym: "DFSN",
+    category: "SysAdmin - Storage & Backup",
+    shortDefinition: "Rutas UNC estables (\\\\dominio\\datos) que esconden qué servidor responde: el ruteo de carpetas compartidas con failover transparente para el usuario.",
+    longDefinition: "DFS Namespaces crea un árbol de rutas virtual sobre los file servers: el cliente pide \\\\dominio\\datos y recibe un referral (la lista de servidores reales que la sirven, ordenada por sitio y prioridad); si un servidor cae o se marca Offline, los clientes nuevos van al siguiente de la lista. Es la hermana de ruteo de DFSR (que replica contenido): DFSN no copia archivos, decide a quién mandarte. Por qué importa: accesos directos, scripts de logon y aplicaciones configuradas con el UNC del namespace no se tocan jamás cuando cambia el file server de debajo — el failover de hardware se vuelve invisible para el negocio. Trampa: el cliente cachea los referrals por TTL (dfsutil /pktinfo para verlos, /pktflush para purgar): tras un cambio, media organización puede seguir cayendo al servidor viejo hasta que la caché expira.",
+    example: "Mantenimiento del file server primario: Set-DfsnRootTarget lo marca Offline ANTES de apagarlo, los referrals dejan de incluirlo y los usuarios ni notan el failover; la prueba del examen es que \\\\dominio\\datos abre durante todo el mantenimiento."
+  },
+  {
+    id: "seed-sa-drp",
+    term: "DRP (Disaster Recovery Plan)",
+    acronym: "DRP",
+    category: "SysAdmin - Storage & Backup",
+    shortDefinition: "El plan escrito de recuperar los servicios tras un desastre: escenarios, RTO/RPO por servicio, quién declara, orden de recuperación y drills.",
+    longDefinition: "El DRP convierte la peor hora de la empresa en un procedimiento: define los escenarios (hipervisor/datastore perdido, ransomware cifrando el storage, sede fuera), los RTO/RPO por servicio heredados del negocio, el criterio y la persona que DECLARA el desastre (incident commander, no el on-call en solitario), el orden de recuperación (primero DNS/DC y el hipervisor, después las apps críticas por RTO), las copias aisladas que alimentan la restauración y el drill semestral con tiempos medidos. Por qué importa: un DRP que nunca se practicó no existe (nadie ejecuta de memoria un plan de 40 páginas a las 3 AM) y la diferencia entre incidente grave y empresa hundida suele ser una copia offline intacta más un orden de recuperación correcto. Trampa: escribir el DRP como lista de backups (la tecnología) y no como decisiones (quién declara, qué entra primero, qué NO se recupera aún) — y jamás actualizarlo tras cambios de infraestructura: el plan que describe un datacenter que ya no existe es papel.",
+    example: "Ransomware cifra el datastore principal a las 2 AM: el incident commander declara el desastre según el criterio del DRP (RTO del ERP incumplido inminente), congela cambios, aísla el repositorio de backups y la recuperación arranca por el orden escrito — DC, hipervisor, backup server, ERP — con el scribe anotando cada decisión para el postmortem."
+  },
+  {
+    id: "seed-sa-nagios",
+    term: "Nagios",
+    acronym: undefined,
+    category: "SysAdmin - Monitoreo & Observabilidad",
+    shortDefinition: "El monitor clásico de infraestructura: checks activos de hosts y servicios con herencia de notificaciones — el abuelo que todavía corre en miles de plantas.",
+    longDefinition: "Nagios ejecuta checks programados (plugins que devuelven OK/WARNING/CRITICAL) contra hosts y servicios, escala por cadenas de notificación (hostgroup → contactgroup) y registra el histórico de disponibilidad. Su modelo (estado + umbral + notificación) es el que heredaron Icinga (su fork moderno), Zabbix y prácticamente todo el oficio: aprender el concepto en uno es aprenderlo en todos. Por qué importa: sigue apareciendo en ofertas y sobre todo en plantas y universidades con años de historia — el candidato que lee su configuración (hosts, services, escalaciones) no arranca de cero. Trampa: es configuration-heavy (todo archivo de texto) y sin dashboards modernos de serie: el equipo que nunca migró suele tener un Nagios fosilizado con checks desactivados que nadie se atreve a tocar — auditoría de reglas antes de confiar en sus verdes.",
+    example: "Herencia del puesto: el Nagios de la planta tiene 300 checks y la mitad sin dueño; el primer trabajo del SysAdmin nuevo es el inventario de qué checks están en CRITICAL silenciados hace meses y qué servicios reales no tienen check — el mapa de la deuda de monitoreo."
+  },
+  {
+    id: "seed-sa-prtg",
+    term: "PRTG",
+    acronym: undefined,
+    category: "SysAdmin - Monitoreo & Observabilidad",
+    shortDefinition: "Monitor comercial sensor-based (Paessler): cada métrica es un sensor auto-descubierto — el estándar de PyMEs y MSPs por su curva de aprendizaje corta.",
+    longDefinition: "PRTG organiza el monitoreo en sensores (un sensor = una métrica: ping, SNMP de interfaz, HTTP, WMI de disco, sensor de flujo NetFlow) sobre dispositivos auto-descubiertos; notifica por umbral, dependencias y calendarios, y presenta dashboards y mapas listos para dirección sin diseño. Por qué importa: es el monitor que vas a encontrar en PyMEs y proveedores MSP (el cliente paga por la simplicidad): su licencia por sensor también es su presupuesto — saber contar sensores útiles vs duplicados es tarea de infra. Trampa: el auto-descubrimiento crea 200 sensores 'gratis' que luego son 200 alertas de ruido: la primera semana de PRTG es podar (desactivar lo que nadie mira), no agregar.",
+    example: "Onboarding en un MSP: el cliente nuevo llega con PRTG y 850 sensores de un descubrimiento automático sin podar; la tarea uno es apagar los sensores de interfaces caídas de respaldo y dejar los 60 que el SLA realmente mide — las alertas vuelven a significar algo."
+  },
+  {
+    id: "seed-sa-datadog",
+    term: "Datadog",
+    acronym: undefined,
+    category: "SysAdmin - Monitoreo & Observabilidad",
+    shortDefinition: "Plataforma SaaS de observabilidad: agente universal + métricas, logs, APM y dashboards en la misma nube — el estándar de los entornos cloud-native.",
+    longDefinition: "Datadog instala un agente que recoge métricas de host, integraciones (cada producto tiene un módulo listo: AWS, Azure, Docker, bases, web servers), logs y trazas APM, y lo une en dashboards, monitores (sus alertas) y SLOs medidos. Por qué importa: las empresas con nube y desarrollo propio ya no montan Zabbix: contratan Datadog o su equivalente — las ofertas de Infra/DevOps lo listan como el Zabbix de la era SaaS, y saber navegar agente + integración + monitor + dashboard es directamente transferible a cualquier rival. Trampa: el costo crece con cada host e integración habilitada (el agente que se instala 'para probar' en 40 VMs es una sorpresa de factura) y mandar TODO a logs sin muestreo es la clásica.",
+    example: "La migración a nube trae Datadog: el mismo check de disco del lab (umbral 85% con aviso) se replica como monitor sobre la métrica del agente y el dashboard del servicio hereda del template — la lógica del oficio no cambió, cambió la consola."
+  },
+  {
+    id: "seed-sa-pfsense",
+    term: "pfSense",
+    acronym: undefined,
+    category: "SysAdmin - Redes & Firewalls",
+    shortDefinition: "Firewall/router open source basado en FreeBSD: reglas por interfaz, NAT, VPN y paquetes — el favorito de PyMEs y laboratorios.",
+    longDefinition: "pfSense administra el perímetro con reglas stateful por interfaz (LAN, WAN, OPT1, DMZ), NAT port-forward, VPN (IPSec sitio a sitio y OpenVPN/WireGuard para acceso remoto), DHCP/DNS y un sistema de paquetes que extiende de IDS (Suricata) a balanceo; su web UI convierte lo que en Linux sería nftables+dnsmasq+strongSwan en consolas administrables. Por qué importa: es el firewall que un SysAdmin de PyME o MSP administra realmente (junto a sus primos comerciales Fortinet/Sophos/WatchGuard): reglas por interfaz con orden y estado es el modelo mental que sirve para todos. Trampa: la regla ANY/ANY heredada 'que funciona' y el firewall sin backup de configuración: pfSense exporta su XML — restaurar un perímetro a mano tras un fallo de hardware es una lección que solo se vive una vez.",
+    example: "El laboratorio del roadmap con pfSense como perímetro: las VLANs de la fase de redes se crean como interfaces OPT, el túnel sitio a sitio de la fase VPN se negocia entre dos nodos pfSense y la regla de bloqueo inter-VLAN se documenta con su evidencia de test — el mismo modelo mental de firewalld, visto desde el borde."
+  },
+  {
+    id: "seed-sa-acronis",
+    term: "Acronis",
+    acronym: undefined,
+    category: "SysAdmin - Storage & Backup",
+    shortDefinition: "Suite comercial de backup y protección (Acronis Cyber Protect): imagen de disco, archivos, Office 365 y protección anti-ransomware integrada.",
+    longDefinition: "Acronis hace backup por imagen de máquinas físicas y virtuales, archivos, y cargas SaaS (M365/Google Workspace), con restauración granular (un archivo de dentro de una imagen) y una capa de protección activa que integra antivirus/anti-ransomware con el backup; su panel centralizado administra agentes de Windows, Linux y macOS. Por qué importa: es una de las marcas que aparecen junto a Veeam en ofertas y en MSPs — su ángulo distintivo es unificar backup + seguridad de endpoint en una consola para organizaciones sin equipo de SOC. Trampa: confundir la imagen del disco con la copia verificada: el job verde sin restore probado es la misma deuda en cualquier marca, y la función anti-ransomware no reemplaza la copia offline/inmutable del 3-2-1: la protección que corre en el mismo equipo infectado no es el último recurso.",
+    example: "La PyME con 30 equipos físicos estandariza en Acronis: imagen mensual + archivos diarios a un NAS y una copia en la nube del proveedor; el SysAdmin agenda el drill trimestral de restauración de un equipo completo y documenta el RTO real — el antivirus integrado es capa 1, la copia aislada sigue siendo capa última."
+  },
+  {
+    id: "seed-sa-always-on-vpn",
+    term: "Always On VPN",
+    acronym: "AOVPN",
+    category: "SysAdmin - Redes & Firewalls",
+    shortDefinition: "La VPN de acceso remoto nativa de Windows: perfil que se conecta solo (sin clic del usuario) antes del logon, con túnel de dispositivo o de usuario.",
+    longDefinition: "Always On VPN reemplazó la vieja conexión marcada del usuario: el perfil (desplegado por Intune o GPO/PowerShell) establece el túnel automáticamente — el device tunnel puede levantarse antes del logon (la máquina ya ve los DCs y recibe GPOs como si estuviera en oficina) y el user tunnel autentica al usuario con certificados; del lado servidor conviven RRAS (el túnel) y NPS (las directivas RADIUS que deciden quién entra). Protocolos IKEv2 (con movilidad entre redes) o SSTP (TCP 443, el que atraviesa redes ajenas restrictivas). Por qué importa: es la pieza de Microsoft del teletrabajo corporativo junto a sus rivales comerciales (GlobalProtect, AnyConnect, FortiClient): el SysAdmin diagnostica su lado (perfil, certificado, directiva NPS, puertos) mientras Help Desk cubre el cliente. Trampa: el certificado del NPS vencido rompe el EAP-TLS para TODOS con errores genéricos (691/812) — el 6273 del NPS revela la causa; y el device tunnel que se despliega sin limpiar su certificado viejo autentica con la cadena incorrecta.",
+    example: "Tras renovar el certificado del servidor VPN, nadie conecta desde casa (error 691/812 masivo): el evento 6273 del NPS muestra el fallo EAP; la cadena nueva se publica, el perfil se re-despliega y el piloto valida antes de cerrar — el recordatorio queda en el calendario de vencimientos de certificados."
   }
 ];

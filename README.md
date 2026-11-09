@@ -9,11 +9,11 @@
 | **1 · IAM** | 50 | 50 | 50 | 30 | 373 ítems · 34 fases |
 | **2 · SOC / Blue Team** | 50 | 16 | 45 | 22 | 93 ítems |
 | **3 · Service Desk** | 60 | 28 | 80 | 24 | 112 ítems · 28 fases |
-| **4 · SysAdmin Ops** | 56 | 28 | 72 | 22 | 119 ítems |
+| **4 · SysAdmin Ops** | 56 | 28 | 77 | 22 | 126 ítems · 17 fases |
 
 Además:
 
-- **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. **Pegado tipo Obsidian**: pega una captura o una página web completa y las imágenes/GIFs se descargan y guardan localmente al instante (las que fallen quedan como enlaces). Glosario sembrado con **900 términos + flashcards con repetición espaciada** (Difícil/Bueno/Fácil, teclado completo). Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
+- **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. **Pegado tipo Obsidian**: pega una captura o una página web completa y las imágenes/GIFs se descargan y guardan localmente al instante (las que fallen quedan como enlaces). Glosario sembrado con **910 términos + flashcards con repetición espaciada** (Difícil/Bueno/Fácil, teclado completo). Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
 - **48 herramientas offline en un catálogo único** (filtro por rol): IAM (JWT, SID/RID, LDAP/DN, RBAC, vulnerabilidades 203, ataques 102) · SOC (Event IDs 93, IoC Extractor, MITRE ATT&CK, Sigma, KQL/SPL, CVSS, hash, guías de Sentinel/Splunk/Elastic/Wireshark…) · Service Desk (triage 91 reglas, AD, Intune, network L1) · SysAdmin (subnetting, puertos 119, cron, systemd, RAID, LVM, firewall) · Global (encoding, regex, timestamp).
 - **Simuladores de tickets reales (Nexora S.A.)** — cola filtrable, modo estudio, flujo de estados con nota de cierre y proyecto final por pilar (Semana de Access Review, Primera semana SOC, etc.).
 - **Runbooks como tickets reales** — paso a paso universal con comandos copiables y respuesta en inglés lista para pegar. El pilar Service Desk cubre además (v25, según ofertas reales de empleo): **macOS** (Keychain, FileVault, Gatekeeper), **Linux L1** (TTY, systemctl, journalctl), **Google Workspace** (Email Log Search, 2FA), **ServiceNow/Jira**, **MSP multi-tenant**, **monitoreo** (availability/performance/capacity), **PostgreSQL** de solo lectura, **APIs/HTTP** y escalamiento a desarrollo, **móvil corporativo** (MDM, retire vs wipe) e **importaciones de archivos**.

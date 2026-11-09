@@ -1,12 +1,14 @@
 /**
  * runbooksSysAdmin.ts — RUNBOOKS del PILAR 2: SYSADMIN OPS / INFRA.
  *
- * Dataset completo V11.1: 72 runbooks — 52 RB-SA-001..RB-SA-052 más 20
+ * Dataset completo V11.2: 77 runbooks — 52 RB-SA-001..RB-SA-052, 20
  * fusionados del CheatSheet (SysAdmin L2,
- * Windows Server + Linux + red/storage). Cada runbook = un problema real de
- * guardia presentado como ticket, con la escalera universal de comandos
- * REALES (PowerShell para Windows, Bash para Linux), verificación, evidencia
- * y las dos piezas en inglés (respuesta al cliente + explicación técnica).
+ * Windows Server + Linux + red/storage) y 5 nuevos de la auditoría de
+ * competencias laborales SysAdmin (RB-SA-053..057). Cada runbook = un
+ * problema real de guardia presentado como ticket, con la escalera
+ * universal de comandos REALES (PowerShell para Windows, Bash para Linux),
+ * verificación, evidencia y las dos piezas en inglés (respuesta al cliente
+ * + explicación técnica).
  *
  * Cobertura: AD DS/DC (dcdiag, replicación, FSMO, hora/PDC), ADUC
  * (creación masiva, limpieza, auditoría de grupos), GPO + SYSVOL/DFSR,
@@ -38,6 +40,15 @@
  * contenedor Docker en restart loop y SNMP. Los 38 duplicados temáticos
  * del cheatsheet se droppearon contra su runbook twin absorbiendo sus
  * comandos únicos en commands_copyable (ver worklog 22-b). Total: 68.
+ *
+ * EXTENSIÓN (auditoría laboral SysAdmin, V11.2): +5 runbooks RB-SA-053..057
+ * — replicación intersitio y topología de sitios (Sites and Services:
+ * subredes, site links, KCC/ISTG), confianzas entre dominios/bosques
+ * (netdom/Get-ADTrust, SID filtering, selective auth), DFS Namespaces
+ * (referrals, target offline, prioridades, caché del cliente),
+ * activación del DRP (declaración, orden de recuperación, validación,
+ * evidencia) y VPN de acceso remoto RRAS/NPS (errores 809/691/812,
+ * eventos 6272/6273, certificado EAP-TLS). Total: 77.
  *
  * Reglas: ver runbooksCore.ts — no inventar cmdlets/IDs/parámetros;
  * placeholders {{...}}; campos descriptivos es-CO; ticket_example,
@@ -3827,6 +3838,278 @@ export const RUNBOOKS_SA: PillarRunbook[] = [
     english_customer_response_template: 'Hello, the missing data mount on the server has been fully resolved under ticket {{TICKET_ID}}. The NFS mount had not returned after the reboot because its boot-time configuration lacked the network-wait and no-hang options, and the client-side NFS services needed to be verified as well. We restored the mount, corrected the boot configuration so it now waits for the network without ever hanging the startup, validated the entire mount file for other broken entries, and confirmed the application is reading and writing its remote data correctly. A controlled reboot test verified the mount comes back automatically after restart.',
     english_technical_explanation: 'NFS mount loss on {{HOSTNAME}} at {{TIMESTAMP}}: empty mount point confirmed via df -h (root filesystem visible on the path, no NFS entry in /proc/mounts). Client services verified and enabled (rpcbind, nfs-common), server-side reachability confirmed via showmount -e (export list visible), and manual mount executed successfully (mount -t nfs). Root cause corrected in /etc/fstab: entry updated with defaults,_netdev,nofail so boot waits for the network without hanging on an unavailable server. Full fstab validated with mount -a (no pending/failed entries), application restarted against the live mount with a check for locally-created ghost files during the outage window, and persistence proven with a controlled reboot test confirming the automatic mount.',
     keywords: ['nfs', 'montaje', 'mount', 'fstab', 'mount -a', '_netdev', 'nofail', 'showmount', 'rpcbind', 'nfs-common', 'nfs-utils', 'export', 'file server', 'reboot', 'arranque', 'boot colgado', 'punto de montaje', 'df -h', 'carpeta vacia', 'datos ausentes'],
+  },
+  {
+    id: 'RB-SA-053',
+    pillar: 'SYSADMIN',
+    title: 'Replicación intersitio de AD lenta o cruzada — Sites and Services, subredes y site links',
+    category: 'Windows Server / AD',
+    ticket_example: 'OPS{{TICKET_ID}} - Intersite AD replication slow - Branch users authenticate to HQ DC - P2 - {{DOMAIN_CONTROLLER}}',
+    problem_description: 'Los cambios de AD (usuarios, grupos, GPOs) tardan horas en llegar a la sede remota y los usuarios de la sede se autentican contra el DC de la central atravesando el WAN: logons lentos, bloqueos de cuenta que "aparecen y desaparecen" y GPOs que aplican en un sitio y en otro no. La topología de sitios de AD (subredes, site links, costos y frecuencia) no refleja la red física.',
+    business_impact: 'Cada logon de la sede remota cruza el enlace WAN (lento y frágil): si el enlace decae, la sede entera queda sin autenticación aunque su DC esté sano. La replicación rezagada significa además que un usuario bloqueado en la central sigue entrando en la sede (y viceversa) durante horas — un hueco de seguridad auditable.',
+    symptoms: [
+      'repadmin /replsummary muestra latencias de horas entre los DCs de sitios distintos',
+      'Los equipos de la sede remota mapean a Default-First-Site-Name o al sitio equivocado (nltest /dsgetsite)',
+      'Logons lentos y bloqueos de cuenta inconsistentes entre sede y central; GPOs distintas por sitio',
+    ],
+    root_causes: [
+      'La subred de la sede no está creada ni asociada a su sitio: los equipos caen al sitio por defecto de la central',
+      'El site link quedó con la frecuencia por defecto (180 minutos) o con horario de replicación restringido',
+      'Costo del site link mal calculado o ISTG (Inter-Site Topology Generator) generando una topología que no usa el enlace correcto',
+    ],
+    prerequisites: [
+      'Acceso administrativo a un DC con el módulo ActiveDirectory y RSAT (dssite.msc)',
+      'Diagrama real de subredes y enlaces WAN con sus anchos de banda (el mapa lógico debe reflejar el físico)',
+    ],
+    step_by_step_universal: [
+      { order: 1, action: 'Medir el estado y la latencia de la replicación de todos los DCs', command: 'repadmin /replsummary', expected: 'Por cada partición y DC: éxito con delta de tiempo; los pares intersitio con horas de retraso delatan el problema', explanation: 'El resumen separa los pares sanos de los rezagados: si solo falla lo intersitio (no el intrasitio), la topología de sitios es la sospechosa.' },
+      { order: 2, action: 'Verificar a qué sitio mapea un equipo afectado de la sede', command: 'nltest /dsgetsite', expected: 'El nombre del sitio de la sede; si devuelve Default-First-Site-Name o el sitio de la central, la subred no está asociada', explanation: 'El locator de DC elige sitio por subred: un equipo "sin sitio" autentica contra el WAN sin importar qué DC tenga al lado.' },
+      { order: 3, action: 'Inventariar los sitios configurados', command: 'Get-ADReplicationSite -Filter * | Format-Table Name,Description', expected: 'Lista de sitios del bosque; debe existir uno por sede física con DC', explanation: 'Cada sede con DC merece su sitio: sin sitio propio no hay topología intersitio que optimizar.' },
+      { order: 4, action: 'Revisar el mapa subred→sitio (la causa #1 de este problema)', command: 'Get-ADReplicationSubnet -Filter * | Format-Table Name,Site', expected: 'Cada subred en uso listada y apuntando al sitio correcto; la subred de la sede ausente o en el sitio erróneo es el hallazgo', explanation: 'AD no deduce la geografía: si la subred 192.168.50.0/24 de la sede no existe, sus equipos son huérfanos de sitio y cruzan el WAN.' },
+      { order: 5, action: 'Crear la subred faltante y asociarla al sitio de la sede', command: 'New-ADReplicationSubnet -Name "192.168.50.0/24" -Site "SedeNorte"', expected: 'La subred creada y visible en el inventario con su sitio', explanation: 'La corrección estructural: a partir de ahora el locator manda los equipos de esa subred a los DCs de su sede.' },
+      { order: 6, action: 'Auditar costo y frecuencia de los site links', command: 'Get-ADReplicationSiteLink -Filter * | Format-Table Name,Cost,ReplicationFrequencyInMinutes', expected: 'Costos proporcionales a la calidad de cada enlace y frecuencias conscientes (el default de 180 minutos es lento para un WAN sano)', explanation: 'El costo decide por dónde replica el KCC y la frecuencia cada cuánto: un costo bajo en un enlace malo desvía tráfico; una frecuencia alta hace que todo cambio tarde horas.' },
+      { order: 7, action: 'Forzar el recálculo de la topología por el KCC en el DC que la genera', command: 'repadmin /kcc {{DOMAIN_CONTROLLER}}', expected: 'KCC ejecutado sin errores y conexiones intersitio regeneradas según subredes/costos corregidos', explanation: 'Corregir sitios y links no rehace la topología mágicamente: el KCC la recalcula bajo demanda o en su ciclo.' },
+      { order: 8, action: 'Sincronizar de inmediato para cerrar el rezago acumulado', command: 'repadmin /syncall /AdeP', expected: 'Réplica forzada de todas las particiones hacia todos los socios, sin errores', explanation: 'La corrección estructural evita el rezago futuro; la sincronización manual liquida el que ya existía.' },
+      { order: 9, action: 'Verificar el resultado de punta a punta', command: 'nltest /dsgetsite', expected: 'El equipo de la sede reporta su sitio correcto; el logon responde sin cruzar el WAN y replsummary queda dentro de la frecuencia del link', explanation: 'La prueba la da el equipo de la sede: sitio correcto, autenticación local y replicación dentro de lo pactado.' },
+    ],
+    commands_copyable: [
+      'repadmin /replsummary',
+      'nltest /dsgetsite',
+      'Get-ADReplicationSite -Filter * | Format-Table Name,Description',
+      'Get-ADReplicationSubnet -Filter * | Format-Table Name,Site',
+      'New-ADReplicationSubnet -Name "192.168.50.0/24" -Site "SedeNorte"',
+      'Get-ADReplicationSiteLink -Filter * | Format-Table Name,Cost,ReplicationFrequencyInMinutes',
+      'repadmin /kcc',
+      'repadmin /syncall /AdeP',
+      'repadmin /showrepl /csv',
+    ],
+    verification: 'El equipo de la sede remota reporta su sitio correcto con nltest /dsgetsite, repadmin /replsummary muestra todos los pares con éxito y latencia por debajo de la frecuencia configurada del site link, y un logon de la sede responde localmente (el DC de la sede atiende, verificable en el registro de seguridad o en el evento de logon del DC local).',
+    evidence_to_collect: [
+      'repadmin /replsummary antes/después con la latencia intersitio corregida',
+      'Inventario de subredes antes (la subred ausente o mal asociada) y después con la corrección',
+      'La salida de nltest /dsgetsite del equipo de la sede mapeando al sitio correcto',
+      'Los valores de costo/frecuencia del site link revisados y la justificación del cambio',
+    ],
+    escalation: 'Si tras corregir subredes y links la replicación intersitio sigue fallando o el KCC reporta errores: revisar conectividad y puertos entre los DCs de los sitios (RPC 135 + rango dinámico, Kerberos 88) y el log Directory Service con Get-WinEvent — y escalar al equipo de red si el enlace WAN mismo está degradado (pérdida de paquetes: la replicación no puede vencer a un enlace que se cae).',
+    english_customer_response_template: 'Hello, we have resolved the branch office slowness reported under ticket {{TICKET_ID}}. The branch network subnet was not registered in the Active Directory site topology, so every login from that office was crossing the WAN link to a domain controller at headquarters, and directory changes were taking hours to replicate. We registered the subnet to the correct site, adjusted the site link cost and replication interval, forced a topology recalculation and a full synchronization. Branch users now authenticate against their local domain controller, logins respond normally and changes replicate within minutes. We will keep monitoring replication latency for the next cycle.',
+    english_technical_explanation: 'Intersite replication and logon latency at the branch site: repadmin /replsummary showed inter-site pairs lagging by hours, and nltest /dsgetsite on a branch client returned Default-First-Site-Name, confirming a site-mapping problem. Root cause: the branch subnet was never associated with its AD site in Sites and Services (dssite.msc), so the DC locator sent branch machines to HQ domain controllers across the WAN, and the site link was left at the default 180-minute replication frequency. Remediation: subnet created and associated via New-ADReplicationSubnet, site link cost and ReplicationFrequencyInMinutes reviewed, KCC topology rebuilt with repadmin /kcc and a forced convergence with repadmin /syncall /AdeP. Verification: nltest /dsgetsite now maps branch clients to their local site and replication summary reports all partitions within the configured interval.',
+    keywords: ['sites and services', 'sitios de ad', 'dssite.msc', 'subred', 'subnet', 'site link', 'costo', 'replication frequency', 'repadmin /replsummary', 'nltest /dsgetsite', 'kcc', 'istg', 'intersite', 'default-first-site-name', 'logon lento', 'autenticacion cruzada', 'wan', 'topologia de replicacion', 'get-adreplicationsubnet', 'get-adreplicationsitelink'],
+  },
+  {
+    id: 'RB-SA-054',
+    pillar: 'SYSADMIN',
+    title: 'Confianza (trust) entre dominios o bosques — alta, verificación y reparación',
+    category: 'Windows Server / AD',
+    ticket_example: 'OPS{{TICKET_ID}} - Cross-domain/forest authentication failing - Users from partner domain cannot access resources - P1 - {{DOMAIN}}',
+    problem_description: 'Los usuarios del otro dominio (tras una fusión, un proveedor o una adquisición) no pueden autenticarse ni acceder a recursos de este lado: logons rechazados, accesos que "antes funcionaban" y errores de autenticación cruzada. La confianza (trust) entre dominios o bosques está rota, mal creada o su contraseña segura quedó desincronizada.',
+    business_impact: 'Toda la colaboración entre las dos organizaciones se detiene: aplicaciones integradas, shares y correo entre bosques. Si la confianza es de bosque (forest trust), su ruptura puede además impedir la administración delegada de recursos compartidos — y una confianza mal endurecida (sin SID filtering en external) es un hallazgo clásico de auditoría de seguridad.',
+    symptoms: [
+      'Usuarios del dominio remoto reciben acceso denegado a recursos que les fueron concedidos',
+      'netdom trust /verify falla o reporta la confianza como inalcanzable',
+      'Los eventos de logon fallido (4625) del lado local se multiplican para cuentas del dominio externo',
+    ],
+    root_causes: [
+      'Contraseña de la confianza desincronizada entre ambos lados (típico tras restaurar un DC de backup viejo en uno de los dominios)',
+      'Firewall bloqueando los puertos de la confianza: Kerberos 88, LDAP 389, SMB 445, RPC 135 y su rango dinámico entre DCs de ambos dominios',
+      'Confianza creada en un solo sentido cuando el flujo de acceso necesita dos, o selective authentication negando la autenticación de recursos de forma selectiva',
+    ],
+    prerequisites: [
+      'Credenciales administrativas de dominio en AMBOS lados (crear/validar una confianza requiere ambos dominios)',
+      'Matriz documentada de puertos abiertos entre las redes de los dos dominios (88, 389, 445, 135 + rango dinámico RPC)',
+    ],
+    step_by_step_universal: [
+      { order: 1, action: 'Inventariar las confianzas existentes y su configuración de seguridad', command: "Get-ADTrust -Filter * | Format-Table Source,Target,TrustDirection,TrustType,SelectiveAuthentication,SIDFilteringQuarantined", expected: 'Cada confianza con su origen, destino, dirección (Inbound/Outbound/Bidirectional), tipo (Forest/External/TreeRoot) y los flags de seguridad', explanation: 'El inventario responde tres preguntas de una vez: existe la confianza, apunta en la dirección que el negocio necesita y está endurecida como manda la política.' },
+      { order: 2, action: 'Verificar la salud de la confianza desde este lado', command: 'netdom trust {{DOMAIN}} /d:partner.local /verify', expected: 'The trust between the domains is verified / verified successfully — si falla, la contraseña o la conectividad están rotas', explanation: 'La verificación oficial prueba el canal seguro de la confianza sin tocar su configuración: es el stethoscopy antes de la cirugía.' },
+      { order: 3, action: 'Si verify falla, verificar el canal seguro desde un DC', command: 'nltest /sc_verify:partner.local', expected: 'Trusted DC Connection Status con 0x0 NERR_Success — un error distinto confirma el canal roto', explanation: 'sc_verify prueba el canal seguro del DC contra el dominio confiado y devuelve el estado crudo: complementa netdom y ubica en qué lado está el daño.' },
+      { order: 4, action: 'Descartar el firewall antes de tocar la confianza', command: 'Test-NetConnection dc01.partner.local -Port 88; Test-NetConnection dc01.partner.local -Port 389; Test-NetConnection dc01.partner.local -Port 135', expected: 'TcpTestSucceeded : True en los tres — el 135 es la puerta del rango dinámico RPC que la confianza también necesita', explanation: 'Media confianza "rota" es solo red: Kerberos, LDAP y el endpoint mapper RPC deben pasar entre los DCs de ambos lados antes de culpar a la configuración.' },
+      { order: 5, action: 'Si hay que repararla: eliminar y recrear la confianza en la misma ventana (acordada con el admin del otro lado)', command: 'netdom trust {{DOMAIN}} /d:partner.local /remove', expected: 'The trust between the domains was deleted (con confirmación del otro lado)', explanation: 'La reparación estándar de una confianza con contraseña desincronizada es recrearla: ambos lados negocian contraseña nueva y el canal seguro renace limpio.' },
+      { order: 6, action: 'Recrearla con la dirección correcta (bidireccional si el acceso va y viene)', command: 'netdom trust {{DOMAIN}} /d:partner.local /add /twoway', expected: 'The trust between the domains was created and verified — en ambos lados aparece en el inventario', explanation: 'La dirección de la confianza es la decisión de negocio: /twoway solo si ambos dominios necesitan acceder al otro — el mínimo privilegio también aplica a las confianzas.' },
+      { order: 7, action: 'Endurecerla según el tipo: SID filtering en external, selective auth si aplica', command: 'netdom trust {{DOMAIN}} /d:partner.local /quarantine:YES', expected: 'SID filtering activo para la confianza (por defecto ON en external, OFF en forest: verificar contra la política)', explanation: 'El quarantine (SID filtering) impide que un dominio eleve privilegios inyectando SIDs del otro: en confianzas forest se desactiva solo con justificación documentada y aprobación de seguridad.' },
+      { order: 8, action: 'Verificar y probar con un usuario real del otro dominio', command: 'netdom trust {{DOMAIN}} /d:partner.local /verify', expected: 'Confianza verificada y el usuario del dominio externo accede al recurso concedido (logon 4624 en el registro de seguridad)', explanation: 'La confianza está sana cuando el negocio cruza: la prueba final es un acceso real de un usuario del otro lado, no solo el verify verde.' },
+    ],
+    commands_copyable: [
+      'Get-ADTrust -Filter * | Format-Table Source,Target,TrustDirection,TrustType,SelectiveAuthentication,SIDFilteringQuarantined',
+      'netdom trust {{DOMAIN}} /d:partner.local /verify',
+      'nltest /sc_verify:partner.local',
+      'Test-NetConnection dc01.partner.local -Port 88',
+      'Test-NetConnection dc01.partner.local -Port 389',
+      'Test-NetConnection dc01.partner.local -Port 135',
+      'netdom trust {{DOMAIN}} /d:partner.local /remove',
+      'netdom trust {{DOMAIN}} /d:partner.local /add /twoway',
+      'netdom trust {{DOMAIN}} /d:partner.local /quarantine:YES',
+      'netdom trust {{DOMAIN}} /d:partner.local /selectiveauth:YES',
+    ],
+    verification: 'netdom trust /verify pasa desde ambos lados, el inventario Get-ADTrust muestra la confianza con la dirección y los flags de seguridad exigidos por la política (SID filtering en external), y un usuario real del dominio externo autentica y accede al recurso concedido (evento 4624 con su dominio de origen).',
+    evidence_to_collect: [
+      'Inventario Get-ADTrust antes/después con dirección, tipo y flags de seguridad',
+      'Salida de netdom /verify y nltest /sc_verify antes (fallo) y después (éxito)',
+      'Ticket de cambio de la ventana acordada con el administrador del otro dominio (remove/add)',
+      'La prueba de acceso del usuario del dominio externo con hora y recurso',
+    ],
+    escalation: 'Si el firewall no es el problema y la confianza se rompe repetidamente tras recrearla: escalar al equipo de directorio/arquitectura — la causa puede ser un DC restaurado de un backup inconsistente en el otro dominio (contraseñas de confianza que rotan y el backup viejo no conoce). Cambios en confianzas forest con seguridad relajada (quarantine:NO): siempre con aprobación formal de seguridad.',
+    english_customer_response_template: 'Hello, the cross-domain access issue has been resolved under ticket {{TICKET_ID}}. The trust between our domain and the partner domain had a broken secure channel, so users from the partner side were being denied access to shared resources. We verified the trust health, confirmed the required firewall ports between both domains, and re-established the trust with the correct direction in a coordinated window with the partner administrators. Security hardening (SID filtering) was confirmed per policy. Partner users can now authenticate and access their granted resources normally. We will monitor authentication events for the next 24 hours.',
+    english_technical_explanation: 'Cross-domain authentication failures for partner domain users: Get-ADTrust inventory confirmed the trust object but netdom trust /verify and nltest /sc_verify reported a broken secure channel. Network path ruled out (Kerberos 88, LDAP 389, RPC 135 and dynamic range verified with Test-NetConnection between domain controllers). Remediation executed in a coordinated change window: trust removed and re-created bidirectionally with netdom (fresh trust password negotiation on both sides), SID filtering (quarantine) confirmed enabled per security policy for the trust type. Verification: netdom verify passes from both sides and a real partner-domain user successfully authenticated to the granted resource (event 4624). Root cause hypothesis documented: trust password desynchronization, possibly from a domain controller restored from a stale backup on the partner side.',
+    keywords: ['trust', 'confianza', 'forest trust', 'external trust', 'netdom trust', 'nltest /sc_verify', 'get-adtrust', 'sid filtering', 'quarantine', 'selective authentication', 'selectiveauth', 'canal seguro', 'secure channel', 'dominio externo', 'bosque', 'fusion', 'adquisicion', 'autenticacion cruzada', 'puertos trust', 'rpc 135'],
+  },
+  {
+    id: 'RB-SA-055',
+    pillar: 'SYSADMIN',
+    title: 'DFS Namespaces — referrals erráticos o target caído: los usuarios caen al servidor equivocado',
+    category: 'File & Print',
+    ticket_example: 'OPS{{TICKET_ID}} - DFS namespace routing users to downed file server / UNC path failing - P2 - {{HOSTNAME}}',
+    problem_description: 'El namespace DFS (\\\\dominio\\datos) manda a los usuarios a un servidor caído o a uno remoto en vez del local: la ruta UNC falla para algunos usuarios, funciona para otros, o "se cayó" cuando el file server primario sigue en mantenimiento. Los referrals (la lista de destinos que el cliente recibe y cachea) están desalineados con la realidad.',
+    business_impact: 'Las rutas de negocio (accesos directos, aplicaciones configuradas con el UNC, scripts de logon) apuntan al namespace justamente para no depender de un servidor: si el routing del namespace falla, la caída del primario se convierte en caída total de la carpeta corporativa — exactamente lo que DFS Namespaces prometía evitar.',
+    symptoms: [
+      'Los usuarios reciben errores de ruta inaccesible en \\\\{{DOMAIN}}\\datos aunque el file server alternativo está sano',
+      'Un grupo de usuarios cae siempre al servidor remoto (cruza el WAN) o al que está en mantenimiento',
+      'Tras recuperar un target, algunos clientes siguen yendo al caído durante un rato (la caché de referrals del cliente)',
+    ],
+    root_causes: [
+      'Target caído sin marcar Offline en el namespace: los referrals siguen incluyéndolo y los clientes siguen cayendo en él',
+      'Caché de referrals del cliente desactualizada (TTL): sigue entregando el orden de destinos viejo tras un cambio',
+      'Mapeo de sitio de AD erróneo del cliente (subred sin sitio): DFSN prefiere targets del "sitio" del cliente y con sitio mal resuelto elige el remoto',
+    ],
+    prerequisites: [
+      'Acceso administrativo con el módulo DFSN (RSAT File Services) a los namespace servers',
+      'Conocer el diseño: raíz (domain/standalone), targets por carpeta, prioridades y la política de failover acordada',
+    ],
+    step_by_step_universal: [
+      { order: 1, action: 'Inventariar las raíces DFS del dominio y su estado', command: 'Get-DfsnRoot | Format-Table Path,Type,State', expected: 'Cada raíz con su tipo (Domain/Standalone) y estado Online — la raíz caída es un problema distinto (namespace server)', explanation: 'Primero separar el problema de raíz (nadie resuelve el namespace) del de targets (resuelven pero caen mal): la raíz es la tabla de ruteo, el target es el destino.' },
+      { order: 2, action: 'Ver los targets de la carpeta afectada y su estado real', command: 'Get-DfsnRootTarget -Path "\\\\{{DOMAIN}}\\datos" | Format-Table TargetPath,State,ReferralPriorityClass', expected: 'La lista de servidores detrás del namespace con su estado Online/Offline y prioridad — el target muerto en Online es el sospechoso', explanation: 'El estado del target decide si entra en los referrals: un servidor apagado que sigue Online en el namespace recibe clientes que fallarán.' },
+      { order: 3, action: 'Marcar Offline el target en mantenimiento (la salida limpia de un failover)', command: 'Set-DfsnRootTarget -Path "\\\\{{DOMAIN}}\\datos" -TargetPath "\\\\srv-fs-02\\datos" -State Offline', expected: 'El target pasa a Offline y deja de entregarse en los referrals nuevos', explanation: 'Sacarlo del namespace ANTES de apagarlo (o apenas se detecte muerto) es lo que hace el failover invisible: los clientes nuevos van directo al sano.' },
+      { order: 4, action: 'Verificar que el target sano responde por el puerto de archivo', command: 'Test-NetConnection srv-fs-01 -Port 445', expected: 'TcpTestSucceeded : True y el share accesible por su UNC directo (\\\\srv-fs-01\\datos)', explanation: 'DFS solo enruta: si el destino sano tampoco responde por SMB, el problema es del file server, no del namespace.' },
+      { order: 5, action: 'Ver la caché de referrals del cliente afectado', command: 'dfsutil /pktinfo', expected: 'La tabla de referencias activa del cliente: qué destinos conoce, en qué orden y con qué TTL restante', explanation: 'El cliente cachea el orden de targets por TTL: ver su caché explica por qué insiste en un servidor que ya salió del namespace.' },
+      { order: 6, action: 'Purgar la caché de referencias del cliente para forzar la consulta fresca', command: 'dfsutil /pktflush', expected: 'Caché vaciada; la siguiente apertura del UNC consulta de nuevo y recibe los targets vigentes', explanation: 'El fix del cliente que "sigue yendo al caído": sin caché, vuelve a preguntar al namespace y recibe la lista corregida.' },
+      { order: 7, action: 'Verificar el sitio del cliente (los referrals son site-aware)', command: 'nltest /dsgetsite', expected: 'El sitio correcto del cliente — un sitio mal resuelto explica que prefiera el target remoto', explanation: 'DFSN ordena los referrals prefiriendo el sitio del cliente: si la subred no mapea a su sitio (ver RB-SA-053), el target "local" deja de serlo.' },
+      { order: 8, action: 'Ajustar la prioridad si el orden de failover acordado exige más que el sitio', command: 'Set-DfsnRootTarget -Path "\\\\{{DOMAIN}}\\datos" -TargetPath "\\\\srv-fs-01\\datos" -ReferralPriorityClass GlobalHigh', expected: 'El target con prioridad GlobalHigh encabeza los referrals para todos los clientes', explanation: 'Cuando el negocio define un primario incondicional (replica activa-pasiva), la prioridad global lo impone por encima de la afinidad de sitio.' },
+      { order: 9, action: 'Verificar de punta a punta con un cliente real', command: 'dfsutil /pktinfo', expected: 'El cliente muestra el target sano al frente de la lista y abre \\\\{{DOMAIN}}\\datos sin errores', explanation: 'El circuito cerrado: referrals frescos, orden correcto y la carpeta corporativa accesible aunque un file server esté caído — el objetivo entero de DFSN.' },
+    ],
+    commands_copyable: [
+      'Get-DfsnRoot | Format-Table Path,Type,State',
+      'Get-DfsnRootTarget -Path "\\\\{{DOMAIN}}\\datos" | Format-Table TargetPath,State,ReferralPriorityClass',
+      'Set-DfsnRootTarget -Path "\\\\{{DOMAIN}}\\datos" -TargetPath "\\\\srv-fs-02\\datos" -State Offline',
+      'Test-NetConnection srv-fs-01 -Port 445',
+      'dfsutil /pktinfo',
+      'dfsutil /pktflush',
+      'nltest /dsgetsite',
+      'Set-DfsnRootTarget -Path "\\\\{{DOMAIN}}\\datos" -TargetPath "\\\\srv-fs-01\\datos" -ReferralPriorityClass GlobalHigh',
+    ],
+    verification: 'Get-DfsnRootTarget muestra solo targets Online en los referrals (o los Offline de mantenimiento conscientemente marcados), un cliente real abre \\\\{{DOMAIN}}\\datos y su dfsutil /pktinfo refleja el orden esperado (target sano o de sitio primero), y la apertura sobrevive a la prueba de fallar el primario con usuarios conectados.',
+    evidence_to_collect: [
+      'Salidas de Get-DfsnRoot y Get-DfsnRootTarget antes/después con los estados corregidos',
+      'La caché del cliente (dfsutil /pktinfo) mostrando el referral viejo y la lista fresca tras el purge',
+      'El UNC del namespace accediendo con el target caído fuera de servicio (la prueba del failover)',
+      'El cambio de prioridad o estado con su justificación (ventana o emergencia) en el ticket',
+    ],
+    escalation: 'La raíz del namespace irresoluble para todos (namespace servers caídos o el dominio no responde \\\\dominio\\...): revisar los servers que hospedan la raíz y el propio AD/DNS — escalar al equipo de directorio. Targets que se desincronizan del contenido real (los archivos difieren por servidor): el contenido es trabajo de DFSR (ver RB-SA-012 de SYSVOL como referencia del modelo), no de DFSN — redirigir al dueño del file services con la evidencia.',
+    english_customer_response_template: 'Hello, the corporate shared folder issue has been resolved under ticket {{TICKET_ID}}. The DFS namespace was still directing users to a file server that is down for maintenance. We marked the server as offline in the namespace so clients are immediately routed to the healthy server, flushed the referral cache on affected clients, and confirmed the correct server preference according to each office site. Users can now open the shared folder normally, and the failover was validated while the primary server remains offline. We will mark the server back online in the namespace once maintenance completes.',
+    english_technical_explanation: 'DFS Namespaces routing failures on \\\\{{DOMAIN}}\\datos: Get-DfsnRootTarget revealed a downed target still in Online state, so client referrals kept including the unavailable server (users failing on access) and site preference was distorted by a client with unresolved AD site membership. Remediation: target transitioned to Offline via Set-DfsnRootTarget (removed from new referrals, enabling clean failover to the healthy server), SMB reachability of the healthy target confirmed on port 445, client referral cache inspected (dfsutil /pktinfo) and purged (dfsutil /pktflush) to force fresh referrals, and client site mapping verified with nltest /dsgetsite. Priority class adjusted to enforce the agreed failover order. Verification: client referral cache now lists the healthy target first and the namespace UNC opens with the primary server down.',
+    keywords: ['dfs namespaces', 'dfsn', 'dfs', 'referral', 'referrals', 'get-dfsnroot', 'get-dfsnroottarget', 'set-dfsnroottarget', 'dfsutil', 'pktinfo', 'pktflush', 'namespace server', 'target', 'failover de archivos', 'file server', 'unc', 'prioridad', 'globalhigh', 'sitio', 'site aware', 'offline target'],
+  },
+  {
+    id: 'RB-SA-056',
+    pillar: 'SYSADMIN',
+    title: 'Activación del DRP — declaración de desastre y recuperación del servicio crítico',
+    category: 'Backup & Storage',
+    ticket_example: 'OPS{{TICKET_ID}} - MAJOR INCIDENT - Hypervisor/datastore lost - DRP activation - P1 - {{HOSTNAME}}',
+    problem_description: 'El escenario que ningún ticket quiere ser: el hipervisor o el datastore principal se perdió (fallo físico, ransomware cifrando el storage, desastre del sitio) y los servicios críticos NO van a volver con un reinicio. Este runbook es la activación del Plan de Recuperación ante Desastres (DRP): quién declara, en qué orden se recupera, qué se verifica y cómo se documenta para que la auditoría (y la gerencia) reconstruyan cada decisión.',
+    business_impact: 'Está en juego el RTO de cada servicio crítico: cada minuto de indecisión se paga en tiempo de caída. Un DRP mal ejecutado convierte un incidente grave en uno terminal: se pierden datos recuperables (RPO violado), se restauran servidores en el orden equivocado (AD roto por semanas) o las copias de seguridad mismas se contaminan (el ransomware también las cifra si estaban montadas).',
+    symptoms: [
+      'Hipervisor/datastore caído sin recuperación operativa inmediata: múltiples VMs críticas indisponibles a la vez',
+      'Ransomware cifrando archivos del storage: los backups son el único retorno confiable',
+      'El RTO del servicio crítico número 1 ya se incumplió o está a punto de vencerse sin plan de retorno',
+    ],
+    root_causes: [
+      'Fallo físico del storage/hipervisor sin redundancia suficiente (RAID no es backup; HA no cubre la pérdida del datastore entero)',
+      'Ransomware con credenciales administrativas: cifra VMs y todo backup montado como unidad',
+      'Desastre del sitio (energía/incendio/inundación) que saca el entorno completo del aire',
+    ],
+    prerequisites: [
+      'El DRP aprobado con la lista priorizada de servicios, RTO/RPO por servicio y el orden de recuperación pactado',
+      'Copias 3-2-1 verificadas y AISLADAS (una inmutable/offline fuera del alcance del incidente) — ver el checklist RB-SA-055/CS-SA de 3-2-1',
+    ],
+    step_by_step_universal: [
+      { order: 1, action: 'Confirmar el alcance y DECLARAR el desastre con el criterio pactado: RTO de un servicio crítico incumplido o inminente y sin alternativa operativa — declara el incident commander (no el on-call en solitario)', command: undefined, expected: 'La declaración queda registrada con hora, declarante y alcance (qué servicios entran al DRP y cuáles NO)', explanation: 'La declaración activa el plan: autoriza gastos, ventana y órdenes fuera del proceso normal. Declarar tarde quema RTO; declarar sin criterio quema credibilidad y presupuesto.' },
+      { order: 2, action: 'Abrir el puente de incidente con roles asignados: incident commander (decide), comms lead (informa al negocio cada 30 minutos), scribe (cronología de cada decisión y hora)', command: undefined, expected: 'Puente activo con los tres roles cubiertos y el primer update de estado emitido', explanation: 'En desastre no hay memoria: lo que el scribe no anota con hora, no existe para el postmortem ni para la auditoría. La cadencia de 30 minutos sostiene la confianza del negocio.' },
+      { order: 3, action: 'Congelar cambios y PROTEGER los backups: aislar el repositorio (la copia offline/inmutable no se monta ni se conecta hasta que toque restaurar de ella)', command: undefined, expected: 'Ningún cambio no esencial en el entorno; repositorios de backup verificados como intocados (hashes/manifiestos si existen)', explanation: 'El ransomware moderno caza los backups montados: la copia que salva la empresa es la que nunca estuvo al alcance. Restaurar apurado desde una copia contaminada destruye el último retorno limpio.' },
+      { order: 4, action: 'Recuperar en el ORDEN del DRP: primero la base (DNS/DHCP/DC y el propio hipervisor + storage de backups), después la identidad completa, luego las apps críticas por RTO', command: undefined, expected: 'La secuencia documentada del DRP ejecutándose con checkpoint por etapa (la base autentica y resuelve antes de que cualquier app dependa de ella)', explanation: 'Restaurar la app estrella antes que AD/DNS produce un ciclo vicioso: la app no arranca porque no autentica ni resuelve. El orden existe para que cada pieza encuentre sus dependencias de pie.' },
+      { order: 5, action: 'Restaurar por plataforma con su runbook: DC con system state/Recycle Bin (RB-SA-013), VMs desde el backup del hipervisor (vzdump/Veeam/WSB según el entorno), archivos con restore verificado', command: undefined, expected: 'Cada restauración con su verificación inmediata: el DC replica y autentica (dcdiag), la VM arranca y responde, los archivos abren y el contenido cuadra contra el RPO', explanation: 'El DRP orquesta; los runbooks ejecutan. Ninguna restauración cuenta como hecha hasta verificar que el servicio que depende de ella funciona de verdad.' },
+      { order: 6, action: 'Validar contra el checklist de servicios: autenticación (logon real de usuarios de prueba), resolución DNS, smoke test por aplicación crítica y dato de negocio (facturar/cotizar/abrir el expediente típico)', command: undefined, expected: 'Cada ítem del checklist marcado con hora y responsable; ningún servicio declarado "recuperado" sin su prueba de negocio', explanation: 'El arranque del proceso no es el servicio: la validación la hace el flujo de negocio. Declarar recuperado sin smoke test devuelve la caída a los cinco minutos.' },
+      { order: 7, action: 'Comunicar la recuperación al negocio con los datos duros: servicios arriba, RTO/RPO reales contra los pactados y las limitaciones temporales que quedan', command: undefined, expected: 'Comunicado con hora de corte y hora de restauración por servicio + monitoreo intensivo de 24 horas anunciado', explanation: 'El negocio necesita números, no adjetivos: cuánto se cayó, cuánto dato se perdió y qué funciona a medias. La promesa de vigilancia de 24h previene la recaída silenciosa.' },
+      { order: 8, action: 'Documentar la evidencia completa mientras está fresca: timeline del scribe, decisiones con su quién/cuándo/porqué, RTO/RPO reales, y lecciones para el postmortem', command: undefined, expected: 'El expediente del desastre completo en el ticket mayor: cualquier auditor debe poder reconstruir la secuencia sin preguntar a nadie', explanation: 'El DRP que no dejó evidencia no defendió a nadie: seguro, auditoría y gerencia van a preguntar exactamente qué se hizo y por qué. La evidencia es la mitad del valor del plan.' },
+      { order: 9, action: 'Cerrar con postmortem sin culpa dentro de 72 horas y actualizar el DRP: lo que falló del plan, lo que faltó y la fecha del próximo drill', command: undefined, expected: 'Postmortem publicado con acciones con dueño y fecha; DRP corregido y próximo drill agendado', explanation: 'El desastre real es el examen del DRP: cada hueco descubierto es una mejora gratis al plan — si se documenta. El drill semestral mantiene el plan ejecutable por humanos que no estuvieron hoy.' },
+    ],
+    commands_copyable: [
+      'repadmin /replsummary',
+      'dcdiag /s:{{DOMAIN_CONTROLLER}}',
+      'nltest /dsgetsite',
+      'Get-VM | Where-Object State -eq Off',
+      'Get-WinEvent -LogName System -MaxEvents 50',
+    ],
+    verification: 'Todos los servicios del checklist del DRP validados con prueba de negocio (logon, resolución y flujo crítico por app), RTO y RPO reales calculados y comparados contra los pactados por servicio, el monitoreo intensivo de 24 horas sin recaídas, el expediente completo en el ticket mayor y el postmortem con acciones fechadas publicado.',
+    evidence_to_collect: [
+      'Timeline del scribe con la declaración (hora/declarante/alcance), cada decisión y cada restauración',
+      'RTO/RPO reales por servicio contra los objetivos del DRP (la tabla del incumplimiento o del logro)',
+      'Checklist de validación por servicio con hora y responsable de cada prueba de negocio',
+      'La copia de seguridad usada como fuente (fecha, tipo, verificación previa) de cada restauración',
+    ],
+    escalation: 'La regla de oro del DRP: escalar es decidir. Si la restauración de una pieza base (storage, DC, hipervisor) no avanza en el tiempo de su checkpoint, el incident commander activa la alternativa del plan (recovery en la nube/sitio secundario o soporte del fabricante) — nunca se improvisa en un desastre lo que el plan debía tener escrito. Contactos de soporte y proveedores viven en el DRP, no en la memoria de nadie.',
+    english_customer_response_template: 'Hello, following the major incident under ticket {{TICKET_ID}}, the Disaster Recovery Plan was activated at {{TIMESTAMP}} and recovery has been completed for all critical services. Infrastructure dependencies were restored first (directory, name resolution and virtualization), then each critical application was recovered from verified backups and validated with business-level tests. Service was restored within the agreed recovery objectives, with actual recovery times and data-loss windows documented per service. We are operating under intensive monitoring for the next 24 hours and a full incident review will be published within 72 hours.',
+    english_technical_explanation: 'DRP activation for a major infrastructure loss at {{TIMESTAMP}}: disaster declared by the incident commander once the primary service RTO was breached without operational workaround. Recovery executed in dependency order per the approved plan: directory services and name resolution restored first (system state / Recycle Bin path per runbook RB-SA-013, replication validated with repadmin /replsummary and dcdiag), virtualization layer and backup infrastructure next, then critical applications by business RTO from verified 3-2-1 copies (offline copy preserved untouched until needed). Each service validated with authentication, name resolution and business smoke tests before being declared recovered. Actual RTO and RPO measured per service against plan objectives, full decision timeline recorded by the scribe, blameless postmortem scheduled within 72 hours with DRP updates and next drill date.',
+    keywords: ['drp', 'disaster recovery', 'recuperacion de desastres', 'declaracion de desastre', 'incident commander', 'rto', 'rpo', 'plan de continuidad', 'bcp', 'restore', 'restauracion masiva', 'hipervisor caido', 'datastore perdido', 'ransomware', 'backup inmutable', '3-2-1', 'postmortem', 'drill', 'failover total', 'sitio de contingencia'],
+  },
+  {
+    id: 'RB-SA-057',
+    pillar: 'SYSADMIN',
+    title: 'VPN de acceso remoto (RRAS/NPS) — el usuario remoto no conecta: 809, 691 y 812',
+    category: 'Redes / VPN',
+    ticket_example: 'OPS{{TICKET_ID}} - Remote user cannot connect VPN - Error 809/691/812 - P2 - {{USERNAME}}',
+    problem_description: 'Un usuario remoto no puede establecer la VPN de acceso remoto (o se conectaba ayer y hoy no). Del lado servidor conviven el RRAS (el servidor VPN que termina el túnel) y el NPS (el servidor de directivas que decide quién entra — RADIUS con EAP-TLS o MS-CHAPv2). El código de error del cliente define el camino: 809 es red, 691 es credencial y 812 es la directiva del NPS rechazando.',
+    business_impact: 'El usuario remoto queda fuera de todo: correo interno puede, pero ERP, shares y aplicaciones internas no. Si la causa es el certificado del NPS o una directiva tocada, la incidencia es masiva a la mañana siguiente: nadie entra desde casa — y el ticket se vuelve P1 con la gerencia en copia.',
+    symptoms: [
+      'El cliente muestra error 809 (timeout de negociación: la conexión de red no permite el túnel) o 691 (autenticación rechazada)',
+      'Error 812: el servidor rechazó la conexión por una directiva (la conexión fue impedida por una política configurada en el servidor RAS/VPN)',
+      'Algunos usuarios entran y otros no (un grupo, una sede, un perfil), o todos fallaron a la vez tras un cambio de certificado o de directiva',
+    ],
+    root_causes: [
+      'Firewall o ISP bloqueando UDP 500/4500 (IKEv2) entre el cliente y el servidor VPN — el clásico del 809',
+      'Certificado del servidor NPS vencido o su cadena rota (EAP-TLS no negocia y el cliente ve 691/812 con eventos 6273 del NPS)',
+      'Directiva de red del NPS cuyas condiciones no casan (grupo de VPN, NAS Port Type, horario) o el usuario fuera del grupo de acceso',
+    ],
+    prerequisites: [
+      'Acceso administrativo al servidor VPN (RRAS) y al NPS, y al registro de eventos del Security log del NPS',
+      'Saber qué protocolo usa el perfil (IKEv2/SSTP/L2TP) y qué método de autenticación (EAP-TLS con certificados / MS-CHAPv2)',
+    ],
+    step_by_step_universal: [
+      { order: 1, action: 'Leer el error EXACTO del cliente: el log RasClient cuenta la historia completa', command: "Get-WinEvent -LogName 'Microsoft-Windows-RasClient/Operational' -MaxEvents 20 | Format-List TimeCreated,Id,Message", expected: 'El evento con el código de error del intento: 809 (red/timeout), 691 (autenticación), 812 (directiva del servidor)', explanation: 'Cada código es un camino distinto: diagnosticar sin el código es adivinar. 809 apunta a la red; 691/812 apuntan al NPS y a las credenciales.' },
+      { order: 2, action: 'Si es 809: verificar el camino de red del túnel (UDP 500 y 4500 para IKEv2, TCP 443 si el perfil es SSTP)', command: 'Test-NetConnection vpn.{{DOMAIN}} -Port 443', expected: 'Para SSTP: TcpTestSucceeded : True — para IKEv2 confirmar en el firewall perimetral que UDP 500/4500 llega al servidor VPN', explanation: 'El túnel no negocia si la red lo bloquea: ISP, hotel o el firewall propio. Test-NetConnection prueba el TCP de SSTP; el UDP de IKEv2 se verifica en las reglas del perímetro (los UDP no se prueban con Test-NetConnection).' },
+      { order: 3, action: 'Si es 691/812: ir al NPS y leer el veredicto del evento 6273 (access reject con su motivo)', command: "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=6273} -MaxEvents 10 | Format-List TimeCreated,Message", expected: 'El evento 6273 del usuario con la razón del rechazo y QUÉ directiva evaluó/casó — el motivo y la política nombrada definen el fix', explanation: 'El NPS registra cada rechazo como 6273 en el Security log con la razón: credencial mala, certificado, o ninguna directiva que case. Es la fuente de verdad del lado servidor.' },
+      { order: 4, action: 'Contrastar las condiciones de la directiva que casó: grupo de acceso, NAS Port Type (Virtual VPN), restricciones de horario y método EAP', command: undefined, expected: 'La directiva correcta evaluando al usuario (o ninguna casando — la brecha que explica el rechazo)', explanation: 'El 812 es casi siempre una condición que no casa: el usuario no está en el grupo de VPN, el NAS Port Type quedó en Ethernet, o el método EAP de la directiva no es el del perfil del cliente.' },
+      { order: 5, action: 'Verificar el certificado del servidor NPS (el silencioso): vigencia y cadena del certificado con que se presenta al EAP-TLS', command: 'Get-ChildItem Cert:\\LocalMachine\\My | Format-List Subject,NotAfter,Issuer', expected: 'El certificado del servidor dentro de su vigencia y con la cadena hasta la CA que el cliente confía — un NotAfter en el pasado es el hallazgo', explanation: 'El EAP-TLS se rompe sin avisar cuando el certificado del NPS vence: el usuario ve 691/812 genérico y el 6273 muestra el fallo de autenticación EAP. Cadena rota = mismo final.' },
+      { order: 6, action: 'Verificar la salud del servicio VPN (RRAS) del lado servidor', command: 'Get-Service RemoteAccess; Get-RemoteAccess', expected: 'RemoteAccess en Running y Get-RemoteAccess reporta el rol VPN operativo con sus protocolos habilitados', explanation: 'Descartar lo básico del servidor: el RRAS caído o reconfigurado tumba a todos — un fallo de todos-a-la-vez casi nunca es el usuario.' },
+      { order: 7, action: 'Verificar la cuenta del usuario: habilitada, sin bloqueo y dentro del grupo de acceso VPN', command: 'Get-ADUser {{USERNAME}} -Properties Enabled,LockedOut,MemberOf | Format-List', expected: 'Enabled: True, LockedOut: False y el grupo de VPN entre sus MemberOf', explanation: 'El check de dos minutos que evita una hora de NPS: sin grupo de acceso no hay directiva que case y el rechazo es correcto.' },
+      { order: 8, action: 'Aplicar el fix según la causa, reprobar EN VIVO con el usuario y documentar el par causa→solución', command: undefined, expected: 'El usuario conecta, recibe IP del pool VPN y accede a un recurso interno de prueba; la sesión queda registrada (eventos 6272 de access-accept en el NPS)', explanation: 'La VPN está sana cuando el usuario trabaja: el acceso-accept 6272 y el recurso interno abierto son la doble verificación (conexión + servicio).' },
+    ],
+    commands_copyable: [
+      "Get-WinEvent -LogName 'Microsoft-Windows-RasClient/Operational' -MaxEvents 20 | Format-List TimeCreated,Id,Message",
+      'Test-NetConnection vpn.{{DOMAIN}} -Port 443',
+      "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=6273} -MaxEvents 10 | Format-List TimeCreated,Message",
+      "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=6272} -MaxEvents 10 | Format-List TimeCreated,Message",
+      'Get-ChildItem Cert:\\LocalMachine\\My | Format-List Subject,NotAfter,Issuer',
+      'Get-Service RemoteAccess',
+      'Get-RemoteAccess',
+      'Get-ADUser {{USERNAME}} -Properties Enabled,LockedOut,MemberOf | Format-List',
+    ],
+    verification: 'El usuario conecta y recibe IP del pool de la VPN, el NPS registra el access-accept (evento 6272) con la directiva correcta evaluando, un recurso interno de prueba responde a través del túnel y la sesión es estable (sin expulsiones repetidas). Para fallos masivos: el primer grupo piloto conecta antes de declarar el servicio recuperado.',
+    evidence_to_collect: [
+      'El error del cliente (evento RasClient) y el 6273 del NPS del mismo intento (el antes)',
+      'La causa identificada con su fix: condición de directiva corregida, certificado renovado o regla de firewall habilitada',
+      'El evento 6272 (access-accept) de la conexión exitosa y la prueba del recurso interno a través del túnel (el después)',
+    ],
+    escalation: 'Fallo masivo (nadie conecta) tras un cambio de certificado o directiva: incidente P1 con rollback inmediato del cambio y comunicación proactiva — no se itera usuario por usuario. El 809 persistente con la red del usuario (ISP/hotel bloquea IKEv2): ofrecer el perfil SSTP (TCP 443) como alternativa documentada. La renovación de la CA o del certificado del NPS con interrupción: change formal con el equipo PKI (ver RB-SA-038 del ciclo de certificados).',
+    english_customer_response_template: 'Hello, the VPN connectivity issue for {{USERNAME}} has been resolved under ticket {{TICKET_ID}}. The connection was being rejected by the network policy server: the user account was not a member of the VPN access group required by the remote access policy (client error 812). We added the account to the correct group, verified the policy conditions, the server certificate and the VPN service health, and retested the connection live with the user. The tunnel is now established, an internal resource was validated through the VPN and the successful authentication is logged on the policy server.',
+    english_technical_explanation: 'Remote access VPN failure for {{USERNAME}}: client RasClient log reported error 812 (connection prevented by policy on the RAS/VPN server), pointing to a network policy rejection rather than network path or credentials. NPS Security log event 6273 confirmed the access-reject with the evaluated policy; group membership check (Get-ADUser) showed the account missing from the VPN access group required by the policy conditions. Server side ruled out: RemoteAccess service running, Get-RemoteAccess healthy, NPS server certificate within validity (EAP-TLS chain intact, checked via Cert:\\LocalMachine\\My). Remediation: account added to the VPN access group; live retest established the tunnel with a successful access-accept (event 6272) and internal resource validation through the VPN.',
+    keywords: ['vpn', 'acceso remoto', 'remote access', 'rras', 'nps', 'radius', 'ikev2', 'sstp', 'l2tp', '809', '691', '812', '6273', '6272', 'eap-tls', 'directiva de red', 'network policy', 'always on vpn', 'certificado vpn', 'udp 500', 'udp 4500', 'rasclient', 'dial-in', 'grupo vpn'],
   },
 ];
 
