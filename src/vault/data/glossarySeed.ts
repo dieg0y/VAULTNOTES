@@ -21,7 +21,7 @@ import { GLOSSARY_SEED_SYSADMIN_TERMS } from './glossarySeedSysAdmin';
 import { GLOSSARY_SEED_IAM_TERMS } from './glossarySeedIam';
 import { GLOSSARY_SEED_ADDITIONS_TERMS } from './glossarySeedAdditions';
 
-/** Seed completo del glosario (base + ampliación + HelpDesk + SysAdmin + IAM vendors + auditoría v2). */
+/** Seed completo del glosario (base + ampliación + HelpDesk + SysAdmin + IAM vendors + auditoría v2 + capa SOC 2025). */
 export const GLOSSARY_SEED_TERMS: SeedTerm[] = [
   ...GLOSSARY_SEED_BASE_TERMS,
   ...GLOSSARY_SEED_MORE_TERMS,

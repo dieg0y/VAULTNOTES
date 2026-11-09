@@ -1,11 +1,13 @@
 /**
- * socToolsData.ts — GUÍAS DE HERRAMIENTAS SOC (V9 FASE 7).
+ * socToolsData.ts — GUÍAS DE HERRAMIENTAS SOC (V9 FASE 7 + auditoría SOC 2025).
  *
- * Dataset completo: 8 guías de herramientas SOC reales — Microsoft Sentinel
+ * Dataset completo: 9 guías de herramientas SOC reales — Microsoft Sentinel
  * (KQL), Splunk (SPL), Elastic Security (KQL/Lucene), Wireshark (display
  * filters), Sysmon (config + eventos), Microsoft Defender (PowerShell),
- * VirusTotal + ANY.RUN (sandbox) y TheHive (case management). Cada guía:
- * propósito, cuándo usarla, secciones con snippets COPIABLES y pro tips.
+ * VirusTotal + ANY.RUN (sandbox), TheHive (case management) y
+ * Zeek + Suricata (NIDS: logs de red, eve.json, hunting de beaconing y
+ * DNS tunneling). Cada guía: propósito, cuándo usarla, secciones con
+ * snippets COPIABLES y pro tips.
  *
  * Reglas del dataset: los bloques code son queries/comandos/configs REALES
  * (nada inventado); lo que solo se hace por consola se documenta como texto
@@ -13,7 +15,8 @@
  * placeholders {{USERNAME}} {{SOURCE_IP}} {{HOSTNAME}} {{TIMESTAMP}}.
  *
  * La UI las consume vía SOC_TOOL_GUIDE_BY_ID (SocGuideTool.tsx), con ids:
- * sentinel, splunk, elastic, wireshark, sysmon, defender, sandbox, thehive.
+ * sentinel, splunk, elastic, wireshark, sysmon, defender, sandbox, thehive,
+ * nids.
  */
 
 /** Bloque copiable de una guía (uso interno del dataset). */
@@ -1646,6 +1649,117 @@ severidad final revisada`,
       'Título, severidad y tags correctos desde el minuto uno: corregir el encabezado a mitad del incidente nunca pasa.',
       'Todo bloqueo necesita su observable de origen y su aprobación registrada: en el postmortem siempre preguntan quién autorizó qué.',
       'Caso abierto al final del turno: log de transferencia con pendientes claros, sin excepción.',
+    ],
+  },
+  {
+    id: 'nids',
+    name: 'Zeek + Suricata (NIDS)',
+    purpose: 'El par de NIDS open source que convierte el tráfico en evidencia estructurada: Zeek genera logs semánticos por protocolo (qué pasó) y Suricata aplica firmas y análisis de protocolo en tiempo real (qué matcheó).',
+    whenToUse: [
+      'Buscar la perspectiva de RED que el endpoint no da: campañas que solo se ven en tráfico, scans masivos y comunicación C2 entre segmentos.',
+      'Analizar pcaps del caso (entregados por Redes o capturados en el SPAN) con logs estructurados en vez de leer paquete por paquete.',
+      'Cazar patrones de red conocidos: beaconing periódico, DNS tunneling con TXT largos, escaneos internos y exfiltración por volúmenes.',
+      'Operar el sensor que muchas PYMEs despliegan en el perímetro junto al firewall: entender qué produce y cómo se consulta en el SIEM.',
+    ],
+    sections: [
+      {
+        title: 'Zeek: el registrador semántico',
+        intro: 'Zeek no es un IPS: es un framework que decodifica protocolos y escribe un log por capa (conn.log, dns.log, http.log, ssl.log). Cada conversación queda como una fila con sus IPs, puertos, duración y bytes — la materia prima del hunting de red.',
+        blocks: [
+          {
+            label: 'Analizar un pcap',
+            detail: 'zeek -r procesa la captura y deja los logs en el directorio actual: conn.log (toda conversación TCP/UDP/ICMP), dns.log, http.log, ssl.log, files.log y notice.log (lo que Zeek ya marcó como anómalo).',
+            code: `zeek -r capture.pcap
+ls *.log
+# versión JSON (la que los pipelines modernos ingieren):
+zeek -r capture.pcap LogAscii::use_json=T`,
+          },
+          {
+            label: 'Leer los logs con zeek-cut',
+            detail: 'zeek-cut extrae columnas por nombre sin pelear con el formato de tabuladores de Zeek — la forma rápida de responder "quién habló con quién".',
+            code: `cat conn.log | zeek-cut id.orig_h id.resp_h id.resp_p proto duration orig_bytes resp_bytes | head -20
+cat dns.log | zeek-cut query qtype_name answers | head -20`,
+          },
+          {
+            label: 'Cazar beaconing en conn.log',
+            detail: 'El C2 con jitter bajo deja conexiones cortas y regulares al mismo destino: agrupa por origen-destino y mide los intervalos entre conexiones — desviación pequeña = candidato.',
+            code: `cat conn.log | zeek-cut ts id.orig_h id.resp_h id.resp_p duration | sort -k2 | awk '{print $2, $3}' | uniq -c | sort -rn | head -20`,
+          },
+          {
+            label: 'DNS tunneling en dns.log',
+            detail: 'El túnel sobre DNS consulta subdominios largos con datos codificados (y TXT para respuestas grandes): filtra consultas con labels anormalmente largos y registros TXT/A hacia dominios pocos comunes.',
+            code: `cat dns.log | zeek-cut query qtype_name | grep TXT | head
+cat dns.log | zeek-cut query | awk '{ if (length($0) > 50) print length($0), $0 }' | sort -rn | head -20`,
+          },
+          {
+            label: 'notice.log: lo que Zeek ya detectó',
+            detail: 'Zeek escribe en notice.log sus hallazgos por defecto: Scan::AddressScan (un origen sondeando muchos hosts), Scan::PortScan (muchos puertos contra un host) y los de los paquetes de análisis (SSL, DNS): revisa siempre este log ANTES de escribir queries — el sensor ya hizo parte del trabajo.',
+            code: `cat notice.log | zeek-cut ts note src dst sub msg | head -20`,
+          },
+        ],
+      },
+      {
+        title: 'Suricata: firmas y análisis en tiempo real',
+        intro: 'Suricata inspecciona el tráfico con reglas (signatures estilo Snort), heurísticas de protocolo y datasets de amenaza. Su salida estrella es eve.json: TODO evento (alerta, flujo, DNS, HTTP, TLS, archivo) en una línea JSON.',
+        blocks: [
+          {
+            label: 'Procesar un pcap y ver alertas',
+            detail: 'suricata -r aplica el ruleset completo a la captura: las alertas quedan en eve.json (estructurado) y fast.log (una línea por alerta, legible).',
+            code: `suricata -r capture.pcap -l /tmp/out
+cat /tmp/out/fast.log | head -20
+cat /tmp/out/eve.json | jq 'select(.event_type=="alert") | {timestamp, src_ip, dest_ip, alert: .alert.signature, sid: .alert.signature_id}' | head -40`,
+          },
+          {
+            label: 'Monitorear el sensor en producción',
+            detail: 'En el sensor desplegado, eve.json crece en vivo: tail -f + jq es el dashboard de bolsillo del analista (cada event_type es una tabla distinta: alert, flow, dns, http, tls, fileinfo).',
+            code: `tail -f /var/log/suricata/eve.json | jq -c 'select(.event_type=="alert") | {ts: .timestamp, src: .src_ip, dst: .dest_ip, sig: .alert.signature, cat: .alert.category}'`,
+          },
+          {
+            label: 'Consultas de caza por evento',
+            detail: 'El JSON permite filtrar por cualquier campo: DNS consultados, HTTP con User-Agent raro, TLS a dominios nuevos — los mismos pivotes que harías en el SIEM, directo en el sensor.',
+            code: `# todos los dominios DNS vistos, ordenados por frecuencia:
+cat eve.json | jq -r 'select(.event_type=="dns") | .dns.rrname' | sort | uniq -c | sort -rn | head -20
+
+# User-Agents no estándar (el de las herramientas ofensivas es distinto):
+cat eve.json | jq -r 'select(.event_type=="http") | .http.http_user_agent' | sort | uniq -c | sort -rn | head -10`,
+          },
+          {
+            label: 'Anatomía de una regla',
+            detail: 'Sintaxis estilo Snort: acción, protocolo, orígen → destino, y opciones (msg, contenido a matchear, y los metadatos). El sid es el identificador único de la regla (los ranges privados van de 1000000 en adelante) — así se lee cualquier ruleset que el sensor carga.',
+            code: `alert dns $HOME_NET any -> any any (msg:"NEXORA LAB Long DNS query - possible tunneling"; dns.query; pcre:"/^[a-z0-9]{40,}\\./"; classtype:trojan-activity; sid:1000001; rev:1;)`,
+          },
+          {
+            label: 'Verificar la salud del sensor',
+            detail: 'Un NIDS que nadie monitorea también muere en silencio: stats.log trae drops de captura, y la regla de la casa del SOC aplica igual aquí — descartar por ausencia de alertas SOLO vale si antes demostraste que el sensor estaba viendo tráfico.',
+            code: `cat /var/log/suricata/stats.log | tail -30
+# drops de captura altos = tráfico que el sensor NO vio: la ventana ciega del NIDS`,
+          },
+        ],
+      },
+      {
+        title: 'Cómo encaja cada herramienta en el triage',
+        intro: 'Wireshark responde preguntas de UNA sesión con profundidad de paquete; Zeek responde preguntas de TODO el tráfico con logs estructurados; Suricata dispara alertas en tiempo real con firmas. El flujo maduro los encadena.',
+        blocks: [
+          {
+            label: 'Flujo del caso con tráfico',
+            detail: '1) Suricata dice QUÉ matcheó (la alerta con su sid y categorías), 2) Zeek dice QUÉ conversaciones hubo y entre quiénes (conn.log/dns.log para el alcance), 3) Wireshark entra SOLO en la conversación concreta que hay que diseccionar (follow stream, payloads). Empezar por Wireshark en un caso de red masiva es ahogarse en paquetes.',
+          },
+          {
+            label: 'Del NIDS al SIEM',
+            detail: 'En despliegues reales el eve.json de Suricata y los logs de Zeek se envían al SIEM (filebeat/vector hacia Elastic/Splunk, o el conector de Suricata de Sentinel para la versión cloud) — el analista consulta lo mismo de arriba como tablas del SIEM. Conocer el formato de origen es lo que permite validar que el pipeline no está rompiendo campos (la misma lección de la fase 3 del roadmap).',
+          },
+          {
+            label: 'Detecciones que este par cubre mejor',
+            detail: 'Port scanning (notice.log Scan::AddressScan/PortScan de Zeek; reglas de scan de Suricata), DNS tunneling (dns.log con queries largas + reglas PCRE), beaconing (conn.log con intervalos regulares — el mismo patrón del RB-SOC-022 pero desde la red), y volumetría de exfiltración (orig_bytes de conn.log sumados por destino).',
+          },
+        ],
+      },
+    ],
+    proTips: [
+      'El pcap se procesa UNA vez con zeek -r y suricata -r: los logs resultantes se consultan mil veces más barato que re-leer paquetes.',
+      'conn.log es tu tabla de hechos: casi toda pregunta de red (quién, con quién, cuándo, cuánto) se responde con zeek-cut + sort + uniq antes de escribir la primera query compleja.',
+      'En eve.json, los eventos de tipo flow son el equivalente de conn.log: si el SIEM solo ingesta alerts, estás perdiendo la mitad del valor del sensor.',
+      'Un NIDS sin HOME_NET bien configurado en suricata.yaml genera ruido o ceguera: revisa qué redes considera internas antes de culpar a las reglas.',
     ],
   },
 ];

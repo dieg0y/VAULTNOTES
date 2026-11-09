@@ -42,12 +42,13 @@ export type ToolId =
   // Parser explica una expresión dada; el Cron Builder la construye.
   | 'sa-systemd' | 'sa-raid' | 'sa-lvm'
   | 'sa-cron-builder' | 'sa-firewall' | 'sa-capacity'
-  // SOC (V9) — guías de herramientas SOC reales (Sentinel KQL, Splunk SPL,
-  // Elastic, Wireshark, Sysmon, Defender, VirusTotal + ANY.RUN, TheHive):
-  // referencia copiable 100% offline (data/socToolsData.ts).
+  // SOC (V9 + auditoría SOC 2025) — guías de herramientas SOC reales (Sentinel
+  // KQL, Splunk SPL, Elastic, Wireshark, Sysmon, Defender, VirusTotal +
+  // ANY.RUN, TheHive, Zeek + Suricata): referencia copiable 100% offline
+  // (data/socToolsData.ts).
   | 'soc-sentinel' | 'soc-splunk' | 'soc-elastic'
   | 'soc-wireshark' | 'soc-sysmon' | 'soc-defender'
-  | 'soc-sandbox' | 'soc-thehive';
+  | 'soc-sandbox' | 'soc-thehive' | 'soc-nids';
 
 /** Los 4 pilares + GLOBAL (V11) — cada tool aparece UNA sola vez en el
  *  catálogo unificado y lleva su etiqueta de rol: si es de un rol
@@ -75,7 +76,7 @@ export interface ToolCatalogEntry {
 }
 
 /**
- * The full catalog of 48 tools. The `cat` field uses the user-facing
+ * The full catalog of 49 tools. The `cat` field uses the user-facing
  * category labels (Red, IAM, Datos, Web, SOC, LINUX, SECURITY).
  *
  * Tags include both English and Spanish keywords to maximize recall in
@@ -300,6 +301,14 @@ export const TOOLS_CATALOG: ToolCatalogEntry[] = [
     cat: 'SOC',
     desc: 'Guía de TheHive para gestión de casos: estructura de case/task/artifact/observable (plantillas copiables de descripción y de reporte), observable types y flujo de evidencia. 100% offline.',
     tags: ['thehive', 'case management', 'incident', 'task', 'artifact', 'observable', 'soar', 'ir', 'soc', 'plantilla', 'reporte'],
+    pillars: ['SOC'],
+  },
+  {
+    id: 'soc-nids',
+    name: 'Zeek + Suricata (NIDS)',
+    cat: 'SOC',
+    desc: 'Guía copiable de los NIDS open source: Zeek (conn.log/dns.log/notice.log con zeek-cut, caza de beaconing y DNS tunneling) y Suricata (eve.json con jq, anatomía de reglas y salud del sensor). 100% offline.',
+    tags: ['zeek', 'suricata', 'nids', 'snort', 'eve.json', 'conn.log', 'dns.log', 'notice.log', 'zeek-cut', 'pcap', 'beaconing', 'dns tunneling', 'port scan', 'red', 'analisis de trafico', 'soc', 'detection'],
     pillars: ['SOC'],
   },
 ];

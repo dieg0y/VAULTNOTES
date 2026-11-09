@@ -10,8 +10,8 @@ import {
   ListFilter, UserX, Wifi, Laptop, Eraser,
   // SYSADMIN (v21) — iconos de las 6 tools de Infra & Ops.
   Cog, HardDrive, Layers, Timer, Flame, TrendingUp,
-  // SOC (v9) — iconos de las 8 guías de herramientas SOC.
-  Radar, SearchCode, BarChart3, Activity, ShieldCheck, FlaskConical, FolderKanban
+  // SOC (v9 + auditoría SOC 2025) — iconos de las 9 guías de herramientas SOC.
+  Radar, SearchCode, BarChart3, Activity, ShieldCheck, FlaskConical, FolderKanban, Radio
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -168,6 +168,7 @@ const TOOL_ICONS: Record<ToolId, React.ReactNode> = {
   'soc-defender': <ShieldCheck className="w-4 h-4" />,
   'soc-sandbox': <FlaskConical className="w-4 h-4" />,
   'soc-thehive': <FolderKanban className="w-4 h-4" />,
+  'soc-nids': <Radio className="w-4 h-4" />,
 };
 
 const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; desc: string; tags?: string[]; pillars?: ToolPillar[] }[] =
@@ -1844,6 +1845,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
       case 'soc-defender':   return <SocGuideTool guideId="defender" />;
       case 'soc-sandbox':    return <SocGuideTool guideId="sandbox" />;
       case 'soc-thehive':    return <SocGuideTool guideId="thehive" />;
+      case 'soc-nids':       return <SocGuideTool guideId="nids" />;
       // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
       case 'sid-rid':            return <SidRidAnalyzerTool />;
       case 'ldap-dn':            return <LdapDnParserTool />;

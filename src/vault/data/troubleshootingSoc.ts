@@ -2,10 +2,11 @@
  * troubleshootingSoc.ts — ESCALERAS DE DECISIÓN del PILAR 3 (SOC L1 / Blue Team).
  *
  * V9 FASE 9: 16 guías TS-SOC-001..TS-SOC-016 + FASE 19f: 6 guías TS-SOC-017..TS-SOC-022
- * (total 22). NO es una copia de los runbooks:
- * el runbook describe el procedimiento completo de respuesta; aquí lo que
- * importa es DIAGNOSTICAR (¿es benigno, comprometido o incidente?) con la
- * escalera
+ * + auditoría SOC 2025: TS-SOC-023 (alerta de acceso a LSASS / credential
+ * dumping — el ladder diagnóstico del RB-SOC-045). NO es una copia de los
+ * runbooks: el runbook describe el procedimiento completo de respuesta;
+ * aquí lo que importa es DIAGNOSTICAR (¿es benigno, comprometido o
+ * incidente?) con la escalera
  *
  *   PROBLEMA → SÍNTOMA → CHECK → RESULTADO → SIGUIENTE ACCIÓN
  *
@@ -1168,6 +1169,58 @@ export const TROUBLESHOOTING_SOC: PillarTroubleshooting[] = [
     remediation: '35% equipo de empleado o visitante sin proceso (NAC y política), 25% dispositivo nuevo sin registrar en inventario (regularizar), 20% impresora o IoT de un proyecto (aislar por segmento), 10% dispositivo de un proveedor (validar contrato), 10% sondeo malicioso (incidente).',
     verification: 'El dispositivo identificado y registrado (o bloqueado), el puerto reactivado solo tras la validación y el NAC aplicando política a cada MAC nueva de la VLAN.',
     tags: ['nac', '802.1x', 'mab', 'mac address-table', 'dispositivo desconocido', 'cuarentena', 'show authentication sessions', 't1046'],
+  },
+  {
+    id: 'TS-SOC-023',
+    pillar: 'SOC',
+    title: 'Acceso a LSASS (credential dumping)',
+    problem: 'El EDR alertó que un proceso abrió lsass.exe con permisos de lectura de memoria (Mimikatz, procdump o comsvcs). Hay que decidir en minutos si es soporte legítimo, un falso positivo estructural o el dump que compromete TODAS las sesiones del host.',
+    symptoms: [
+      'Alerta EDR tipo "Suspicious credential dumping activity" o regla ASR "Block credential stealing from LSASS" disparada.',
+      'Sysmon Event ID 10 con TargetImage lsass.exe y GrantedAccess 0x1010/0x1410 desde un proceso inusual.',
+      'rundll32.exe con comsvcs.dll,MiniDump o procdump -ma lsass en la línea de comando de eventos 4688/EDR.',
+    ],
+    level: 'Proceso (¿quién pidió el acceso?) vs Veredicto EDR (¿bloqueado o ejecutado?) vs Alcance (¿qué sesiones estaban en memoria?)',
+    checks: [
+      {
+        check: 'El veredicto del EDR primero',
+        command: 'SecurityAlert | where TimeGenerated > ago(24h) | where CompromisedEntity == "{{HOSTNAME}}" | where DisplayName contains "credential" or DisplayName contains "LSASS" | project TimeGenerated, DisplayName, AlertSeverity, Status',
+        result: 'La alerta con estado: bloqueada por ASR (el intento no completó) vs permitida/desconocida.',
+        next: 'Si blocked/contained: el dump NO ocurrió — ir al check 2 para el origen del proceso. Si el veredicto no es claro o hay ejecución: tratar como dump exitoso y saltar al check 4 YA.',
+      },
+      {
+        check: 'El linaje del proceso dumper',
+        command: 'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(24h) | where ProcessCommandLine has "lsass" or ProcessCommandLine has "MiniDump" or FileName in~ ("procdump.exe","mimikatz.exe") | project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, ProcessVersionInfoSignatureState',
+        result: 'El proceso con su padre y firma: winword/excel→rundll32 (campaña), explorer/psexesc→procdump (soporte manual), MsMpEng/backup firmado (línea base).',
+        next: 'Si el padre es un documento u ofuscación de campaña: incidente — RB-SOC-045 completo. Si es herramienta de soporte: validar contra el ticket del Service Desk (check 3). Si es el AV/backup firmado: falso positivo estructural para tuning (RB-SOC-032).',
+      },
+      {
+        check: 'La autorización del soporte (el desempate humano)',
+        result: 'El ticket del Service Desk que pidió el dump (o su ausencia).',
+        next: 'Si hay ticket con aprobación y técnico identificado: cerrar como P3 con la exclusión documentada. Si NADIE reconoce la ejecución: tratar como comprometido — el dump "de soporte" que nadie pidió es el disfraz clásico.',
+      },
+      {
+        check: 'El alcance de lo robado: sesiones en memoria del host',
+        command: 'DeviceLogonEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(7d) | summarize Sesiones=count(), Ultima=max(Timestamp) by AccountName, LogonType | order by Ultima desc',
+        result: 'TODAS las cuentas con sesión o credencial en caché en la ventana: cada una estuvo en LSASS y hay que asumirla robada.',
+        next: 'Con la lista: rotación inmediata (revocar sesiones primero, reset después — RB-SOC-045 paso 7). Si aparece una cuenta de servicio con privilegios o el host es DC: P1 con IR lead y flujo de Golden Ticket (RB-SOC-041).',
+      },
+      {
+        check: 'El USO posterior de lo robado',
+        command: 'SecurityEvent | where EventID == 4624 | where TimeGenerated > ago(48h) | where TargetUserName in~ ("{{USERNAME}}") and LogonType in (2,3,10) | project TimeGenerated, Computer, IpAddress, LogonType | order by TimeGenerated asc',
+        result: 'Autenticaciones de las cuentas expuestas después del dump: lo normal (hosts habituales) o el 4624 tipo 3 desde un servidor jamás visitado (pass-the-hash en vivo).',
+        next: 'Con actividad anómala: el caso pasa a movimiento lateral (RB-SOC-021) con los hosts destino. Sin uso posterior: la rotación temprana cerró la ventana — cerrar con el barrido de flota (check 6).',
+      },
+      {
+        check: 'El barrido de flota (la campaña no es de un host)',
+        command: 'DeviceProcessEvents | where Timestamp > ago(14d) | where ProcessCommandLine has_any ("comsvcs", "MiniDump", "sekurlsa") or FileName in~ ("procdump.exe") | project Timestamp, DeviceName, ProcessCommandLine, InitiatingProcessFileName | order by Timestamp asc',
+        result: 'Otros hosts con el mismo patrón de dumper (el mismo delivery tocó a más usuarios) o el barrido limpio.',
+        next: 'Con más hosts: cada uno por el mismo flujo (contención + rotación). Limpio: cerrar el caso con la lección de detección (ASR en modo bloque en toda la flota — RB-SOC-045 paso 9).',
+      },
+    ],
+    remediation: '40% dump bloqueado por ASR (el endurecimiento funcionó: caso de origen + lección), 25% herramienta de soporte sin ticket (proceso con el Service Desk), 15% falso positivo estructural del AV/backup (tuning RB-SOC-032), 20% dump de campaña con rotación y caza de uso (incidente real).',
+    verification: 'Veredicto clasificado (bloqueado/ejecutado/FP), el linaje del dumper documentado, las sesiones expuestas rotadas con sesiones revocadas, el uso posterior cazado sin hallazgos (o contenido), el barrido de flota negativo y la regla ASR de LSASS verificada en modo bloque.',
+    tags: ['mimikatz', 'lsass', 't1003.001', 'sysmon 10', 'grantedaccess', '0x1010', 'comsvcs', 'minidump', 'procdump', 'asr', 'credential dumping', 'pass-the-hash', 'rb-soc-045'],
   },
 ];
 

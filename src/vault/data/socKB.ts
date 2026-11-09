@@ -1,11 +1,12 @@
 /**
  * socKB — artículos de la base de conocimiento SOC (SIMULADOS — empresa
  * ficticia Nexora S.A., SOC "Blue Team"). Dataset ESTÁTICO de solo lectura
- * (viene de fábrica, no vive en Dexie ni en el backup): 16 artículos que
+ * (viene de fábrica, no vive en Dexie ni en el backup): 18 artículos que
  * cubren las torres de detección del simulador (Email, Identity, Endpoint,
- * Network, Web, Cloud y cross-torre). relatedTickets referencia casos
- * plausibles del dataset soc-XXX (soc-001..soc-020 generales, soc-021..
- * soc-050 primera semana SOC).
+ * Network, Web, Cloud y cross-torre) + los marcos de análisis de la
+ * auditoría SOC 2025 (Diamond Model/Kill Chain y landscape de EDRs).
+ * relatedTickets referencia casos plausibles del dataset soc-XXX
+ * (soc-001..soc-020 generales, soc-021..soc-050 primera semana SOC).
  *
  * Regla de contenido: TODO comando/KQL/Event ID debe ser REAL y
  * verificable. relatedTerms referencia nombres de términos del glosario
@@ -669,6 +670,86 @@ export const SOC_KB_ARTICLES: SocKbArticle[] = [
     escalation: 'L2 / CSIRT (fraude en curso sobre proveedores o correspondencia sensible reenviada — valoración de exposición y notificación; la cuenta origen comprometida puede ser pivote de BEC)',
     relatedTerms: ['Análisis de cabeceras de correo', 'Phishing', 'Revocación de sesiones y tokens', 'User risk (riesgo de usuario)', 'Incident Response (ciclo NIST)'],
     relatedTickets: ['soc-012', 'soc-023']
+  },
+  {
+    id: 'sockb-diamond-killchain',
+    title: 'Diamond Model y Cyber Kill Chain: estructurar el análisis de una intrusión',
+    category: 'SOC - Threat Hunting / Análisis',
+    environment: 'Multi',
+    symptoms: 'El caso tiene múltiples piezas (correos, hosts, cuentas, IPs) y el analista necesita un marco para responder las dos preguntas de toda intrusión: ¿qué fases de la ataque ya ocurrieron (Kill Chain) y qué relaciones entre adversario-capacidad-infraestructura-víctima explican lo que vemos (Diamond)? Es la competencia que las entrevistas L2/L3 evalúan con "¿cómo analizas un incidente más allá de la alerta individual?".',
+    cause: 'Las intrusiones reales son cadenas de eventos relacionados, no alertas aisladas. Sin marco, el análisis se queda en el IOC individual (la IP bloqueada, el hash removido) y pierde la campaña: el adversario cambia de infraestructura en días, pero sus TTPs (la forma de operar) se repiten. MITRE ATT&CK cataloga las técnicas; el Kill Chain ordena las FASES; el Diamond Model conecta las PIEZAS.',
+    steps: [
+      {
+        title: 'Mapear el caso al Cyber Kill Chain (las 7 fases)',
+        detail: 'Reconnaissance → Weaponization → Delivery → Exploitation → Installation → Command & Control → Actions on Objectives. Para cada evento del caso, preguntar: ¿en qué fase estoy viendo? El phishing entregado es fase 3 (Delivery); la tarea programada del implant es fase 5 (Installation); el beacon de 60s es fase 6 (C2); la subida de datos con rclone es fase 7 (Actions). El valor: si solo detectas en fases 6-7, el adversario lleva semanas dentro — el mapa dice DÓNDE reforzar (la mayoría de los SOC detecta tarde: ese es el hallazgo estratégico del análisis).',
+      },
+      {
+        title: 'Dibujar el diamante: adversario, capacidad, infraestructura, víctima',
+        detail: 'Cada evento de la intrusión es un diamante con 4 vértices: el ADVERSARIO (el actor o el toolset que opera), la CAPACIDAD (las técnicas/tools usadas: infostealer, Mimikatz, rclone), la INFRAESTRUCTURA (lo que el adversario controla: dominio de phishing, IP de C2, cuenta de correo del BEC) y la VÍCTIMA (usuario, host, identidad). Los eventos se conectan por aristas compartidas: el mismo dominio aparece en el diamante del phishing Y en el del beaconing; la misma cuenta comprometida es víctima en un diamante y "capacidad" (credencial válida) en el siguiente.',
+      },
+      {
+        title: 'Explotar las aristas para ampliar la investigación',
+        detail: 'La potencia del Diamond está en los pivotes: cada vértice compartido entre diamantes es una query nueva. La IP del C2 encontrada en el endpoint → ¿qué otros hosts le hablaron (infraestructura→víctima)? El dominio lookalike del phishing → ¿qué registros tiene, quién lo registró, qué otras campañas lo usan (adversario→infraestructura)? La víctima inicial → ¿a quién escribió desde su cuenta comprometida (víctima→víctima del siguiente diamante)? En KQL, cada arista es un join o un summarize por el valor compartido.',
+        command: 'let DomIOCs = dynamic(["nexora-corp.co", "update-check.xyz"]); DeviceNetworkEvents | where Timestamp > ago(30d) | where RemoteUrl has_any (DomIOCs) | summarize Conexiones=count(), Hosts=make_set(DeviceName), Ultima=max(Timestamp) by RemoteUrl | order by Conexiones desc'
+      },
+      {
+        title: 'Anotar los meta-features que enriquecen cada diamante',
+        detail: 'El modelo formal agrega a cada arista: timestamp (cuándo), fase del Kill Chain (dónde), dirección (ataque→defensa, respuesta del SOC), metodología (TTP), y recursos (qué necesitaba el adversario). En la práctica del caso: la misma infraestructura usada a las 3 AM vs horario laboral sugiere automatización vs operador manual; el dominio registrado hace 3 días es la firma de campaña desechable.',
+      },
+      {
+        title: 'Elegir el marco correcto para cada pregunta',
+        detail: 'Regla práctica: Kill Chain para ¿DÓNDE estamos de la intrusión y qué fase viene? (orienta la respuesta y las prioridades de detección). Diamond Model para ¿QUÉ relaciona estos eventos y qué pivotes no he explorado? (orienta la ampliación del alcance). ATT&CK para ¿QUÉ técnica exacta y cómo la detecto/prevengo? (orienta la ingeniería de detección). Los tres son complementarios: un caso L2 bien documentado lleva los tres lenguajes — fases, relaciones y técnicas.',
+      },
+      {
+        title: 'Cerrar el análisis con la matriz de cobertura',
+        detail: 'El entregable final del análisis: las fases del Kill Chain donde el SIEM detectó el caso (y las que NO — las ciegas), los diamantes con sus aristas verificadas, y el backlog de detecciones priorizado por las fases tempranas sin cobertura. El informe ejecutivo habla de fases; el técnico habla de técnicas ATT&CK; el hunting usa los pivotes del diamante.',
+      }
+    ],
+    verification: 'El caso documentado con sus fases de Kill Chain identificadas, los diamantes de cada evento con sus 4 vértices, al menos 2 pivotes de arista explorados con queries (con hallazgo o descarte documentado), y la matriz de cobertura por fase con los puntos ciegos señalados.',
+    escalation: 'L3 / Threat Intel (las aristas del diamante que apuntan a infraestructura de campaña compartida con otros sectores — el contexto de actor enriquece la priorización; TLP del reporte según fuente)',
+    relatedTerms: ['Cyber Kill Chain', 'MITRE ATT&CK', 'Threat hunting', 'IOC (Indicator of Compromise)', 'Pyramid of Pain'],
+    relatedTickets: ['soc-021', 'soc-042', 'soc-050']
+  },
+  {
+    id: 'sockb-edr-landscape',
+    title: 'EDR más allá de Defender: el mismo triage en CrowdStrike, SentinelOne y Carbon Black',
+    category: 'SOC - Endpoint / EDR',
+    environment: 'Endpoint',
+    symptoms: 'La oferta de trabajo dice "CrowdStrike Falcon" o "SentinelOne" y el vault te enseñó Microsoft Defender for Endpoint. La buena noticia: el TRIAGE es idéntico — solo cambian los nombres de las pantallas, el lenguaje de queries y los comandos de respuesta. Este artículo traduce lo que ya sabes (RB-SOC-015/045) a los EDR del mercado, que es lo que la entrevista evalúa: ¿entiendes los CONCEPTOS de EDR o solo dónde hacer clic en una consola?',
+    cause: 'Todos los EDR comerciales resuelven el mismo problema con la misma arquitectura: un sensor en el endpoint que recolecta telemetría de procesos, red, archivos y registro (en Windows, vía ETW y callbacks del kernel), un motor local/cloud que correlaciona eventos y dispara detecciones, y una consola de respuesta con acciones remotas. Defender lo llamó "Advanced Hunting"; Falcon lo llama "Event Search"; SentinelOne "Deep Visibility"; Carbon Black "Live Query" — el mismo animal con distinto collar.',
+    steps: [
+      {
+        title: 'El proceso mental del triage es siempre el mismo',
+        detail: 'Sea cual sea el EDR: 1) leer la detección con su veredicto (¿bloqueada o ejecutada? — el equivalente de DidThreatExecute), 2) reconstruir el linaje del proceso (padre→hijo→nieto con líneas de comando — el árbol que RB-SOC-013 te enseñó a leer), 3) pivotar por los observables (hash, dominio, IP, cuenta) a la flota completa, 4) decidir contención (aislar/restringir) y 5) documentar con evidencia exportable. Las cinco fases no cambian NUNCA — cambia la sintaxis.',
+      },
+      {
+        title: 'CrowdStrike Falcon: dónde está cada cosa',
+        detail: 'Las detecciones viven en "Detections" (con su severity y el "tactic" MITRE asociado); la telemetría se consulta en "Event Search" (Investigate) con FQL y "event_simpleName" — la tabla de procesos es ProcessRollup2 (equivalente al Sysmon 1 / DeviceProcessEvents) y la de conexiones NetworkConnectIP4. La respuesta remota es "Real Time Response" (RTR): conectas al host y ejecutas comandos (get, runscript, cs_sysinfo) — el Live Response de MDE con otro nombre. La consulta típica de proceso: event_simpleName=ProcessRollup2 ComputerName:{{HOSTNAME}} | fase="*"',
+        command: 'event_simpleName=ProcessRollup2 ComputerName:"{{HOSTNAME}}" | eval pair=concat(FileName, " <- ", ParentBaseFileName) | stats count by pair, ComputerName | sort -count'
+      },
+      {
+        title: 'SentinelOne: Deep Visibility y la línea de tiempo',
+        detail: 'La consola (Singularity) organiza el endpoint con una línea de tiempo visual del "storyline" del proceso; la caza está en "Deep Visibility" con su propio lenguaje SQL-like: SELECT * FROM processexecution-events WHERE tgtprocessimagename LIKE "%powershell%". Las detecciones se agrupan por "threat" con su veredicto (mitigated vs detected); la respuesta remota es la "Remote Shell / Remote Operator" (shell 1:1 y orquestación de scripts).',
+        command: 'SELECT t.srcprocimagename AS "Parent", t.tgtprocimagename AS "Process", t.tgtproccmdline AS "CommandLine" FROM processexecution-events t WHERE t.tgtproccmdline LIKE "%-enc%" LIMIT 100'
+      },
+      {
+        title: 'Carbon Black (VMware/Broadcom): endpoints y queries',
+        detail: 'Cb Defense/Cb Enterprise EDR organiza la caza con queries sobre processtype: process_name:powershell.exe -procs and (cmdline:"-enc") filtra procesos con línea de comando; el "Process Tree" muestra el linaje como MDE. La respuesta es "Live Response" (sesión al endpoint con scripts permitidos) y las "ban lists" (hash, IOC) son el bloqueo de indicadores.',
+        command: 'process_name:powershell.exe -analyzed AND cmdline:"-enc"'
+      },
+      {
+        title: 'Lo que SI cambia entre EDRs (y preguntan en entrevista)',
+        detail: 'Los diferenciales reales: el modelo de datos (qué campos expone cada sensor y con qué granularidad la línea de comando, los scripts ofuscados, el DLL load), la telemetría de red con proceso dueño (todos la tienen, no todos la guardan igual de largo), la calidad del mapeo MITRE de las detecciones nativas, la respuesta automática configurable (contención en X minutos) y el ecosistema de integración (SOAR, TI). En la entrevista honesta: "Domino el triage con MDE; el proceso mental traslada a Falcon/S1/CB — aprendí la correspondencia de queries y consola" es una respuesta fuerte y VERDADERA.',
+      },
+      {
+        title: 'Práctica de traducción (lo que puedes hacer sin licencia)',
+        detail: 'Toma 3 runbooks del vault (RB-SOC-015 malware EDR, RB-SOC-045 Mimikatz/LSASS, RB-SOC-021 lateral) y re-escribe cada query KQL de DeviceProcessEvents/DeviceNetworkEvents a su equivalente conceptual en FQL de Falcon y en el SQL-like de S1 — documentando QUÉ campo de cada sensor corresponde a ProcessCommandLine, InitiatingProcessFileName y DeviceName. El ejercicio de traducción es la demostración real de que el conocimiento es de CONCEPTO, no de consola.',
+      }
+    ],
+    verification: 'El mapeo mental completo: veredicto de detección ↔ linaje ↔ pivote de observables ↔ contención ↔ evidencia en los 4 EDR (con los nombres de pantalla y lenguajes de cada uno), y el ejercicio de traducción de 3 queries KQL a FQL/S1 documentado.',
+    escalation: 'L2 / Detection Engineering (la telemetría que un EDR NO expone y la detección necesita — el gap que se cierra con otra fuente: Sysmon propio, logs de red o el SIEM)',
+    relatedTerms: ['EDR (Endpoint Detection and Response)', 'Mimikatz', 'MITRE ATT&CK', 'Live Response', 'Sysmon'],
+    relatedTickets: ['soc-006', 'soc-033', 'soc-038']
   },
 ];
 

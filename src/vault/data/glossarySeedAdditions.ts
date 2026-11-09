@@ -2,7 +2,10 @@ import type { SeedTerm } from './glossarySeedBase';
 
 /**
  * glossarySeedAdditions — capa de auditoría v2 del seed del glosario
- * (63 términos, ids seed-add-001..063).
+ * (75 términos, ids seed-add-001..075 — los 13 finales (063..075) de la
+ * auditoría SOC 2025: Diamond Model, PICERL, MISP, OpenCTI, STIX/TAXII,
+ * Zeek, Suricata, CrowdStrike Falcon, SentinelOne, Cortex XSOAR, Shimcache,
+ * QRadar y Google Chronicle).
  *
  * Bloque final de la auditoría completa del glosario: añade lo importante
  * que aún no estaba. Tres frentes:
@@ -596,5 +599,126 @@ export const GLOSSARY_SEED_ADDITIONS_TERMS: SeedTerm[] = [
     shortDefinition: 'El puerto de administración del hardware (BMC): consola y encendido remotos, salud del chasis — y una superficie de ataque que jamás se expone a internet.',
     longDefinition: 'Todo servidor serio lleva un controlador de gestión (el BMC: IPMI genérico, iLO en HPE, iDRAC en Dell) conectido a la red aunque el servidor esté apagado: da la consola remota como si estuvieras frente al equipo, enciende/apaga/resetea, lee sensores (temperaturas, ventiladores, fuente, memoria) y administra el firmware — es la herramienta que evita el desplazamiento físico y la que hace manejable una sede remota. Su operación tiene dos reglas: ir siempre por la red de gestión segregada (VLAN propia, sin ruta desde la red de usuarios) y jamás exponerlo a internet — el BMC es superficie clásica de compromiso (credenciales por defecto, versiones viejas, y el handshake IPMI no bloquea intentos: el brute force es trivial si es alcanzable). La higiene: credenciales propias y únicas por servidor (y distintas de las del SO), firmware vigente, y el monitoreo de sus alertas — el "Predictive failure" que anticipa el disco o la fuente vale oro si alguien lo lee.',
     example: 'El servidor de la sede remota se cuelga de madrugada: por iDRAC se ve el POST detenido en la memoria, se reinicia por consola y el sensor marca el DIMM defectuoso — el reemplazo llega con el caso ya diagnosticado, sin viajar.',
+  },
+  /* ---- Auditoría SOC 2025: marcos, plataformas y landscape que las ofertas
+   * L1/L2/L3 y Threat Detection Engineer piden por nombre (Diamond, PICERL,
+   * MISP, OpenCTI, STIX/TAXII, NIDS Zeek/Suricata, EDRs y SOAR del mercado,
+   * artefactos forenses y SIEMs de oferta). ids seed-add-063..075. ---- */
+  {
+    id: 'seed-add-063',
+    term: 'Diamond Model of Intrusion Analysis',
+    acronym: undefined,
+    category: 'Threat Hunting',
+    shortDefinition: 'El marco que conecta las piezas de una intrusión: cada evento es un diamante con adversario, capacidad, infraestructura y víctima en sus vértices.',
+    longDefinition: 'Cada evento de una intrusión se modela como un diamante con cuatro vértices: el ADVERSARIO (actor o toolset), la CAPACIDAD (técnicas y herramientas usadas), la INFRAESTRUCTURA (lo que el atacante controla: dominios, IPs, cuentas) y la VÍCTIMA (activo o identidad afectada). La potencia está en las aristas compartidas: el mismo dominio del phishing aparece en el diamante del beaconing; la cuenta comprometida es víctima en un evento y "capacidad" (credencial válida) en el siguiente — cada arista compartida es un pivote de investigación (una query nueva). Complementa a MITRE ATT&CK (que cataloga técnicas) y al Cyber Kill Chain (que ordena fases): ATT&CK dice QUÉ técnica, Kill Chain dice EN QUÉ fase, Diamond dice QUÉ relaciona los eventos. La entrevista L2/L3 lo pregunta como "cómo analizas un incidente más allá del IOC individual" — y el modelo es la respuesta estructurada.',
+    example: 'El phishing (dominio lookalike) y el beacon del endpoint comparten vértice de infraestructura: el pivote por ese dominio encuentra el tercer host comprometido que ninguna alerta había tocado.',
+  },
+  {
+    id: 'seed-add-064',
+    term: 'SANS PICERL',
+    acronym: 'PICERL',
+    category: 'SOC Tier 2 - Investigación',
+    shortDefinition: 'Las seis fases del ciclo de respuesta a incidentes de SANS: Preparation, Identification, Containment, Eradication, Recovery y Lessons Learned.',
+    longDefinition: "PICERL es el ciclo de respuesta a incidentes enseñado por SANS (el Incident Handler's Handbook): Preparation (el arsenal en tiempo de paz: runbooks, contactos, simulacros), Identification (la alerta validada, clasificada y declarada como incidente — donde nace el MTTD), Containment (frenar la propagación: aislar, bloquear, revocar — la decisión más cara del incidente), Eradication (eliminar al atacante y TODAS sus persistencias del entorno), Recovery (volver a producción desde backups limpios con monitoreo intensificado) y Lessons Learned (el postmortem con acciones con dueño y fecha). Es el mismo ciclo del NIST 800-61 con la fase de contención/erradicación/recuperación separada explícitamente — la correspondencia entre ambos marcos es pregunta clásica de entrevista. La trampa operativa: saltarse Identification (declarar incidente sin validar) o empezar Erradication antes de Containment (reimagen mientras la persistencia vive en otros hosts).",
+    example: '"Camina el ransomware por PICERL": la respuesta ordenada enumera qué hay en cada fase — del simulacro trimestral (P) al postmortem con el CISO (L) — con el criterio de salida de cada una.',
+  },
+  {
+    id: 'seed-add-065',
+    term: 'MISP (threat intelligence platform)',
+    acronym: 'MISP',
+    category: 'Threat Intel',
+    shortDefinition: 'La plataforma open source de inteligencia de amenazas: eventos con atributos (IOCs) curados, compartidos y enriquecidos con tags, taxonomías y galaxías MITRE.',
+    longDefinition: 'MISP es la plataforma TI open source más desplegada: organiza la inteligencia en EVENTOS (la unidad de una campaña o incidente) que contienen ATRIBUTOS (los IOCs con su tipo: ip-src, domain, sha256, url) y OBJECTS (combinaciones estructuradas como un archivo con su hash y su nombre). El valor está en la curación colaborativa: los eventos llegan con TAGS de taxonomía (TLP para el manejo, el tipo de amenaza), GALAXÍAS (el mapeo a MITRE ATT&CK y los threat actors), SIGHTINGS (quién más vio el indicador y cuándo) y feeds sincronizados entre organizaciones (el modelo de compartición comunitaria de MISP es el estándar de facto de los ISACs sectoriales). Para el SOC: la API restSearch consulta eventos por valor de atributo (el enriquecimiento del triage), y los atributos marcados to-ids exportan a detección — con el ciclo de vida a respetar (expiración de indicadores, sightings negativos para los falsos positivos). La oferta que dice "experiencia con TI platforms" casi siempre incluye MISP u OpenCTI.',
+    example: 'El L1 enriquece la IP del caso con restSearch de MISP: el match trae el evento de la campaña con sus tags (tlp:amber, apt), las técnicas ATT&CK de la galaxía y los otros 40 IOCs que acompañan a esa infraestructura — el retro-hunt de la noche listo.',
+  },
+  {
+    id: 'seed-add-066',
+    term: 'OpenCTI',
+    acronym: undefined,
+    category: 'Threat Intel',
+    shortDefinition: 'La plataforma open source de inteligencia de amenazas construida sobre STIX 2.1: el conocimiento como grafo de entidades relacionadas (actores, malware, campañas, indicadores).',
+    longDefinition: 'OpenCTI modela la inteligencia con el estándar STIX 2.1: cada conocimiento es una entidad (threat actor, intrusion set, malware, campaign, indicator, vulnerability, identity) conectada por RELACIONES tipadas ("usa", "ataca a", "atribuido a") — el resultado es un grafo navegable donde la pregunta deja de ser "¿dónde está esta IP?" (eso lo responde MISP) y pasa a ser "¿qué campañas del actor tocaron mi sector y con qué TTPs?". Sus piezas operativas: las INVESTIGATIONS (el lienzo del analista con entidades y relaciones del caso), los DASHBOARDS por actor/campaña, los REPORTES que agrupan conocimiento con su TLP, y el ecosistema de CONNECTORS que ingiere de todo (MISP, feeds, CSV, MITRE) y exporta a todo (SIEM, SOAR). Para el SOC es la capa de ANÁLISIS de la CTI (MISP la capa de compartición): la pareja MISP+OpenCTI aparece en los SOC maduros y en las ofertas de Threat Intelligence Analyst.',
+    example: 'La investigación de OpenCTI del caso conecta el indicador del alert con la intrusion set documentada: el grafo muestra los tres sectores que el actor persigue y el patrón de infraestructura que hay que bloquear por adelantado.',
+  },
+  {
+    id: 'seed-add-067',
+    term: 'STIX / TAXII',
+    acronym: 'STIX',
+    category: 'Threat Intel',
+    shortDefinition: 'El estándar de facto para representar inteligencia de amenazas (STIX: objetos y relaciones en JSON) y transportarla entre plataformas (TAXII: el protocolo de colecciones).',
+    longDefinition: 'STIX (Structured Threat Information eXpression) es el lenguaje: objetos JSON tipados (indicator, malware, threat-actor, attack-pattern, relationship…) con su versión 2.1 que casi toda la industria habla — un IOC compartido "en STIX" viene con su tipo, su patrón, su ventana de validez y su contexto. TAXII (Trusted Automated eXchange of Intelligence Information) es el transporte: un protocolo REST de colecciones y canales por los que las plataformas se sincronizan (los feeds de MISP a SIEM, de ISAC a MISP, de vendor a cliente). Por qué le importa al SOC: el conector de Threat Intelligence de Microsoft Sentinel y el Threat Intel Framework de Splunk consumen exactamente esto — cuando la oferta dice "integrar TI feeds" está hablando de montar un TAXII o una API y mapear los campos STIX a la tabla del SIEM. La trampa de diseño: confundir la lista plana de IOCs (lo que viaja en un CSV) con el grafo STIX (indicadores CON contexto de actor, campaña y relación).',
+    example: 'El feed del ISAC sectorial llega por TAXII a MISP; los indicadores STIX con su validez y contexto pasan al SIEM por el conector — y el triage los consulta en la tabla de inteligencia sin salir del caso.',
+  },
+  {
+    id: 'seed-add-068',
+    term: 'Zeek (Bro)',
+    acronym: undefined,
+    category: 'Network Security',
+    shortDefinition: 'El NIDS framework que convierte el tráfico en logs semánticos por protocolo: conn.log, dns.log, http.log — la materia prima del hunting de red.',
+    longDefinition: 'Zeek (antes Bro) no es un IPS de firmas: es un framework de análisis de red que decodifica protocolos y escribe un log estructurado por capa — conn.log (cada conversación con IPs, puertos, duración y bytes), dns.log (cada consulta y respuesta), http.log (métodos, URLs y user agents), ssl.log (certificados y SNI), files.log (archivos extraídos del tráfico) y notice.log (los hallazgos que Zeek detecta por defecto: Scan::AddressScan, Scan::PortScan). Su operación gira sobre zeek-cut (extraer columnas por nombre de los logs) y zeek -r (procesar un pcap una vez y consultarlo mil veces). En el SOC: es la fuente de la perspectiva de RED (beaconing en conn.log, DNS tunneling en dns.log) y la que se despliega en el SPAN del switch o el TAP del perímetro — suele trabajar en pareja con Suricata (Zeek para los logs, Suricata para las firmas) y ambos se envían al SIEM con filebeat o vector.',
+    example: 'El caso de "tráfico raro a las 3 AM" se resuelve con zeek-cut sobre conn.log: el destino con conexiones cortas cada 60 segundos ± 3s es el beacon — con el proceso dueño cortado del endpoint por Sysmon 3, la historia queda completa.',
+  },
+  {
+    id: 'seed-add-069',
+    term: 'Suricata',
+    acronym: undefined,
+    category: 'Network Security',
+    shortDefinition: 'El motor NIDS/IPS open source de reglas (sintaxis Snort) con salida estructurada eve.json: alertas, flujos y eventos de protocolo en JSON por línea.',
+    longDefinition: 'Suricata inspecciona tráfico con signatures estilo Snort (alert tcp/dns/http con msg, content, PCRE y metadatos), heurísticas de protocolo (su parser HTTP/TLS/DNS reensambla lo que las firmas simples no ven) y datasets de amenaza — todo sale en eve.json, su evento JSON por línea (event_type: alert, flow, dns, http, tls, fileinfo) que es EL formato de ingesta de los SIEM modernos. Su operación: fast.log para lectura rápida, jq sobre eve.json para caza en el sensor, stats.log para la salud (los drops de captura son la ventana ciega del NIDS), y suricata.yaml con el HOME_NET bien definido (un sensor que no sabe qué redes son internas genera ruido o ceguera). En el SOC: es el sensor de perímetro que dispara alertas en tiempo real donde Zeek documenta — juntos cubren el detection engineering de red, y las reglas ET Open de Emerging Threats son el ruleset gratuito de arranque.',
+    example: 'La regla custom de DNS con PCRE para queries de 40+ caracteres dispara en eve.json; el jq del analista la ve en vivo y el caso de tunneling arranca con la IP, el dominio y el host ya identificados.',
+  },
+  {
+    id: 'seed-add-070',
+    term: 'CrowdStrike Falcon',
+    acronym: undefined,
+    category: 'Endpoint / EDR',
+    shortDefinition: 'El EDR líder del mercado: sensor en la nube con telemetría por event_simpleName, caza con FQL y respuesta remota por Real Time Response (RTR).',
+    longDefinition: 'Falcon es el EDR de CrowdStrike y el nombre que más aparece en ofertas junto a Defender: su sensor publica la telemetría como eventos event_simpleName (ProcessRollup2 para creación de procesos — el equivalente del Sysmon 1/DeviceProcessEvents —, NetworkConnectIP4 para conexiones) consultables con FQL en el Event Search/Investigate: event_simpleName=ProcessRollup2 ComputerName:X seguido de pipes con stats/eval al estilo SPL. Las detecciones viven en Detections (con su severity y táctica ATT&CK), los incidentes agrupan las señales del mismo actor, y la respuesta remota es RTR (Real Time Response): sesión al host con comandos (get para bajar archivos, runscript para ejecutar, cs_sysinfo para el inventario) — el equivalente del Live Response de MDE. Lo que la entrevista evalúa: el TRIAGE es el mismo de cualquier EDR (veredicto, linaje, pivote, contención) — lo que cambia es la sintaxis; el analista que domina el concepto traduce entre EDRs en horas, no semanas.',
+    example: 'El caso llega como Detección de Falcon: el árbol de procesos muestra el rundll32 con comsvcs — el mismo patrón del runbook de LSASS, con Event Search en vez de Advanced Hunting y RTR en vez de Live Response.',
+  },
+  {
+    id: 'seed-add-071',
+    term: 'SentinelOne (Singularity)',
+    acronym: 'S1',
+    category: 'Endpoint / EDR',
+    shortDefinition: 'El EDR de la plataforma Singularity: detecciones agrupadas por threat con storyline visual del proceso, y caza con el SQL-like de Deep Visibility.',
+    longDefinition: 'SentinelOne organiza el endpoint con el STORYLINE: cada proceso encadenado con su padre e hijo en una línea de tiempo visual que cuenta la historia del ataque sin abrir una sola query — el Deep Visibility es su lenguaje SQL-like para caza (SELECT ... FROM processexecution-events WHERE tgtproccmdline LIKE "%-enc%") que reemplaza al KQL/FQL de los competidores. Sus detecciones se agrupan por THREAT con su veredicto (mitigated = el sensor actuó solo; detected = requiere decisión humana) y su respuesta remota es la Remote Shell/Remote Operator (sesión 1:1 y orquestación de scripts). El diferencial que importa en entrevista: su enfoque autónomo (la contención automática por política) y el modelo Storyline para explicar el linaje — pero el proceso de triage (veredicto → linaje → pivote → contención → evidencia) es el estándar de la industria.',
+    example: 'El threat de S1 muestra el storyline Excel→cmd→powershell -enc completo en una línea: el analista valida el linaje en segundos y la decisión es la misma de siempre — aislar, capturar, rotar.',
+  },
+  {
+    id: 'seed-add-072',
+    term: 'Cortex XSOAR',
+    acronym: 'XSOAR',
+    category: 'SOC Tier 2 - Investigación',
+    shortDefinition: 'La plataforma SOAR de Palo Alto Networks (heredera de Demisto): playbooks visuales que orquestan enriquecimiento, contención y notificación entre decenas de herramientas.',
+    longDefinition: 'XSOAR (eXtended Security Orchestration, Automation and Response) es el SOAR que consolida el mercado junto a los Logic Apps de Sentinel (y absorbió al Phantom de Splunk): su modelo son los PLAYBOOKS — flujos visuales (o YAML) que orquestan tareas de integraciones (enriquecer una IP en VirusTotal, aislar un host en el EDR, abrir el ticket en ServiceNow, notificar al canal) con condicionales, aprobaciones humanas y manejo de errores. Sus piezas: las INTEGRACIONES (cientos de conectores a EDRs, SIEMs, TI, mail e ITSM), los INCIDENTES (el caso con su contexto y su timeline de tareas automatizadas), los AUTOMATION scripts (Python/JS) y el War Room (la ejecución paso a paso de cada playbook). Para el SOC: es la plataforma que convierte el runbook escrito en flujo ejecutable — el bucle de falsos positivos (RB-SOC-032) y el enriquecimiento automático del triage (roadmap fase 13) se implementan aquí. La oferta L2/SOAR pide "diseñar y mantener playbooks" — la competencia es el pensamiento del flujo, no el drag-and-drop.',
+    example: 'El playbook de phishing: al abrirse el caso consulta TI, extrae IOCs del adjunto, purga el correo del tenant, busca clics, crea la tarea de reset para los afectados y deja el caso ENRIQUECIDO para el L1 — el analista abre el caso y la mitad del contexto ya está.',
+  },
+  {
+    id: 'seed-add-073',
+    term: 'Shimcache (AppCompatCache)',
+    acronym: undefined,
+    category: 'Endpoint / EDR',
+    shortDefinition: 'El artefacto forense de Windows que registra los binarios conocidos por el sistema y su orden de avistamiento — junto a Amcache y Prefetch, el tercero del canon de ejecución.',
+    longDefinition: 'El Shimcache (AppCompatCache) es la estructura que Application Compatibility usa para rastrear binarios: guarda la ruta del ejecutable y (según versión de Windows) su tamaño y la hora de última modificación del ARCHIVO — el matiz forense crítico: la entrada prueba que Windows CONOCIÓ el binario (existió en esa ruta), no necesariamente que EJECUTÓ (eso lo prueba el Amcache, que registra la ejecución y el hash SHA1). Su valor en el caso: reconstruir qué binarios existieron en el host y en qué orden temporal aproximado — el dumper renombrado en Temp, la herramienta del atacante borrada después (el registro sobrevive al borrado del archivo). El canon de ejecución que todo IR conoce: Prefetch (ejecuciones con sus DLL cargadas), Amcache (ejecuciones con hash y ruta), Shimcache (presencia y orden) — los tres se extraen con KAPE o RegRipper del hive SYSTEM y se correlacionan con los eventos 4688/Sysmon 1 para la cronología completa.',
+    example: 'El malware borrado del disco aparece en el Shimcache con su ruta en Temp y el timestamp de modificación: la prueba de que existió (y con el Amcache, de que ejecutó) aunque el atacante se llevó el archivo.',
+  },
+  {
+    id: 'seed-add-074',
+    term: 'IBM QRadar',
+    acronym: undefined,
+    category: 'SIEM / Log Management',
+    shortDefinition: 'El SIEM de IBM (hoy QRadar Suite): correlación por ofensas (offenses) sobre eventos y flujos normalizados, con su lenguaje AQL.',
+    longDefinition: 'QRadar es el SIEM histórico de IBM que sigue apareciendo en ofertas de banca, telecom y sector público: su modelo mental es la OFENSA (offense) — la correlación de eventos que comparten un mismo activo/cuenta/IP acumula un magnitude score hasta disparar la ofensa con su severidad, en vez de mil alertas sueltas. Su operación gira sobre AQL (Ariel Query Language: SELECT ... FROM events LAST 24 HOURS — el primo de SPL/KQL con su propia sintaxis), las search filters de la consola, los building blocks (reglas que no alertan pero alimentan la correlación) y las reference sets (las listas de IOCs/watchlists). Para el analista formado en Sentinel/Splunk: el triage cambia de palabras (ofensa vs incidente, reference set vs watchlist) pero no de proceso — y la pregunta de la entrevista es la misma de siempre: cómo priorizas, cómo investigas, cómo documentas.',
+    example: 'La ofensa de QRadar agrupa 47 fallos 4625 + 1 éxito 4624 sobre la misma cuenta: el magnitude alto y la secuencia cuentan el password spray con captura — el caso que en Sentinel serían dos alertas y una correlación manual.',
+  },
+  {
+    id: 'seed-add-075',
+    term: 'Google Chronicle (Google SecOps)',
+    acronym: undefined,
+    category: 'SIEM / Log Management',
+    shortDefinition: 'La plataforma SIEM de Google (Chronicle/Google SecOps): retención de años a escala petabyte y caza con YARA-L sobre el data model unificado (UDM).',
+    longDefinition: 'Chronicle (hoy Google SecOps) es el SIEM cloud de Google con la propuesta distintiva: retención de UN AÑO+ incluida (donde los competidores cobran por GB/día) y detección/caza con YARA-L — el lenguaje derivado de YARA para eventos, con su sintaxis de events (los campos UDM normalizados) y condition (la regla) que compila a búsquedas sobre el data model unificado. Sus piezas: la búsqueda unificada (UDM Search sobre entidades normalizadas: principal, target, security_result), las Rules (detecciones con YARA-L), los dashboards y curated detections, y la ingesta por forwarders. Para el analista: la transición desde KQL/SPL es aprender el UDM (todo se normaliza a entidades comunes) y YARA-L para escribir detección — la retención larga es la killer feature para el retro-hunt de campañas que aparecieron hace meses, sin exportar nada ni pagar de nuevo por el histórico.',
+    example: 'El retro-hunt de la campaña reportada HOY corre en Chronicle sobre el año completo de telemetría: los hosts que hablaron con ese C2 en marzo aparecen con la query UDM del dominio.',
   },
 ];

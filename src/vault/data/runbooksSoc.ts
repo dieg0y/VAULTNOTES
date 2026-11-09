@@ -1,26 +1,29 @@
 /**
  * runbooksSoc.ts — RUNBOOKS del PILAR 3: SOC / BLUE TEAM L1.
  *
- * Dataset COMPLETO (V9 FASE 5 + extensión 19-d + fusión V11 + herramientas v9.1): 45 runbooks
- * RB-SOC-001…RB-SOC-040 y CS-SOC-033 (ex-CheatSheet SOC; los 47 quick
- * fixes restantes del CheatSheet SOC duplicaban runbooks existentes y
- * sus comandos únicos fueron absorbidos en los runbooks gemelos).
+ * Dataset COMPLETO (V9 FASE 5 + extensión 19-d + fusión V11 + herramientas v9.1
+ * + auditoría SOC 2025): 49 runbooks RB-SOC-001…RB-SOC-048 (los 45 previos +
+ * la auditoría de competencias: RB-SOC-045 triage de Mimikatz/LSASS,
+ * RB-SOC-046 detección AWS CloudTrail/GuardDuty, RB-SOC-047 ciclo NIST
+ * 800-61/PICERL, RB-SOC-048 threat intelligence MISP/OpenCTI).
  * Cobertura: phishing (reporte, clic, credenciales, adjunto macro/ISO,
  * BEC/spam/spoof), compromiso de cuentas (sign-in riesgoso, viaje
  * imposible, fatiga MFA, robo de token/PRT, reglas de bandeja,
  * consentimiento OAuth), ataques de contraseña (spray, fuerza bruta,
  * Kerberoasting), eventos Windows (4740, 4720, 4728/4732, 4688,
  * 1102/104, 7045), procesos/EDR (Get-MpThreat, PowerShell -enc,
- * LOLBins), persistencia (tarea programada, run keys/servicio,
- * suscripción WMI), movimiento lateral (escalada, 4624 tipo 3,
- * pass-the-hash), C2 (beaconing, DNS tunneling), ransomware/malware,
- * threat hunting (hipótesis, IOC sweep, Sigma, SQLi en logs de WAF),
- * IR (evidencia y volatilidad, memoria, aislamiento, MTTD/MTTR,
- * escalación/ley, SOAR, postmortem). Extensión 19-d: exfiltración en
- * la nube (DLP: descarga masiva SharePoint/OneDrive), fuga por USB,
- * rogue AP/evil twin, web shell en IIS, fuerza bruta SSH contra
- * Linux expuesto, credenciales en repositorio público (secret
- * scanning) y postmortem del incidente.
+ * LOLBins, Mimikatz/comsvcs/LSASS con Sysmon 10 y ASR), persistencia
+ * (tarea programada, run keys/servicio, suscripción WMI), movimiento
+ * lateral (escalada, 4624 tipo 3, pass-the-hash), C2 (beaconing, DNS
+ * tunneling), ransomware/malware, threat hunting (hipótesis, IOC sweep,
+ * Sigma, SQLi en logs de WAF, TI operativa con MISP/OpenCTI), IR
+ * (evidencia y volatilidad, memoria, aislamiento, MTTD/MTTR,
+ * escalación/ley, SOAR, postmortem, ciclo de vida NIST/PICERL) y
+ * detección cloud (exfiltración DLP, AWS CloudTrail/GuardDuty).
+ * Extensión 19-d: exfiltración en la nube (DLP: descarga masiva
+ * SharePoint/OneDrive), fuga por USB, rogue AP/evil twin, web shell
+ * en IIS, fuerza bruta SSH contra Linux expuesto, credenciales en
+ * repositorio público (secret scanning) y postmortem del incidente.
  *
  * Flujo de cada runbook SOC: Detection → Investigation → Evidence →
  * Containment → Remediation → Verification → Escalation.
@@ -4165,6 +4168,388 @@ export const RUNBOOKS_SOC: PillarRunbook[] = [
     english_customer_response_template: 'Hello, the alert triggered by our deception technology has been fully handled under ticket {{TICKET_ID}}. The activity corresponded to an attacker using a decoy credential that no legitimate user or process ever touches, which gives us high-confidence confirmation of an intrusion attempt. We identified the compromised source system and the exact tool used, determined how the attacker obtained the credential (the underlying credential attack), contained the source, blocked the attack vector, and confirmed the rest of the environment was not affected. The decoy remains active and our deception inventory has been tuned based on what this incident taught us.',
     english_technical_explanation: 'Honeytoken activation handled at {{TIMESTAMP}}: decoy account authentication confirmed as intrusion by design (documented decoy inventory with zero legitimate use), source extracted from Security event 4624 (origin host/IP, logon type, target resource) and tool identified via DeviceLogonEvents (process command line using the stolen decoy credential). Underlying vector diagnosed from source behavior (mass account attempts = password spray runbook; single-account use = specific dump or lure discovery) and scoped (additional accounts attempted or affected from the same infrastructure). Containment executed on the compromised source host and the vector layer (perimeter block for external spray infrastructure, rotation for dumped credentials). Decoy verified still operational (or rotated if burned); program inventory tuned with case lessons; case filed with clean alert-to-containment metrics.',
     keywords: ['honeytoken', 'honey account', 'cuenta senuelo', 'canary', 'deception', 'trampa', 'decoya', 'senal perfecta', '4624 senuelo', 'password spray senuelo', 'dump filtrado', 'intruso confirmado', 'canary token', 'programa de trampas', 'devicelogonevents', 'rb-soc-008', 'rb-soc-005'],
+  },
+  {
+    id: 'RB-SOC-045',
+    pillar: 'SOC',
+    title: 'Alerta de Mimikatz o acceso a LSASS: triage del credential dumping en Defender y Sysmon',
+    category: 'Procesos / EDR',
+    ticket_example: 'SOC{{TICKET_ID}} - EDR alert: credential dumping / LSASS access detected - P1 - {{HOSTNAME}}',
+    problem_description: 'El EDR (Microsoft Defender for Endpoint u otro) disparó la alerta de credential dumping: un proceso abrió lsass.exe (la autoridad de seguridad local que guarda en memoria las credenciales de cada sesión activa) con permisos de lectura de memoria — la firma de Mimikatz (sekurlsa::logonpasswords), procdump -ma lsass, o el abuso de comsvcs.dll MiniDump (MITRE T1003.001 LSASS Memory). El triage L1/L2 debe distinguir en minutos las tres realidades: herramienta legítima de soporte (un técnico con procdump), detección bloqueada por ASR (el intento contenido sin dump) o dump exitoso (la memoria con las credenciales ya salió del host y hay que asumir que TODAS las sesiones del equipo están comprometidas).',
+    business_impact: 'Un dump de LSASS exitoso entrega al atacante los hashes NTLM y a menudo las contraseñas en claro de todos los usuarios con sesión activa o persistida en el host — incluida alguna cuenta de servicio con privilegios de dominio: es el puente clásico del movimiento lateral (pass-the-hash, pass-the-ticket) y el paso previo habitual del ransomware. Cada minuto entre el dump y la rotación de credenciales es un minuto en que el atacante puede autenticarse como otro usuario en otra máquina sin que ningún antivirus lo vea.',
+    symptoms: [
+      'Alerta del EDR tipo "Suspicious credential dumping activity" o detección de mimikatz.exe / procdump sobre lsass.exe en {{HOSTNAME}}',
+      'Sysmon Event ID 10 (ProcessAccess) con TargetImage lsass.exe y GrantedAccess 0x1010/0x1410 desde un proceso sin firma o inusual',
+      'PowerShell o rundll32 ejecutando comsvcs.dll,MiniDump contra lsass, o el evento 4104/4688 con la línea de comando del dumper',
+    ],
+    root_causes: [
+      'Dump ofuscado en ejecución: Mimikatz renombrado, comsvcs.dll MiniDump vía rundll32, o PowerShell con P/Invoke — el intento del atacante real',
+      'Herramienta legítima de soporte: procdump -ma lsass o la creación de dump desde Task Manager por un técnico de IT (falso positivo esperado — pero se verifica contra el ticket de cambio)',
+      'Software de seguridad o backup leyendo LSASS con sus procesos firmados (el propio EDR, agentes de backup): falso positivo estructural que se documenta para tuning',
+    ],
+    prerequisites: [
+      'Consola del EDR con la alerta expandida (árbol de procesos, línea de comando y veredicto: bloqueado o ejecutado)',
+      'SIEM con Sysmon (Event ID 10 con TargetImage/GrantedAccess) y DeviceProcessEvents del host',
+      'Permisos para aislar el host y para coordinar la rotación de credenciales con IAM (el dump compromete cuentas, no el host solo)',
+    ],
+    step_by_step_universal: [
+      {
+        order: 1,
+        action: 'Leer el veredicto del EDR primero: ¿el intento fue bloqueado (ASR rule "Block credential stealing from LSASS") o el proceso alcanzó a leer la memoria?',
+        command: 'SecurityAlert | where TimeGenerated > ago(24h) | where CompromisedEntity == "{{HOSTNAME}}" | where DisplayName contains "credential" or DisplayName contains "LSASS" or DisplayName contains "dump" | project TimeGenerated, DisplayName, AlertSeverity, Status, RemediationSteps',
+        expected: 'La alerta con su severidad y estado: blocked/contained significa que la regla ASR cortó el acceso; si el veredicto no es claro, tratar como ejecutado hasta probar lo contrario.',
+        explanation: 'El estado de la alerta divide el caso en dos mundos: intento contenido (el dump no ocurrió — la respuesta se centra en el origen del proceso) o dump exitoso (la respuesta es de credenciales: rotación y caza de uso).',
+      },
+      {
+        order: 2,
+        action: 'Identificar QUIÉN abrió LSASS y desde dónde: el proceso fuente con su firma, padre y línea de comando',
+        command: 'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(24h) | where ProcessCommandLine has "lsass" or ProcessCommandLine has "MiniDump" or ProcessCommandLine has "procdump" or FileName in~ ("procdump.exe", "mimikatz.exe", "rundll32.exe") | project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, InitiatingProcessCommandLine, ProcessVersionInfoSignatureState | order by Timestamp asc',
+        expected: 'La línea del dumper con su padre (Excel/cmd/PowerShell apuntan a entrega de malware; explorer.exe a ejecución manual del técnico) y el estado de firma del binario.',
+        explanation: 'El linaje cuenta la historia completa: un rundll32.exe comsvcs.dll,MiniDump lanzado por winword.exe es credential dumping de campaña; un procdump.exe lanzado por psexesc.exe con ticket del Service Desk es soporte. La firma del binario es el desempate (los dumpers de campaña suelen viajar sin firmar o firmados robados).',
+      },
+      {
+        order: 3,
+        action: 'Verificar el acceso real a LSASS con Sysmon Event ID 10: quién tocó lsass.exe y con qué permisos (GrantedAccess)',
+        command: 'Get-WinEvent -FilterHashtable @{LogName="Microsoft-Windows-Sysmon/Operational"; Id=10} -MaxEvents 300 | Where-Object { $_.Message -match "lsass.exe" } | Select-Object TimeCreated, @{n="SourceImage";e={([xml]$_.ToXml()).Event.EventData.Data | Where-Object Name -eq "SourceImage" | Select-Object -ExpandProperty "#text"}}, @{n="GrantedAccess";e={([xml]$_.ToXml()).Event.EventData.Data | Where-Object Name -eq "GrantedAccess" | Select-Object -ExpandProperty "#text"}} | Select-Object -First 10',
+        expected: 'Los procesos que abrieron lsass.exe con su máscara: 0x1010/0x1410 (lectura de memoria: el patrón del dumper), y quiénes más lo tocan de forma legítima (los procesos firmados del EDR/AV).',
+        explanation: 'El Sysmon 10 es la fuente de verdad del acceso: GrantedAccess 0x1010 (PROCESS_VM_READ + PROCESS_QUERY_INFORMATION) sobre lsass.exe desde un proceso no firmado o anómalo es credential dumping confirmado; el mismo acceso desde MsMpEng.exe (Defender) o el agente de backup firmado es la línea base del host.',
+      },
+      {
+        order: 4,
+        action: 'Si el dump ocurrió (o no se puede descartar): aislar el host y preservar la evidencia ANTES de cualquier limpieza',
+        expected: 'Host aislado desde la consola del EDR (contención de red, sin reiniciar: la RAM con las huellas del dump y quizá el payload aún vivo es evidencia) y captura de memoria solicitada al IR (RB-SOC-028).',
+        explanation: 'El reinicio destruye la memoria donde están el dumper, las credenciales de la sesión del atacante y las conexiones C2 activas: aislar sin reiniciar preserva la escena mientras se corta la propagación.',
+      },
+      {
+        order: 5,
+        action: 'Inventariar las sesiones comprometidas: TODAS las cuentas con sesión activa o credenciales en caché del host en la ventana del dump',
+        command: 'DeviceLogonEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(7d) | summarize Sesiones=count(), Ultima=max(Timestamp) by AccountName, LogonType | order by Ultima desc',
+        expected: 'La lista de cuentas expuestas: usuarios locales, cuentas de dominio con sesiones interactivas (LogonType 2/10), de red (3) y de servicio (5) — cada una de esas credenciales estuvo en la memoria de LSASS.',
+        explanation: 'El dump no roba UNA contraseña: roba las de todas las sesiones y credenciales persistidas. El inventario de sesiones define el alcance de la rotación — la cuenta de servicio con sesión olvidada del mes pasado es la que el atacante usa para volver.',
+      },
+      {
+        order: 6,
+        action: 'Cazar el USO de lo robado: autenticaciones de las cuentas expuestas desde otros hosts o IPs nuevas DESPUÉS de la hora del dump',
+        command: 'SecurityEvent | where EventID == 4624 | where TimeGenerated > ago(48h) | where TargetUserName in~ ("{{USERNAME}}") | where IpAddress != "" and LogonType in (2,3,10) | project TimeGenerated, TargetUserName, Computer, IpAddress, LogonType, ProcessName | order by TimeGenerated asc',
+        expected: 'La línea base de autenticación de las cuentas expuestas: sesiones normales desde los hosts habituales, o la anomalía — un 4624 tipo 3 desde un servidor que el usuario jamás visita es pass-the-hash en vivo.',
+        explanation: 'El movimiento lateral con credenciales robadas no dispara alertas por sí mismo (¡la autenticación es VÁLIDA!): hay que cazarla correlacionando la hora del dump con los accesos posteriores de las cuentas expuestas desde destinos nuevos.',
+      },
+      {
+        order: 7,
+        action: 'Rotación coordinada con IAM: reset de las cuentas expuestas y revocación de sesiones — en el orden correcto (revocar sesiones, luego reset)',
+        command: 'Revoke-MgUserSignInSession -UserId "{{USERNAME}}@{{DOMAIN}}"; Update-MgUserPassword -UserId "{{USERNAME}}@{{DOMAIN}}" -PasswordCredential @{ Password = "{{NEW_PASSWORD}}" } -ForceChangePasswordNextSignIn:$true',
+        expected: 'Sesiones revocadas, contraseñas nuevas con cambio obligatorio al iniciar, krbtgt NO se toca (eso es RB-SOC-041 si el dump fue del DC), y el EDR con el hash del dumper bloqueado en la flota.',
+        explanation: 'La rotación cierra el uso de lo robado pero solo si cubre TODO el inventario del paso 5 y revoca las sesiones primero: el token ya emitido sobrevive al reset de contraseña.',
+      },
+      {
+        order: 8,
+        action: 'Barrido de flota: el mismo dumper o el acceso a LSASS desde el mismo linaje en otros hosts (la campaña nunca es de un solo equipo)',
+        command: 'DeviceProcessEvents | where Timestamp > ago(14d) | where ProcessCommandLine has_any ("comsvcs", "MiniDump", "sekurlsa", "lsass*") or (FileName in~ ("procdump.exe","out-minidump") ) | project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessFileName | order by Timestamp asc',
+        expected: 'Otros hosts con el mismo patrón (el mismo malware entregado a varios usuarios), o el barrido limpio que reduce el incidente al host original.',
+        explanation: 'El phishing que trajo el dumper tocó a más usuarios: el barrido por línea de comando y hash en 14 días es lo que separa "contuvimos el host" de "cerramos el incidente".',
+      },
+      {
+        order: 9,
+        action: 'Cerrar con la lección de detección: verificar que la regla ASR de LSASS está en modo bloque en toda la flota y documentar los falsos positivos estructurales encontrados',
+        command: 'Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids; Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Actions',
+        expected: 'El GUID 9e6c4e1f-7d60-472f-ba1a-a39ef669e4b2 (Block credential stealing from LSASS) presente con Acción Audit o Block — si está ausente o en audit, la remediación pide el despliegue por GPO/Intune en modo bloque.',
+        explanation: 'El caso que termina sin endurecimiento se repite: la regla ASR de LSASS en modo bloque convierte el próximo intento en la alerta contenida (y el tuning de las exclusiones legítimas del backup/AV es parte del cierre, documentado para RB-SOC-032).',
+      },
+    ],
+    commands_copyable: [
+      'SecurityAlert | where TimeGenerated > ago(24h) | where CompromisedEntity == "{{HOSTNAME}}" | where DisplayName contains "credential" or DisplayName contains "LSASS" or DisplayName contains "dump" | project TimeGenerated, DisplayName, AlertSeverity, Status, RemediationSteps',
+      'DeviceProcessEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(24h) | where ProcessCommandLine has "lsass" or ProcessCommandLine has "MiniDump" or ProcessCommandLine has "procdump" or FileName in~ ("procdump.exe", "mimikatz.exe", "rundll32.exe") | project Timestamp, FileName, ProcessCommandLine, InitiatingProcessFileName, ProcessVersionInfoSignatureState | order by Timestamp asc',
+      'Get-WinEvent -FilterHashtable @{LogName="Microsoft-Windows-Sysmon/Operational"; Id=10} -MaxEvents 300 | Where-Object { $_.Message -match "lsass.exe" } | Select-Object TimeCreated, @{n="SourceImage";e={([xml]$_.ToXml()).Event.EventData.Data | Where-Object Name -eq "SourceImage" | Select-Object -ExpandProperty "#text"}}, @{n="GrantedAccess";e={([xml]$_.ToXml()).Event.EventData.Data | Where-Object Name -eq "GrantedAccess" | Select-Object -ExpandProperty "#text"}} | Select-Object -First 10',
+      'DeviceLogonEvents | where DeviceName == "{{HOSTNAME}}" | where Timestamp > ago(7d) | summarize Sesiones=count(), Ultima=max(Timestamp) by AccountName, LogonType | order by Ultima desc',
+      'SecurityEvent | where EventID == 4624 | where TimeGenerated > ago(48h) | where TargetUserName in~ ("{{USERNAME}}") | where IpAddress != "" and LogonType in (2,3,10) | project TimeGenerated, TargetUserName, Computer, IpAddress, LogonType, ProcessName | order by TimeGenerated asc',
+      'DeviceProcessEvents | where Timestamp > ago(14d) | where ProcessCommandLine has_any ("comsvcs", "MiniDump", "sekurlsa", "lsass*") or (FileName in~ ("procdump.exe","out-minidump") ) | project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessFileName | order by Timestamp asc',
+      'Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids; Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Actions',
+    ],
+    verification: 'El veredicto documentado (dump bloqueado por ASR, falso positivo de soporte o dump exitoso), el linaje completo del dumper identificado (proceso, padre, firma), el host aislado sin reiniciar y con memoria preservada si el dump ocurrió, el inventario de sesiones expuestas rotado (contraseñas + sesiones revocadas), la caza de uso de credenciales sin hallazgos (o los hallazgos contenidos), el barrido de flota negativo y la regla ASR verificada en modo bloque.',
+    evidence_to_collect: [
+      'La alerta del EDR exportada con veredicto, severidad y hora exacta del intento',
+      'Los eventos Sysmon 10 sobre lsass.exe con SourceImage, GrantedAccess y hora (la prueba del acceso)',
+      'La línea de comando del dumper con su linaje completo (padre, firma, hash SHA256 del binario)',
+      'El inventario de sesiones expuestas y la confirmación de rotación/revocación de cada cuenta',
+    ],
+    escalation: 'Dump exitoso o no descartable: P1 inmediato — el IR lead coordina la captura de memoria y la caza de movimiento lateral con las credenciales robadas; si entre las sesiones hay una de dominio con privilegios o el host es un Domain Controller, se aplica RB-SOC-041 (el dump de LSASS en un DC es material para Golden Ticket). El falso positivo de soporte verificado (procdump con ticket) se cierra como P3 documentando la exclusión propuesta; el falso positivo estructural del backup/AV alimenta el tuning (RB-SOC-032).',
+    english_customer_response_template: 'Hi {{USERNAME}}, our security tools detected an attempt to extract stored credentials from your computer. The attempt was blocked and did not succeed, and as a precaution we have reset your password and signed out all sessions. Please sign in again with the temporary password you will receive. If you ran any diagnostic tool or someone from IT asked you to run something on your computer before this alert, please tell us now — it helps us close the case faster.',
+    english_technical_explanation: 'Credential dumping attempt (MITRE T1003.001) on {{HOSTNAME}} at {{TIMESTAMP}}: EDR alert triaged first (blocked by ASR rule "Block credential stealing from LSASS" vs executed), followed by Sysmon event 10 analysis (SourceImage opening lsass.exe with GrantedAccess 0x1010 read pattern) and full process lineage of the dumper (rundll32 + comsvcs.dll MiniDump launched by a document process, unsigned binary). No successful dump confirmed (ASR blocked, no dump file created); host isolated anyway per procedure and memory preserved. Sessions inventory built from DeviceLogonEvents (7 days); exposed accounts had sessions revoked (Revoke-MgUserSignInSession) and passwords rotated. Credential usage hunt (4624 type 3 from unusual hosts post-dump) negative; 14-day fleet sweep by command line and binary hash negative. ASR rule verified in Block mode fleet-wide; detections documented in the permanent catalog.',
+    keywords: ['mimikatz', 'lsass', 't1003.001', 'credential dumping', 'sysmon 10', 'processaccess', 'grantedaccess', '0x1010', 'comsvcs', 'minidump', 'procdump', 'sekurla', 'asr', 'block credential stealing from lsass', 'pass-the-hash', 'dump de memoria', 'rotacion de credenciales', 'devicelogonevents', 'edr triage'],
+  },
+  {
+    id: 'RB-SOC-046',
+    pillar: 'SOC',
+    title: 'Detección en AWS para el SOC: CloudTrail y GuardDuty — key expuesta, StopLogging y uso anómalo de credenciales',
+    category: 'Cloud Detection',
+    ticket_example: 'SOC{{TICKET_ID}} - GuardDuty finding: credential misuse / CloudTrail logging disabled in AWS account - P1 - {{ACCOUNT}}',
+    problem_description: 'La detección en AWS del SOC gira sobre dos fuentes: CloudTrail (el registro de auditoría de TODA llamada a la API — quién, qué, desde qué IP y cuándo) y GuardDuty (el servicio de detección de amenazas que analiza CloudTrail, VPC Flow Logs y DNS contra inteligencia de amenazas y machine learning). Los tres casos que todo analista debe resolver: la access key expuesta (el secreto filtrado en un repo público que el atacante usa desde fuera de AWS), el silenciamiento de la telemetría (StopLogging/DeleteTrail como primer paso del atacante con acceso admin) y el uso anómalo de credenciales (llamadas a la API desde regiones/IPs jamás vistas, escalada con AttachUserPolicy, o exfiltración de secretos con GetSecretValue masivo).',
+    business_impact: 'El compromiso de una cuenta AWS expone la infraestructura completa: criptominería en EC2 (facturas de miles de dólares en horas), exfiltración desde S3 (buckets con datos de clientes), persistencia con roles IAM (accesos que sobreviven la rotación de contraseñas) y pivote a otras cuentas de la organización. La clave expuesta usada por IAM de forma programática no pasa por MFA: la primera señal es el CloudTrail/GuardDuty, y el tiempo entre el primer uso y la revocación es la métrica que decide el tamaño del incidente.',
+    symptoms: [
+      'Finding de GuardDuty tipo UnauthorizedAccess:IAMUser/ConsoleLogin.Success o finding de credential misuse contra {{ACCOUNT}}',
+      'CloudTrail registra StopLogging, DeleteTrail, CreateAccessKey o AttachUserPolicy fuera de ventana de cambio',
+      'GuardDuty o el SIEM alertan llamadas a la API desde regiones/IPs fuera de la línea base, o el secret scanning reporta una access key de la cuenta en un repositorio público',
+    ],
+    root_causes: [
+      'Access key IAM expuesta en repositorio público, contenedor o documentación (AKIA... filtrada) usada por el atacante de forma programática',
+      'Atacante con acceso a la consola (phishing de credenciales del root o de un admin) que deshabilita la telemetría (StopLogging) antes de operar',
+      'Falso positivo: automatización nueva o cambio legítimo del equipo cloud sin ventana comunicada (deploy desde región nueva, tarea programada con AssumeRole)',
+    ],
+    prerequisites: [
+      'Acceso de LECTURA a CloudTrail (lookup-events o Athena sobre el bucket de logs) y a la consola de GuardDuty (findings del detector)',
+      'AWS CLI configurado con permisos de respuesta de emergencia (iam:UpdateAccessKey, iam:PutUserPolicy, guardduty:UpdateFindings) o canal directo con el equipo cloud para ejecutarlas',
+      'Inventario de cuentas AWS de la organización (el finding llega con account id: saber a CUÁL cuenta corresponde antes del primer comando)',
+    ],
+    step_by_step_universal: [
+      {
+        order: 1,
+        action: 'Leer el finding de GuardDuty completo: tipo, recurso afectado, actor (ARN de la credencial usada) y primera/última vez visto',
+        command: 'aws guardduty list-findings --detector-id {{DETECTOR_ID}} --query "FindingIds" --output text | head -5; aws guardduty get-findings --detector-id {{DETECTOR_ID}} --finding-ids {{FINDING_ID}} --query "Findings[0].{Type:Type,Title:Title,Severity:Severity,Resource:Resource.ResourceType,ActorAccessKey:AccessKeyDetails.AccessKeyId,IP:Service.Action.AwsApiCallAction.RemoteIpDetails.IpAddressV4,FirstSeen:Service.EventFirstSeen,LastSeen:Service.EventLastSeen}" --output json',
+        expected: 'El finding desglosado: qué tipo (ej. UnauthorizedAccess:IAMUser/InstanceCredential.Exfiltration.OutsideAWS), qué credencial (AccessKeyId), desde qué IP y en qué ventana.',
+        explanation: 'El AccessKeyDetails del finding es la mitad del caso: identifica QUÉ credencial está comprometida (usuario o rol) — la respuesta completa siempre incluye esa credencial, no solo la IP del atacante.',
+      },
+      {
+        order: 2,
+        action: 'Reconstruir la actividad de la credencial en CloudTrail: qué hizo, desde dónde y cuándo (las llamadas a la API de la ventana del finding)',
+        command: 'aws cloudtrail lookup-events --lookup-attributes AttributeKey=AccessKeyId,AttributeValue={{ACCESS_KEY_ID}} --start-time 2025-01-01T00:00:00Z --max-results 50 --query "Events[].{Time:EventTime,Event:EventName,Who:Username,IP:CloudTrailEvent}" --output text | head -20',
+        expected: 'La secuencia de llamadas a la API con la hora, el evento y la IP: la cronología completa de lo que hizo el que sostiene la clave.',
+        explanation: 'CloudTrail es la cámara de todo: LookupEvents por AccessKeyId reconstruye la sesión del atacante (o demuestra que la clave no se usó — el caso baja de P1 a rotación preventiva). Los eventos que DUelen: CreateAccessKey (claves nuevas para persistir), AttachUserPolicy/PutUserPolicy (escalada), StopLogging (anti-forense), GetSecretValue repetido (robo de secretos), RunInstances en regiones raras (criptominería).',
+      },
+      {
+        order: 3,
+        action: 'Cazar los cuatro eventos de mayor gravedad en el histórico de la cuenta: telemetría apagada, claves nuevas, políticas de escalada y exfiltración de secretos',
+        command: 'aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=StopLogging --max-results 10 --query "Events[].{Time:EventTime,User:Username,IP:CloudTrailEvent}" --output text',
+        expected: 'Cada StopLogging/CreateAccessKey/AttachUserPolicy con su autor, hora e IP — comparado contra la línea base (¿lo ejecuta el deploy pipeline a esta hora o es una IP de hosting desconocida?).',
+        explanation: 'El patrón clásico de toma de cuenta: deshabilitar CloudTrail primero (DefenseEvasion:IAMUser/CloudTrailLoggingDisabled es el finding de GuardDuty que lo detecta), crear una clave de acceso nueva (persistencia que sobrevive al reset de la contraseña), y auto-conceder políticas administrativas. Correr cada uno por separado cambia AttributeValue: StopLogging, DeleteTrail, CreateAccessKey, AttachUserPolicy, GetSecretValue.',
+      },
+      {
+        order: 4,
+        action: 'Contener YA la credencial comprometida: inactivar la access key y bloquear las sesiones activas del usuario IAM',
+        command: 'aws iam update-access-key --access-key-id {{ACCESS_KEY_ID}} --status Inactive --user-name {{USERNAME}}; aws iam put-user-policy --user-name {{USERNAME}} --policy-name QuarentineIncidente --policy-document \'{"Version":"2012-10-17","Statement":[{"Effect":"Deny","Action":"*","Resource":"*"}]}\'',
+        expected: 'La clave en estado Inactive (las llamadas con ella fallan inmediatamente) y la política de denegación explícita montada: las sesiones ya emitidas (que la inactivación NO mata) mueren con el Deny.',
+        explanation: 'La contención en AWS tiene dos capas: la clave inactivada corta las NUEVAS autenticaciones, pero los STS tokens ya emitidos viven hasta una hora — la política inline con Deny explícito es el "revoke sessions" efectivo para usuarios IAM (no existe botón directo). Para el access por consola, además: aws iam update-login-profile o delete-login-profile.',
+      },
+      {
+        order: 5,
+        action: 'Dimensionar el alcance: qué recursos tocó el actor (buckets, instancias, secretos, roles asumidos) y si hay claves nuevas creadas como persistencia',
+        command: 'aws iam list-access-keys --user-name {{USERNAME}} --query "AccessKeyMetadata[].{Key:AccessKeyId,Created:CreateDate,Status:Status}" --output table',
+        expected: 'Todas las claves del usuario con su fecha de creación: una clave creada DENTRO de la ventana del incidente (y que nadie del equipo reconoce) es la persistencia del atacante — se inactiva también.',
+        explanation: 'El atacante que entró una vez intenta quedarse: las claves nuevas, los roles con trust policy hacia cuentas externas y los usuarios nuevos (CreateUser) son las tres persistencias estándar — el inventario post-incidente las revisa TODAS contra el cambio aprobado.',
+      },
+      {
+        order: 6,
+        action: 'Restaurar la telemetría si fue silenciada: reactivar el trail y verificar la salud del detector de GuardDuty',
+        command: 'aws cloudtrail start-logging --name {{TRAIL_NAME}}; aws guardduty list-detectors --query "DetectorIds" --output text',
+        expected: 'El trail en estado logging activo (On) y el detector de GuardDuty listado y activo — con el gap de telemetría documentado con hora de inicio y fin (la ventana ciega se declara en el informe).',
+        explanation: 'La ventana sin CloudTrail es la parte del incidente que NO se puede reconstruir: se documenta como gap, se comunica al IR lead, y se compensa con las otras fuentes de la ventana (VPC Flow Logs, logs de los servicios, facturación — la factura de EC2 también es telemetría cuando el atacante mina).',
+      },
+      {
+        order: 7,
+        action: 'Cazar la campaña en las demás cuentas de la organización: el mismo actor, IP o patrón en los otros account ids',
+        command: 'aws organizations list-accounts --query "Accounts[].{Id:Id,Name:Name}" --output table',
+        expected: 'La lista de cuentas de la organización: cada una con su CloudTrail y GuardDuty revisado para el mismo patrón (las organizaciones con múltiples cuentas comparten el mismo atacante cuando la llave era de un rol de administración).',
+        explanation: 'La organización es el perímetro real: la clave del CI/CD de la cuenta central toca TODAS las cuentas (deploy en cada una) — el barrido multi-cuenta es lo que evita cerrar el incidente con la persistence viva en la cuenta hermana.',
+      },
+      {
+        order: 8,
+        action: 'Remediar y prevenir: rotar TODO lo que la clave podía alcanzar, migrar a roles con duración corta y dejar los guardrails detectivos',
+        expected: 'Secretos rotados (si la clave leía SecretValue), buckets revisados (accesos anómalos), credenciales migradas a roles IAM con sesiones cortas o Identity Center, y las detecciones permanentes: alerta SIEM sobre StopLogging/CreateAccessKey/AttachUserPolicy y el finding de GuardDuty enrutado al ticketing.',
+        explanation: 'La remediación madura de la key expuesta: no solo revocar — migrar el caso de uso a la arquitectura que no Filtra claves (roles asumibles con ExternalId, Instance Profiles en EC2, OIDC federación en los pipelines) y dejar el monitoreo que detecta la próxima en minutos (la alerta de StopLogging es la más barata y valiosa del catálogo cloud).',
+      },
+    ],
+    commands_copyable: [
+      'aws guardduty get-findings --detector-id {{DETECTOR_ID}} --finding-ids {{FINDING_ID}} --query "Findings[0].{Type:Type,Title:Title,Severity:Severity,Resource:Resource.ResourceType,ActorAccessKey:AccessKeyDetails.AccessKeyId,IP:Service.Action.AwsApiCallAction.RemoteIpDetails.IpAddressV4,FirstSeen:Service.EventFirstSeen,LastSeen:Service.EventLastSeen}" --output json',
+      'aws cloudtrail lookup-events --lookup-attributes AttributeKey=AccessKeyId,AttributeValue={{ACCESS_KEY_ID}} --max-results 50 --query "Events[].{Time:EventTime,Event:EventName,Who:Username}" --output table',
+      'aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=StopLogging --max-results 10 --query "Events[].{Time:EventTime,User:Username}" --output table',
+      'aws iam update-access-key --access-key-id {{ACCESS_KEY_ID}} --status Inactive --user-name {{USERNAME}}',
+      'aws iam put-user-policy --user-name {{USERNAME}} --policy-name QuarentineIncidente --policy-document \'{"Version":"2012-10-17","Statement":[{"Effect":"Deny","Action":"*","Resource":"*"}]}\'',
+      'aws iam list-access-keys --user-name {{USERNAME}} --query "AccessKeyMetadata[].{Key:AccessKeyId,Created:CreateDate,Status:Status}" --output table',
+      'aws cloudtrail start-logging --name {{TRAIL_NAME}}',
+    ],
+    verification: 'El finding leído y clasificado (tipo, credencial, IP, ventana), la cronología completa del actor reconstruida en CloudTrail (o el gap de telemetría documentado con su ventana exacta), la credencial comprometida inactivada CON sesiones bloqueadas por Deny explícito, las persistencias cazadas y removidas (claves nuevas, usuarios, políticas), el trail reactivado y GuardDuty operativo, el barrido multi-cuenta negativo, y los guardrails detectivos desplegados (alertas sobre StopLogging/CreateAccessKey/AttachUserPolicy + findings enrutados al ticketing).',
+    evidence_to_collect: [
+      'El JSON completo del finding de GuardDuty (tipo, severidad, AccessKeyId, IP, ventana FirstSeen/LastSeen)',
+      'Los lookup-events de CloudTrail de la credencial comprometida (la cronología del actor con horas e IPs)',
+      'La evidencia de contención: la clave en Inactive, la política Deny montada y la lista de claves pre/post remediación',
+      'El registro de la ventana de telemetría perdida (si hubo StopLogging) con hora de inicio, fin y fuentes compensatorias usadas',
+    ],
+    escalation: 'Uso confirmado de la credencial por el atacante (llamadas desde IPs de hosting, escalada de políticas, instancias nuevas en regiones desconocidas): P1 con el IR lead y el equipo cloud YA — la contención requiere permisos que el SOC típicamente no tiene solo. Exfiltración de datos de S3 o de SecretValue confirmada: evaluación legal/notificación con el inventario exacto (mismo flujo que RB-SOC-043). Gap de CloudTrail activo al recibir el caso: escalar a la vez que se contienen las credenciales — cada minuto de telemetría perdida es evidencia que no existirá.',
+    english_customer_response_template: 'Hello, a security alert was raised on one of our cloud accounts under ticket {{TICKET_ID}}. An exposed credential was used from an unauthorized source. We deactivated the credential within minutes, blocked all active sessions for that identity, verified what was accessed during the exposure window, and confirmed that no data was modified or exfiltrated. The credential has been replaced with a short-lived role-based mechanism, and permanent detections have been put in place to catch this pattern immediately.',
+    english_technical_explanation: 'AWS credential exposure response at {{TIMESTAMP}}: GuardDuty finding triaged (type, severity, AccessKeyId, source IP, first/last seen) followed by CloudTrail reconstruction via lookup-events by AccessKeyId (full API call chronology). Containment executed: access key set to Inactive (aws iam update-access-key) plus explicit Deny inline policy on the IAM user to kill already-issued STS sessions (IAM user sessions cannot be revoked directly; the Deny is the effective session revocation). Persistence hunted (list-access-keys for keys created inside the incident window, new users, attached policies) and removed. Telemetry health restored (cloudtrail start-logging after attacker StopLogging; blind window documented with exact boundaries). Organization-wide sweep across accounts for the same actor/pattern negative. Remediation: secrets rotated, workload migrated to role-based short-lived credentials, permanent detections deployed (SIEM alerts on StopLogging/CreateAccessKey/AttachUserPolicy, GuardDuty findings routed to ticketing).',
+    keywords: ['aws', 'cloudtrail', 'guardduty', 'access key', 'akia', 'stoplogging', 'deletetrail', 'createaccesskey', 'attachuserpolicy', 'getsecretvalue', 'lookup-events', 'credential misuse', 'defense evasion', 'cloudtrailloggingdisabled', 'unauthorizedaccess', 'instancecredential exfiltration', 'quarentine', 'deny policy', 'sts', 'sesiones', 'multi-cuenta', 'organizations', 'siem aws'],
+  },
+  {
+    id: 'RB-SOC-047',
+    pillar: 'SOC',
+    title: 'Ciclo de vida del incidente con NIST 800-61 y PICERL: el mapa operativo que ordena el caos',
+    category: 'Respuesta a Incidentes',
+    ticket_example: 'SOC{{TICKET_ID}} - Major incident declared - IR lead requested: lifecycle management per NIST 800-61 / PICERL - P1 - {{ASSET}}',
+    problem_description: 'Cuando un caso cruza el umbral de incidente mayor (RB-SOC-031), el SOC necesita un mapa compartido de EN QUÉ FASE está el caso y QUÉ le toca a cada rol en esa fase — porque la pregunta de cada reuniones de crisis no es "¿qué está pasando?" sino "¿en qué fase estamos, qué falta para salir de ella y quién tiene la bola?". Los dos marcos que estructuran ese mapa: NIST SP 800-61 (Preparación → Detección y Análisis → Contención, Erradicación y Recuperación → Actividad Post-Incidente) y SANS PICERL (Preparation, Identification, Containment, Eradication, Recovery, Lessons Learned). Este runbook es el procedimiento operativo para USARLOS: qué se hace, qué se documenta y qué dispara el paso a la siguiente fase — con el caso de ransomware como hilo conductor.',
+    business_impact: 'El incidente sin mapa de fases degenera en lo que los postmortems llaman "todos hacíamos de todo y nadie decidía": contención que se retrasa porque nadie sabe quién autoriza, erradicación que empieza antes de preservar evidencia, recuperación sin criterio de salida y lecciones aprendidas que jamás se reúnen. Los dos marcos son también EL estándar de las entrevistas: "walk me through how you would handle a ransomware incident using NIST 800-61" es una pregunta real de selección — responderla con fases, roles y criterios de transición es lo que separa al L2 maduro del que solo clickeó alertas.',
+    symptoms: [
+      'Incidente declarado mayor (RB-SOC-031) con múltiples equipos involucrados y decisiones de contención pendientes',
+      'Reuniones de crisis donde cada equipo reporta avances sin un mapa común de fase, dueño y criterio de salida',
+      'El postmortem no puede reconstruir la cronología ni las decisiones (quién autorizó aislar, cuándo se declaró contenida la propagación)',
+    ],
+    root_causes: [
+      'Ausencia de marco compartido: cada equipo improvisa su propia secuencia (red aísla, soporte reimagen, seguridad caza) sin criterios de transición entre fases',
+      'Roles sin nombre: nadie es formalmente el Incident Commander, así que las decisiones de negocio (¿pagamos el rescate?, ¿apagamos producción?) no tienen dueño',
+      'Documentación tardía: la cronología se reconstruye de memoria al final en vez de redactarse MIENTRAS ocurre (la causa raíz del 80% de los postmortems flojos)',
+    ],
+    prerequisites: [
+      'La plantilla de gestión del incidente (bitácora con hora, actor, acción y fase — la misma de RB-SOC-031)',
+      'Matriz de escalamiento con los roles nombrados: Incident Commander/IR lead, comunicaciones, legal, dueño del activo',
+      'Los runbooks de las fases ya existentes del vault: RB-SOC-028 (evidencia), RB-SOC-029/030 (contención), RB-SOC-040 (postmortem)',
+    ],
+    step_by_step_universal: [
+      {
+        order: 1,
+        action: 'PREPARATION (lo que ya deberías tener ANTES del incidente): verificar en los primeros 10 minutos que la respuesta tiene su arsenal desplegado',
+        expected: 'Contactos de escalamiento vigentes, runbooks publicados, herramienta de captura lista, canal de crisis abierto, y el "go-bag" forense preparado — la fase 1 del ciclo es la única que se ejecuta en TIEMPO DE PAZ.',
+        explanation: 'NIST y PICERL coinciden en lo esencial: la mitad del incidente se gana antes de que ocurra. El checklist de preparación que el SOC audita trimestralmente: matriz de contactos probada (¿el on-call de legal responde?), runbooks de los 5 escenarios principales accesibles SIN VPN (el ransomware cifra también el repositorio de runbooks si está en el share), retención de logs suficiente para la investigación, y simulacros ejecutados (RB-SOC-030).',
+      },
+      {
+        order: 2,
+        action: 'IDENTIFICATION / DETECTION & ANALYSIS: convertir la alerta en incidente declarado — validar, clasificar y declarar con el alcance inicial',
+        command: 'SecurityIncident | where TimeGenerated > ago(24h) | where Status contains "Active" or Status contains "New" | summarize Alertas=dcount(AlertId), Entidades=make_set(CompromisedEntity) by IncidentName, Severity | order by Severity desc',
+        expected: 'Los incidentes activos con su severidad, entidades comprometidas y número de alertas fusionadas — la foto que fundamenta la declaración y la clasificación P1-P4.',
+        explanation: 'Identification (PICERL) = Detección y Análisis (NIST): la alerta se valida (¿es real?), se clasifica (¿qué tipo de ataque, qué severidad P1-P4?), se delimita el alcance inicial (¿cuántos hosts/cuentas?) y se DECLARA formalmente el incidente con la hora exacta en la bitácora — el MTTD del caso nace aquí. Sin declaración formal no hay incidente gestionado: hay un chat con ansiedad.',
+      },
+      {
+        order: 3,
+        action: 'CONTAINMENT (la decisión más cara del incidente): frenar la propagación con la estrategia elegida — y el criterio de salida escrito',
+        expected: 'Estrategia de contención DECIDIDA y ejecutada por partes (aislar los hosts comprometidos, bloquear C2 en perímetro, revocar las sesiones de las cuentas afectadas — RB-SOC-029), con el criterio de salida definido: "contenida = 0 nuevos hosts comprometidos en 2 horas + canales C2 bloqueados + credenciales afectadas rotadas".',
+        explanation: 'Contención es FRENAR, no arreglar: la tentación de reimagen y "ya quedó" destruye evidencia y deja la persistencia viva en los hosts no detectados. NIST agrupa contención-erradicación-recuperación en una fase; PICERL las separa explícitamente — y la separación importa porque cada sub-fase tiene dueño y criterio de salida distintos. Decisión de negocio documentada aquí: cuánto dolor de producción se acepta para cortar la propagación (aislar el servidor de una planta vs dejarlo conectado).',
+      },
+      {
+        order: 4,
+        action: 'ERADICATION: eliminar al atacante y su persistencia del entorno — SOLO con el inventario completo en la mano',
+        command: 'DeviceProcessEvents | where Timestamp > ago(7d) | where DeviceName in~ ("{{HOSTNAME}}") | where FileName in~ ("schtasks.exe", "sc.exe", "reg.exe") or ProcessCommandLine has_any ("startup", "Run", "WmiPrvSE") | project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessFileName | order by Timestamp asc',
+        expected: 'El inventario de persistencias del/de los hosts comprometidos (tareas, servicios, run keys, suscripciones WMI — RB-SOC-017/018/019), cada una removida y verificada, antes de declarar el entorno limpio.',
+        explanation: 'Erradicar sin el inventario completo es el clásico "lo cerramos y volvió a las 48 horas": el atacante dejó 3 persistencias, se removió 1. La erradicación formal requiere: persistencias inventariadas y removidas, malware extraído y analizado (hashes, C2, capacidades), vulnerabilidad de entrada cerrada (el parche del servicio expuesto, la regla del phishing) y las cuentas comprometidas rotadas. En ransomware: los sistemas cifrados NO se restauran aún — primero la certeza de que el actor está fuera.',
+      },
+      {
+        order: 5,
+        action: 'RECOVERY: volver a producción con criterio de retorno y monitoreo intensificado — la salida se DEMUESTRA, no se declara',
+        expected: 'Sistemas restaurados desde backup LIMPIO (verificado contra la ventana de compromiso: el backup previo a la intrusión, no el de la víspera), criterio de retorno definido (orden de servicios, quién aprueba cada uno), y monitoreo intensificado activo: hunts diarios por 2-4 semanas buscando la señal del actor regresando (nuevas persistencias, mismos TTPs, IOCs de la campaña).',
+        explanation: 'La recuperación tiene tres trampas documentadas en todos los postmortems reales: restaurar desde backup comprometido (el actor llevaba semanas dentro — el backup "bueno" es más viejo de lo que se cree), reabrir el vector de entrada antes de parchearlo, y decaer el monitoreo en cuanto "todo funciona" (la re-intrusión silenciosa de la semana 3 es el final más amargo). El MTTR del caso cierra con el retorno demostrado, no con el primer servicio arriba.',
+      },
+      {
+        order: 6,
+        action: 'LESSONS LEARNED / POST-INCIDENT ACTIVITY: el postmortem con RCA y acciones con dueño — la fase que convierte el dolor en mejora',
+        expected: 'La reunión de postmortem celebrada 5-10 días después (con la cronología reconstruida de la bitácora, no de la memoria), el informe ejecutivo + técnico de RB-SOC-040 emitido, y la tabla de acciones con dueño y fecha (detección nueva, parche desplegado, control nuevo, entrenamiento) — revisada en el comité hasta la última cerrada.',
+        explanation: 'Las preguntas del postmortem son las de siempre: ¿cómo entró (vector), por qué tardamos en verlo (MTTD y la detección que faltó), qué funcionó del playbook, qué faltó, y qué acción concreta lo previene o detecta antes la próxima vez? Sin acciones con dueño y fecha, el postmortem es catarsis: la madurez del SOC se mide en el porcentaje de acciones del postmortem anterior que están cerradas cuando llega el siguiente.',
+      },
+      {
+        order: 7,
+        action: 'Operar el ciclo con las métricas del caso: MTTD, MTTA y MTTR anotados por fase en el cierre',
+        expected: 'Las tres métricas del caso en la bitácora de cierre: MTTD (primer evento malicioso → detección), MTTA (alerta → primer analista), MTTR (detección → recuperación demostrada) — y las lecciones de cada fase etiquetadas (detección, contención, erradicación, recuperación).',
+        explanation: 'Las métricas son el lenguaje de gestión del ciclo (roadmap fase 13): cada fase del marco tiene su reloj, y los cuellos de botella se atacan por fase ("nuestro MTTD está bien pero la contención promedia 4 horas" → problema de autorización/roles, no de detección). En la entrevista, cerrar la explicación del caso con las métricas demuestra que piensas el IR como proceso medible, no como heroísmo.',
+      },
+    ],
+    commands_copyable: [
+      'SecurityIncident | where TimeGenerated > ago(24h) | where Status contains "Active" or Status contains "New" | summarize Alertas=dcount(AlertId), Entidades=make_set(CompromisedEntity) by IncidentName, Severity | order by Severity desc',
+      'DeviceProcessEvents | where Timestamp > ago(7d) | where DeviceName in~ ("{{HOSTNAME}}") | where FileName in~ ("schtasks.exe", "sc.exe", "reg.exe") or ProcessCommandLine has_any ("startup", "Run", "WmiPrvSE") | project Timestamp, DeviceName, FileName, ProcessCommandLine, InitiatingProcessFileName | order by Timestamp asc',
+    ],
+    verification: 'El caso gestionado con las fases explícitas en la bitácora (declaración, contención, erradicación, recuperación y cierre cada una con hora, dueño y criterio de salida cumplido), la cronología completa reconstruible sin preguntar a nadie, el postmortem celebrado con acciones asignadas (y su seguimiento programado), y las métricas MTTD/MTTA/MTTR registradas por fase en el cierre.',
+    evidence_to_collect: [
+      'La bitácora completa del incidente: cada decisión con hora, actor, acción y fase del marco',
+      'Los criterios de salida de cada fase documentados y su verificación (0 propagación en 2h, persistencias removidas, backups limpios)',
+      'El informe del postmortem (RB-SOC-040) con la tabla de acciones, dueños y fechas',
+      'Las métricas del caso (MTTD, MTTA, MTTR) con su cálculo de origen (timestamps de los eventos fuente)',
+    ],
+    escalation: 'El mapa de fases NO sustituye las escalaciones de cada fase: contención de producción → dueño del activo + IC (RB-SOC-029/031); notificación regulatoria → legal desde la identificación del dato afectado (RB-SOC-031/043); forense profundo o caso criminal → DFIR externo con la cadena de custodia intacta (RB-SOC-028). El marco ordena el caso; las escalaciones de cada runbook siguen siendo la ley.',
+    english_customer_response_template: 'Hello, regarding the major security incident handled under ticket {{TICKET_ID}}: the incident was managed through its full lifecycle (detection, containment, eradication, recovery and post-incident review). The threat actor was removed from the environment, all affected systems were restored from verified clean backups, credentials were rotated, and the entry vector was closed. A detailed post-incident report has been issued with the timeline, root cause and the corrective actions already underway. We will keep you informed of the completion of each action item.',
+    english_technical_explanation: 'Major incident managed through the NIST SP 800-61 / SANS PICERL lifecycle at {{TIMESTAMP}}: Identification (alert validated, classified P1, formally declared with initial scope and MTTD recorded), Containment (network isolation of compromised hosts, C2 blocked at perimeter, affected sessions and credentials revoked; exit criteria: zero new compromised hosts within 2h window), Eradication (persistence inventory — scheduled tasks, services, run keys, WMI subscriptions — removed and verified; malware extracted and analyzed; entry vector closed), Recovery (restoration from verified clean backups pre-dating the intrusion window, defined return order with business approval, intensified hunting for 2-4 weeks), Post-incident activity (postmortem within 5-10 days with executive and technical report, RCA, and tracked action items with owners and dates; MTTA and MTTR recorded per phase). Full timeline reconstructed from the incident log, not memory.',
+    keywords: ['nist 800-61', 'picerl', 'incident lifecycle', 'ciclo de vida del incidente', 'preparation', 'identification', 'containment', 'erradication', 'recovery', 'lessons learned', 'post-incident', 'incident commander', 'ir lead', 'mttd', 'mtta', 'mttr', 'postmortem', 'rca', 'criterio de salida', 'marcos de respuesta', 'sans', 'incident management'],
+  },
+  {
+    id: 'RB-SOC-048',
+    pillar: 'SOC',
+    title: 'Threat Intelligence operativa: enriquecer el triage con IOCs, feeds, MISP y OpenCTI',
+    category: 'Threat Hunting',
+    ticket_example: 'SOC{{TICKET_ID}} - Enrichment request: validate IOCs against threat intel feeds / MISP - P3 - {{SOURCE_IP}}',
+    problem_description: 'La inteligencia de amenazas (CTI) solo vale cuando llega al caso: el L1 que abre un ticket con una IP o un hash necesita que el enriquecimiento diga algo accionable (¿es infraestructura conocida de una campaña?, ¿qué TTPs suelen acompañarla?, ¿qué confianza tiene el indicador y hace cuánto se publicó?) — y el SOC necesita el proceso que convierta los feeds (OSINT, vendor, sector) en detecciones y hunts sin ahogar la cola en ruido. Este runbook cubre el ciclo operativo: enriquecer el triage con la pirámide de dolor en la cabeza, operar las plataformas del ecosistema (MISP para compartir y curar eventos/atributos; OpenCTI para analizar relaciones STIX entre actores, malware e infraestructura) e integrar el resultado al SIEM (watchlists/TAXII) con el ciclo de vida del indicador (confianza, expiración, retro-hunt).',
+    business_impact: 'El SOC sin CTI opera a ciegas contra campañas que la comunidad ya documentó: el mismo hash de infostealer que el vecino de sector reportó ayer llega hoy a tu red y tu cola lo trata como "actividad desconocida" — el enriquecimiento con feeds convierte eso en detección inmediata con contexto (actor, campaña, TTPs). Del otro lado, la CTI sin proceso ahoga: los feeds crudos son decenas de miles de indicadores con vida corta (las IPs rotan en días) que sin curación, expiración y retro-hunt generan ruido y falsos positivos. El valor de negocio está en el VERBO: enriquecer los casos, priorizar lo explotado, y convertir los TTPs en reglas.',
+    symptoms: [
+      'El triage pregunta "¿esta IP/hash/dominio es malicioso?" y la respuesta depende del analista de turno y de qué herramienta abre',
+      'Los feeds llegan por correo o canales sueltos y nadie hace retro-hunt cuando aparece una campaña nueva del sector',
+      'La plataforma TI (MISP/OpenCTI) existe pero el SOC no la consulta en el triage — o los indicadores expirados siguen generando alertas',
+    ],
+    root_causes: [
+      'CTI sin integración: las plataformas de inteligencia y el SIEM viven en mundos separados (nadie conectó TAXII/watchlists ni el proceso del triage incluye el chequeo)',
+      'Indicadores sin ciclo de vida: sin score de confianza ni expiración, el feed de hace 6 meses sigue alertando (falsos positivos por indicadores quemados: IPs de hosting recicladas, dominios re-registrados)',
+      'Falta de traducción a detección: los reportes de campaña describen TTPs pero nadie los convierte en reglas Sigma/KQL ni en hunts (la pirámide de dolor dice: los IOCs de abajo cambian barato; los TTPs de arriba son los que hay que detectar)',
+    ],
+    prerequisites: [
+      'Acceso a las plataformas TI (MISP con API key del equipo; OpenCTI con usuario de lectura) y a las fuentes OSINT básicas (Abuse.ch, AlienVault OTX) para verificación cruzada',
+      'El SIEM con el conector de inteligencia configurado (Sentinel: Threat Intelligence data connector con tabla ThreatIntelligenceIndicator; Splunk: Threat Intel Framework con sus lookups) — o el proceso manual documentado mientras se despliega',
+      'La política de TLP del equipo (RED/AMBER/GREEN/CLEAR: qué puede compartirse fuera y con quién) y la convención de score/confianza y expiración por tipo de indicador',
+    ],
+    step_by_step_universal: [
+      {
+        order: 1,
+        action: 'Enriquecer el caso en el triage: cada IOC del ticket se consulta contra la inteligencia disponible — empezando por lo que ya está en el SIEM',
+        command: 'ThreatIntelligenceIndicator | where TimeGenerated > ago(90d) | where Indicator in ("{{SOURCE_IP}}", "{{HASH_SHA256}}") or DomainName == "{{DOMAIN}}" | project Indicator, Type, ThreatType, Description, ConfidenceScore, SourceSystem, ExpirationDateTime | order by ConfidenceScore desc',
+        expected: 'Los matches del indicador con su tipo, la descripción de la campaña, el score de confianza, la fuente y la expiración — el contexto que convierte "IP desconocida" en "infraestructura del actor X reportada por 3 fuentes con confianza alta".',
+        explanation: 'La tabla ThreatIntelligenceIndicator de Sentinel (o el lookup de inteligencia de Splunk) es donde los feeds ya viven dentro del SIEM: el primer paso del enriquecimiento es gratis. El segundo nivel es la plataforma TI del equipo para lo que el conector no trae (paso 2). Sin matches no hay veredicto — el indicador desconocido se trata con el análisis técnico del caso, no se descarta por "no estar en la lista".',
+      },
+      {
+        order: 2,
+        action: 'Consultar MISP por el valor del caso: eventos y atributos que matcheen el indicador, con tags, galerías ATT&CK y el contexto de la campaña',
+        command: 'curl -s -k -H "Accept: application/json" -H "Authorization: {{MISP_API_KEY}}" -H "Content-Type: application/json" -d \'{"returnFormat":"json","value":"{{SOURCE_IP}}","enforceWarninglist":true}\' https://{{MISP_URL}}/events/restSearch',
+        expected: 'Los eventos de MISP que contienen el indicador como atributo (ip-src/ip-dst), con sus tags (tlp:amber, apt, malware-family), las galerías (mitre-attack con las técnicas de la campaña) y la fecha del evento — la ficha completa de la campaña que usa esa infraestructura.',
+        explanation: 'La API restSearch de MISP es el chequeo de profundidad: los atributos curados por el equipo TI (y los feeds sincronizados) llegan con el contexto que el match del SIEM no trae — el mapa de la campaña: qué otros IOCs la acompañan (para ampliar el hunt del caso), qué actor la opera y qué TTPs documentó la comunidad. La warninglist evita los falsos positivos estructurales (que el match sea contra 8.8.8.8 o un CDN).',
+      },
+      {
+        order: 3,
+        action: 'Analizar con OpenCTI cuando el caso necesita RELACIONES: del IOC al grafo (actor → malware → infraestructura → víctimas del sector)',
+        expected: 'En OpenCTI: la búsqueda del indicador/nombre de campaña abre la investigación con las entidades STIX relacionadas (threat actor, intrusion set, malware, infraestructura, vulnerabilidades explotadas) y el conocimiento de reportes de la comunidad ya modelado — listo para responder "¿qué campañas del actor tocaron nuestro sector?"',
+        explanation: 'MISP responde "¿dónde está este indicador?"; OpenCTI responde "¿qué significan JUNTOS estas piezas?": el grafo STIX 2.1 conecta los indicadores del caso con las intrusion sets y actores conocidos, y las vistas de análisis (investigaciones, dashboards por actor) cuentan la historia para la priorización: si el actor del caso apunta a tu sector y usa TTPs que tu SIEM no detecta, la conversación con el detection engineer ya está fundada.',
+      },
+      {
+        order: 4,
+        action: 'Aplicar la pirámide de dolor al caso: qué tan caro le es al atacante cambiar lo que matcheó — define la respuesta y la prioridad de la detección',
+        expected: 'El indicador clasificado por nivel de la pirámide: hash/IP de la base (el atacante cambia barato — bloquear YA pero detectar poco), dominio/red en el medio (vida de días-semanas), artefactos de host y TTPs de la cúspide (lo caro de cambiar — lo que la detección nueva debe atacar).',
+        explanation: 'La pirámide de dolor de Bianco ordena el valor de cada indicador: bloquear el hash del malware de hoy detiene la campaña de HOY; detectar el TTP (el abuso de comsvcs para el dump, el staging con 7z antes de la exfil) detiene la campaña de MAÑANA del mismo actor. El triage usa la base para decidir rápido; el detection engineer usa la cúspide para construir reglas que no caducan.',
+      },
+      {
+        order: 5,
+        action: 'Retro-hunt inmediato de los IOCs nuevos: si la campaña acaba de reportarse, ¿ya está en MIS logs de la ventana relevante?',
+        command: 'DeviceNetworkEvents | where Timestamp > ago(30d) | where RemoteUrl has "{{DOMAIN}}" or RemoteIP == "{{SOURCE_IP}}" | project Timestamp, DeviceName, AccountName, RemoteUrl, RemoteIP, InitiatingProcessFileName | order by Timestamp asc',
+        expected: 'Los contactos previos con la infraestructura de la campaña dentro de la ventana (30 días por defecto para dominios/IPs; más para hashes de familia), con el host, el usuario y el proceso dueño de cada conexión.',
+        explanation: 'El retro-hunt es el mayor retorno del feed: el indicador publicado HOY pudo haber estado latiendo en tu red durante semanas — la cacería retroactiva con la lista de la campaña encuentra las víctimas tempranas que la detección en tiempo real no vio. Es el paso que justifica el feed completo: sin retro-hunt, la inteligencia solo sirve para el próximo caso.',
+      },
+      {
+        order: 6,
+        action: 'Ciclo de vida del indicador: score de confianza, expiración y revisión — para que la TI no se convierta en ruido',
+        expected: 'Cada indicador integrado con: confianza (por fuente y corroboration), expiración por tipo (IPs días/semanas, dominios semanas/meses, hashes de familia meses, TTPs sin expiración), y la revisión programada de los que expiran — los matches contra indicadores expirados no generan alerta, y los que producen falsos positivos se marcan en la plataforma (sightings/negative) para bajar la confianza.',
+        explanation: 'La vida media real de un IOC es corta (las IPs de C2 rotan en días; los dominios se re-registran y un día son de otro dueño LEGÍTIMO): sin expiración, el feed de hace meses alerta contra el hosting inofensivo que heredó la IP. La retroalimentación es la otra mitad: el falso positivo del caso de hoy se registra en MISP (el atributo con sighting negativo o to-ids=false) para que TODO el equipo deje de alertar contra lo mismo.',
+      },
+      {
+        order: 7,
+        action: 'Convertir el TTP de la campaña en detección: lo que aprendiste del contexto llega a la cola del detection engineer',
+        expected: 'La técnica de la campaña (ej. T1003.001, T1566.001 con el lure del sector) registrada como tarea de detección: la regla Sigma/KQL propuesta, la fuente de datos que la alimenta y el evento de control que la valida (roadmap fase 14) — y compartida de vuelta a la comunidad TI con el TLP que corresponda.',
+        explanation: 'El ciclo completo de la CTI operativa termina donde empezó: la inteligencia de la comunidad mejoró TU detección; tu sighting y tus atributos (con TLP respetado — AMBER no sale de la organización, GREEN se comparte con la comunidad) mejoran la de la comunidad. El analista que cierra ese ciclo en ambos sentidos es el que la plataforma TI estaba esperando.',
+      },
+    ],
+    commands_copyable: [
+      'ThreatIntelligenceIndicator | where TimeGenerated > ago(90d) | where Indicator in ("{{SOURCE_IP}}", "{{HASH_SHA256}}") or DomainName == "{{DOMAIN}}" | project Indicator, Type, ThreatType, Description, ConfidenceScore, SourceSystem, ExpirationDateTime | order by ConfidenceScore desc',
+      'curl -s -k -H "Accept: application/json" -H "Authorization: {{MISP_API_KEY}}" -H "Content-Type: application/json" -d \'{"returnFormat":"json","value":"{{SOURCE_IP}}","enforceWarninglist":true}\' https://{{MISP_URL}}/events/restSearch',
+      'DeviceNetworkEvents | where Timestamp > ago(30d) | where RemoteUrl has "{{DOMAIN}}" or RemoteIP == "{{SOURCE_IP}}" | project Timestamp, DeviceName, AccountName, RemoteUrl, RemoteIP, InitiatingProcessFileName | order by Timestamp asc',
+      'EmailEvents | where Timestamp > ago(30d) | where SenderFromDomain == "{{DOMAIN}}" | project Timestamp, NetworkMessageId, SenderFromAddress, RecipientEmailAddress, DeliveryLocation | order by Timestamp asc',
+    ],
+    verification: 'El enriquecimiento integrado al triage (todo caso con IOC pasa por la tabla TI del SIEM y la plataforma del equipo), el retro-hunt ejecutado para cada campaña nueva con hallazgos contenidos o descartados documentados, los indicadores con confianza y expiración gestionadas (sin matches contra indicadores expirados), los falsos positivos retroalimentados a la plataforma, y al menos una detección nueva derivada de TTPs de campaña con su evento de control.',
+    evidence_to_collect: [
+      'Los matches de inteligencia del caso (fuente, confianza, campaña, fecha del reporte)',
+      'La respuesta del restSearch de MISP (eventos, tags, galerías ATT&CK) o la vista de OpenCTI del caso',
+      'El resultado del retro-hunt con su ventana y veredicto por host afectado',
+      'El registro del ciclo de vida: indicadores integrados con expiración y los sightings negativos de falsos positivos',
+    ],
+    escalation: 'El match con confianza alta de actor que apunta al sector + TTPs no cubiertos por el SIEM: la conversación es con el detection lead y el CISO (prioridad del backlog de detecciones — riesgo aceptado si no se ataca YA). Sighting de campaña activa en producción (el retro-hunt encuentra actividad reciente): el caso pasa a incidente con el runbook de la técnica correspondiente (no "solo monitoreo"). Dudas de compartición con la comunidad: el TLP manda — RED nunca sale del equipo, AMBER nunca sale de la organización, y la decisión de compartir se consulta con el dueño de la inteligencia, nunca se improvisa.',
+    english_customer_response_template: 'Hello, as part of ticket {{TICKET_ID}} we enriched the indicators involved in the alert with curated threat intelligence from our feeds and community platforms. The activity matches a known campaign targeting our sector; the indicators were checked against our entire log history (retro-hunt), the relevant detections have been deployed, and any affected systems have been handled per procedure. No additional exposure was identified. We will continue monitoring this actor\'s infrastructure as part of our standing intelligence cycle.',
+    english_technical_explanation: 'Operational threat intelligence cycle executed for {{SOURCE_IP}}/{{DOMAIN}} at {{TIMESTAMP}}: indicator enrichment via SIEM TI tables (ThreatIntelligenceIndicator with confidence score and expiry) followed by MISP restSearch (event context, campaign tags, ATT&CK galaxy mappings) and OpenCTI relationship analysis where campaign context required it. Pyramid of Pain applied for response prioritization (hash/IP = immediate block, TTP = detection engineering task). Retro-hunt executed across 30-day window for the campaign IOCs (network and email) with results triaged per playbook. Indicator lifecycle managed (confidence scoring, type-based expiry, negative sightings fed back to the platform for FP suppression). Campaign TTPs converted into detection backlog items with validation control events per detection-as-code workflow.',
+    keywords: ['threat intelligence', 'cti', 'misp', 'opencti', 'stix', 'taxii', 'ioc', 'ioa', 'feeds', 'piramide de dolor', 'pyramid of pain', 'retro-hunt', 'enriquecimiento', 'enrichment', 'threatintelligenceindicator', 'restsearch', 'sightings', 'tlp', 'confianza', 'expiracion', 'warninglist', 'galerias', 'campaign', 'actor', 'ttp', 'detection engineering'],
   },
 ];
 

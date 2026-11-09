@@ -105,6 +105,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Conceptos Clave',
             text: 'Puertos y protocolos que usa el atacante: 53 DNS (túnel y exfiltración), 443 HTTPS (C2 cifrado que el firewall de perímetro no inspecciona), 445 SMB y 3389 RDP para movimiento lateral, 5985/5986 WinRM, 8080/8443 para paneles y servidores de comando. Segunda fuente que el host no te da: los logs del proxy y del firewall (regla, acción, usuario, categoría). Hay campañas que solo se ven desde la perspectiva de la red.',
           },
+          {
+            id: 'rmsoc-f2-6',
+            label: 'Práctica',
+            text: 'Los NIDS como fuente continua: instala Zeek y Suricata en tu lab (o procesa pcaps públicos de malware con zeek -r y suricata -r) y aprende sus dos salidas: los logs de Zeek (conn.log de conversaciones, dns.log de consultas, notice.log con scans ya detectados, leídos con zeek-cut) y el eve.json de Suricata (alertas y eventos por línea JSON, filtrables con jq). Caza tres patrones desde la red: beaconing en conn.log (conexiones regulares al mismo destino), DNS tunneling en dns.log (consultas con labels largos y TXT) y port scanning en notice.log. Es la perspectiva que el endpoint NO te da — la guía Zeek+Suricata del vault es tu referencia copiable.',
+          },
         ],
       },
       {
@@ -385,7 +390,7 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
     id: 'rmsoc-t3',
     title: 'TIER 3 — SOC L2 → DETECTION ENGINEER',
     subtitle:
-      'El salto de nivel: dejar de consumir alertas para empezar a producirlas. MITRE ATT&CK y caza por hipótesis, respuesta a incidentes como proceso, SOAR y métricas, detección as code, y la capa cloud (M365/Entra) con hunting de frecuencia y rareza. Aquí te conviertes en el que los L1 llaman cuando la cosa se pone fea.',
+      'El salto de nivel: dejar de consumir alertas para empezar a producirlas. MITRE ATT&CK y caza por hipótesis, respuesta a incidentes como proceso, SOAR y métricas, detección as code, y la capa cloud (M365/Entra + AWS CloudTrail/GuardDuty) con hunting de frecuencia y rareza. Aquí te conviertes en el que los L1 llaman cuando la cosa se pone fea.',
     phases: [
       {
         id: 'rmsoc-f11',
@@ -423,6 +428,16 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             label: 'Práctica',
             text: 'Mapa de cobertura ATT&CK del lab: cruza las técnicas que ya trabajaste (T1566, T1110, T1078, T1059.001, T1136, T1021) contra las fuentes de datos que tienes (Security, Sysmon, SigninLogs, EmailEvents) y marca cada una: cubierta, parcial o ciega. Elige dos puntos ciegos (ejemplo: T1003 dump de LSASS sin Sysmon ID 10; T1547.001 persistencia por Run Key sin Sysmon ID 13) y propón la fuente o la regla que los cierra, con el evento de control que valida la cobertura.',
           },
+          {
+            id: 'rmsoc-f11-7',
+            label: 'Conceptos Clave',
+            text: 'Los otros dos marcos de análisis que pregunta toda entrevista: el Cyber Kill Chain (las 7 fases de la intrusión: reconocimiento → armamentización → entrega → explotación → instalación → C2 → acciones sobre objetivos — responde DÓNDE estás de la cadena) y el Diamond Model (cada evento con sus 4 vértices: adversario, capacidad, infraestructura, víctima — responde QUÉ relaciona las piezas y qué pivotes faltan). Regla de uso: ATT&CK para la técnica, Kill Chain para la fase, Diamond para la relación — un caso L2 bien documentado habla los tres idiomas. El artículo de la KB del vault (Diamond Model y Kill Chain) te da el método completo.',
+          },
+          {
+            id: 'rmsoc-f11-8',
+            label: 'Práctica',
+            text: 'Threat Intelligence operativa: monta el flujo de enriquecimiento de tus casos con las plataformas del ecosistema — MISP (busca atributos por valor con la API restSearch, explora tags y galaxías ATT&CK de los eventos) y OpenCTI (explora el grafo STIX de actor→malware→infraestructura de una campaña pública). Aplica la pirámide de dolor: qué indicadores de tu último caso rotan en días (IPs) y cuáles son los TTPs que hay que detectar. Ejercicio entregable: el enriquecimiento de un IOC del lab documentado con las tres fuentes (SIEM TI table, MISP, verificación OSINT) y el retro-hunt de 30 días con la lista de la campaña. El runbook RB-SOC-048 es la guía paso a paso.',
+          },
         ],
       },
       {
@@ -455,6 +470,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             id: 'rmsoc-f12-5',
             label: 'Práctica',
             text: 'Clasificación y comunicación del incidente: define umbrales P1-P4 (P1: producción cifrada, datos saliendo o propagación activa) y qué convierte un caso en incidente mayor (por ejemplo: dos hosts comprometidos + credenciales de dominio). Al cruzar el umbral asigna roles: quién manda, quién comunica al negocio y quién escribe la cronología — con actualizaciones de estado cada 30 minutos. El timeline se redacta MIENTRAS ocurre: reconstruirlo de memoria el viernes es la receta para perderlo.',
+          },
+          {
+            id: 'rmsoc-f12-6',
+            label: 'Conceptos Clave',
+            text: 'Los dos marcos del ciclo que debes NOMBRAR y usar: NIST SP 800-61 (Preparación → Detección y Análisis → Contención, Erradicación y Recuperación → Actividad Post-Incidente) y SANS PICERL (Preparation, Identification, Containment, Eradication, Recovery, Lessons Learned). Son el mismo ciclo con distinta granularidad (PICERL separa lo que NIST agrupa en su fase 3) y el mapa operativo de todo incidente mayor: cada fase con su dueño, su evidencia y su criterio de salida. La pregunta de entrevista “cómo manejarías un ransomware con NIST 800-61” se responde con fases, roles y criterios de transición — el runbook RB-SOC-047 te da la estructura completa con el simulacro.',
           },
         ],
       },
@@ -564,6 +584,11 @@ export const ROADMAP_SOC_TIERS: RoadmapTierDef[] = [
             id: 'rmsoc-f16-6',
             label: 'Evidencia (Exit Criteria)',
             text: 'Caso cloud de punta a punta: detecta una regla de inbox maliciosa en el UAL, identifica el acceso inicial en SigninLogs (misma IP y user agent), coordina con el flujo de IAM la revocación de sesiones y el reset, elimina la regla y cuantifica el alcance (otros buzones, otras cuentas tocadas). El informe final con IOAs (comportamientos, no solo indicadores) y la evidencia del tenant tabulada es el cierre demostrable de la fase.',
+          },
+          {
+            id: 'rmsoc-f16-7',
+            label: 'Práctica',
+            text: 'AWS para el SOC (la nube que más aparece en ofertas multi-cloud): crea una cuenta free tier, activa CloudTrail y GuardDuty, y aprende las dos fuentes de detección: CloudTrail como el registro de TODA llamada a la API (lookup-events por AccessKeyId para reconstruir la sesión de una credencial; los eventos que duelen: StopLogging, CreateAccessKey, AttachUserPolicy, GetSecretValue) y GuardDuty como el detector sobre CloudTrail/VPC/DNS (get-findings con su tipo, severidad y la credencial del actor). Simula el caso de la access key expuesta: publícala en un repo de prueba del lab, mira el finding, y ejecuta la contención completa (update-access-key a Inactive + política Deny para matar las sesiones STS ya emitidas). El runbook RB-SOC-046 es la guía paso a paso y el roadmap IAM del vault tiene la capa profunda de permisos.', 
           },
         ],
       },
