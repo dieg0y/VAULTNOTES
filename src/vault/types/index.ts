@@ -361,7 +361,7 @@ export interface RoadmapItem {
  */
 export type ActiveSection =
   | 'dashboard' | 'notes' | 'labs' | 'glossary' | 'blog' | 'references' | 'trash' | 'settings'
-  | 'inbox' | 'profile' | 'roadmap' | 'tools'
+  | 'inbox' | 'profile' | 'roadmap' | 'tools' | 'commands'
   // Pilar 1 — IAM / Identity & Access Management (V11):
   | 'iam' | 'troubleshooting-iam' | 'runbooks-iam'
   // Pilar 2 — SOC / Blue Team:

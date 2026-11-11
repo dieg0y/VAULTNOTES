@@ -14,6 +14,7 @@
 Además:
 
 - **Apuntes** — editor WYSIWYG con jerarquía de subpáginas, plataformas/categorías, imágenes, PDFs y videos adjuntos. **Pegado tipo Obsidian**: pega una captura o una página web completa y las imágenes/GIFs se descargan y guardan localmente al instante (las que fallen quedan como enlaces). Glosario sembrado con **925 términos + flashcards con repetición espaciada** (Difícil/Bueno/Fácil, teclado completo). Perfil profesional multi-perfil con export Markdown. Inbox, papelera con restauración y exportación a blog estático.
+- **Comandos más usados (174)** — catálogo consultable de HelpDesk (65), IAM (58) y SOC (51), priorizado HelpDesk e IAM: cada comando con qué hace, por qué y cuándo usarlo, sintaxis, casos de uso, ejemplos copiables, cómo leer la salida, errores comunes y navegación cruzada (ipconfig /all, gpupdate /force, klist purge, Get-MgUser, Revoke-MgUserSignInSession, aws sts assume-role, KQL/SPL, dig…). Indexado en Ctrl+K con `type:comando`.
 - **49 herramientas offline en un catálogo único** (filtro por rol): IAM (JWT, SID/RID, LDAP/DN, RBAC, vulnerabilidades 203, ataques 102) · SOC (Event IDs 93, IoC Extractor, MITRE ATT&CK, Sigma, KQL/SPL, CVSS, hash, guías de Sentinel/Splunk/Elastic/Wireshark/**Zeek+Suricata**…) · Service Desk (triage 91 reglas, AD, Intune, network L1) · SysAdmin (subnetting, puertos 119, cron, systemd, RAID, LVM, firewall) · Global (encoding, regex, timestamp).
 - **Simuladores de tickets reales (Nexora S.A.)** — cola filtrable, modo estudio, flujo de estados con nota de cierre y proyecto final por pilar (Semana de Access Review, Primera semana SOC, etc.).
 - **Runbooks como tickets reales** — paso a paso universal con comandos copiables y respuesta en inglés lista para pegar. El pilar Service Desk cubre además (v25, según ofertas reales de empleo): **macOS** (Keychain, FileVault, Gatekeeper), **Linux L1** (TTY, systemctl, journalctl), **Google Workspace** (Email Log Search, 2FA), **ServiceNow/Jira**, **MSP multi-tenant**, **monitoreo** (availability/performance/capacity), **PostgreSQL** de solo lectura, **APIs/HTTP** y escalamiento a desarrollo, **móvil corporativo** (MDM, retire vs wipe) e **importaciones de archivos**. El pilar SOC cubre (auditoría 2025 según ofertas L1/L2/L3 y Threat Detection Engineer): triage de **Mimikatz/LSASS** (Sysmon 10, ASR), detección en **AWS CloudTrail/GuardDuty**, ciclo de vida **NIST 800-61/PICERL**, **threat intelligence** con MISP/OpenCTI, **Diamond Model/Kill Chain** y landscape de EDRs (CrowdStrike/SentinelOne/Carbon Black).
@@ -57,7 +58,7 @@ Copia la carpeta COMPLETA del proyecto (con `node_modules/` y `.next/`) a la USB
 
 | Atajo | Acción |
 |---|---|
-| `Ctrl+K` | Búsqueda global (notas, labs, glosario, runbooks, herramientas, **tickets de los simuladores**, MITRE, Sigma…) · escribe `atajos` para ver la referencia completa dentro de la app |
+| `Ctrl+K` | Búsqueda global (notas, labs, glosario, runbooks, herramientas, comandos, **tickets de los simuladores**, MITRE, Sigma…) · escribe `atajos` para ver la referencia completa dentro de la app |
 | `Ctrl+Shift+Q` | Captura rápida → Inbox |
 | `Ctrl+Shift+N` / `Ctrl+Shift+L` | Nueva nota / nuevo lab |
 | `Ctrl+Shift+I` / `T` / `H` / `R` / `M` | IoC Extractor · Timestamp · Hash · Regex · MITRE |

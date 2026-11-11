@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   LayoutDashboard, FileText, BookOpen, FlaskConical, Trash2, Settings, FileCode, Wrench,
   Bookmark, Inbox, IdCard, Map as RoadmapIcon, Headset, GraduationCap, LifeBuoy,
-  Server, Milestone, Shield, ShieldAlert, GitBranch, Fingerprint, ChevronDown,
+  Server, Milestone, Shield, ShieldAlert, GitBranch, Fingerprint, ChevronDown, Terminal,
 } from 'lucide-react';
 // V11 — conteos estáticos de los datasets por pilar (badges del sidebar).
 // PERF (optimización de arranque): los datasets por pilar pesan ~2.4MB de
@@ -23,10 +23,11 @@ interface PillarCounts {
   tsSa: number;
   tsSoc: number;
   tsIam: number;
+  cmds: number;
 }
 const PILLAR_COUNTS_ZERO: PillarCounts = {
   runbooksHd: 0, runbooksSa: 0, runbooksSoc: 0, runbooksIam: 0,
-  tsHd: 0, tsSa: 0, tsSoc: 0, tsIam: 0,
+  tsHd: 0, tsSa: 0, tsSoc: 0, tsIam: 0, cmds: 0,
 };
 import { ActiveSection } from '../types';
 import { db } from '../db';
@@ -225,7 +226,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [rbHd, rbSa, rbSoc, rbIam, tsHd, tsSa, tsSoc, tsIam] = await Promise.all([
+      const [rbHd, rbSa, rbSoc, rbIam, tsHd, tsSa, tsSoc, tsIam, cmdHd, cmdIam, cmdSoc] = await Promise.all([
         import('../data/runbooksHelpDesk'),
         import('../data/runbooksSysAdmin'),
         import('../data/runbooksSoc'),
@@ -234,6 +235,9 @@ const SidebarBase: React.FC<SidebarProps> = ({
         import('../data/troubleshootingSysAdmin'),
         import('../data/troubleshootingSoc'),
         import('../data/troubleshootingIam'),
+        import('../data/commandsHelpDesk'),
+        import('../data/commandsIam'),
+        import('../data/commandsSoc'),
       ]);
       if (!alive) return;
       setPillarCounts({
@@ -245,6 +249,7 @@ const SidebarBase: React.FC<SidebarProps> = ({
         tsSa: tsSa.TROUBLESHOOTING_SA_COUNT,
         tsSoc: tsSoc.TROUBLESHOOTING_SOC_COUNT,
         tsIam: tsIam.TROUBLESHOOTING_IAM_COUNT,
+        cmds: cmdHd.COMMANDS_HD_COUNT + cmdIam.COMMANDS_IAM_COUNT + cmdSoc.COMMANDS_SOC_COUNT,
       });
     })().catch(() => {
       // Sin badges no hay pérdida funcional: las vistas siempre muestran
@@ -274,6 +279,14 @@ const SidebarBase: React.FC<SidebarProps> = ({
           icon: <Wrench className={SIDEBAR_ICON} />,
           title: 'Catálogo unificado: cada tool aparece UNA vez, etiquetada con su rol (IAM / SOC / Service Desk / SysAdmin / Global)',
           ariaLabel: 'Catálogo de Herramientas',
+        },
+        {
+          section: 'commands',
+          label: 'Comandos',
+          icon: <Terminal className={SIDEBAR_ICON} />,
+          title: 'Los comandos más usados de HelpDesk, IAM y SOC: qué hace cada uno, por qué, sintaxis, casos de uso, ejemplos copiables y errores comunes',
+          badge: pillarCounts.cmds,
+          ariaLabel: 'Comandos más usados',
         },
       ],
     },

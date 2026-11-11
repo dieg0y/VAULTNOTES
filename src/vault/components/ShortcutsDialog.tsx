@@ -155,7 +155,7 @@ export const ShortcutsDialog: React.FC<ShortcutsDialogProps> = ({ open, onClose 
             </h3>
             <ul className="space-y-1.5">
               {[
-                { f: 'type:note', d: 'solo apuntes — también lab, glosario, referencia, herramienta, runbook…' },
+                { f: 'type:note', d: 'solo apuntes — también lab, glosario, referencia, herramienta, runbook, comando…' },
                 { f: 'tag:soc', d: 'por etiqueta (labs y referencias)' },
                 { f: 'platform:okta', d: 'por plataforma' },
               ].map((r) => (

@@ -21,6 +21,7 @@ import {
   LifeBuoy,
   GitBranch,
   Ticket as TicketIcon,
+  Terminal,
 } from 'lucide-react';
 import { Note, Lab, GlossaryTerm, ReferenceItem } from '../types';
 import { searchAllVault, SearchResultItem, resultToToolDeepLink } from '../utils/fuzzySearch';
@@ -47,6 +48,8 @@ interface GlobalSearchModalProps {
   onSelectTroubleshooting?: (troubleshootingId: string) => void;
   /** V17.1 — deep-links a tickets de los simuladores desde Ctrl+K. */
   onSelectSimTicket?: (pillar: 'iam' | 'soc' | 'hd' | 'sa', ticketId: string) => void;
+  /** Comandos más usados (CMD-XX-NNN) — deep-link a su ficha. */
+  onSelectCommandRef?: (commandId: string) => void;
 }
 
 /** Outer wrapper: mounts fresh content each time the modal opens. */
@@ -70,6 +73,7 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
   onSelectRunbook,
   onSelectTroubleshooting,
   onSelectSimTicket,
+  onSelectCommandRef,
 }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -107,6 +111,9 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
       onSelectRunbook(item.id);
     } else if (item.type === 'troubleshooting-tree' && onSelectTroubleshooting) {
       onSelectTroubleshooting(item.id);
+    } else if (item.type === 'command-ref' && onSelectCommandRef) {
+      // Comandos más usados — lleva directo a la ficha del comando.
+      onSelectCommandRef(item.id);
     } else if (item.type === 'sim-ticket' && onSelectSimTicket && item.rawItem && 'pillar' in item.rawItem) {
       // V17.1 — deep-link al simulador correcto con el ticket seleccionado.
       const ref = item.rawItem as { pillar: 'iam' | 'soc' | 'hd' | 'sa'; ticketId: string };
@@ -180,6 +187,10 @@ const SearchModalContent: React.FC<GlobalSearchModalProps> = ({
       case 'sim-ticket':
         // V17.1 — tickets de simuladores: amber como los badges de "abiertos" del sidebar.
         return { label: 'Ticket', icon: <TicketIcon className="w-3.5 h-3.5" />, color: 'bg-amber-500/10 text-amber-300 border-amber-500/20', dot: 'bg-amber-500/10 text-amber-300' };
+      case 'command-ref':
+        // Comandos más usados (HelpDesk / IAM / SOC): lime para distinguirlos
+        // de los comandos de la paleta (violeta).
+        return { label: 'Comando', icon: <Terminal className="w-3.5 h-3.5" />, color: 'bg-lime-500/10 text-lime-400 border-lime-500/20', dot: 'bg-lime-500/10 text-lime-400' };
       case 'command':
         return { label: 'Comando', icon: <Zap className="w-3.5 h-3.5" />, color: 'bg-violet-500/10 text-violet-400 border-violet-500/20', dot: 'bg-violet-500/10 text-violet-400' };
       default:

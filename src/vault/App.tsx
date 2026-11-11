@@ -95,6 +95,8 @@ const SocView = dynamic(() => import('./components/SocView').then((m) => m.SocVi
 const IamView = dynamic(() => import('./components/IamView').then((m) => m.IamView), { ssr: false, loading: ViewLoader });
 const BlogView = dynamic(() => import('./components/BlogView').then((m) => m.BlogView), { ssr: false, loading: ViewLoader });
 const ToolsView = dynamic(() => import('./components/ToolsView').then((m) => m.ToolsView), { ssr: false, loading: ViewLoader });
+// Comandos más usados de HelpDesk / IAM / SOC (dataset estático, sin Dexie).
+const CommandsView = dynamic(() => import('./components/CommandsView').then((m) => m.CommandsView), { ssr: false, loading: ViewLoader });
 const ReferencesView = dynamic(() => import('./components/ReferencesView').then((m) => m.ReferencesView), { ssr: false, loading: ViewLoader });
 const TrashView = dynamic(() => import('./components/TrashView').then((m) => m.TrashView), { ssr: false, loading: ViewLoader });
 const SettingsView = dynamic(() => import('./components/SettingsView').then((m) => m.SettingsView), { ssr: false, loading: ViewLoader });
@@ -356,6 +358,8 @@ export default function App() {
   const [pendingRunbookId, setPendingRunbookId] = useState<string | null>(null);
   // V9 — deep-links de guías de troubleshooting por pilar (TS-XX-NNN).
   const [pendingTroubleshootingId, setPendingTroubleshootingId] = useState<string | null>(null);
+  // Comandos — deep-link desde Ctrl+K (CMD-XX-NNN → sección Comandos).
+  const [pendingCommandId, setPendingCommandId] = useState<string | null>(null);
 
   // LIMPIEZA V13: retirada la cadena `navigateRequest` de los 4 stores de
   // simuladores (requestNavigate jamás tenía callers y sus efectos aquí
@@ -1310,6 +1314,12 @@ export default function App() {
             <ToolsView pendingTool={pendingTool} onConsumePending={() => setPendingTool(null)} />
           )}
 
+          {/* Comandos más usados (HelpDesk / IAM / SOC): qué hace cada uno,
+              por qué, sintaxis, ejemplos copiables y errores comunes. */}
+          {activeSection === 'commands' && (
+            <CommandsView autoSelectId={pendingCommandId} onConsumeAutoSelect={() => setPendingCommandId(null)} />
+          )}
+
           {activeSection === 'references' && (
             <ReferencesView
               glossaryTerms={activeTerms}
@@ -1443,6 +1453,12 @@ export default function App() {
           // V17.1 — "IAM-4003" / "phishing" en Ctrl+K llevan directo al ticket
           // del simulador correspondiente (216 tickets indexados).
           onSelectSimTicket={handleOpenSimTicket}
+          // Comandos más usados — "ipconfig" / "assume-role" en Ctrl+K llevan
+          // directo a la ficha del comando (174 indexados).
+          onSelectCommandRef={(commandId) => {
+            setPendingCommandId(commandId);
+            setActiveSection('commands');
+          }}
           // BLOQUE 5 — command palette dispatch (new note / open X / backup / etc.)
           onSelectCommand={(commandId) => {
             handleCommandPalette(commandId);

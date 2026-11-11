@@ -25,6 +25,12 @@ import { IAM_TICKET_SEEDS } from '../data/iamTickets';
 import { SOC_TICKET_SEEDS } from '../data/socTickets';
 import { HELPDESK_TICKET_SEEDS } from '../data/helpDeskTickets';
 import { SYSADMIN_TICKET_SEEDS } from '../data/sysadminTickets';
+// Comandos más usados (HelpDesk / IAM / SOC) — indexados en Ctrl+K para que
+// "ipconfig", "gpupdate" o "assume-role" lleguen directo a su ficha.
+import { type VaultCommand, COMMAND_PILLAR_META } from '../data/commandsCore';
+import { COMMANDS_HD } from '../data/commandsHelpDesk';
+import { COMMANDS_IAM } from '../data/commandsIam';
+import { COMMANDS_SOC } from '../data/commandsSoc';
 import { escapeHtml } from './escapeHtml';
 
 interface SearchMatchDetail {
@@ -52,6 +58,7 @@ type SearchResultType =
   | 'runbook'                // V9 — runbooks por pilar (ticket + pasos + respuesta EN) — V11: incluye los quick-fixes ex-CheatSheet
   | 'sim-ticket'             // V17.1 — tickets de los simuladores (IAM/SOC/Service Desk/SysAdmin)
   | 'troubleshooting-tree'   // V9 — escaleras de decisión por pilar (TS-XX-NNN)
+  | 'command-ref'            // Comandos más usados (CMD-XX-NNN): HelpDesk / IAM / SOC
   | 'command';               // command palette entries (new note, open trash, …)
 
 export interface SearchResultItem {
@@ -70,7 +77,7 @@ export interface SearchResultItem {
   highlightedSnippet?: string;
   /** For 'command' results: the command key the modal dispatches. */
   commandId?: string;
-  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting | SimTicketRef;
+  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting | SimTicketRef | VaultCommand;
 }
 
 /** A synthetic command palette entry (spec items #7). */
@@ -101,7 +108,7 @@ interface SearchDocument {
    *  corpus build). Optional so hand-built docs keep working. */
   titleLower?: string;
   acronymLower?: string;
-  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting | SimTicketRef;
+  rawItem: Note | Lab | GlossaryTerm | ReferenceItem | HttpStatusInfo | PortInfo | WinEventInfo | CronExample | MitreTechnique | SigmaRule | DetectionPreset | KnownRid | WellKnownSid | KnownSidAuthority | ToolCatalogEntry | CommandEntry | PillarRunbook | PillarTroubleshooting | SimTicketRef | VaultCommand;
 }
 
 /** Parsed query: filter tokens + the remaining free-text search term. */
@@ -189,8 +196,12 @@ const TYPE_FILTER_MAP: Record<string, SearchResultType[]> = {
   troubleshooting: ['troubleshooting-tree'],
   arbol: ['troubleshooting-tree'],
   'arbol-decision': ['troubleshooting-tree'],
-  command: ['command'],
-  cmd: ['command'],
+  command: ['command', 'command-ref'],
+  cmd: ['command', 'command-ref'],
+  comando: ['command-ref'],
+  comandos: ['command-ref'],
+  commands: ['command-ref'],
+  terminal: ['command-ref'],
 };
 function typeFilterToTypes(t: string): SearchResultType[] | null {
   return TYPE_FILTER_MAP[t] || null;
@@ -594,6 +605,26 @@ function buildTroubleshootingDoc(t: PillarTroubleshooting): SearchDocument {
   };
 }
 
+/** Comandos más usados (HelpDesk / IAM / SOC) — search document. La query
+ *  "ipconfig /all" o "gpupdate" lleva directo a la ficha del comando. */
+function buildCommandRefDoc(c: VaultCommand): SearchDocument {
+  const pMeta = COMMAND_PILLAR_META[c.pillar];
+  return {
+    id: c.id,
+    type: 'command-ref',
+    title: c.command,
+    acronym: c.id,
+    platform: 'Comandos',
+    category: `${pMeta.label} · ${c.category}`,
+    tools: c.keywords.join(' '),
+    sourceUrl: '',
+    content: [c.command, c.title, c.what, c.why, c.syntax, c.shell, c.category, ...c.use_cases, ...c.keywords].join(' '),
+    subtitle: `Comando ${pMeta.short} · ${c.shell} · ${c.title}`,
+    status: undefined,
+    rawItem: c,
+  };
+}
+
 /** BLOQUE 5 — Command palette document. Synthesized from a CommandEntry. */
 function buildCommandDoc(c: CommandEntry): SearchDocument {
   return {
@@ -650,6 +681,11 @@ const STATIC_TOOL_DOCS: SearchDocument[] = [
   ...SOC_TICKET_SEEDS.map((t) => buildSimTicketDoc(t, 'soc')),
   ...HELPDESK_TICKET_SEEDS.map((t) => buildSimTicketDoc(t, 'hd')),
   ...SYSADMIN_TICKET_SEEDS.map((t) => buildSimTicketDoc(t, 'sa')),
+  // Comandos más usados de HelpDesk / IAM / SOC ("ipconfig", "assume-role",
+  // "4625"… llegan directo a su ficha desde Ctrl+K).
+  ...COMMANDS_HD.map(buildCommandRefDoc),
+  ...COMMANDS_IAM.map(buildCommandRefDoc),
+  ...COMMANDS_SOC.map(buildCommandRefDoc),
 ].map(withLowercase);
 
 // ------------------------------------------------------------------

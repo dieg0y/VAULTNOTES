@@ -1129,7 +1129,7 @@ export const COMMANDS_HD: VaultCommand[] = [
     tips: [
       'Por defecto Get-ADUser trae ~10 atributos básicos: usa -Properties * solo para explorar (es caro en DCs grandes).',
       'LastLogonDate es una aproximación (replicada con retraso); el LastLogon exacto está POR DC.',
-      'La versión con -Filter reemplaza al viejo dsquery: aprende el patrón -Filter \"Atributo -eq 'valor'\".',
+      "La versión con -Filter reemplaza al viejo dsquery: aprende el patrón -Filter \"Atributo -eq 'valor'\".",
     ],
     related: ['CMD-HD-035', 'CMD-IAM-001', 'CMD-IAM-005'],
     keywords: ['get-aduser', 'properties', 'usuario', 'atributos', 'enabled', 'lastlogon', 'filter'],
@@ -1429,7 +1429,7 @@ export const COMMANDS_HD: VaultCommand[] = [
       'Para el análisis completo de spoofing revisa también DKIM (selector._domainkey) y DMARC (_dmarc): cubiertos en los runbooks SOC.',
       'Resolve-DnsName empresa.com -Type MX es el equivalente PowerShell con tabla limpia.',
     ],
-    related: ['CMD-HD-006', 'CMD-SOC-040'],
+    related: ['CMD-HD-006', 'CMD-SOC-043'],
     keywords: ['nslookup', 'mx', 'correo', 'mail flow', 'spf', 'txt', 'm365', 'office 365'],
   },
 
@@ -1641,11 +1641,11 @@ export const COMMANDS_HD: VaultCommand[] = [
       { cmd: 'icacls "D:\\Compartida\\Contabilidad" /grant "EMPRESA\\Finanzas:(OI)(CI)M" /T', note: 'Da Modify (M) a Finanzas con herencia a subcarpetas (OI)(CI) y archivos, recursivo (/T).' },
       { cmd: 'icacls "D:\\CarpetaRota" /reset /T', note: 'Devuelve la ACL a la heredada del padre — el fix limpio cuando la ACL está hecha un lío.' },
     ],
-    output: 'Formato: PRINCIPAL:(PERMISOS). F=Full, M=Modify, RX=Leer+Ejecutar, R=Leer, W=Escribir. (OI)(CI) = herencia a archivos/carpetas. '(I)' delante = permiso heredado (no asignado directo).',
+    output: "Formato: PRINCIPAL:(PERMISOS). F=Full, M=Modify, RX=Leer+Ejecutar, R=Leer, W=Escribir. (OI)(CI) = herencia a archivos/carpetas. '(I)' delante = permiso heredado (no asignado directo).",
     tips: [
       'Permisos efectivos del usuario: icacls ruta + whoami /groups (CMD-HD-031) — cruza sus grupos contra la ACL.',
       'Permiso de COMPARTIR (Sharing) y NTFS son dos capas: el acceso real es el más restrictivo de ambas.',
-      'Códigos: (NP) no propagar, '(DENY)' denegación explícita — un DENY suelto explica muchos «acceso denegado» misteriosos.',
+      "Códigos: (NP) no propagar, '(DENY)' denegación explícita — un DENY suelto explica muchos «acceso denegado» misteriosos.",
     ],
     related: ['CMD-HD-056', 'CMD-HD-031', 'CMD-HD-054'],
     keywords: ['icacls', 'permisos', 'ntfs', 'acl', 'grant', 'deny', 'acceso denegado', 'herencia'],
