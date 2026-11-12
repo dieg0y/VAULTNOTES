@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   Calculator, FileKey, Cpu, Globe, Shield, Network, Clock,
-  Wrench, Copy, Check, X, BookOpen, Lightbulb, Terminal, Server, Code, Lock,
+  Wrench, X, BookOpen, Lightbulb, Terminal, Server, Code, Lock,
   CalendarClock, Hash, Binary, Regex, ShieldOff, MapPin,
   SquareTerminal, FileText, Crosshair, Braces, BookMarked,
   Fingerprint, Building2, UserCog, Bug, FileSearch,
@@ -90,7 +90,10 @@ import { usePendingToolStore } from '../store/pendingToolStore';
 import { useNoteStore } from '../store/noteStore';
 // BLOQUE 5 — favorites/recents prefs (live-query hooks) + cross-tool helper.
 import { useToolFavorites, useToolRecents } from '../hooks/useToolPrefs';
-import { recordToolUse, toggleToolFavorite, inputCls, taCls, useAddToNoteToast } from './tools/_shared';
+// R5 — CopyBtn y Field se importan de _shared (antes eran copias locales
+// idénticas en este archivo; ver el diff documentado en el comentario de
+// "Shared UI helpers" más abajo).
+import { recordToolUse, toggleToolFavorite, inputCls, taCls, useAddToNoteToast, CopyBtn, Field } from './tools/_shared';
 // BLOQUE 5 — single source of truth for the tool catalog (also used by
 // global search to index tools into Ctrl+K results).
 import { TOOLS_CATALOG, TOOL_PILLAR_META, type ToolId, type ToolPillar } from '../data/toolsCatalog';
@@ -175,30 +178,16 @@ const TOOLS: { id: ToolId; name: string; icon: React.ReactNode; cat: string; des
   TOOLS_CATALOG.map((t) => ({ ...t, icon: TOOL_ICONS[t.id] }));
 
 /* ---------- Shared UI helpers ---------- */
-const CopyBtn: React.FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => {
-        navigator.clipboard?.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        });
-      }}
-      className="p-1 rounded text-[#858585] hover:text-blue-400 hover:bg-[#161616] transition-colors shrink-0"
-      title="Copiar"
-    >
-      {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-    </button>
-  );
-};
-
-const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="space-y-1">
-    <label className="text-[10px] font-bold uppercase tracking-widest text-[#828282]">{label}</label>
-    {children}
-  </div>
-);
+/* R5 — CopyBtn y Field ya no son copias locales: se importan de
+ * ./tools/_shared (import arriba). Diff local vs shared, verificado antes
+ * de borrar:
+ *  - Field: markup idéntico; la compartida solo añade un `hint?` opcional
+ *    que ningún call-site de este archivo usa.
+ *  - CopyBtn: la compartida añade type="button", un guard `if (!text)
+ *    return` + `disabled={!text}` (inalcanzable aquí: todos los call-sites
+ *    de este archivo pasan texto no vacío — valores de datasets y campos
+ *    validados) y las clases `inline-flex items-center gap-1` (inertes con
+ *    un único icono hijo). Sin delta observable. */
 
 /* ---------- Modal component for detail views ---------- */
 const DetailModal: React.FC<{
@@ -254,6 +243,13 @@ const DetailSection: React.FC<{ icon: React.ReactNode; title: string; children: 
   </div>
 );
 
+/* CodeBlock — deliberadamente NO deduplicado contra ./tools/_shared (R5):
+ * la versión compartida renderiza [lang][CopyBtn] (badge de lenguaje ANTES
+ * del botón copiar) y esta local renderiza [CopyBtn][lang]. Los 6
+ * call-sites de este archivo pasan `lang` (bash/http/ps/yaml/kql/spl), así
+ * que adoptar la compartida movería visiblemente el badge de posición —
+ * la restricción de preservar los visuales exactos gana. Sí usa el
+ * CopyBtn compartido. Delta reportada en agent-ctx/R5-refactor.md. */
 const CodeBlock: React.FC<{ code: string; lang?: string }> = ({ code, lang }) => (
   <div className="bg-[#0A0A0A] border border-[#262626] rounded p-2.5 font-mono text-[10px] text-green-300 break-all flex items-start justify-between gap-2">
     <pre className="whitespace-pre-wrap break-all flex-1">{code}</pre>
@@ -261,6 +257,79 @@ const CodeBlock: React.FC<{ code: string; lang?: string }> = ({ code, lang }) =>
     {lang && <span className="text-[9px] text-[#808080] uppercase shrink-0">{lang}</span>}
   </div>
 );
+
+/** R5 — referencia estable (patrón EMPTY_* de App.tsx) para el valor por
+ *  defecto del useLiveQuery de notas relacionadas del WinEventTool: evita
+ *  un array nuevo por render mientras la query está en vuelo. */
+const EMPTY_RELATED: { id: string; title: string }[] = [];
+
+/* ---------- useAutoOpenEntry (R5) ---------- */
+/**
+ * Factoriza el boilerplate de deep-link que estaba copiado 4× (PortsTool,
+ * HttpTool, WinEventTool y CronTool — solo variaba el dataset y su lookup):
+ *  - match inicial calculado ya en el montaje (el modal abre de inmediato
+ *    al aterrizar por deep-link, sin render extra);
+ *  - re-ajuste del estado local DURANTE el render cuando cambia el prop
+ *    `autoOpenId` (patrón React 19 "you might not need an effect", con
+ *    guard de valor previo); si el deep-link se LIMPIA, se conserva la
+ *    selección actual;
+ *  - notificación al padre una vez por cambio (efecto side-effect only,
+ *    lint-safe, mismas deps que los originales).
+ * Devuelve el par (q, selected) que esas tools usaban como estado local,
+ * para preservar la semántica exacta: q se inicializa/sincroniza con el
+ * deep-link y selected abre el modal (match del deep-link o click del
+ * usuario). CronTool no busca en dataset (la expresión ES la entrada): su
+ * findMatch devuelve siempre el propio id, con lo que el setQ se aplica
+ * incondicionalmente igual que antes; su `selected` queda sin uso.
+ */
+interface UseAutoOpenEntryApi<T> {
+  /** Campo de búsqueda (se inicializa/sincroniza con el deep-link). */
+  q: string;
+  setQ: React.Dispatch<React.SetStateAction<string>>;
+  /** Entrada seleccionada por deep-link o click del usuario (null = cerrada). */
+  selected: T | null;
+  setSelected: React.Dispatch<React.SetStateAction<T | null>>;
+}
+
+function useAutoOpenEntry<T>(
+  autoOpenId: string | number | undefined,
+  items: T[],
+  findMatch: (autoOpenId: string, items: T[]) => T | undefined,
+  onConsumed: (() => void) | undefined,
+  fallbackText = '',
+): UseAutoOpenEntryApi<T> {
+  // Match inicial: se calcula en cada render (barato); solo el valor del
+  // PRIMER render alimenta los useState de abajo.
+  const hasId = autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '';
+  const initialMatch = hasId ? findMatch(String(autoOpenId), items) : undefined;
+  const [q, setQ] = useState(initialMatch ? String(autoOpenId) : fallbackText);
+  const [selected, setSelected] = useState<T | null>(initialMatch || null);
+
+  // Deep-link follow-up: render-time state adjustment cuando el prop
+  // CAMBIA tras el montaje (mismo patrón que los originales y que
+  // MitreExplorerTool/SigmaExplorerTool).
+  const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
+  if (autoOpenId !== prevAutoOpen) {
+    setPrevAutoOpen(autoOpenId);
+    if (hasId) {
+      const match = findMatch(String(autoOpenId), items);
+      if (match) {
+        setSelected(match);
+        setQ(String(autoOpenId));
+      }
+    }
+    // deep-link limpiado → conservar la selección actual.
+  }
+
+  // Notify parent (side-effect only, no setState — lint-safe).
+  React.useEffect(() => {
+    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
+      onConsumed?.();
+    }
+  }, [autoOpenId, onConsumed]);
+
+  return { q, setQ, selected, setSelected };
+}
 
 /* ---------- escapeHtml + buildWinEventHtmlTable ---------- */
 /* Helpers used by the WinEventTool [Add to Note] action.
@@ -464,37 +533,15 @@ interface PortsToolProps {
 }
 
 const PortsTool: React.FC<PortsToolProps> = ({ autoOpenId, onAutoOpenConsumed }) => {
-  // Compute the initial match on mount so the modal opens immediately when the
-  // user lands on this tool via deep-link (no extra render needed).
-  const initialMatch = (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '')
-    ? PORTS.find((p) => String(p.port) === String(autoOpenId))
-    : undefined;
-  const [q, setQ] = useState(initialMatch ? String(autoOpenId) : '');
-  const [selected, setSelected] = useState<PortInfo | null>(initialMatch || null);
-
-  // Deep-link follow-up: when the incoming `autoOpenId` prop CHANGES after mount,
-  // adjust local state during render (React 19 "you might not need an effect").
-  const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
-  if (autoOpenId !== prevAutoOpen) {
-    setPrevAutoOpen(autoOpenId);
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      const match = PORTS.find((p) => String(p.port) === String(autoOpenId));
-      if (match) {
-        setSelected(match);
-        setQ(String(autoOpenId));
-      }
-    } else {
-      // deep-link cleared — keep current selection
-    }
-  }
-
-  // Notify parent (side-effect only, no setState — lint-safe).
-  React.useEffect(() => {
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      onAutoOpenConsumed?.();
-    }
-  }, [autoOpenId, onAutoOpenConsumed]);
-
+  // R5 — boilerplate de deep-link factorizado en useAutoOpenEntry (match
+  // inicial + re-sync del prop + notificación al padre). Solo varía el
+  // dataset y su lookup: PORTS por número de puerto.
+  const { q, setQ, selected, setSelected } = useAutoOpenEntry<PortInfo>(
+    autoOpenId,
+    PORTS,
+    (id, items) => items.find((p) => String(p.port) === id),
+    onAutoOpenConsumed,
+  );
 
   const filtered = useMemo(() => {
     if (!q.trim()) return PORTS;
@@ -770,33 +817,13 @@ interface HttpToolProps {
 }
 
 const HttpTool: React.FC<HttpToolProps> = ({ autoOpenId, onAutoOpenConsumed }) => {
-  // Compute the initial match on mount so the modal opens immediately.
-  const initialMatch = (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '')
-    ? HTTP_STATUSES.find((s) => String(s.code) === String(autoOpenId))
-    : undefined;
-  const [q, setQ] = useState(initialMatch ? String(autoOpenId) : '');
-  const [selected, setSelected] = useState<HttpStatusInfo | null>(initialMatch || null);
-
-  // Deep-link follow-up: render-time state adjustment when autoOpenId changes.
-  const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
-  if (autoOpenId !== prevAutoOpen) {
-    setPrevAutoOpen(autoOpenId);
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      const match = HTTP_STATUSES.find((s) => String(s.code) === String(autoOpenId));
-      if (match) {
-        setSelected(match);
-        setQ(String(autoOpenId));
-      }
-    }
-  }
-
-  // Notify parent (side-effect only).
-  React.useEffect(() => {
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      onAutoOpenConsumed?.();
-    }
-  }, [autoOpenId, onAutoOpenConsumed]);
-
+  // R5 — deep-link factorizado (useAutoOpenEntry): lookup HTTP_STATUSES por código.
+  const { q, setQ, selected, setSelected } = useAutoOpenEntry<HttpStatusInfo>(
+    autoOpenId,
+    HTTP_STATUSES,
+    (id, items) => items.find((s) => String(s.code) === id),
+    onAutoOpenConsumed,
+  );
 
   const filtered = useMemo(() => {
     if (!q.trim()) return HTTP_STATUSES;
@@ -876,36 +903,21 @@ interface WinEventToolProps {
 }
 
 const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsumed }) => {
-  // Compute the initial match on mount so the modal opens immediately.
-  const initialMatch = (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '')
-    ? WIN_EVENTS.find((e) => String(e.id) === String(autoOpenId))
-    : undefined;
-  const [q, setQ] = useState(initialMatch ? String(autoOpenId) : '');
-  const [selected, setSelected] = useState<WinEventInfo | null>(initialMatch || null);
+  // R5 — deep-link factorizado (useAutoOpenEntry): lookup WIN_EVENTS por
+  // Event ID. (El orden de hooks cambia respecto al original —q/selected/
+  // prevAutoOpen/efecto ahora viven juntos en el hook, antes se intercalaba
+  // el filtro de categoría— pero es consistente entre renders: React solo
+  // exige orden estable, no una orden concreta.)
+  const { q, setQ, selected, setSelected } = useAutoOpenEntry<WinEventInfo>(
+    autoOpenId,
+    WIN_EVENTS,
+    (id, items) => items.find((e) => String(e.id) === id),
+    onAutoOpenConsumed,
+  );
   // BLOQUE 3 — category filter (8 SOC categories derived via getWinEventCategory).
   const [category, setCategory] = useState<WinEventCategory | null>(null);
   // BLOQUE 3 — toast for "Added to Note" feedback (auto-dismiss after 2.5s).
   const { addedToast, showToast } = useAddToNoteToast();
-
-  // Deep-link follow-up: render-time state adjustment when autoOpenId changes.
-  const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
-  if (autoOpenId !== prevAutoOpen) {
-    setPrevAutoOpen(autoOpenId);
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      const match = WIN_EVENTS.find((e) => String(e.id) === String(autoOpenId));
-      if (match) {
-        setSelected(match);
-        setQ(String(autoOpenId));
-      }
-    }
-  }
-
-  // Notify parent (side-effect only).
-  React.useEffect(() => {
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      onAutoOpenConsumed?.();
-    }
-  }, [autoOpenId, onAutoOpenConsumed]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -954,8 +966,8 @@ const WinEventTool: React.FC<WinEventToolProps> = ({ autoOpenId, onAutoOpenConsu
         .map((n) => ({ id: n.id, title: n.title }));
     },
     [selectedEventId],
-    [] as { id: string; title: string }[]
-  ) ?? [];
+    EMPTY_RELATED
+  ) ?? EMPTY_RELATED;
 
   // Derived cross-links — pure functions, safe to compute inline.
   const relatedMitreEntries = useMemo(() => {
@@ -1530,31 +1542,19 @@ interface CronToolProps {
 }
 
 const CronTool: React.FC<CronToolProps> = ({ autoOpenId, onAutoOpenConsumed }) => {
-  // Initialize expr from the deep-link if provided on mount.
-  const [expr, setExpr] = useState(
-    (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '')
-      ? String(autoOpenId)
-      : '0 9 * * 1-5'
+  // R5 — deep-link factorizado (useAutoOpenEntry). Cron no busca en ningún
+  // dataset (la expresión ES la entrada): findMatch devuelve siempre el
+  // propio id, de modo que el texto se aplica incondicionalmente igual que
+  // en el código original; fallback '0 9 * * 1-5'. El `selected` del hook
+  // queda sin uso.
+  const { q: expr, setQ: setExpr } = useAutoOpenEntry<string>(
+    autoOpenId,
+    [],
+    (id) => id,
+    onAutoOpenConsumed,
+    '0 9 * * 1-5',
   );
   const [showGuide, setShowGuide] = useState(true);
-
-  // Deep-link follow-up: render-time state adjustment — load the cron expression
-  // from the incoming prop the moment it changes.
-  const [prevAutoOpen, setPrevAutoOpen] = useState<string | number | undefined>(autoOpenId);
-  if (autoOpenId !== prevAutoOpen) {
-    setPrevAutoOpen(autoOpenId);
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      setExpr(String(autoOpenId));
-    }
-  }
-
-  // Notify parent (side-effect only).
-  React.useEffect(() => {
-    if (autoOpenId !== undefined && autoOpenId !== null && autoOpenId !== '') {
-      onAutoOpenConsumed?.();
-    }
-  }, [autoOpenId, onAutoOpenConsumed]);
-
 
   const parsed = useMemo(() => parseCronExpression(expr), [expr]);
 
@@ -1664,6 +1664,100 @@ const CronTool: React.FC<CronToolProps> = ({ autoOpenId, onAutoOpenConsumed }) =
 };
 
 /* ============================================================= */
+/* R5 — REGISTRO DE RENDERIZADORES DEL CATÁLOGO                    */
+/* ============================================================= */
+/**
+ * Sustituye el switch de 49 cases que vivía DENTRO de ToolsView
+ * (renderActiveTool): mapa plano a nivel de módulo ToolId → renderer,
+ * declaración junto al resto del catálogo de tools de este chunk. Al ser
+ * `Record<ToolId, …>`, el catálogo (data/toolsCatalog.ts) y este registro
+ * no pueden divergir (falta o sobra un id ⇒ error de compilación).
+ * HMR-ROBUSTNESS: sigue siendo UN solo chunk estático — nada de dynamic();
+ * los renderers son funciones flecha que se evalúan perezosamente, igual
+ * que los cases del switch que reemplazan.
+ */
+
+/** Props que el registro inyecta a cada renderer: es exactamente el wiring
+ *  de deep-link que los antiguos cases cerraban sobre el scope de ToolsView
+ *  — `entryId` (solo llega al tool activo cuando coincide con el pending) y
+ *  el handler de consumo. Los tools sin deep-link los ignoran. */
+interface ToolRendererProps {
+  /** Id de la entrada a auto-abrir (deep-link); undefined = sin deep-link. */
+  autoOpenId?: string | number;
+  /** Se llama cuando el deep-link se consume (ToolsView limpia su pending). */
+  onAutoOpenConsumed?: () => void;
+}
+
+const TOOL_RENDERERS: Record<ToolId, (props: ToolRendererProps) => React.JSX.Element> = {
+  subnet: () => <SubnetTool />,
+  ports: (p) => <PortsTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  jwt:   () => <JwtTool />,
+  base:  () => <BaseTool />,
+  http:  (p) => <HttpTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  winevent: (p) => <WinEventTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  ioc:   () => <IocExtractorView />,
+  cron:  (p) => <CronTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  // New tools (Task ID 2-a..2-f) — none support deep-link autoOpen yet.
+  timestamp: () => <TimestampConverterTool />,
+  hash:      () => <HashToolkitTool />,
+  encoding: () => <EncodingTool />,
+  regex:    () => <RegexTesterTool />,
+  ip:       () => <IpAnalyzerTool />,
+  'ioc-defang': () => <IocDefangerTool />,
+  // SOC Analyst block (Task ID 3-d..3-f) — none support deep-link autoOpen.
+  'powershell-analyzer': () => <PowerShellAnalyzerTool />,
+  'cmd-analyzer':        () => <CommandLineAnalyzerTool />,
+  'log-parser':          () => <LogParserTool />,
+  // SOC Analyst block (Task ID 4-6 — MITRE / Sigma / Detection Query Helper) — all support deep-link autoOpen.
+  mitre:             (p) => <MitreExplorerTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  sigma:             (p) => <SigmaExplorerTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  'detection-query': (p) => <DetectionQueryHelperTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  // Vulnerabilidades IAM/SOC — soporta deep-link por id (p. ej. "AD-016").
+  vuln:    (p) => <VulnerabilityExplorerTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+  // Ataques — soporta deep-link por id (p. ej. "IAM-004").
+  ataques: (p) => <AttacksExplorerTool autoOpenId={p.autoOpenId} onAutoOpenConsumed={p.onAutoOpenConsumed} />,
+
+  // HELPDESK (V6 FASE 3) — 6 tools de soporte que siguen: todas
+  // interactivas reales (parser/simulador/generador). Las 9 guías
+  // estáticas migraron a los runbooks por pilar (V9:
+  // data/runbooksHelpDesk.ts); la SLA Calculator se eliminó por spec V6.
+  'hd-triage':     () => <HdTicketTriageTool />,
+  'hd-ad-account': () => <HdAdAccountTool />,
+  'hd-kb-gen':     () => <HdKbGeneratorTool />,
+  'hd-network':    () => <HdNetworkTool />,
+  'hd-intune':     () => <HdIntuneTool />,
+  'hd-sanitizer':  () => <HdSanitizerTool />,
+
+  // SYSADMIN (v21) — 6 tools de Infra & Ops (generadores, calculadoras
+  // y planificadores 100% offline).
+  'sa-systemd':      () => <SaSystemdTool />,
+  'sa-raid':         () => <SaRaidTool />,
+  'sa-lvm':          () => <SaLvmTool />,
+  'sa-cron-builder': () => <SaCronBuilderTool />,
+  'sa-firewall':     () => <SaFirewallTool />,
+  'sa-capacity':     () => <SaCapacityTool />,
+
+  // SOC (v9) — guías de herramientas SOC (referencia copiable offline).
+  'soc-sentinel':   () => <SocGuideTool guideId="sentinel" />,
+  'soc-splunk':     () => <SocGuideTool guideId="splunk" />,
+  'soc-elastic':    () => <SocGuideTool guideId="elastic" />,
+  'soc-wireshark':  () => <SocGuideTool guideId="wireshark" />,
+  'soc-sysmon':     () => <SocGuideTool guideId="sysmon" />,
+  'soc-defender':   () => <SocGuideTool guideId="defender" />,
+  'soc-sandbox':    () => <SocGuideTool guideId="sandbox" />,
+  'soc-thehive':    () => <SocGuideTool guideId="thehive" />,
+  'soc-nids':       () => <SocGuideTool guideId="nids" />,
+
+  // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
+  'sid-rid':     () => <SidRidAnalyzerTool />,
+  'ldap-dn':     () => <LdapDnParserTool />,
+  rbac:          () => <RbacAnalyzerTool />,
+  cvss:          () => <CvssCalculatorTool />,
+  'file-hash':   () => <FileHashAnalyzerTool />,
+  'linux-perms': () => <LinuxPermissionsTool />,
+};
+
+/* ============================================================= */
 /* MAIN ToolsView                                                 */
 /* ============================================================= */
 
@@ -1682,6 +1776,77 @@ const ROLE_FILTERS: Array<{ id: RoleFilter; label: string }> = [
  *  etiquetados, esto es solo una defensa). */
 const toolRoles = (t: (typeof TOOLS)[number]): ToolPillar[] =>
   t.pillars && t.pillars.length > 0 ? t.pillars : ['GLOBAL'];
+
+/** SidebarRow (R5) — fila del sidebar de tools. Unifica las 3 variantes que
+ *  estaban triplicadas (favoritos / recientes / categorías) preservando el
+ *  markup EXACTO de cada una:
+ *   - favoritos/recientes: botón único con icono líder (estrella/reloj);
+ *   - categorías (onToggleFavorite presente): fila con chips de rol + botón
+ *     de favorito (dos botones anidados y gap-1, tal cual el original). */
+const SidebarRow: React.FC<{
+  tool: (typeof TOOLS)[number];
+  activeId: ToolId;
+  onSelect: (id: ToolId) => void;
+  /** Icono líder (favoritos/recientes); las categorías no llevan. */
+  leadingIcon?: React.ReactNode;
+  /** Si viene, renderiza la variante de categorías (chips + estrella). */
+  onToggleFavorite?: (toolId: string) => void;
+  isFavorite?: boolean;
+}> = ({ tool, activeId, onSelect, leadingIcon, onToggleFavorite, isFavorite = false }) => {
+  const isActive = activeId === tool.id;
+  const rowCls = isActive
+    ? 'bg-blue-500/10 text-blue-400 font-semibold'
+    : 'text-[#888] hover:bg-[#161616] hover:text-white';
+  if (!onToggleFavorite) {
+    // Variante favoritos / recientes.
+    return (
+      <button
+        onClick={() => onSelect(tool.id)}
+        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer text-left ${rowCls}`}
+        title={tool.desc}
+      >
+        {leadingIcon}
+        {tool.icon}
+        <span className="truncate">{tool.name}</span>
+      </button>
+    );
+  }
+  // Variante categorías: chips de rol + toggle de favorito.
+  return (
+    <div
+      className={`w-full flex items-center gap-1 rounded text-xs transition-colors cursor-pointer text-left group ${rowCls}`}
+      title={tool.desc}
+    >
+      <button
+        onClick={() => onSelect(tool.id)}
+        className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 min-w-0"
+      >
+        {tool.icon}
+        <span className="truncate">{tool.name}</span>
+        <span className="flex items-center gap-0.5 shrink-0">
+          {toolRoles(tool).map((p) => (
+            <span
+              key={p}
+              className={`text-[9px] font-mono font-bold px-1 py-px rounded border ${TOOL_PILLAR_META[p].chip}`}
+              title={TOOL_PILLAR_META[p].label}
+            >
+              {TOOL_PILLAR_META[p].short}
+            </span>
+          ))}
+        </span>
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); void onToggleFavorite(tool.id); }}
+        className={`px-1.5 py-1.5 shrink-0 transition-colors ${
+          isFavorite ? 'text-amber-400' : 'text-[#333] opacity-0 group-hover:opacity-100 hover:text-amber-400'
+        }`}
+        title={isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+      >
+        <Star className={`w-3 h-3 ${isFavorite ? 'fill-amber-400' : ''}`} />
+      </button>
+    </div>
+  );
+};
 
 export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePending }) => {
   // BLOQUE 3 — Subscribe to the cross-tool zustand store so any tool
@@ -1784,80 +1949,19 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
   // Render the active tool, passing the deep-link entryId ONLY to the tool
   // that supports it (http/ports/winevent/cron/mitre/sigma/detection-query).
   // For other tools the deep-link is ignored and cleared.
+  // R5 — el switch de 49 cases se redujo al registro module-level
+  // TOOL_RENDERERS; el `default: return null` del switch (tool desconocido)
+  // se preserva con la llamada opcional + ?? null. La llamada directa (no
+  // <Renderer />) mantiene el árbol de elementos idéntico al del switch:
+  // los elementos de cada tool siguen colgando directo de ToolsView, sin
+  // frontera de componente nueva.
   const renderActiveTool = () => {
     const entryId = effectivePending?.toolId === active ? effectivePending?.entryId : undefined;
-    const onConsumed = handlePendingConsumed;
-    switch (active) {
-      case 'subnet': return <SubnetTool />;
-      case 'ports': return <PortsTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      case 'jwt':   return <JwtTool />;
-      case 'base':  return <BaseTool />;
-      case 'http':  return <HttpTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      case 'winevent': return <WinEventTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      case 'ioc':   return <IocExtractorView />;
-      case 'cron':  return <CronTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      // New tools (Task ID 2-a..2-f) — none support deep-link autoOpen yet.
-      case 'timestamp': return <TimestampConverterTool />;
-      case 'hash':      return <HashToolkitTool />;
-      case 'encoding': return <EncodingTool />;
-      case 'regex':    return <RegexTesterTool />;
-      case 'ip':       return <IpAnalyzerTool />;
-      case 'ioc-defang': return <IocDefangerTool />;
-      // SOC Analyst block (Task ID 3-d..3-f) — none support deep-link autoOpen.
-      case 'powershell-analyzer': return <PowerShellAnalyzerTool />;
-      case 'cmd-analyzer':       return <CommandLineAnalyzerTool />;
-      case 'log-parser':         return <LogParserTool />;
-      // SOC Analyst block (Task ID 4-6 — MITRE / Sigma / Detection Query Helper) — all support deep-link autoOpen.
-      case 'mitre':              return <MitreExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      case 'sigma':              return <SigmaExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      case 'detection-query':    return <DetectionQueryHelperTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      // Vulnerabilidades IAM/SOC — soporta deep-link por id (p. ej. "AD-016").
-      case 'vuln':               return <VulnerabilityExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-      // Ataques — soporta deep-link por id (p. ej. "IAM-004").
-      case 'ataques':            return <AttacksExplorerTool autoOpenId={entryId} onAutoOpenConsumed={onConsumed} />;
-
-      // HELPDESK (V6 FASE 3) — 6 tools de soporte que siguen: todas
-      // interactivas reales (parser/simulador/generador). Las 9 guías
-      // estáticas migraron a los runbooks por pilar (V9:
-      // data/runbooksHelpDesk.ts); la SLA Calculator se eliminó por spec V6.
-      case 'hd-triage':    return <HdTicketTriageTool />;
-      case 'hd-ad-account': return <HdAdAccountTool />;
-      case 'hd-kb-gen':    return <HdKbGeneratorTool />;
-      case 'hd-network':   return <HdNetworkTool />;
-      case 'hd-intune':    return <HdIntuneTool />;
-      case 'hd-sanitizer': return <HdSanitizerTool />;
-
-      // SYSADMIN (v21) — 6 tools de Infra & Ops (generadores, calculadoras
-      // y planificadores 100% offline).
-      case 'sa-systemd':      return <SaSystemdTool />;
-      case 'sa-raid':         return <SaRaidTool />;
-      case 'sa-lvm':          return <SaLvmTool />;
-      case 'sa-cron-builder': return <SaCronBuilderTool />;
-      case 'sa-firewall':     return <SaFirewallTool />;
-      case 'sa-capacity':     return <SaCapacityTool />;
-
-      // SOC (v9) — guías de herramientas SOC (referencia copiable offline).
-      case 'soc-sentinel':   return <SocGuideTool guideId="sentinel" />;
-      case 'soc-splunk':     return <SocGuideTool guideId="splunk" />;
-      case 'soc-elastic':    return <SocGuideTool guideId="elastic" />;
-      case 'soc-wireshark':  return <SocGuideTool guideId="wireshark" />;
-      case 'soc-sysmon':     return <SocGuideTool guideId="sysmon" />;
-      case 'soc-defender':   return <SocGuideTool guideId="defender" />;
-      case 'soc-sandbox':    return <SocGuideTool guideId="sandbox" />;
-      case 'soc-thehive':    return <SocGuideTool guideId="thehive" />;
-      case 'soc-nids':       return <SocGuideTool guideId="nids" />;
-      // IAM / Vulnerability / Linux block (Task ID 4-a..4-d + 4 + 5) — all stateless, no deep-link needed.
-      case 'sid-rid':            return <SidRidAnalyzerTool />;
-      case 'ldap-dn':            return <LdapDnParserTool />;
-      case 'rbac':               return <RbacAnalyzerTool />;
-      case 'cvss':               return <CvssCalculatorTool />;
-      case 'file-hash':          return <FileHashAnalyzerTool />;
-      case 'linux-perms':        return <LinuxPermissionsTool />;
-      default: return null;
-    }
+    return TOOL_RENDERERS[active]?.({ autoOpenId: entryId, onAutoOpenConsumed: handlePendingConsumed }) ?? null;
   };
 
-  const activeToolMeta = TOOLS.find((t) => t.id === active);
+  // R5 — memoizado (antes era un TOOLS.find sin useMemo en cada render).
+  const activeToolMeta = useMemo(() => TOOLS.find((t) => t.id === active), [active]);
   const isCurrentFavorite = active ? favoriteIds.has(active) : false;
 
   return (
@@ -1923,19 +2027,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
               <p className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-amber-500/70 flex items-center gap-1">
                 <Star className="w-2.5 h-2.5 fill-amber-500/70" /> Favoritos
               </p>
+              {/* R5 — fila unificada en SidebarRow (antes el markup estaba
+                  copiado en favoritos, recientes y categorías). */}
               {favoriteTools.map((t) => (
-                <button
+                <SidebarRow
                   key={`fav-${t.id}`}
-                  onClick={() => handleSelectTool(t.id)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer text-left ${
-                    active === t.id ? 'bg-blue-500/10 text-blue-400 font-semibold' : 'text-[#888] hover:bg-[#161616] hover:text-white'
-                  }`}
-                  title={t.desc}
-                >
-                  <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
-                  {t.icon}
-                  <span className="truncate">{t.name}</span>
-                </button>
+                  tool={t}
+                  activeId={active}
+                  onSelect={handleSelectTool}
+                  leadingIcon={<Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />}
+                />
               ))}
             </div>
           )}
@@ -1947,18 +2048,13 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
                 <History className="w-2.5 h-2.5" /> Recientes
               </p>
               {recentTools.map((t) => (
-                <button
+                <SidebarRow
                   key={`rec-${t.id}`}
-                  onClick={() => handleSelectTool(t.id)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer text-left ${
-                    active === t.id ? 'bg-blue-500/10 text-blue-400 font-semibold' : 'text-[#888] hover:bg-[#161616] hover:text-white'
-                  }`}
-                  title={t.desc}
-                >
-                  <Clock3 className="w-3 h-3 text-[#828282] shrink-0" />
-                  {t.icon}
-                  <span className="truncate">{t.name}</span>
-                </button>
+                  tool={t}
+                  activeId={active}
+                  onSelect={handleSelectTool}
+                  leadingIcon={<Clock3 className="w-3 h-3 text-[#828282] shrink-0" />}
+                />
               ))}
             </div>
           )}
@@ -1967,46 +2063,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ pendingTool, onConsumePend
           {Array.from(cats.entries()).map(([cat, tools]) => (
             <div key={cat} className="p-2 space-y-0.5">
               <p className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#808080]">{cat}</p>
-              {tools.map((t) => {
-                const isFav = favoriteIds.has(t.id);
-                return (
-                  <div
-                    key={t.id}
-                    className={`w-full flex items-center gap-1 rounded text-xs transition-colors cursor-pointer text-left group ${
-                      active === t.id ? 'bg-blue-500/10 text-blue-400 font-semibold' : 'text-[#888] hover:bg-[#161616] hover:text-white'
-                    }`}
-                    title={t.desc}
-                  >
-                    <button
-                      onClick={() => handleSelectTool(t.id)}
-                      className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 min-w-0"
-                    >
-                      {t.icon}
-                      <span className="truncate">{t.name}</span>
-                      <span className="flex items-center gap-0.5 shrink-0">
-                        {toolRoles(t).map((p) => (
-                          <span
-                            key={p}
-                            className={`text-[9px] font-mono font-bold px-1 py-px rounded border ${TOOL_PILLAR_META[p].chip}`}
-                            title={TOOL_PILLAR_META[p].label}
-                          >
-                            {TOOL_PILLAR_META[p].short}
-                          </span>
-                        ))}
-                      </span>
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); void handleToggleFavorite(t.id); }}
-                      className={`px-1.5 py-1.5 shrink-0 transition-colors ${
-                        isFav ? 'text-amber-400' : 'text-[#333] opacity-0 group-hover:opacity-100 hover:text-amber-400'
-                      }`}
-                      title={isFav ? 'Quitar de favoritos' : 'Marcar como favorito'}
-                    >
-                      <Star className={`w-3 h-3 ${isFav ? 'fill-amber-400' : ''}`} />
-                    </button>
-                  </div>
-                );
-              })}
+              {tools.map((t) => (
+                <SidebarRow
+                  key={t.id}
+                  tool={t}
+                  activeId={active}
+                  onSelect={handleSelectTool}
+                  onToggleFavorite={handleToggleFavorite}
+                  isFavorite={favoriteIds.has(t.id)}
+                />
+              ))}
             </div>
           ))}
           {filteredTools.length === 0 && (

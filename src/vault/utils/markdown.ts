@@ -179,10 +179,22 @@ export function generateBlogMarkdown({ notes, allNotes, labs, includeAiPrompt }:
   parts.push(`# ${single ? '' : 'Borrador para Blog — '}${single ? '' : dateStr}\n`.trim());
 
   if (notes.length > 0) {
+    // R6 (P1): agrupar las subpáginas por parentId en UNA pasada previa —
+    // el filter anidado re-escaneaba allNotes ENTERO por cada nota
+    // seleccionada (O(seleccionadas × totales)). Se preservan el orden
+    // relativo dentro de cada padre y los criterios (!isDeleted &&
+    // parentId === n.id).
+    const subpagesByParent = new Map<string, Note[]>();
+    for (const s of allNotes) {
+      if (s.isDeleted || !s.parentId) continue;
+      const bucket = subpagesByParent.get(s.parentId);
+      if (bucket) bucket.push(s);
+      else subpagesByParent.set(s.parentId, [s]);
+    }
     const section = notes.map((n) => {
       let md = noteToMarkdown(n, single ? 1 : 2);
       // include its subpages as deeper sections
-      const subpages = allNotes.filter((s) => !s.isDeleted && s.parentId === n.id);
+      const subpages = subpagesByParent.get(n.id) || [];
       subpages.forEach((s) => {
         md += noteToMarkdown(s, single ? 2 : 3);
       });

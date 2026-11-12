@@ -258,11 +258,19 @@ function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** PERF (highlight pass): una sola RegExp por consulta, cacheada a nivel de
+ * módulo — antes se compilaban ~60 (30 resultados × título+snippet) en CADA
+ * pulsación. `String.replace` con flag /g ignora y resetea lastIndex, así
+ * que reutilizar la instancia es seguro. */
+let highlightRegexCache: { query: string; regex: RegExp } | null = null;
+
 function highlightMatches(text: string, query: string): string {
   if (!text || !query.trim()) return escapeHtml(text);
   const safeText = escapeHtml(text);
-  const regex = new RegExp(`(${escapeRegExp(escapeHtml(query))})`, 'gi');
-  return safeText.replace(regex, '<mark class="bg-yellow-400 text-black px-1 py-0.5 rounded font-semibold">$1</mark>');
+  if (highlightRegexCache === null || highlightRegexCache.query !== query) {
+    highlightRegexCache = { query, regex: new RegExp(`(${escapeRegExp(escapeHtml(query))})`, 'gi') };
+  }
+  return safeText.replace(highlightRegexCache.regex, '<mark class="bg-yellow-400 text-black px-1 py-0.5 rounded font-semibold">$1</mark>');
 }
 
 /**
@@ -829,6 +837,22 @@ const COMMAND_ENTRIES: CommandEntry[] = [
     { id: 'import-backup', label: 'Importar backup', hint: 'Acción', keywords: ['import', 'importar', 'restore', 'backup'], commandId: 'import-backup' },
 ];
 
+/** PERF (command match): las 57 entradas son estáticas — precalculamos el
+ * label y el haystack lowercase UNA vez al cargar el módulo en vez de
+ * re-lowercasear las cuatro partes por entrada en cada pulsación. */
+const COMMAND_MATCH_DATA: Array<{ c: CommandEntry; labelLower: string; haystack: string }> = COMMAND_ENTRIES.map(
+  (c) => ({
+    c,
+    labelLower: c.label.toLowerCase(),
+    haystack: `${c.label} ${c.keywords.join(' ')} ${c.id} ${c.commandId}`.toLowerCase(),
+  })
+);
+
+/** PERF (prune guard): el prune solo corre cuando cambia el conjunto vivo
+ * de ids — antes construía un array de 3 partes + Set en CADA pulsación
+ * aunque nada hubiera cambiado. */
+let pruneStamp = '';
+
 function getCommandEntries(): CommandEntry[] {
   return COMMAND_ENTRIES;
 }
@@ -844,12 +868,18 @@ export function searchAllVault(
   const activeLabs = labs.filter((l) => !l.isDeleted);
   const activeGlossary = glossary.filter((g) => !g.isDeleted);
   const activeReferences = references.filter((r) => !r.isDeleted);
-  // Bound the stripped-content cache to the live rows (deleted rows drop out).
-  pruneStrippedCache([
-    ...activeNotes.map((n) => `note:${n.id}`),
-    ...activeLabs.map((l) => `lab:${l.id}`),
-    ...activeLabs.map((l) => `labsnip:${l.id}`),
-  ]);
+  // Bound the stripped-content cache to the live rows (deleted rows drop
+  // out) — solo cuando el conjunto de filas vivas cambió (stamp barato de
+  // id+updatedAt, mismo que usa el corpus cache).
+  const liveStamp = stampRowset(notes) + '/' + stampRowset(labs);
+  if (liveStamp !== pruneStamp) {
+    pruneStamp = liveStamp;
+    pruneStrippedCache([
+      ...activeNotes.map((n) => `note:${n.id}`),
+      ...activeLabs.map((l) => `lab:${l.id}`),
+      ...activeLabs.map((l) => `labsnip:${l.id}`),
+    ]);
+  }
   // BLOQUE 5 — parse "type:note kerberos" / "tag:soc powershell" / "platform:windows".
   const parsed = parseQuery(query);
 
@@ -960,29 +990,26 @@ export function searchAllVault(
     return [...commandResults, ...noteResults, ...labResults, ...glossaryResults, ...referenceResults];
   }
 
-  // BLOQUE 5 — if the user typed ">something" or "new note" / "open X",
-  // surface matching command palette entries FIRST (command-palette mode).
+  // BLOQUE 5 — el emparejamiento de comandos está SIEMPRE activo para
+  // cualquier consulta con texto (">algo" es solo un prefijo explícito;
+  // "new note" / "open X" también deben surfear comandos). La condición
+  // antigua (`startsWith('>') || lowerText.length > 0`) era muerta: la
+  // segunda cláusula era cierta para cualquier consulta no vacía.
   // Multi-word queries split into tokens; a command matches if ALL tokens
   // appear somewhere across (label + keywords + commandId + id).
   const lowerText = parsed.text.toLowerCase().trim();
-  const isCommandMode = query.trim().startsWith('>') || lowerText.length > 0;
   const textTokens = lowerText.split(/\s+/).filter(Boolean);
-  const matchingCommands: SearchDocument[] = isCommandMode && textTokens.length > 0
-    ? commandEntries
-        .map((c) => {
-          const labelLower = c.label.toLowerCase();
-          const keywordStr = c.keywords.join(' ').toLowerCase();
-          const idLower = c.id.toLowerCase();
-          const commandIdLower = c.commandId.toLowerCase();
-          const haystack = `${labelLower} ${keywordStr} ${idLower} ${commandIdLower}`;
-          // ALL tokens must appear somewhere in the haystack.
-          const allMatch = textTokens.every((tok) => haystack.includes(tok));
-          if (!allMatch) return { c, score: 99 };
+  const matchingCommands: SearchDocument[] = textTokens.length > 0
+    ? COMMAND_MATCH_DATA
+        .map((entry) => {
+          // ALL tokens must appear somewhere in the haystack (precalculado).
+          const allMatch = textTokens.every((tok) => entry.haystack.includes(tok));
+          if (!allMatch) return { c: entry.c, score: 99 };
           // Score: prefix match on label wins, then labelMatch, then keyword.
-          const startsWith = labelLower.startsWith(lowerText);
-          const labelMatch = labelLower.includes(lowerText) || textTokens.every((t) => labelLower.includes(t));
+          const startsWith = entry.labelLower.startsWith(lowerText);
+          const labelMatch = entry.labelLower.includes(lowerText) || textTokens.every((t) => entry.labelLower.includes(t));
           const score = startsWith ? 0 : (labelMatch ? 1 : 2);
-          return { c, score };
+          return { c: entry.c, score };
         })
         .filter((x) => x.score < 99)
         .sort((a, b) => a.score - b.score)
@@ -1066,38 +1093,28 @@ export function searchAllVault(
   // same predicate — see `passesFilters` below — so the semantics are
   // identical to the old pre-filtered single index.)
   const allowedTypes = parsed.typeFilter ? new Set(typeFilterToTypes(parsed.typeFilter) || []) : null;
-  const filteredDataset = allowedTypes
-    ? searchDataset.filter((d) => allowedTypes.has(d.type))
-    : searchDataset;
 
   // Tag filter: applied to the `tools` field (which doubles as a tag list
   // for tools + sigma + MITRE) and the `category` field (notes/labs/glossary
   // categories). We lowercase both sides and require a substring match.
   const tag = parsed.tagFilter;
-  const tagFilteredDataset = tag
-    ? filteredDataset.filter((d) => {
-        const tagHaystack = `${d.tools} ${d.category}`.toLowerCase();
-        return tagHaystack.includes(tag);
-      })
-    : filteredDataset;
-
   // Platform filter: applied to the `platform` field. Substring match.
   const platform = parsed.platformFilter;
-  const platformFilteredDataset = platform
-    ? tagFilteredDataset.filter((d) => {
-        const platLower = (d.platform || '').toLowerCase();
-        return platLower.includes(platform);
-      })
-    : tagFilteredDataset;
 
-  /** Post-search predicate — the SAME type:/tag:/platform: rules applied to
-   *  Fuse hits coming from the (unfiltered) cached indexes. */
+  /** Predicado combinado type:/tag:/platform: — filtra el dataset ANTES del
+   *  boost loop Y los hits de Fuse post-search (mismas reglas, un solo
+   *  lugar). PERF: UNA sola pasada cuando hay algún filtro activo — antes
+   *  eran hasta 3 copias intermedias del dataset (una por filtro) por
+   *  pulsación. */
   const passesFilters = (d: SearchDocument): boolean => {
     if (allowedTypes && !allowedTypes.has(d.type)) return false;
     if (tag && !(`${d.tools} ${d.category}`.toLowerCase().includes(tag))) return false;
     if (platform && !(d.platform || '').toLowerCase().includes(platform)) return false;
     return true;
   };
+
+  const anyFilter = allowedTypes !== null || tag !== null || platform !== null;
+  const platformFilteredDataset = anyFilter ? searchDataset.filter(passesFilters) : searchDataset;
 
   // ──────────────────────────────────────────────────────────────
   // Boost pipeline: ranks EXACT / substring matches on title or

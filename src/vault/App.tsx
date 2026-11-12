@@ -41,6 +41,9 @@ import { useIamStore } from './store/iamStore';
 import { useSocStore } from './store/socStore';
 import { useHelpdeskStore } from './store/helpdeskStore';
 import { useSysadminStore } from './store/sysadminStore';
+// R6 — hook genérico del patrón "derived state during render" que antes
+// vivía inline x3 (notas / labs / glosario) en este mismo componente.
+import { useDefaultSelection } from './hooks/useDefaultSelection';
 
 /* ------------------------------------------------------------------ */
 /* PERFORMANCE (code-splitting pass):                                  */
@@ -129,40 +132,216 @@ const EMPTY_CATEGORIES: CategoryItem[] = [];
 const EMPTY_TOOLS: ToolItem[] = [];
 const EMPTY_REFERENCES: ReferenceItem[] = [];
 
+/* ------------------------------------------------------------------ */
+/* BOOTSTRAP (R6): helpers de módulo extraídos del useEffect original  */
+/* (~140 líneas, 5 concerns mezclados) para que el efecto lea como una */
+/* orquestación corta. Comportamiento EXACTO preservado: early-return  */
+/* de dev, contrato del cleanup, guard de reload y nombres de listeners.*/
+/* ------------------------------------------------------------------ */
+
+/** AUDIT FIX (VN-AUD-002): la migración v15 (REGLA DE ORO de videos)
+ *  elimina la tabla `videos` de IndexedDB. Los blobs que solo vivieron
+ *  ahí (nunca migrados a la carpeta del usuario) son irrecuperables —
+ *  la migración escribe el conteo en localStorage y ESTE código lo
+ *  muestra como alerta de UNA sola vez (console.warn solo es invisible
+ *  para el usuario). Los archivos de carpeta y los embeds existentes
+ *  no se tocan. */
+function reportDiscardedVideos(): void {
+  try {
+    const raw = window.localStorage.getItem('vaultnotes-v15-discarded-videos');
+    if (raw !== null) {
+      window.localStorage.removeItem('vaultnotes-v15-discarded-videos'); // one-time
+      const count = parseInt(raw, 10);
+      if (Number.isFinite(count) && count > 0) {
+        alert(
+          `Migración a la versión 15 completada (REGLA DE ORO de videos).\n\n` +
+          `${count} video(s) que SOLO existían en la base de datos del navegador se ` +
+          `han descartado: nunca se migraron a tu carpeta de videos y no es posible ` +
+          `recuperarlos desde la app.\n\n` +
+          `Los archivos de tu carpeta de videos NO se han tocado y los videos ya ` +
+          `insertados en notas siguen funcionando con normalidad.`
+        );
+      }
+    }
+  } catch {
+    /* localStorage unavailable — the console.warn in the migration remains */
+  }
+}
+
+/** DEV — NUNCA ejecutar el service worker, sin importar el hostname.
+ *  Por qué importa el hostname: el SW detecta dev vía `localhost`, pero la
+ *  app dev también es alcanzable por hostnames de proxy (paneles de
+ *  preview), donde el SW correría en "modo prod": cache-first para los
+ *  chunks. Las URLs de chunk de Turbopack dev son ESTABLES entre
+ *  reinicios del servidor (p. ej. src_vault_App_tsx_d14bda49._.js), así
+ *  que un SW cacheado sirve CUERPOS de chunk STALE para las MISMAS urls
+ *  tras cada reinicio — un grafo de módulos mixto que muere con "module
+ *  factory is not available" y SOBREVIVE a los reloads manuales.
+ *  Se hace unregister + wipe de caches + un reload guardado (la guard
+ *  evita cualquier loop de recarga). */
+function cleanupDevServiceWorker(): void {
+  (async () => {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      const stale = regs.filter((r) => r.active?.scriptURL?.endsWith('/sw.js'));
+      if (stale.length > 0) {
+        await Promise.all(stale.map((r) => r.unregister()));
+        if (typeof window.caches !== 'undefined') {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+        // Escape the (now-unregistered but still controlling) SW with
+        // one guarded reload; the guard prevents any reload loop.
+        const KEY = '__vault_sw_heal_ts';
+        const last = Number(window.sessionStorage.getItem(KEY) ?? 0);
+        if (Date.now() - last > 30_000) {
+          window.sessionStorage.setItem(KEY, String(Date.now()));
+          window.location.reload();
+        }
+      }
+    } catch {
+      /* storage/SW edge cases (sandboxed iframe etc.) — ignore */
+    }
+  })();
+}
+
+/** PROD — registra el PWA service worker (offline-first del shell) y
+ *  escucha sus actualizaciones para que el usuario vea el nuevo shell
+ *  de inmediato (en vez de quedarse clavado en una versión cacheada).
+ *  Devuelve la función de cleanup (removeEventListener de los dos
+ *  listeners con nombre) para el contrato del useEffect. */
+function registerProdServiceWorker(): () => void {
+  // If a registration exists but is for an OLD sw.js (detected via
+  // the scriptURL or just by version mismatch), unregister it so
+  // the new one takes over on next navigation.
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((regs) => {
+      // scriptURL ends with '/sw.js' for the current one. We just
+      // force-update all of them — the new SW re-registers below.
+      for (const reg of regs) {
+        const scriptURL = reg.active && reg.active.scriptURL;
+        if (scriptURL && scriptURL.endsWith('/sw.js')) {
+          reg.update().catch(() => undefined);
+        }
+      }
+    })
+    .catch(() => undefined);
+
+  // Named handlers so the useEffect cleanup can removeEventListener them.
+  // (Audit Task 2-a MEDIUM: previously anonymous listeners were registered
+  // inside the .then() closure and never removed — a dev-only HMR
+  // duplicate-listener risk, but cleanup is correct hygiene.)
+  let reloaded = false;
+  const onControllerChange = () => {
+    if (!reloaded) {
+      reloaded = true;
+      // Defer the reload so the SW activate finishes first.
+      setTimeout(() => window.location.reload(), 50);
+    }
+  };
+  const onMessage = (event: MessageEvent) => {
+    if (event.data && event.data.type === 'SW_UPDATED') {
+      console.info('[VaultNotes] Service worker updated to cache', event.data.cache);
+    }
+  };
+
+  navigator.serviceWorker
+    .register('/sw.js', { updateViaCache: 'none' })
+    .then(() => {
+      // When a new SW takes over, force a one-time reload so the user
+      // immediately gets the new shell. Without this, the user would
+      // see the OLD app until the next navigation/reload.
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+      }
+    })
+    .catch((err) => {
+      console.warn('Service worker registration failed:', err);
+    });
+
+  // Listen for the SW_UPDATED message from the SW so we can show a
+  // toast / force-reload if needed.
+  navigator.serviceWorker.addEventListener('message', onMessage);
+
+  // Cleanup: remove both listeners on unmount (dev HMR + strict-mode
+  // double-mount safety).
+  return () => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      navigator.serviceWorker.removeEventListener('message', onMessage);
+    }
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* R6 — tablas de módulo que colapsan cadenas if/else duplicadas.       */
+/* ------------------------------------------------------------------ */
+
+// BLOQUE 5 — atajos de herramientas (Ctrl+Shift+<letra>): letra → toolId
+// del deep-link (entryId === toolId en los 5 casos). Las ramas q/n/l del
+// atajo se mantienen explícitas abajo porque hacen cosas distintas.
+const TOOL_SHORTCUTS: Record<string, ToolDeepLink['toolId']> = {
+  i: 'ioc',
+  t: 'timestamp',
+  h: 'hash',
+  r: 'regex',
+  m: 'mitre',
+};
+
+// V17.1 — deep-link de tickets de simulador desde Ctrl+K: pilar → (store
+// zustand, sección destino). R1 dejó los 4 stores como wrappers de la
+// fábrica createTicketSelectionStore — .getState() funciona igual.
+const SIM_TICKET_TARGETS = {
+  iam: { store: useIamStore, section: 'iam' },
+  soc: { store: useSocStore, section: 'soc' },
+  hd: { store: useHelpdeskStore, section: 'helpdesk' },
+  sa: { store: useSysadminStore, section: 'sysadmin' },
+} as const;
+
+// ROADMAP (v18/v19/v21/v9) — sección → variante de RoadmapView. La sección
+// 'roadmap' es la variante IAM POR DEFECTO (sin prop); las otras tres son
+// las especializaciones. Partial + `in` permite distinguir "sección de
+// roadmap con variante undefined" de "sección que no es de roadmap".
+const ROADMAP_SECTIONS: Partial<Record<ActiveSection, 'iam' | 'hd' | 'sa' | 'soc'>> = {
+  roadmap: undefined, // roadmap base = variante IAM (prop ausente)
+  'roadmap-hd': 'hd',
+  'roadmap-sa': 'sa',
+  'roadmap-soc': 'soc',
+};
+
+// V6 FASE 4 / V11 — sección de runbooks → pilar (pillar desde el sufijo).
+const RUNBOOKS_SECTIONS: Partial<Record<ActiveSection, 'hd' | 'sa' | 'soc' | 'iam'>> = {
+  'runbooks-hd': 'hd',
+  'runbooks-sa': 'sa',
+  'runbooks-soc': 'soc',
+  'runbooks-iam': 'iam',
+};
+
+// V9 — sección de troubleshooting → pilar (escaleras de decisión).
+const TROUBLESHOOTING_SECTIONS: Partial<Record<ActiveSection, 'hd' | 'sa' | 'soc' | 'iam'>> = {
+  'troubleshooting-hd': 'hd',
+  'troubleshooting-sa': 'sa',
+  'troubleshooting-soc': 'soc',
+  'troubleshooting-iam': 'iam',
+};
+
+// R6 — criterio de selección por defecto de notas: primero una raíz (sin
+// parentId) y, si no hay, cualquier nota activa (mismo criterio inline
+// original; labs y glosario usan el pick por defecto del hook).
+const pickDefaultNote = (notes: Note[]): Note | undefined =>
+  notes.find((n) => !n.isDeleted && !n.parentId) || notes.find((n) => !n.isDeleted);
+
 export default function App() {
-  // Initialize / seed the local vault database once on mount (browser only)
+  // Initialize / seed the local vault database once on mount (browser only).
+  // R6: la maquinaria vive en los helpers de módulo (arriba) — el efecto es
+  // solo la orquestación: backup engine + init DB + alerta v15 + SW (dev|prod).
   useEffect(() => {
     // AUTO-BACKUP (USB workflow): silent engine — only acts when the user
     // enabled it in Configuración → Respaldo automático. Idempotent.
     startAutoBackupEngine();
     initializeDatabase()
-      .then(() => {
-        // AUDIT FIX (VN-AUD-002): the v15 migration (REGLA DE ORO) deletes the
-        // IndexedDB `videos` table. Blobs that only ever lived there (never
-        // migrated to the user's disk folder) are unrecoverable — the
-        // migration writes the discard count to localStorage and THIS code
-        // surfaces it as a ONE-TIME alert (console.warn alone is invisible to
-        // users). Folder files and existing embeds are untouched.
-        try {
-          const raw = window.localStorage.getItem('vaultnotes-v15-discarded-videos');
-          if (raw !== null) {
-            window.localStorage.removeItem('vaultnotes-v15-discarded-videos'); // one-time
-            const count = parseInt(raw, 10);
-            if (Number.isFinite(count) && count > 0) {
-              alert(
-                `Migración a la versión 15 completada (REGLA DE ORO de videos).\n\n` +
-                `${count} video(s) que SOLO existían en la base de datos del navegador se ` +
-                `han descartado: nunca se migraron a tu carpeta de videos y no es posible ` +
-                `recuperarlos desde la app.\n\n` +
-                `Los archivos de tu carpeta de videos NO se han tocado y los videos ya ` +
-                `insertados en notas siguen funcionando con normalidad.`
-              );
-            }
-          }
-        } catch {
-          /* localStorage unavailable — the console.warn in the migration remains */
-        }
-      })
+      .then(() => reportDiscardedVideos())
       .catch((err) => {
         console.error('Failed to initialize vault database:', err);
       });
@@ -170,106 +349,14 @@ export default function App() {
     // Also listen for SW updates so the user immediately sees the new shell
     // (instead of being stuck on a stale cached version of the app).
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      // DEV — NEVER run the service worker, regardless of hostname.
-      // Why hostname matters: the SW detects dev via `localhost`, but the
-      // dev app is also reachable through proxy hostnames (preview panels),
-      // where the SW would otherwise run in "prod mode": cache-first for
-      // chunks. Turbopack dev chunk URLs are STABLE across server restarts
-      // (e.g. src_vault_App_tsx_d14bda49._.js), so a cached SW happily
-      // serves STALE chunk bodies for the SAME urls after every restart —
-      // a mixed module graph that dies with "module factory is not
-      // available" and SURVIVES manual reloads. Unregister + wipe caches.
+      // DEV — unregister + wipe + guarded reload (ver cleanupDevServiceWorker).
       if (process.env.NODE_ENV === 'development') {
-        (async () => {
-          try {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            const stale = regs.filter((r) => r.active?.scriptURL?.endsWith('/sw.js'));
-            if (stale.length > 0) {
-              await Promise.all(stale.map((r) => r.unregister()));
-              if (typeof window.caches !== 'undefined') {
-                const keys = await caches.keys();
-                await Promise.all(keys.map((k) => caches.delete(k)));
-              }
-              // Escape the (now-unregistered but still controlling) SW with
-              // one guarded reload; the guard prevents any reload loop.
-              const KEY = '__vault_sw_heal_ts';
-              const last = Number(window.sessionStorage.getItem(KEY) ?? 0);
-              if (Date.now() - last > 30_000) {
-                window.sessionStorage.setItem(KEY, String(Date.now()));
-                window.location.reload();
-              }
-            }
-          } catch {
-            /* storage/SW edge cases (sandboxed iframe etc.) — ignore */
-          }
-        })();
+        cleanupDevServiceWorker();
         return; // no SW registration in dev, no listeners to clean up
       }
 
-      // PROD — register the PWA service worker for offline-first shell
-      // caching. Also listen for SW updates so the user immediately sees
-      // the new shell (instead of being stuck on a stale cached version).
-      navigator.serviceWorker
-        .getRegistrations()
-        .then((regs) => {
-          // If a registration exists but is for an OLD sw.js (detected via
-          // the scriptURL or just by version mismatch), unregister it so
-          // the new one takes over on next navigation.
-          for (const reg of regs) {
-            const scriptURL = reg.active && reg.active.scriptURL;
-            // scriptURL ends with '/sw.js' for the current one. We just
-            // force-update all of them — the new SW re-registers below.
-            if (scriptURL && scriptURL.endsWith('/sw.js')) {
-              reg.update().catch(() => undefined);
-            }
-          }
-        })
-        .catch(() => undefined);
-
-      // Named handlers so the useEffect cleanup can removeEventListener them.
-      // (Audit Task 2-a MEDIUM: previously anonymous listeners were registered
-      // inside the .then() closure and never removed — a dev-only HMR
-      // duplicate-listener risk, but cleanup is correct hygiene.)
-      let reloaded = false;
-      const onControllerChange = () => {
-        if (!reloaded) {
-          reloaded = true;
-          // Defer the reload so the SW activate finishes first.
-          setTimeout(() => window.location.reload(), 50);
-        }
-      };
-      const onMessage = (event: MessageEvent) => {
-        if (event.data && event.data.type === 'SW_UPDATED') {
-          console.info('[VaultNotes] Service worker updated to cache', event.data.cache);
-        }
-      };
-
-      navigator.serviceWorker
-        .register('/sw.js', { updateViaCache: 'none' })
-        .then(() => {
-          // When a new SW takes over, force a one-time reload so the user
-          // immediately gets the new shell. Without this, the user would
-          // see the OLD app until the next navigation/reload.
-          if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-          }
-        })
-        .catch((err) => {
-          console.warn('Service worker registration failed:', err);
-        });
-
-      // Listen for the SW_UPDATED message from the SW so we can show a
-      // toast / force-reload if needed.
-      navigator.serviceWorker.addEventListener('message', onMessage);
-
-      // Cleanup: remove both listeners on unmount (dev HMR + strict-mode
-      // double-mount safety).
-      return () => {
-        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-          navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-          navigator.serviceWorker.removeEventListener('message', onMessage);
-        }
-      };
+      // PROD — registro + listeners; el cleanup se devuelve para el efecto.
+      return registerProdServiceWorker();
     }
   }, []);
 
@@ -342,12 +429,35 @@ export default function App() {
   const handleOpenSearch = useCallback(() => setIsSearchOpen(true), []);
   const handleOpenMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
   const handleOpenQuickCapture = useCallback(() => setIsQuickCaptureOpen(true), []);
-  const handleOpenNewItem = useCallback((tab?: 'note' | 'lab' | 'glossary') => {
-    if (tab) setNewItemTab(tab);
-    setNewItemPlatform('');
-    setNewItemContent('');
-    setPendingInboxConvert(null);
-    setIsNewItemOpen(true);
+  // R6 — ÚNICO punto de entrada al modal de nuevo ítem (los 4 sitios que
+  // duplicaban la secuencia de setters: Header, Ctrl+Shift+N, paleta de
+  // comandos y Dashboard). `clearPendingConvert = false` reproduce
+  // EXACTAMENTE las ramas de atajo/paleta, que NO limpiaban una
+  // conversión Inbox pendiente (ver handleOpenNewItem original).
+  const openNewItemModal = useCallback(
+    (tab?: 'note' | 'lab' | 'glossary', platform = '', clearPendingConvert = true) => {
+      if (tab) setNewItemTab(tab);
+      setNewItemPlatform(platform);
+      setNewItemContent('');
+      if (clearPendingConvert) setPendingInboxConvert(null);
+      setIsNewItemOpen(true);
+    },
+    []
+  );
+  // R6 — navegación reutilizable: los mismos arrows inline (cuerpo
+  // idéntico) estaban duplicados entre Dashboard, búsqueda global y los
+  // saltos entre vistas (glosario → nota, modal → sección, etc.).
+  const handleOpenNote = useCallback((noteId: string) => {
+    setSelectedNoteId(noteId);
+    setActiveSection('notes');
+  }, []);
+  const handleOpenLab = useCallback((labId: string) => {
+    setSelectedLabId(labId);
+    setActiveSection('labs');
+  }, []);
+  const handleOpenGlossaryTerm = useCallback((termId: string) => {
+    setSelectedTermId(termId);
+    setActiveSection('glossary');
   }, []);
 
   // Deep-link into the Tools view — when set, ToolsView switches the active
@@ -373,32 +483,11 @@ export default function App() {
   // del React Compiler, eslint-config-next 16.4.5). Se recalcula solo
   // cuando cambia la colección; respeta una selección explícita del
   // usuario y repone una si la seleccionada desaparece con la colección.
-  const [prevNotes, setPrevNotes] = useState<typeof notes | null>(null);
-  if (notes !== prevNotes) {
-    setPrevNotes(notes);
-    if (!selectedNoteId || !notes.some((n) => n.id === selectedNoteId && !n.isDeleted)) {
-      const active = notes.find((n) => !n.isDeleted && !n.parentId) || notes.find((n) => !n.isDeleted);
-      if (active) setSelectedNoteId(active.id);
-    }
-  }
-
-  const [prevLabs, setPrevLabs] = useState<typeof labs | null>(null);
-  if (labs !== prevLabs) {
-    setPrevLabs(labs);
-    if (!selectedLabId || !labs.some((l) => l.id === selectedLabId && !l.isDeleted)) {
-      const active = labs.find((l) => !l.isDeleted);
-      if (active) setSelectedLabId(active.id);
-    }
-  }
-
-  const [prevGlossary, setPrevGlossary] = useState<typeof glossary | null>(null);
-  if (glossary !== prevGlossary) {
-    setPrevGlossary(glossary);
-    if (!selectedTermId || !glossary.some((g) => g.id === selectedTermId && !g.isDeleted)) {
-      const active = glossary.find((g) => !g.isDeleted);
-      if (active) setSelectedTermId(active.id);
-    }
-  }
+  // R6: el patrón (idéntico x3) vive ahora en useDefaultSelection — notas
+  // con pick propio (raíz primero), labs y glosario con el pick por defecto.
+  useDefaultSelection(notes, selectedNoteId, setSelectedNoteId, pickDefaultNote);
+  useDefaultSelection(labs, selectedLabId, setSelectedLabId);
+  useDefaultSelection(glossary, selectedTermId, setSelectedTermId);
 
   // BLOQUE 5 — Global Keyboard Shortcuts.
   // Existing: Ctrl+K (search), Ctrl+Shift+Q (quick capture).
@@ -432,39 +521,27 @@ export default function App() {
         setIsQuickCaptureOpen(true);
       } else if (letter === 'n') {
         e.preventDefault();
-        setNewItemTab('note');
-        setNewItemPlatform('');
-        setNewItemContent('');
-        setIsNewItemOpen(true);
+        // Misma secuencia exacta que la rama original: tab 'note', reset
+        // de plataforma/contenido y SIN limpiar pendingInboxConvert.
+        openNewItemModal('note', '', false);
       } else if (letter === 'l') {
         e.preventDefault();
         setNewItemTab('lab');
         setIsNewItemOpen(true);
-      } else if (letter === 'i') {
-        e.preventDefault();
-        setPendingTool({ toolId: 'ioc', entryId: 'ioc' });
-        setActiveSection('tools');
-      } else if (letter === 't') {
-        e.preventDefault();
-        setPendingTool({ toolId: 'timestamp', entryId: 'timestamp' });
-        setActiveSection('tools');
-      } else if (letter === 'h') {
-        e.preventDefault();
-        setPendingTool({ toolId: 'hash', entryId: 'hash' });
-        setActiveSection('tools');
-      } else if (letter === 'r') {
-        e.preventDefault();
-        setPendingTool({ toolId: 'regex', entryId: 'regex' });
-        setActiveSection('tools');
-      } else if (letter === 'm') {
-        e.preventDefault();
-        setPendingTool({ toolId: 'mitre', entryId: 'mitre' });
-        setActiveSection('tools');
+      } else {
+        // BLOQUE 5 — atajos de herramientas (i/t/h/r/m), table-driven:
+        // letra → toolId (entryId === toolId en los 5 deep-links).
+        const toolId = TOOL_SHORTCUTS[letter];
+        if (toolId) {
+          e.preventDefault();
+          setPendingTool({ toolId, entryId: toolId });
+          setActiveSection('tools');
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [openNewItemModal]);
 
   // Filtered lists
   const activeNotes = useMemo(() => notes.filter((n) => !n.isDeleted), [notes]);
@@ -572,7 +649,14 @@ export default function App() {
       platform: '',
       category: '',
       contentHtml: pending.contentHtml,
-    }).finally(() => clearPendingNote());
+    })
+      // R6 — .finally NO captura rechazos: sin este .catch, una creación
+      // fallida (p. ej. IndexedDB bloqueada) dejaba una promesa rechazada
+      // sin manejar. Se loguea y SIEMPRE se limpia el pending del store.
+      .catch((err) => {
+        console.error('AddToNote: create new note failed:', err);
+      })
+      .finally(() => clearPendingNote());
   };
 
   // "Añadir a nota existente" — append `<hr/><h2>title</h2>` + contentHtml to
@@ -845,12 +929,15 @@ export default function App() {
     }
   };
 
-  const handleUpdateTerm = async (termId: string, updated: Partial<GlossaryTerm>) => {
+  // PERF V13 (R6): useCallback — mismo convenio que handleUpdateNote /
+  // handleUpdateLab; sin él cada re-render de App recrea el handler y
+  // derrota el React.memo de las vistas que lo reciben.
+  const handleUpdateTerm = useCallback(async (termId: string, updated: Partial<GlossaryTerm>) => {
     await db.glossary.update(termId, {
       ...updated,
       updatedAt: new Date().toISOString(),
     });
-  };
+  }, []);
 
   const handleDeleteTerm = async (termId: string) => {
     await db.glossary.update(termId, {
@@ -1015,63 +1102,65 @@ export default function App() {
   // the corresponding App-level action: open a section, open a tool, open
   // the New Item modal, fire backup export/import, etc.
   const handleCommandPalette = (commandId: string) => {
-    if (commandId === 'new-note') {
-      setNewItemTab('note');
-      setNewItemPlatform('');
-      setNewItemContent('');
-      setIsNewItemOpen(true);
-    } else if (commandId === 'new-lab') {
-      setNewItemTab('lab');
-      setIsNewItemOpen(true);
-    } else if (commandId === 'new-glossary') {
-      setNewItemTab('glossary');
-      setIsNewItemOpen(true);
-    } else if (commandId === 'new-reference') {
-      // No dedicated modal — switch to references view; the user can use the
-      // existing inline add UI there.
-      setActiveSection('references');
-    } else if (commandId === 'quick-capture') {
-      setIsQuickCaptureOpen(true);
-    } else if (commandId === 'show-shortcuts') {
-      setIsShortcutsOpen(true);
-    } else if (commandId.startsWith('open-section:')) {
+    // R6 — comandos de coincidencia EXACTA, table-driven (la tabla se
+    // construye aquí porque cierra sobre setters/handlers del componente;
+    // los prefijados open-section:/open-tool: llevan payload y van aparte).
+    const exactCommands: Record<string, () => void> = {
+      'new-note': () => openNewItemModal('note', '', false),
+      'new-lab': () => {
+        setNewItemTab('lab');
+        setIsNewItemOpen(true);
+      },
+      'new-glossary': () => {
+        setNewItemTab('glossary');
+        setIsNewItemOpen(true);
+      },
+      'new-reference': () => {
+        // No dedicated modal — switch to references view; the user can use
+        // the existing inline add UI there.
+        setActiveSection('references');
+      },
+      'quick-capture': () => setIsQuickCaptureOpen(true),
+      'show-shortcuts': () => setIsShortcutsOpen(true),
+      'backup-now': () => {
+        void handleExportBackup();
+      },
+      'import-backup': () => {
+        // Trigger the hidden file input from the Header via a synthetic event.
+        // The header renders its own <input type=file>; the simplest approach
+        // here is to open the references view where the user can use the Import
+        // button in the header (which is always rendered).
+        // We rely on the Header's existing Import button; just focus it visually.
+        setActiveSection('settings');
+      },
+    };
+    const exactCommand = exactCommands[commandId];
+    if (exactCommand) {
+      exactCommand();
+      return;
+    }
+    if (commandId.startsWith('open-section:')) {
       const section = commandId.slice('open-section:'.length) as ActiveSection;
       setActiveSection(section);
-    } else if (commandId.startsWith('open-tool:')) {
+      return;
+    }
+    if (commandId.startsWith('open-tool:')) {
       const toolId = commandId.slice('open-tool:'.length);
       // BLOQUE 5 — record tool use when the user opens a tool from the
       // command palette (light metadata only: toolId + timestamp).
       setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
       // V11 — sección de herramientas UNIFICADA (un solo catálogo).
       setActiveSection('tools');
-    } else if (commandId === 'backup-now') {
-      void handleExportBackup();
-    } else if (commandId === 'import-backup') {
-      // Trigger the hidden file input from the Header via a synthetic event.
-      // The header renders its own <input type=file>; the simplest approach
-      // here is to open the references view where the user can use the Import
-      // button in the header (which is always rendered).
-      // We rely on the Header's existing Import button; just focus it visually.
-      setActiveSection('settings');
     }
   };
 
   // V17.1 — deep-link de tickets de simulador desde Ctrl+K: selecciona en el
   // store del pilar y navega. Los stores son zustand → getState() fuera de React.
-  const handleOpenSimTicket = (pillar: 'iam' | 'soc' | 'hd' | 'sa', ticketId: string) => {
-    if (pillar === 'iam') {
-      useIamStore.getState().selectTicket(ticketId);
-      setActiveSection('iam');
-    } else if (pillar === 'soc') {
-      useSocStore.getState().selectTicket(ticketId);
-      setActiveSection('soc');
-    } else if (pillar === 'hd') {
-      useHelpdeskStore.getState().selectTicket(ticketId);
-      setActiveSection('helpdesk');
-    } else {
-      useSysadminStore.getState().selectTicket(ticketId);
-      setActiveSection('sysadmin');
-    }
+  // R6 — if/else de 4 ramas → lookup SIM_TICKET_TARGETS (tabla de módulo).
+  const handleOpenSimTicket = (pillar: keyof typeof SIM_TICKET_TARGETS, ticketId: string) => {
+    const target = SIM_TICKET_TARGETS[pillar];
+    target.store.getState().selectTicket(ticketId);
+    setActiveSection(target.section);
   };
 
   // BLOQUE 5 — Inbox "Convert to Note/Glossary" entry point.
@@ -1101,6 +1190,16 @@ export default function App() {
     setNewItemContent('');
   };
 
+  // R6 — variantes activas por familia de sección: colapsan las 12 ramas
+  // JSX (4 roadmap + 4 runbooks + 4 troubleshooting) en un render por
+  // familia con lookup de módulo. `null` = la sección activa no es de esa
+  // familia (la vista no se monta). Ojo: el roadmap base SÍ renderiza con
+  // variante `undefined` (RoadmapView usa la IAM por defecto), por eso su
+  // chequeo es `!== null` y usa `in` en vez de `?? null`.
+  const roadmapVariant = activeSection in ROADMAP_SECTIONS ? ROADMAP_SECTIONS[activeSection] : null;
+  const runbooksPillar = RUNBOOKS_SECTIONS[activeSection] ?? null;
+  const troubleshootingPillar = TROUBLESHOOTING_SECTIONS[activeSection] ?? null;
+
   return (
     // VN-F audit fix — top-level Error Boundary: an uncaught render error
     // used to white-screen the whole app; now it shows a recovery panel
@@ -1126,7 +1225,7 @@ export default function App() {
           activeSection={activeSection}
           onOpenSearch={handleOpenSearch}
           onOpenMobileSidebar={handleOpenMobileSidebar}
-          onOpenNewItem={handleOpenNewItem}
+          onOpenNewItem={openNewItemModal}
           onOpenQuickCapture={handleOpenQuickCapture}
           onExport={handleExportBackup}
           onImportFile={handleImportFile}
@@ -1141,26 +1240,14 @@ export default function App() {
               notes={notes}
               labs={labs}
               glossary={glossary}
-              onSelectNote={(noteId) => {
-                setSelectedNoteId(noteId);
-                setActiveSection('notes');
-              }}
-              onSelectLab={(labId) => {
-                setSelectedLabId(labId);
-                setActiveSection('labs');
-              }}
+              onSelectNote={handleOpenNote}
+              onSelectLab={handleOpenLab}
               onOpenNotesView={() => setActiveSection('notes')}
               onOpenLabsView={() => setActiveSection('labs')}
               // BLOQUE 5 — Quick Actions wiring (section switch, New Item modal,
               // and direct tool deep-link). All optional props on the dashboard.
               onSelectSection={(section) => setActiveSection(section)}
-              onOpenNewItem={(tab) => {
-                setNewItemTab(tab);
-                setNewItemPlatform('');
-                setNewItemContent('');
-                setPendingInboxConvert(null);
-                setIsNewItemOpen(true);
-              }}
+              onOpenNewItem={openNewItemModal}
               onOpenTool={(toolId) => {
                 setPendingTool({ toolId: toolId as ToolDeepLink['toolId'], entryId: toolId });
                 setActiveSection('tools');
@@ -1184,10 +1271,7 @@ export default function App() {
                 setIsNewItemOpen(true);
               }}
               onCreateSubnote={handleCreateSubnote}
-              onOpenGlossaryTerm={(termId) => {
-                setSelectedTermId(termId);
-                setActiveSection('glossary');
-              }}
+              onOpenGlossaryTerm={handleOpenGlossaryTerm}
             />
           )}
 
@@ -1220,10 +1304,7 @@ export default function App() {
                 setNewItemTab('glossary');
                 setIsNewItemOpen(true);
               }}
-              onOpenNote={(noteId) => {
-                setSelectedNoteId(noteId);
-                setActiveSection('notes');
-              }}
+              onOpenNote={handleOpenNote}
             />
           )}
 
@@ -1232,9 +1313,12 @@ export default function App() {
               y se exporta como Markdown AI-ready desde la propia vista. */}
           {activeSection === 'profile' && <ProfileView />}
 
-          {/* ROADMAP (v18) — checklist interactivo del roadmap Junior IAM
-              (tiers/fases/ítems) con progreso persistente en DB. */}
-          {activeSection === 'roadmap' && <RoadmapView />}
+          {/* ROADMAP (v18) — checklist interactivo del roadmap con progreso
+              persistente en DB. Variantes por pilar: 'roadmap' = Junior IAM
+              (variante por defecto, sin prop) · 'roadmap-hd' (v19, HelpDesk /
+              IT Support) · 'roadmap-sa' (v21, Infra & Ops → SRE) ·
+              'roadmap-soc' (v9, Blue Team). */}
+          {roadmapVariant !== null && <RoadmapView variant={roadmapVariant} />}
 
           {/* HELPDESK (v19) — Simulador Service Desk: cola de tickets con
               modo estudio (revelado progresivo), proyecto final (30 tickets
@@ -1243,16 +1327,9 @@ export default function App() {
           {activeSection === 'helpdesk' && (
             <HelpDeskView
               glossaryTerms={activeTerms}
-              onOpenGlossaryTerm={(termId) => {
-                setSelectedTermId(termId);
-                setActiveSection('glossary');
-              }}
+              onOpenGlossaryTerm={handleOpenGlossaryTerm}
             />
           )}
-
-          {/* ROADMAP HELPDESK (v19) — checklist de la especialización de
-              entrada HelpDesk / IT Support → IAM (misma vista, variante hd). */}
-          {activeSection === 'roadmap-hd' && <RoadmapView variant="hd" />}
 
           {/* SYSADMIN (v21) — Simulador de Infraestructura & Operaciones:
               cola de tickets de guardia con modo estudio, proyecto final
@@ -1261,16 +1338,9 @@ export default function App() {
           {activeSection === 'sysadmin' && (
             <SysAdminView
               glossaryTerms={activeTerms}
-              onOpenGlossaryTerm={(termId) => {
-                setSelectedTermId(termId);
-                setActiveSection('glossary');
-              }}
+              onOpenGlossaryTerm={handleOpenGlossaryTerm}
             />
           )}
-
-          {/* ROADMAP SYSADMIN (v21) — checklist de la especialización
-              Infra & Ops → SRE (misma vista, variante sa). */}
-          {activeSection === 'roadmap-sa' && <RoadmapView variant="sa" />}
 
           {/* SOC (v9 simulador) — Simulador del Blue Team: cola de casos con
               torre de detección (Identity/Endpoint/Network/Email/Cloud/Web),
@@ -1280,10 +1350,7 @@ export default function App() {
           {activeSection === 'soc' && (
             <SocView
               glossaryTerms={activeTerms}
-              onOpenGlossaryTerm={(termId) => {
-                setSelectedTermId(termId);
-                setActiveSection('glossary');
-              }}
+              onOpenGlossaryTerm={handleOpenGlossaryTerm}
             />
           )}
 
@@ -1296,10 +1363,7 @@ export default function App() {
           {activeSection === 'iam' && (
             <IamView
               glossaryTerms={activeTerms}
-              onOpenGlossaryTerm={(termId) => {
-                setSelectedTermId(termId);
-                setActiveSection('glossary');
-              }}
+              onOpenGlossaryTerm={handleOpenGlossaryTerm}
             />
           )}
 
@@ -1323,10 +1387,7 @@ export default function App() {
           {activeSection === 'references' && (
             <ReferencesView
               glossaryTerms={activeTerms}
-              onOpenGlossaryTerm={(termId) => {
-                setSelectedTermId(termId);
-                setActiveSection('glossary');
-              }}
+              onOpenGlossaryTerm={handleOpenGlossaryTerm}
             />
           )}
 
@@ -1362,36 +1423,17 @@ export default function App() {
 
           {/* V11 — Runbooks por pilar (incluye los QUICK FIXES ex-CheatSheet
               fusionados): ticket real + paso a paso universal + respuesta
-              en inglés copiable (datasets estáticos, sin Dexie). */}
-          {activeSection === 'runbooks-hd' && (
-            <RunbooksView pillar="hd" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
-          )}
-          {activeSection === 'runbooks-sa' && (
-            <RunbooksView pillar="sa" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
-          )}
-          {activeSection === 'runbooks-soc' && (
-            <RunbooksView pillar="soc" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
-          )}
-          {activeSection === 'runbooks-iam' && (
-            <RunbooksView pillar="iam" autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
+              en inglés copiable (datasets estáticos, sin Dexie). Un pilar por
+              sección: runbooks-hd / -sa / -soc / -iam. */}
+          {runbooksPillar !== null && (
+            <RunbooksView pillar={runbooksPillar} autoSelectId={pendingRunbookId} onConsumeAutoSelect={() => setPendingRunbookId(null)} />
           )}
 
-          {/* V9 — Troubleshooting por pilar (escaleras de decisión). */}
-          {activeSection === 'troubleshooting-hd' && (
-            <TroubleshootingView pillar="hd" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
+          {/* V9 — Troubleshooting por pilar (escaleras de decisión):
+              troubleshooting-hd / -sa / -soc / -iam. */}
+          {troubleshootingPillar !== null && (
+            <TroubleshootingView pillar={troubleshootingPillar} autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
           )}
-          {activeSection === 'troubleshooting-sa' && (
-            <TroubleshootingView pillar="sa" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
-          )}
-          {activeSection === 'troubleshooting-soc' && (
-            <TroubleshootingView pillar="soc" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
-          )}
-          {activeSection === 'troubleshooting-iam' && (
-            <TroubleshootingView pillar="iam" autoSelectId={pendingTroubleshootingId} onConsumeAutoSelect={() => setPendingTroubleshootingId(null)} />
-          )}
-
-          {/* V9 — Roadmap SOC (cuarto roadmap, variante soc). */}
-          {activeSection === 'roadmap-soc' && <RoadmapView variant="soc" />}
         </main>
       </div>
 
@@ -1406,18 +1448,9 @@ export default function App() {
           labs={activeLabs}
           glossary={activeTerms}
           references={activeReferences}
-          onSelectNote={(noteId) => {
-            setSelectedNoteId(noteId);
-            setActiveSection('notes');
-          }}
-          onSelectLab={(labId) => {
-            setSelectedLabId(labId);
-            setActiveSection('labs');
-          }}
-          onSelectGlossaryTerm={(termId) => {
-            setSelectedTermId(termId);
-            setActiveSection('glossary');
-          }}
+          onSelectNote={handleOpenNote}
+          onSelectLab={handleOpenLab}
+          onSelectGlossaryTerm={handleOpenGlossaryTerm}
           onSelectReference={() => {
             // No reference detail view yet — just switch to references section.
             setActiveSection('references');
@@ -1472,7 +1505,7 @@ export default function App() {
           with the prefilled title state. Lazily mounted (chunk loads on first open). */}
       {isNewItemOpen && (
         <NewItemModal
-          key={`new-item-${newItemTab}-${newItemPlatform}-${newItemContent}-${String(isNewItemOpen)}`}
+          key={`new-item-${newItemTab}-${newItemPlatform}-${newItemContent}`}
           isOpen
           onClose={handleCloseNewItem}
           initialTab={newItemTab}

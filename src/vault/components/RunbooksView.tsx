@@ -4,6 +4,9 @@ import {
   LifeBuoy, Search, ArrowLeft, CheckCircle2, AlertTriangle, Terminal, X,
   ClipboardList, TrendingDown, Stethoscope, ListOrdered, Copy, FileCheck2,
   ArrowUpRight, Languages, FileText, Ticket, Wrench,
+  // R5 — iconos reales de los pilares SOC e IAM (antes eran stubs que
+  // renderizaban <LifeBuoy> como placeholder).
+  Shield, IdCard,
 } from 'lucide-react';
 import { type PillarRunbook, type RunbookStep } from '../data/runbooksCore';
 import { RUNBOOKS_HD, RUNBOOKS_HD_COUNT, RUNBOOKS_HD_CATEGORIES } from '../data/runbooksHelpDesk';
@@ -90,7 +93,7 @@ const PILLAR_CONFIG: Record<RunbookViewPillar, PillarConfig> = {
   soc: {
     label: 'Runbooks — SOC / Blue Team',
     subtitle: 'Detection → Investigation → Evidence → Containment → Remediation → Verification → Escalation',
-    icon: <ShieldIcon />,
+    icon: <Shield className="w-5 h-5" />,
     entries: RUNBOOKS_SOC,
     count: RUNBOOKS_SOC_COUNT,
     categories: RUNBOOKS_SOC_CATEGORIES,
@@ -103,7 +106,7 @@ const PILLAR_CONFIG: Record<RunbookViewPillar, PillarConfig> = {
   iam: {
     label: 'Runbooks — IAM / Identity & Access',
     subtitle: 'JML · Access · PAM · Gobernanza — cada problema como ticket real con paso a paso universal y respuesta en inglés copiable',
-    icon: <IdCardIcon />,
+    icon: <IdCard className="w-5 h-5" />,
     entries: RUNBOOKS_IAM,
     count: RUNBOOKS_IAM_COUNT,
     categories: RUNBOOKS_IAM_CATEGORIES,
@@ -114,14 +117,6 @@ const PILLAR_CONFIG: Record<RunbookViewPillar, PillarConfig> = {
     englishBorder: 'border-violet-500/20',
   },
 };
-
-function ShieldIcon() {
-  return <LifeBuoy className="w-5 h-5" />;
-}
-
-function IdCardIcon() {
-  return <LifeBuoy className="w-5 h-5" />;
-}
 
 /** Bloque copiable en inglés (respuesta al cliente / explicación técnica). */
 const EnglishBlock: React.FC<{

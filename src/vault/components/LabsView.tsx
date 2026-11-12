@@ -50,6 +50,74 @@ interface LabsViewProps {
   onCreateLab: () => void;
 }
 
+/* --- FilterAccordion (R5) — los 4 acordeones de filtros del sidebar
+       (Organización / Tema / Estado / Dificultad) compartían ~194 líneas de
+       markup casi idéntico: botón toggle + ChevronDown rotando + checkbox
+       custom + contador. Unificados preservando clases, colores y badges
+       exactos. --- */
+interface FilterAccordionProps {
+  /** Título del acordeón (uppercase tracking-widest). */
+  title: string;
+  /** Ítems: id (valor del filtro), label visible, contador del badge y
+   *  clases extra del label (color en Estado/Dificultad, max-w en Tema). */
+  items: Array<{ id: string; label: string; count: number; labelClassName?: string }>;
+  /** Ids seleccionados (se marcan como checked). */
+  selected: string[];
+  onToggle: (id: string) => void;
+  open: boolean;
+  onOpenToggle: () => void;
+  /** Hint de ayuda cuando no hay ítems (solo Organización lo pasa). */
+  emptyHint?: React.ReactNode;
+}
+
+const FilterAccordion: React.FC<FilterAccordionProps> = ({ title, items, selected, onToggle, open, onOpenToggle, emptyHint }) => (
+  <div className="space-y-2">
+    <button
+      onClick={onOpenToggle}
+      className="w-full flex items-center justify-between text-left text-[10px] font-bold uppercase tracking-widest text-[#888] hover:text-white"
+    >
+      <span>{title}</span>
+      <ChevronDown
+        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+          open ? 'rotate-0' : '-rotate-90'
+        }`}
+      />
+    </button>
+
+    {open && (
+      <div className="space-y-1.5 pl-1">
+        {items.map((item) => {
+          const isChecked = selected.includes(item.id);
+          return (
+            <label
+              key={item.id}
+              className="flex items-center justify-between text-xs text-[#BBB] hover:text-white cursor-pointer group py-0.5"
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  onClick={() => onToggle(item.id)}
+                  className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${
+                    isChecked
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'border-[#444] bg-[#161616] group-hover:border-[#777]'
+                  }`}
+                >
+                  {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                </div>
+                <span className={item.labelClassName ? `truncate ${item.labelClassName}` : 'truncate'}>{item.label}</span>
+              </div>
+              <span className="text-[10px] font-mono text-[#828282]">{item.count}</span>
+            </label>
+          );
+        })}
+
+        {/* ¿Sin ítems todavía? hint de ayuda (solo lo pasa Organización). */}
+        {items.length === 0 && emptyHint}
+      </div>
+    )}
+  </div>
+);
+
 export const LabsView: React.FC<LabsViewProps> = ({
   labs,
   categories,
@@ -107,6 +175,32 @@ export const LabsView: React.FC<LabsViewProps> = ({
     return Array.from(set);
   }, [activeLabs, categories]);
 
+  // R5 — contadores por dimensión precalculados en UN useMemo cada uno.
+  // Antes cada ítem de cada acordeón hacía `activeLabs.filter(...).length`
+  // inline (O(items×labs) ×4 por render); ahora es un lookup O(1) al Map.
+  // Sigue contando sobre activeLabs COMPLETO (igual que antes: los
+  // contadores no dependen de los demás filtros activos).
+  const orgCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of activeLabs) m.set(l.organization, (m.get(l.organization) ?? 0) + 1);
+    return m;
+  }, [activeLabs]);
+  const topicCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of activeLabs) m.set(l.topic, (m.get(l.topic) ?? 0) + 1);
+    return m;
+  }, [activeLabs]);
+  const statusCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of activeLabs) m.set(l.status, (m.get(l.status) ?? 0) + 1);
+    return m;
+  }, [activeLabs]);
+  const difficultyCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of activeLabs) m.set(l.difficulty, (m.get(l.difficulty) ?? 0) + 1);
+    return m;
+  }, [activeLabs]);
+
   // Filter logic
   const filteredLabs = useMemo(() => {
     return activeLabs.filter((lab) => {
@@ -137,6 +231,23 @@ export const LabsView: React.FC<LabsViewProps> = ({
   const currentLab = useMemo(() => {
     return activeLabs.find((l) => l.id === selectedLabId) || filteredLabs[0] || null;
   }, [activeLabs, selectedLabId, filteredLabs]);
+
+  // R5 — PERF: wrappers con identidad estable para LabDetailEditor (ahora
+  // React.memo). Antes los inline lambdas del call-site recreaban ambas
+  // props en cada render y el editor completo (680 líneas) se re-renderizaba
+  // con CADA TECLA del buscador de labs. Con esto, y siendo `lab` (misma
+  // referencia devuelta por el find) y `topics` (useMemo) estables al
+  // teclear en el buscador, el memo corta el re-render del editor.
+  const currentLabId = currentLab?.id;
+  const handleEditorUpdateLab = useCallback(
+    (updated: Partial<Lab>) => {
+      if (currentLabId) onUpdateLab(currentLabId, updated);
+    },
+    [currentLabId, onUpdateLab]
+  );
+  const handleEditorDeleteLab = useCallback(() => {
+    if (currentLabId) onDeleteLab(currentLabId);
+  }, [currentLabId, onDeleteLab]);
 
   // Handlers for checkboxes
   const toggleOrgFilter = (org: string) => {
@@ -197,210 +308,81 @@ export const LabsView: React.FC<LabsViewProps> = ({
         </div>
 
         <div className="p-3 space-y-4">
-          {/* Organization Accordion */}
-          <div className="space-y-2">
-            <button
-              onClick={() => setIsOrgFilterOpen(!isOrgFilterOpen)}
-              className="w-full flex items-center justify-between text-left text-[10px] font-bold uppercase tracking-widest text-[#888] hover:text-white"
-            >
-              <span>Organización</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isOrgFilterOpen ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </button>
-
-            {isOrgFilterOpen && (
-              <div className="space-y-1.5 pl-1">
-                {allOrganizations.map((org) => {
-                  const isChecked = selectedOrgs.includes(org);
-                  const count = activeLabs.filter((l) => l.organization === org).length;
-                  return (
-                    <label
-                      key={org}
-                      className="flex items-center justify-between text-xs text-[#BBB] hover:text-white cursor-pointer group py-0.5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          onClick={() => toggleOrgFilter(org)}
-                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${
-                            isChecked
-                              ? 'bg-blue-600 border-blue-600 text-white'
-                              : 'border-[#444] bg-[#161616] group-hover:border-[#777]'
-                          }`}
-                        >
-                          {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                        </div>
-                        <span className="truncate">{org}</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
-                    </label>
-                  );
-                })}
-
-                {/* No organizations yet? helpful empty hint */}
-                {allOrganizations.length === 0 && (
-                  <span className="text-[10px] text-[#858585] italic pl-1">
-                    Aparecen automáticamente cuando crees labs.
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Organization Accordion — R5: markup unificado en FilterAccordion */}
+          <FilterAccordion
+            title="Organización"
+            items={allOrganizations.map((org) => ({ id: org, label: org, count: orgCounts.get(org) ?? 0 }))}
+            selected={selectedOrgs}
+            onToggle={toggleOrgFilter}
+            open={isOrgFilterOpen}
+            onOpenToggle={() => setIsOrgFilterOpen(!isOrgFilterOpen)}
+            emptyHint={
+              <span className="text-[10px] text-[#858585] italic pl-1">
+                Aparecen automáticamente cuando crees labs.
+              </span>
+            }
+          />
 
           <div className="h-px bg-[#262626]" />
 
-          {/* Theme / Topic Accordion */}
-          <div className="space-y-2">
-            <button
-              onClick={() => setIsTopicFilterOpen(!isTopicFilterOpen)}
-              className="w-full flex items-center justify-between text-left text-[10px] font-bold uppercase tracking-widest text-[#888] hover:text-white"
-            >
-              <span>Tema / Especialidad</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isTopicFilterOpen ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </button>
-
-            {isTopicFilterOpen && (
-              <div className="space-y-1.5 pl-1">
-                {allTopics.map((topic) => {
-                  const isChecked = selectedTopics.includes(topic);
-                  const count = activeLabs.filter((l) => l.topic === topic).length;
-                  return (
-                    <label
-                      key={topic}
-                      className="flex items-center justify-between text-xs text-[#BBB] hover:text-white cursor-pointer group py-0.5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          onClick={() => toggleTopicFilter(topic)}
-                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${
-                            isChecked
-                              ? 'bg-blue-600 border-blue-600 text-white'
-                              : 'border-[#444] bg-[#161616] group-hover:border-[#777]'
-                          }`}
-                        >
-                          {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                        </div>
-                        <span className="truncate max-w-[140px]">{topic}</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Theme / Topic Accordion — R5: markup unificado en FilterAccordion */}
+          <FilterAccordion
+            title="Tema / Especialidad"
+            items={allTopics.map((topic) => ({
+              id: topic,
+              label: topic,
+              count: topicCounts.get(topic) ?? 0,
+              labelClassName: 'max-w-[140px]',
+            }))}
+            selected={selectedTopics}
+            onToggle={toggleTopicFilter}
+            open={isTopicFilterOpen}
+            onOpenToggle={() => setIsTopicFilterOpen(!isTopicFilterOpen)}
+          />
 
           <div className="h-px bg-[#262626]" />
 
-          {/* Status Accordion */}
-          <div className="space-y-2">
-            <button
-              onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
-              className="w-full flex items-center justify-between text-left text-[10px] font-bold uppercase tracking-widest text-[#888] hover:text-white"
-            >
-              <span>Estado</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isStatusFilterOpen ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </button>
-
-            {isStatusFilterOpen && (
-              <div className="space-y-1.5 pl-1">
-                {(['En progreso', 'Completado', 'No iniciado'] as LabStatus[]).map((status) => {
-                  const isChecked = selectedStatuses.includes(status);
-                  const count = activeLabs.filter((l) => l.status === status).length;
-                  const color =
-                    status === 'Completado'
-                      ? 'text-green-400'
-                      : status === 'En progreso'
-                      ? 'text-blue-400'
-                      : 'text-[#888]';
-                  return (
-                    <label
-                      key={status}
-                      className="flex items-center justify-between text-xs text-[#BBB] hover:text-white cursor-pointer group py-0.5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          onClick={() => toggleStatusFilter(status)}
-                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${
-                            isChecked
-                              ? 'bg-blue-600 border-blue-600 text-white'
-                              : 'border-[#444] bg-[#161616] group-hover:border-[#777]'
-                          }`}
-                        >
-                          {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                        </div>
-                        <span className={`truncate ${color}`}>{status}</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Status Accordion — R5: markup unificado en FilterAccordion */}
+          <FilterAccordion
+            title="Estado"
+            items={(['En progreso', 'Completado', 'No iniciado'] as LabStatus[]).map((status) => ({
+              id: status,
+              label: status,
+              count: statusCounts.get(status) ?? 0,
+              labelClassName:
+                status === 'Completado'
+                  ? 'text-green-400'
+                  : status === 'En progreso'
+                  ? 'text-blue-400'
+                  : 'text-[#888]',
+            }))}
+            selected={selectedStatuses}
+            onToggle={toggleStatusFilter}
+            open={isStatusFilterOpen}
+            onOpenToggle={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+          />
 
           <div className="h-px bg-[#262626]" />
 
-          {/* Difficulty Accordion */}
-          <div className="space-y-2">
-            <button
-              onClick={() => setIsDiffFilterOpen(!isDiffFilterOpen)}
-              className="w-full flex items-center justify-between text-left text-[10px] font-bold uppercase tracking-widest text-[#888] hover:text-white"
-            >
-              <span>Dificultad</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isDiffFilterOpen ? 'rotate-0' : '-rotate-90'
-                }`}
-              />
-            </button>
-
-            {isDiffFilterOpen && (
-              <div className="space-y-1.5 pl-1">
-                {(['Fácil', 'Media', 'Difícil'] as LabDifficulty[]).map((diff) => {
-                  const isChecked = selectedDifficulties.includes(diff);
-                  const count = activeLabs.filter((l) => l.difficulty === diff).length;
-                  const diffColor =
-                    diff === 'Fácil'
-                      ? 'text-green-400'
-                      : diff === 'Media'
-                      ? 'text-amber-400'
-                      : 'text-red-400';
-                  return (
-                    <label
-                      key={diff}
-                      className="flex items-center justify-between text-xs text-[#BBB] hover:text-white cursor-pointer group py-0.5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          onClick={() => toggleDiffFilter(diff)}
-                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-colors ${
-                            isChecked
-                              ? 'bg-blue-600 border-blue-600 text-white'
-                              : 'border-[#444] bg-[#161616] group-hover:border-[#777]'
-                          }`}
-                        >
-                          {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                        </div>
-                        <span className={`truncate ${diffColor}`}>{diff}</span>
-                      </div>
-                      <span className="text-[10px] font-mono text-[#828282]">{count}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Difficulty Accordion — R5: markup unificado en FilterAccordion */}
+          <FilterAccordion
+            title="Dificultad"
+            items={(['Fácil', 'Media', 'Difícil'] as LabDifficulty[]).map((diff) => ({
+              id: diff,
+              label: diff,
+              count: difficultyCounts.get(diff) ?? 0,
+              labelClassName:
+                diff === 'Fácil'
+                  ? 'text-green-400'
+                  : diff === 'Media'
+                  ? 'text-amber-400'
+                  : 'text-red-400',
+            }))}
+            selected={selectedDifficulties}
+            onToggle={toggleDiffFilter}
+            open={isDiffFilterOpen}
+            onOpenToggle={() => setIsDiffFilterOpen(!isDiffFilterOpen)}
+          />
         </div>
       </div>
 
@@ -565,10 +547,9 @@ export const LabsView: React.FC<LabsViewProps> = ({
           <LabDetailEditor
             key={currentLab.id}
             lab={currentLab}
-            organizations={allOrganizations}
             topics={allTopics}
-            onUpdateLab={(updated) => onUpdateLab(currentLab.id, updated)}
-            onDeleteLab={() => onDeleteLab(currentLab.id)}
+            onUpdateLab={handleEditorUpdateLab}
+            onDeleteLab={handleEditorDeleteLab}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#828282] space-y-4">
@@ -596,18 +577,20 @@ export const LabsView: React.FC<LabsViewProps> = ({
 
 interface LabDetailEditorProps {
   lab: Lab;
-  organizations: string[];
   topics: string[];
   onUpdateLab: (updated: Partial<Lab>) => void;
   onDeleteLab: () => void;
 }
 
-const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
+// R5 — React.memo: junto con los wrappers useCallback del padre, evita que
+// el editor (680 líneas) se re-renderice al teclear en el buscador de labs
+// (lab/topics/handlers mantienen identidad entre renders de búsqueda).
+const LabDetailEditor = React.memo(function LabDetailEditor({
   lab,
   topics,
   onUpdateLab,
   onDeleteLab,
-}) => {
+}: LabDetailEditorProps) {
   // Local state
   const [title, setTitle] = useState(lab.title);
   const [organization, setOrganization] = useState(lab.organization);
@@ -1281,7 +1264,7 @@ const LabDetailEditor: React.FC<LabDetailEditorProps> = ({
       </div>
     </div>
   );
-};
+});
 
 /* --- Component for Rich Editing within a Lab Part --- */
 
