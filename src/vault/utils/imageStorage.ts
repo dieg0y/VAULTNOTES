@@ -1,4 +1,4 @@
-import { db } from '../db';
+import { createFsMediaFolder } from './fsStorage';
 
 /* ------------------------------------------------------------------ */
 /* Image storage — File System Access API (REGLA DE ORO para imágenes). */
@@ -19,27 +19,20 @@ import { db } from '../db';
 /*                                                                     */
 /* Compatibilidad: notas creadas antes de esta versión usan             */
 /* <img src="data:..."> embebido — se renderizan tal cual, sin cambios. */
+/*                                                                     */
+/* REFACTOR (R3): la maquinaria FSA común (tipings, carpeta, permisos, */
+/* sanitización, unificación de nombre, sniff, guardado, búsqueda       */
+/* recursiva y ObjectURL) vive ahora en utils/fsStorage.ts. Este        */
+/* archivo es un adaptador fino: define la configuración de la familia  */
+/* imágenes y re-exporta las funciones generadas bajo sus nombres       */
+/* históricos. Comportamiento, keys de `fileHandles` y clases de error: */
+/* IDÉNTICOS.                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Minimal structural typings (FSA isn't in lib.dom for all targets). */
-interface FSWritableLike {
-  write: (data: Blob) => Promise<void>;
-  close: () => Promise<void>;
-}
-interface FSFileHandleLike {
-  createWritable?: (opts?: unknown) => Promise<FSWritableLike>;
-  getFile?: () => Promise<File>;
-}
-export interface FSDirHandleLike {
-  name: string;
-  kind: string;
-  queryPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
-  requestPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
-  getFileHandle?: (name: string, opts?: { create?: boolean }) => Promise<FSFileHandleLike>;
-  getDirectoryHandle?: (name: string, opts?: { create?: boolean }) => Promise<FSDirHandleLike>;
-  removeEntry?: (name: string) => Promise<void>;
-  values?: () => AsyncIterableIterator<FSDirHandleLike & FSFileHandleLike>;
-}
+/** Tipings estructurales mínimos de la FSA — ahora en fsStorage.ts.
+ *  Se re-exporta `FSDirHandleLike` porque históricamente salía de este
+ *  módulo (mediaVault.ts lo importa desde aquí). */
+export type { FSDirHandleLike } from './fsStorage';
 
 /** No images folder configured yet (Settings → Carpeta de Media). */
 export class NoImagesDirectoryError extends Error {
@@ -67,105 +60,7 @@ export class ImageRejectedError extends Error {
 
 export const IMAGES_DIR_KEY = 'vault-images-dir';
 
-/* ------------------------- Directory management ------------------------- */
-
-/** Stored handle for the images folder, or null when never picked. */
-export async function getImagesDirectory(): Promise<FSDirHandleLike | null> {
-  try {
-    const stored = await db.fileHandles.get(IMAGES_DIR_KEY);
-    return (stored?.handle as unknown as FSDirHandleLike) || null;
-  } catch {
-    return null;
-  }
-}
-
-/** True when the user picked an images folder at some point. */
-export async function hasImagesDirectory(): Promise<boolean> {
-  return (await getImagesDirectory()) !== null;
-}
-
-/** True when the stored folder is usable right now (permission granted). */
-export async function isImagesPermissionGranted(): Promise<boolean> {
-  const dir = await getImagesDirectory();
-  if (!dir) return false;
-  try {
-    const perm = dir.queryPermission
-      ? await dir.queryPermission({ mode: 'readwrite' })
-      : 'granted';
-    return perm === 'granted';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Re-request permission on the stored images folder. MUST be called from a
- * user gesture (button click).
- */
-export async function ensureImagesPermission(): Promise<boolean> {
-  const dir = await getImagesDirectory();
-  if (!dir) return false;
-  try {
-    let perm = dir.queryPermission
-      ? await dir.queryPermission({ mode: 'readwrite' })
-      : 'granted';
-    if (perm !== 'granted' && dir.requestPermission) {
-      perm = await dir.requestPermission({ mode: 'readwrite' });
-    }
-    return perm === 'granted';
-  } catch {
-    return false;
-  }
-}
-
-/* ----------------------------- Filenames ------------------------------ */
-
-/**
- * Sanitize a user-provided filename for the images folder: strip path
- * separators / control chars, collapse whitespace, cap the length and keep
- * (or derive from the mime type) a sensible extension.
- */
-function sanitizeImageFilename(name: string, mimeType?: string): string {
-  let base = (name || 'imagen')
-    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  let ext = '';
-  const dot = base.lastIndexOf('.');
-  if (dot > 0) {
-    ext = base.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '');
-    base = base.slice(0, dot).trim() || 'imagen';
-  }
-  if (!ext) {
-    const sub = (mimeType || 'image/png').split('/')[1] || 'png';
-    ext = sub.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'png';
-  }
-  if (base.length > 100) base = base.slice(0, 100).trim();
-  return `${base}.${ext}`;
-}
-
-async function imageFileExists(dir: FSDirHandleLike, filename: string): Promise<boolean> {
-  try {
-    await dir.getFileHandle!(filename, { create: false });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** `captura.png` → `captura (1).png`, … (first free slot). */
-async function uniqueImageNameIn(dir: FSDirHandleLike, filename: string): Promise<string> {
-  const dot = filename.lastIndexOf('.');
-  const stem = dot > 0 ? filename.slice(0, dot) : filename;
-  const ext = dot > 0 ? filename.slice(dot) : '';
-  for (let i = 1; i < 1000; i++) {
-    const candidate = `${stem} (${i})${ext}`;
-    if (!(await imageFileExists(dir, candidate))) return candidate;
-  }
-  return `${stem}-${Date.now()}${ext}`;
-}
-
-/* ------------------------------ Saving ------------------------------- */
+/* ------------------------- Sniff de imágenes ------------------------- */
 
 /** Known image magic bytes (advisory sniff — mirrors videoStorage). */
 const IMAGE_MAGIC_SIGS: ((b: Uint8Array) => boolean)[] = [
@@ -190,112 +85,61 @@ const IMAGE_MAGIC_SIGS: ((b: Uint8Array) => boolean)[] = [
     ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 0x2a) || (b[0] === 0x4d && b[1] === 0x4d && b[2] === 0x00)),
 ];
 
-/** True when the first bytes match a known image signature. SVG (text) and
- *  exotic formats return false — the sniff is ADVISORY ONLY and must never
- *  hard-block a legitimate file: the user decides via confirm(). */
-async function looksLikeImageFile(file: File): Promise<boolean> {
-  if (file.size === 0) return false;
+/** SVG es texto plano (sin magic bytes binarios) pero es 100% legítimo —
+ *  se acepta ANTES del sniff por tipo mime y por extensión (quickAccept
+ *  de la configuración de abajo; antes era la primera línea de
+ *  looksLikeImageFile). */
+function isSvgFile(file: File): boolean {
   const type = (file.type || '').toLowerCase();
-  if (type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) return true;
-  try {
-    const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
-    return IMAGE_MAGIC_SIGS.some((sig) => sig(head));
-  } catch {
-    return true;
-  }
+  return type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
 }
 
-interface SaveImageOpts {
-  /** What to do when the target filename already exists (UI dialog). */
-  onConflict?: (existingName: string) => Promise<'overwrite' | 'rename'> | 'overwrite' | 'rename';
-  /** Force the stored filename (re-link flow). */
-  forceName?: string;
-}
+/* --------------------- Familia generada (fsStorage) --------------------- */
+/* Las funciones son cierres puros de la configuración — re-exportarlas
+ * como const preserva nombre, firma y comportamiento exactos.          */
+
+const imagesFolder = createFsMediaFolder({
+  dirKey: IMAGES_DIR_KEY,
+  kindLabel: 'una imagen', // texto del confirm(): "no parece ser una imagen"
+  folderLabel: 'imágenes', // texto del confirm(): "a tu carpeta de imágenes"
+  fallbackBase: 'imagen', // nombre base de respaldo al sanitizar
+  fallbackMime: 'image/png', // mime de respaldo al derivar la extensión
+  fallbackExt: 'png',
+  sniffBytes: 64, // cabecera leída para el sniff (los videos leen 512)
+  magicSigs: IMAGE_MAGIC_SIGS,
+  quickAccept: isSvgFile,
+  errors: {
+    noDirectory: NoImagesDirectoryError,
+    permission: ImagesPermissionError,
+    rejected: ImageRejectedError,
+  },
+});
+
+/** Stored handle for the images folder, or null when never picked. */
+export const getImagesDirectory = imagesFolder.getDirectory;
+
+/** True when the user picked an images folder at some point. */
+export const hasImagesDirectory = imagesFolder.hasDirectory;
+
+/** True when the stored folder is usable right now (permission granted). */
+export const isImagesPermissionGranted = imagesFolder.isPermissionGranted;
+
+/**
+ * Re-request permission on the stored images folder. MUST be called from a
+ * user gesture (button click).
+ */
+export const ensureImagesPermission = imagesFolder.ensurePermission;
 
 /**
  * COPIES an image file into the user's images folder (raw file on disk).
  * Returns the FINAL filename so the caller can embed
  * `data-vault-img="<filename>"` in the note HTML.
  */
-export async function saveImageToDirectory(file: File, opts: SaveImageOpts = {}): Promise<string> {
-  const dir = await getImagesDirectory();
-  if (!dir || !dir.getFileHandle) throw new NoImagesDirectoryError();
-
-  let perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
-  if (perm !== 'granted') {
-    if (!dir.requestPermission) throw new ImagesPermissionError();
-    perm = await dir.requestPermission({ mode: 'readwrite' });
-  }
-  if (perm !== 'granted') throw new ImagesPermissionError();
-
-  // Advisory sniff: a renamed executable/corrupt download smells wrong —
-  // the user keeps the final say (their disk, their file).
-  if (!(await looksLikeImageFile(file))) {
-    const proceed = window.confirm(
-      `"${file.name}" no parece ser una imagen: su contenido no coincide con ningún formato conocido.\n\n` +
-        'Puede ser un archivo renombrado o corrupto. Se copiaría tal cual a tu carpeta de imágenes.\n\n' +
-        '¿Copiarlo de todos modos?'
-    );
-    if (!proceed) throw new ImageRejectedError();
-  }
-
-  let filename = sanitizeImageFilename(opts.forceName || file.name, file.type || undefined);
-  if (await imageFileExists(dir, filename)) {
-    let action: 'overwrite' | 'rename' = 'rename';
-    if (opts.onConflict) action = await opts.onConflict(filename);
-    if (action === 'rename') filename = await uniqueImageNameIn(dir, filename);
-  }
-
-  const fh = await dir.getFileHandle(filename, { create: true });
-  const writable = await fh.createWritable!();
-  await writable.write(file);
-  await writable.close();
-  return filename;
-}
-
-/* ------------------------------ Reading ------------------------------- */
-
-/** Depth-limited recursive search for a file inside the images folder. */
-async function findImageFileHandle(
-  dir: FSDirHandleLike,
-  filename: string,
-  depth = 0,
-): Promise<FSFileHandleLike | null> {
-  if (!dir.getFileHandle) return null;
-  try {
-    return await dir.getFileHandle(filename, { create: false });
-  } catch {
-    /* not directly here — search subfolders */
-  }
-  if (depth >= 3 || !dir.values || !dir.getDirectoryHandle) return null;
-  try {
-    for await (const entry of dir.values()) {
-      if (entry.kind !== 'directory') continue;
-      const sub = await dir.getDirectoryHandle(entry.name);
-      const found = await findImageFileHandle(sub, filename, depth + 1);
-      if (found) return found;
-    }
-  } catch {
-    /* permission or transient error — treat as not found */
-  }
-  return null;
-}
+export const saveImageToDirectory = imagesFolder.saveToDirectory;
 
 /**
  * Resolves a `data-vault-img` reference to a displayable ObjectURL by
  * finding the file inside the stored images folder. Returns null when the
  * file doesn't exist. The ObjectURL must be revoked by the caller.
  */
-export async function getImageObjectURL(filename: string): Promise<string | null> {
-  const dir = await getImagesDirectory();
-  if (!dir || !dir.getFileHandle) throw new NoImagesDirectoryError();
-
-  const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
-  if (perm !== 'granted') throw new ImagesPermissionError();
-
-  const safeName = sanitizeImageFilename(filename);
-  const fh = (await findImageFileHandle(dir, safeName)) || (await findImageFileHandle(dir, filename));
-  if (!fh || !fh.getFile) return null;
-  const file = await fh.getFile();
-  return URL.createObjectURL(file);
-}
+export const getImageObjectURL = imagesFolder.getObjectURL;

@@ -6,7 +6,7 @@
 
 | Pilar | Tickets | KB | Runbooks | Troubleshooting | Roadmap |
 |---|---|---|---|---|---|
-| **1 · IAM** | 50 | 50 | 50 | 30 | 373 ítems · 34 fases |
+| **1 · IAM** | 50 | 50 | 50 | 30 | 384 ítems · 34 fases |
 | **2 · SOC / Blue Team** | 50 | 18 | 49 | 23 | 98 ítems |
 | **3 · Service Desk** | 60 | 28 | 80 | 24 | 112 ítems · 28 fases |
 | **4 · SysAdmin Ops** | 56 | 28 | 77 | 22 | 126 ítems · 17 fases |

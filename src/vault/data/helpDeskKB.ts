@@ -1,6 +1,5 @@
 /**
- * helpDeskKB — GENERATED FILE (scripts/mergeHelpdeskData.mjs).
- * NO editar a mano: editar /tmp/hd/kb.json y re-ejecutar el merge.
+ * helpDeskKB — dataset estático (origen: migración FASE-1). Mantenimiento directo.
  *
  * 28 artículos de la base de conocimiento HelpDesk (SIMULADOS —
  * empresa ficticia Nexora S.A.). Dataset ESTÁTICO de solo lectura (viene de

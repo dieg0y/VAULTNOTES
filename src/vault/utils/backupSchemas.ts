@@ -301,141 +301,76 @@ export const roadmapItemSchema = z.object({
   updatedAt: z.string().optional(),
 }).passthrough();
 
+/** REFACTOR R2 (1e): factoría local de schemas de tickets. Los 4 schemas
+ *  (helpdesk/sysadmin/iam/soc) eran copias al 95% idénticas — solo difiere
+ *  el enum `type` (sysadmin/iam añaden 'cambio') y el campo `environment`
+ *  (HelpDesk NO lo tiene; los otros tres lo validan con su enum de torre de
+ *  dominio). La factoría define UNA VEZ el contrato común (~26 campos) y los
+ *  que sí tienen entorno lo añaden con .extend({ environment: ... }), que
+ *  preserva el .passthrough() (zod 4 mantiene el catchall en los extends).
+ *  NOTA: no se usa un literal compartido con spread condicional del campo
+ *  environment porque zod 4 inferiría `environment` como opcional/desconocido
+ *  en el tipo de salida y rompería la preservación exacta de tipos. */
+const ticketSchema = <const Types extends readonly [string, ...string[]]>(types: Types) =>
+  z.object({
+    id: z.string().min(1),
+    number: z.string().min(1),
+    title: z.string().min(1),
+    category: z.string().min(1),
+    subcategory: z.string().optional().nullable(),
+    type: z.enum(types),
+    priority: z.enum(['P1', 'P2', 'P3', 'P4']),
+    impact: z.enum(['alta', 'media', 'baja']),
+    urgency: z.enum(['alta', 'media', 'baja']),
+    requester: z.string(),
+    description: z.string(),
+    symptoms: z.string(),
+    dataAvailable: z.string().optional().nullable(),
+    troubleshooting: z.string().optional().nullable(),
+    resolution: z.string().optional().nullable(),
+    escalation: z.string().optional().nullable(),
+    kbRef: z.string().optional().nullable(),
+    skill: z.string().optional().nullable(),
+    evidence: z.string().optional().nullable(),
+    status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
+    statusNote: z.string().optional().nullable(),
+    isFinalProject: z.boolean().optional().nullable(),
+    isDeleted: z.boolean().optional(),
+    deletedAt: z.string().optional().nullable(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  }).passthrough();
+
 /** HELPDESK (v19) — tickets de práctica del Service Desk. La fila completa
  * (contenido del dataset + trabajo del usuario: status/statusNote) viaja en
  * helpdeskTickets.json. Campos obligatorios = los que garantizan que la
  * ficha se pueda renderizar; el resto es opcional/nullable. */
-export const helpdeskTicketSchema = z.object({
-  id: z.string().min(1),
-  number: z.string().min(1),
-  title: z.string().min(1),
-  category: z.string().min(1),
-  subcategory: z.string().optional().nullable(),
-  type: z.enum(['incidente', 'solicitud']),
-  priority: z.enum(['P1', 'P2', 'P3', 'P4']),
-  impact: z.enum(['alta', 'media', 'baja']),
-  urgency: z.enum(['alta', 'media', 'baja']),
-  requester: z.string(),
-  description: z.string(),
-  symptoms: z.string(),
-  dataAvailable: z.string().optional().nullable(),
-  troubleshooting: z.string().optional().nullable(),
-  resolution: z.string().optional().nullable(),
-  escalation: z.string().optional().nullable(),
-  kbRef: z.string().optional().nullable(),
-  skill: z.string().optional().nullable(),
-  evidence: z.string().optional().nullable(),
-  status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
-  statusNote: z.string().optional().nullable(),
-  isFinalProject: z.boolean().optional().nullable(),
-  isDeleted: z.boolean().optional(),
-  deletedAt: z.string().optional().nullable(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-}).passthrough();
+export const helpdeskTicketSchema = ticketSchema(['incidente', 'solicitud']);
 
 /** SYSADMIN (v21) — tickets de práctica de guardia (Infra & Ops). La fila
  * completa (contenido del dataset + trabajo del usuario: status/statusNote)
  * viaja en sysadminTickets.json. Mismo contrato que helpdeskTicketSchema
  * con las extensiones de dominio: type 'cambio' + environment. */
-export const sysadminTicketSchema = z.object({
-  id: z.string().min(1),
-  number: z.string().min(1),
-  title: z.string().min(1),
-  category: z.string().min(1),
-  subcategory: z.string().optional().nullable(),
-  type: z.enum(['incidente', 'solicitud', 'cambio']),
-  priority: z.enum(['P1', 'P2', 'P3', 'P4']),
-  impact: z.enum(['alta', 'media', 'baja']),
-  urgency: z.enum(['alta', 'media', 'baja']),
+export const sysadminTicketSchema = ticketSchema(['incidente', 'solicitud', 'cambio']).extend({
   environment: z.enum(['Linux', 'Windows Server', 'Red', 'Storage / Backup', 'Virtualización', 'Cloud / Contenedores', 'Multi']),
-  requester: z.string(),
-  description: z.string(),
-  symptoms: z.string(),
-  dataAvailable: z.string().optional().nullable(),
-  troubleshooting: z.string().optional().nullable(),
-  resolution: z.string().optional().nullable(),
-  escalation: z.string().optional().nullable(),
-  kbRef: z.string().optional().nullable(),
-  skill: z.string().optional().nullable(),
-  evidence: z.string().optional().nullable(),
-  status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
-  statusNote: z.string().optional().nullable(),
-  isFinalProject: z.boolean().optional().nullable(),
-  isDeleted: z.boolean().optional(),
-  deletedAt: z.string().optional().nullable(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-}).passthrough();
+});
 
 /** IAM (V11 · PILAR 1) — tickets de práctica del simulador IAM. La fila
  * completa (contenido del dataset + trabajo del usuario: status/statusNote)
  * viaja en iamTickets.json. Mismo contrato que sysadminTicketSchema con la
  * extensión de dominio: environment = torre IAM (JML/Access/PAM/
  * Gobernanza/Infra IAM/Multi) y type incluye 'cambio'. */
-export const iamTicketSchema = z.object({
-  id: z.string().min(1),
-  number: z.string().min(1),
-  title: z.string().min(1),
-  category: z.string().min(1),
-  subcategory: z.string().optional().nullable(),
-  type: z.enum(['incidente', 'solicitud', 'cambio']),
-  priority: z.enum(['P1', 'P2', 'P3', 'P4']),
-  impact: z.enum(['alta', 'media', 'baja']),
-  urgency: z.enum(['alta', 'media', 'baja']),
+export const iamTicketSchema = ticketSchema(['incidente', 'solicitud', 'cambio']).extend({
   environment: z.enum(['JML', 'Access', 'PAM', 'Gobernanza', 'Infra IAM', 'Multi']),
-  requester: z.string(),
-  description: z.string(),
-  symptoms: z.string(),
-  dataAvailable: z.string().optional().nullable(),
-  troubleshooting: z.string().optional().nullable(),
-  resolution: z.string().optional().nullable(),
-  escalation: z.string().optional().nullable(),
-  kbRef: z.string().optional().nullable(),
-  skill: z.string().optional().nullable(),
-  evidence: z.string().optional().nullable(),
-  status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
-  statusNote: z.string().optional().nullable(),
-  isFinalProject: z.boolean().optional().nullable(),
-  isDeleted: z.boolean().optional(),
-  deletedAt: z.string().optional().nullable(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-}).passthrough();
+});
 
 /** SOC (v9 simulador) — casos de práctica del Blue Team. La fila completa
  * (contenido del dataset + trabajo del usuario: status/statusNote) viaja en
  * socTickets.json. Mismo contrato que helpdeskTicketSchema con la extensión
  * de dominio: environment = torre de detección. */
-export const socTicketSchema = z.object({
-  id: z.string().min(1),
-  number: z.string().min(1),
-  title: z.string().min(1),
-  category: z.string().min(1),
-  subcategory: z.string().optional().nullable(),
-  type: z.enum(['incidente', 'solicitud']),
-  priority: z.enum(['P1', 'P2', 'P3', 'P4']),
-  impact: z.enum(['alta', 'media', 'baja']),
-  urgency: z.enum(['alta', 'media', 'baja']),
+export const socTicketSchema = ticketSchema(['incidente', 'solicitud']).extend({
   environment: z.enum(['Identity', 'Endpoint', 'Network', 'Email', 'Cloud', 'Web', 'Multi']),
-  requester: z.string(),
-  description: z.string(),
-  symptoms: z.string(),
-  dataAvailable: z.string().optional().nullable(),
-  troubleshooting: z.string().optional().nullable(),
-  resolution: z.string().optional().nullable(),
-  escalation: z.string().optional().nullable(),
-  kbRef: z.string().optional().nullable(),
-  skill: z.string().optional().nullable(),
-  evidence: z.string().optional().nullable(),
-  status: z.enum(['nuevo', 'en_progreso', 'resuelto', 'cerrado', 'escalado']).optional(),
-  statusNote: z.string().optional().nullable(),
-  isFinalProject: z.boolean().optional().nullable(),
-  isDeleted: z.boolean().optional(),
-  deletedAt: z.string().optional().nullable(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-}).passthrough();
+});
 
 // ---------------------------------------------------------------------------
 // Manifest

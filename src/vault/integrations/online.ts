@@ -1,21 +1,23 @@
 /**
  * integrations/online.ts — Browser connectivity state, no network probe.
  *
- * Spec #2: small indicator in the Header (● Offline / ● Online). Do NOT make
- *  periodic requests to check connectivity. Use `navigator.onLine` + window
- *  `online`/`offline` events — that's the browser's own signal, free, no
- *  quota, no privacy leak.
+ * Do NOT make periodic requests to check connectivity. Use `navigator.onLine`
+ * + window `online`/`offline` events — that's the browser's own signal, free,
+ * no quota, no privacy leak.
  *
- * This hook is the single source of truth for "is the browser online?". The
- * indicator in the Header reads from here, and every provider implementation
- * checks `useIsOnline()` (or reads `isOnline()` directly) BEFORE attempting
- * a fetch — early-exit with an `offline` error rather than a network timeout.
+ * Single source of truth for "is the browser online?". The ONLY export is the
+ * `useIsOnline` hook; since v25 (retirada de Data & Intel, que eliminó los
+ * providers y el indicador online/offline del Header) su único consumidor es
+ * HdTicketTriageTool, que lo consulta ANTES de intentar un fetch — early-exit
+ * con error `offline` en lugar de esperar un timeout de red. `isOnline()` NO
+ * se exporta: es la lectura síncrona privada del módulo con la que el hook
+ * semilla su estado inicial.
  */
 import { useEffect, useState } from 'react';
 
 /** Synchronous read of the current online state. Falls back to `true` if
- *  `navigator.onLine` is undefined (very old browsers / SSR). Used by
- *  non-React modules (providers) that can't use the hook. */
+ *  `navigator.onLine` is undefined (very old browsers / SSR). Private del
+ *  módulo: solo el hook la usa para sembrar su estado inicial. */
 function isOnline(): boolean {
   if (typeof navigator === 'undefined') return true;
   return navigator.onLine !== false;

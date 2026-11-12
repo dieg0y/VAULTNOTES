@@ -1,11 +1,16 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import type { Table } from 'dexie';
+import { z } from 'zod';
 import { db, CURRENT_SCHEMA_VERSION } from '../db';
-import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket, IamTicket } from '../types';
+import { Note, Lab, GlossaryTerm, StoredPdf, ImportSummary, ProfileDoc, RoadmapItem, HelpDeskTicket, SysAdminTicket, SocTicket, IamTicket, SaEnvironment, SocEnvironment, IamEnvironment } from '../types';
 import { writeFileToAppFolder } from './videoStorage';
 import { getAllPdfEntries, savePdfBlob, pdfExtensionFor } from './pdfStorage';
 import { ReferenceItem } from '../types';
 import { sanitizeHtml } from './sanitizeHtml';
+// REFACTOR R2 (P4 + 1d): única fuente de verdad MIME ↔ extensión (antes
+// había dos copias en este archivo y una tercera en remoteImages.ts).
+import { MIME_TO_EXT, EXT_TO_MIME } from './mimeMaps';
 // AUDIT VN-006: Zod validation for every imported entity.
 import {
   noteSchema, labSchema, glossarySchema, referenceSchema,
@@ -100,10 +105,17 @@ const BACKUP_FORMAT_VERSION = '3.11.0';
 export class IncompatibleBackupError extends Error {
   readonly backupSchemaVersion: number | undefined;
   readonly backupFormatVersion: string | undefined;
-  constructor(backupSchemaVersion: number | undefined, backupFormatVersion: string | undefined) {
+  constructor(
+    backupSchemaVersion: number | undefined,
+    backupFormatVersion: string | undefined,
+    /** REFACTOR R2 (E1): mensaje personalizado para el caso "manifest
+     *  PRESENTE pero corrupto/ilegible" (no hay versión que comparar).
+     *  Sin él se construye el mensaje estándar (comportamiento original). */
+    customMessage?: string,
+  ) {
     const schemaPart = backupSchemaVersion !== undefined ? ` (backup schema v${backupSchemaVersion} > app v${CURRENT_SCHEMA_VERSION})` : '';
     const formatPart = backupFormatVersion ? `, format ${backupFormatVersion}` : '';
-    super(`Incompatible backup version${schemaPart}${formatPart}. Actualiza VaultNotes a la última versión antes de importar este backup.`);
+    super(customMessage ?? `Incompatible backup version${schemaPart}${formatPart}. Actualiza VaultNotes a la última versión antes de importar este backup.`);
     this.name = 'IncompatibleBackupError';
     this.backupSchemaVersion = backupSchemaVersion;
     this.backupFormatVersion = backupFormatVersion;
@@ -483,56 +495,87 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   // the importer intentionally does NOT touch `isDeleted`, so importing a
   // backup can never silently un-trash a note the user just trashed locally
   // (non-destructive restore).
-  const notes = await db.notes.toArray();
-  const labs = await db.labs.toArray();
-  const glossary = await db.glossary.toArray();
-  const images = await db.images.toArray();
-  // REGLA DE ORO (videos): videos are NEVER exported — they live only in
-  // the user's videos folder on disk. Nothing video-related is read here.
-  const pdfEntries = await getAllPdfEntries();
-  const platforms = await db.platforms.toArray();
-  const categories = await db.categories.toArray();
-  const tools = await db.tools.toArray();
-  const flashcardStats = await db.flashcardStats.toArray();
-  const references = await db.references.toArray();
-  // BLOQUE 5 — preferencias de navegación. Solo metadatos y texto escrito
-  // por el usuario en el Inbox. Nada sensible.
-  // V6: la tabla `reviewItems` se retiró (feature Review eliminada) — ya
-  // no se exporta; los backups viejos que la traigan se ignoran al importar.
-  const rbacModels = await db.rbacModels.toArray();
-  const toolFavorites = await db.toolFavorites.toArray();
-  const toolRecents = await db.toolRecents.toArray();
-  const inboxItems = await db.inboxItems.toArray();
-  // PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18) — documentos del CV
-  // (una fila por perfil: skills/tools/experiencia/certs/idiomas/títulos
-  // objetivo). Texto escrito por el usuario: nada sensible y viaja en el
-  // ZIP para que el USB/copia nueva lo conserve.
-  const profileRows = await db.profile.toArray();
-  // ROADMAP (v18) — estado del checklist del roadmap Junior IAM (done/doneAt
-  // por ítem). Viaja en el ZIP para que el progreso sobreviva en el USB.
-  const roadmapRows = await db.roadmapItems.toArray();
-  // HELPDESK (v19) — práctica del Service Desk: tickets COMPLETOS (dataset +
-  // status/statusNote del usuario — es su evidencia de práctica) + estado
-  // del checklist del roadmap HelpDesk. Viajan en el ZIP para que el
-  // progreso y las notas de cierre sobrevivan en el USB.
-  const helpdeskTicketRows = await db.helpdeskTickets.toArray();
-  const roadmapHdRows = await db.roadmapHelpDeskItems.toArray();
-  // SYSADMIN (v21) — práctica de Infra & Ops: tickets COMPLETOS (dataset +
-  // status/statusNote del usuario — su evidencia de guardia) + estado del
-  // checklist del roadmap SysAdmin. Viajan en el ZIP con el mismo convenio
-  // root-level que HelpDesk.
-  const sysadminTicketRows = await db.sysadminTickets.toArray();
-  const roadmapSaRows = await db.roadmapSysAdminItems.toArray();
-  // v9 (SOC) — estado del checklist del roadmap SOC (misma convención).
-  const roadmapSocRows = await db.roadmapSocItems.toArray();
-  // v9 (SIMULADOR SOC) — práctica del Blue Team: casos COMPLETOS (dataset +
-  // status/statusNote del usuario — su evidencia de triage). Viajan en el
-  // ZIP con el mismo convenio root-level que HelpDesk/SysAdmin.
-  const socTicketRows = await db.socTickets.toArray();
-  // IAM (V11 · PILAR 1) — práctica de Identity & Access: tickets COMPLETOS
-  // (dataset + status/statusNote del usuario — su evidencia). Mismo convenio
-  // root-level que los otros simuladores.
-  const iamTicketRows = await db.iamTickets.toArray();
+  // REFACTOR R2 (P2): las 23 lecturas de tablas de abajo son INDEPENDIENTES
+  // entre sí (ninguna depende del resultado de otra — son volcados completos
+  // de tablas Dexie sin filtro), así que se lanzan en paralelo con UNA sola
+  // Promise.all. Antes eran 23 `await` secuenciales cuya latencia se sumaba
+  // en cada export/autobackup. Nombres y orden idénticos a los originales.
+  const [
+    notes,
+    labs,
+    glossary,
+    images,
+    pdfEntries,
+    platforms,
+    categories,
+    tools,
+    flashcardStats,
+    references,
+    rbacModels,
+    toolFavorites,
+    toolRecents,
+    inboxItems,
+    profileRows,
+    roadmapRows,
+    helpdeskTicketRows,
+    roadmapHdRows,
+    sysadminTicketRows,
+    roadmapSaRows,
+    roadmapSocRows,
+    socTicketRows,
+    iamTicketRows,
+  ] = await Promise.all([
+    db.notes.toArray(),
+    db.labs.toArray(),
+    db.glossary.toArray(),
+    db.images.toArray(),
+    // REGLA DE ORO (videos): videos are NEVER exported — they live only in
+    // the user's videos folder on disk. Nothing video-related is read here.
+    getAllPdfEntries(),
+    db.platforms.toArray(),
+    db.categories.toArray(),
+    db.tools.toArray(),
+    db.flashcardStats.toArray(),
+    db.references.toArray(),
+    // BLOQUE 5 — preferencias de navegación. Solo metadatos y texto escrito
+    // por el usuario en el Inbox. Nada sensible.
+    // V6: la tabla `reviewItems` se retiró (feature Review eliminada) — ya
+    // no se exporta; los backups viejos que la traigan se ignoran al importar.
+    db.rbacModels.toArray(),
+    db.toolFavorites.toArray(),
+    db.toolRecents.toArray(),
+    db.inboxItems.toArray(),
+    // PERFIL PROFESIONAL (v17, MULTI-PERFIL desde v18) — documentos del CV
+    // (una fila por perfil: skills/tools/experiencia/certs/idiomas/títulos
+    // objetivo). Texto escrito por el usuario: nada sensible y viaja en el
+    // ZIP para que el USB/copia nueva lo conserve.
+    db.profile.toArray(),
+    // ROADMAP (v18) — estado del checklist del roadmap Junior IAM (done/doneAt
+    // por ítem). Viaja en el ZIP para que el progreso sobreviva en el USB.
+    db.roadmapItems.toArray(),
+    // HELPDESK (v19) — práctica del Service Desk: tickets COMPLETOS (dataset +
+    // status/statusNote del usuario — es su evidencia de práctica) + estado
+    // del checklist del roadmap HelpDesk. Viajan en el ZIP para que el
+    // progreso y las notas de cierre sobrevivan en el USB.
+    db.helpdeskTickets.toArray(),
+    db.roadmapHelpDeskItems.toArray(),
+    // SYSADMIN (v21) — práctica de Infra & Ops: tickets COMPLETOS (dataset +
+    // status/statusNote del usuario — su evidencia de guardia) + estado del
+    // checklist del roadmap SysAdmin. Viajan en el ZIP con el mismo convenio
+    // root-level que HelpDesk.
+    db.sysadminTickets.toArray(),
+    db.roadmapSysAdminItems.toArray(),
+    // v9 (SOC) — estado del checklist del roadmap SOC (misma convención).
+    db.roadmapSocItems.toArray(),
+    // v9 (SIMULADOR SOC) — práctica del Blue Team: casos COMPLETOS (dataset +
+    // status/statusNote del usuario — su evidencia de triage). Viajan en el
+    // ZIP con el mismo convenio root-level que HelpDesk/SysAdmin.
+    db.socTickets.toArray(),
+    // IAM (V11 · PILAR 1) — práctica de Identity & Access: tickets COMPLETOS
+    // (dataset + status/statusNote del usuario — su evidencia). Mismo convenio
+    // root-level que los otros simuladores.
+    db.iamTickets.toArray(),
+  ]);
 
   // BACKUP MANIFEST (Task 2-c, spec #35): include both `formatVersion`
   // (the on-disk ZIP layout version) and `schemaVersion` (the Dexie
@@ -662,16 +705,9 @@ export async function buildVaultZipBlob(): Promise<Blob> {
   //    AUDIT VN-003: now the exporter writes a JSON manifest alongside the
   //    bytes, with the full metadata. The importer reads the manifest and
   //    restores each image with its correct owner + MIME + caption.
-  const mimeToExt: Record<string, string> = {
-    'image/png': 'png',
-    'image/jpeg': 'jpg',
-    'image/gif': 'gif',
-    'image/webp': 'webp',
-    'image/bmp': 'bmp',
-    'image/svg+xml': 'svg',
-    'image/x-icon': 'ico',
-    'image/avif': 'avif',
-  };
+  // REFACTOR R2 (P4 + 1d): el mapa MIME→extensión ahora vive en mimeMaps.ts
+  // (MIME_TO_EXT) — antes era una copia local de este archivo que podía
+  // divergir de las otras dos copias (import y remoteImages).
   const imagesFolder = zip.folder('images');
   // Manifest with full metadata so the importer can re-associate owners.
   const imageManifest = images.map((img) => ({
@@ -689,9 +725,9 @@ export async function buildVaultZipBlob(): Promise<Blob> {
       if (img.dataUrl && img.dataUrl.includes(',')) {
         const base64Data = img.dataUrl.split(',')[1];
         // Use the correct extension based on mimeType so a .jpg image is
-        // restored as .jpg (the importer's mimeByExt lookup then picks the
+        // restored as .jpg (the importer's EXT_TO_MIME lookup then picks the
         // right MIME). Falls back to png if mimeType is missing/unknown.
-        const ext = mimeToExt[img.mimeType] || 'png';
+        const ext = MIME_TO_EXT[img.mimeType] || 'png';
         imagesFolder?.file(`${img.id}.${ext}`, base64Data, { base64: true });
       }
     } catch (err) {
@@ -792,7 +828,13 @@ export async function exportVaultZip(): Promise<ExportResult> {
 
   // --- Preferred: THE APP FOLDER — <app>/VaultNotes-Backup.zip lives with
   //     the app itself, so copying one folder to Drive carries everything. ---
-  const wroteToApp = await writeFileToAppFolder(BACKUP_FILENAME, blob).catch(() => false);
+  // REFACTOR R2 (limpieza): el fallo silencioso ahora se loguea — antes el
+  // .catch(() => false) descartaba la causa real (permisos, cuota, carpeta
+  // desmontada) y la degradación a descarga/download era indistinguible.
+  const wroteToApp = await writeFileToAppFolder(BACKUP_FILENAME, blob).catch((err) => {
+    console.warn('Escritura en carpeta de la app falló (se usará descarga):', err);
+    return false;
+  });
   if (wroteToApp) {
     return { mode: 'app', savedTo: BACKUP_FILENAME };
   }
@@ -852,6 +894,43 @@ export async function exportVaultZip(): Promise<ExportResult> {
   return { mode: 'download', savedTo: BACKUP_FILENAME };
 }
 
+/** REFACTOR R2 (1f): fila validada común a los 4 schemas de tickets de
+ *  backupSchemas (helpdesk/sysadmin/soc/iam). Cada schema produce un output
+ *  estructuralmente contenido en esta interfaz (zod 4 + `.passthrough()`):
+ *  los enums de `type` son la unión de los 4 pilares, `environment` es
+ *  opcional porque HelpDesk NO lo tiene, y el resto replica los tipos
+ *  exactos de los schemas. La usan las factorías de importación de abajo
+ *  para tipar el parámetro `schema` sin perder la literalidad de los enums. */
+interface TicketRowBase {
+  id: string;
+  number: string;
+  title: string;
+  category: string;
+  subcategory?: string | null;
+  type: 'incidente' | 'solicitud' | 'cambio';
+  priority: 'P1' | 'P2' | 'P3' | 'P4';
+  impact: 'alta' | 'media' | 'baja';
+  urgency: 'alta' | 'media' | 'baja';
+  environment?: SaEnvironment | SocEnvironment | IamEnvironment;
+  requester: string;
+  description: string;
+  symptoms: string;
+  dataAvailable?: string | null;
+  troubleshooting?: string | null;
+  resolution?: string | null;
+  escalation?: string | null;
+  kbRef?: string | null;
+  skill?: string | null;
+  evidence?: string | null;
+  status?: 'nuevo' | 'en_progreso' | 'resuelto' | 'cerrado' | 'escalado';
+  statusNote?: string | null;
+  isFinalProject?: boolean | null;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export async function importVaultBackup(file: File): Promise<ImportSummary> {
   const summary = emptySummary();
 
@@ -880,6 +959,14 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   // memory. Now we load ONCE and reuse `zipContents` for processing.
   let zipContents: JSZip | null = null;
   if (file.name.toLowerCase().endsWith('.zip')) {
+    // REFACTOR R2 (E1 — corrección crítica): distinguir "manifest.json
+    // AUSENTE" (backup legacy JSON-only → sigue sin check de versión, como
+    // siempre) de "manifest.json PRESENTE pero ilegible". Antes, CUALQUIER
+    // error de lectura/parseo del manifest caía al fallback silencioso
+    // (`zipContents = null`) y el backup se importaba SIN NINGÚN check de
+    // schemaVersion/formatVersion — un ZIP con manifest corrupto (o de un
+    // build cuyo formato este build no sabe interpretar) entraba limpio.
+    let manifestPresent = false;
     try {
       const zip = new JSZip();
       zipContents = await zip.loadAsync(file);
@@ -889,6 +976,7 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       validateZipSafety(zipContents);
       const manifestFile = zipContents.file('manifest.json');
       if (manifestFile) {
+        manifestPresent = true;
         const manifest = JSON.parse(await manifestFile.async('text')) as {
           schemaVersion?: number;
           formatVersion?: string;
@@ -916,10 +1004,20 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       // AUDIT VN-B-010: a safety rejection must propagate — never fall
       // through to re-loading and importing a malicious archive.
       if (err instanceof ZipSafetyError) throw err;
-      // Manifest read / parse failure — fall through to the regular import
-      // path, which will itself fail with a clearer error if the ZIP is
-      // corrupt. `zipContents` stays null and is re-loaded below only if
-      // the file genuinely is a ZIP (defensive: a renamed non-ZIP file).
+      // REFACTOR R2 (E1): el manifest EXISTE pero no se pudo leer/parsear.
+      // Sin manifest legible no hay forma de verificar la compatibilidad de
+      // versión → mismo rechazo up-front (no-partial-import) que un backup
+      // incompatible. El happy path (manifest ausente o legible) no cambia.
+      if (manifestPresent) {
+        throw new IncompatibleBackupError(
+          undefined,
+          undefined,
+          'El backup tiene un manifest corrupto o ilegible: no se puede verificar su compatibilidad de versión (schemaVersion/formatVersion). Reexporta el backup desde VaultNotes e inténtalo de nuevo.',
+        );
+      }
+      // La carga inicial del ZIP falló (p. ej. un no-ZIP renombrado) — cae
+      // al camino regular como antes: `zipContents` queda null y se recarga
+      // abajo solo si el archivo genuinamente es un ZIP (defensivo).
       zipContents = null;
     }
   }
@@ -1158,7 +1256,10 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
       updatedAt: valid.updatedAt || new Date().toISOString(),
       id: existing.id,
     };
-    delete update.isDeleted;
+    // REFACTOR R2 (limpieza): se eliminó el no-op `delete update.isDeleted;`
+    // que había aquí — a diferencia de upsertTerm/upsertLab (donde el spread
+    // `{ ...valid }` SÍ arrastra isDeleted), el literal de arriba nunca
+    // contiene ese campo, así que el delete era código muerto.
     await db.notes.update(existing.id, update);
     notesById.set(existing.id, { ...existing, ...update } as Note);
     summary.updatedNotes++;
@@ -1206,10 +1307,11 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   // non-ZIP file that failed the first load).
   const contents = zipContents ?? (await new JSZip().loadAsync(file));
   // AUDIT VN-B-010: this second gate covers ZIPs that reach this point
-  // without the manifest-step validation (a renamed non-.zip file, or a
-  // manifest read failure that reset `zipContents`). Re-validating an
-  // already-validated archive is a cheap no-op; this is still BEFORE any
-  // IndexedDB mutation.
+  // without the manifest-step validation (a renamed non-.zip file, or an
+  // initial load failure that left `zipContents` null — desde E1, un
+  // manifest corrupto ya se rechaza up-front en vez de resetearlo). Re-
+  // validating an already-validated archive is a cheap no-op; this is still
+  // BEFORE any IndexedDB mutation.
   validateZipSafety(contents);
 
   // 1. Process glossary
@@ -1414,14 +1516,12 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
         const imgId = imgFile.name.replace(/^images\//, '').replace(/\.[^.]+$/, '');
         // Prefer manifest metadata; fall back to extension-based detection
         // for older backups that don't have imagesManifest.json.
+        // REFACTOR R2 (P4 + 1d): el mapa extensión→MIME ahora vive en
+        // mimeMaps.ts (EXT_TO_MIME) — antes se reconstruía DENTRO de este
+        // loop, una vez por imagen.
         const meta = imageMetaById.get(imgId);
         const ext = imgFile.name.split('.').pop()?.toLowerCase() || '';
-        const mimeByExt: Record<string, string> = {
-          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-          gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
-          svg: 'image/svg+xml', ico: 'image/x-icon', avif: 'image/avif',
-        };
-        const mimeType = meta?.mimeType || mimeByExt[ext] || 'image/png';
+        const mimeType = meta?.mimeType || EXT_TO_MIME[ext] || 'image/png';
         const dataUrl = `data:${mimeType};base64,${base64}`;
         const exists = await db.images.get(imgId);
         if (!exists) {
@@ -1723,18 +1823,36 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
     console.error('Error importing profiles:', e);
   }
 
-  // roadmap — v18: estado del checklist (done/doneAt por ítem). Upsert por
-  // id con el MISMO guard latest-wins: un backup viejo no revierte el
-  // progreso local (updatedAt). Un roadmap.json malformado no corrompe nada.
-  try {
-    const rmFile = contents.file('roadmap.json');
-    if (rmFile) {
-      const rawRm: unknown = JSON.parse(await rmFile.async('text'));
-      const { valid: rmRows } = validateArray(roadmapItemSchema, rawRm);
-      for (const r of rmRows) {
-        const local = await db.roadmapItems.get(r.id);
+  // ------------------------------------------------------------------
+  // REFACTOR R2 (1f): factorías locales de importación. Los 4 bloques de
+  // roadmap (main/HelpDesk/SysAdmin/SOC) y los 4 de tickets (HelpDesk/
+  // SysAdmin/SOC/IAM) eran copias estructuralmente idénticas salvo la tabla
+  // Dexie, el schema Zod, los contadores y el campo `environment` (HelpDesk
+  // no lo tiene). Las factorías preservan la semántica EXACTA de los bloques
+  // originales: guard latest-wins por updatedAt (rowTs), la reconstrucción
+  // campo a campo (el ternario de status y el literal de la fila), los
+  // contadores de conflictos/inválidos y el try/catch con
+  // console.error('Error importing X:').
+  // ------------------------------------------------------------------
+
+  /** Importa un checklist de roadmap (roadmap.json / roadmapHelpDesk.json /
+   *  roadmapSysAdmin.json / roadmapSoc.json) a su tabla Dexie. Igual que los
+   *  bloques originales: las filas inválidas se descartan sin contarlas en
+   *  invalidMisc (solo los tickets cuentan inválidos). */
+  const importRoadmapTable = async (
+    file: JSZip.JSZipObject | null,
+    table: Table<RoadmapItem, string>,
+    onConflict: () => void,
+    label: string,
+  ): Promise<void> => {
+    if (!file) return;
+    try {
+      const raw: unknown = JSON.parse(await file.async('text'));
+      const { valid: rows } = validateArray(roadmapItemSchema, raw);
+      for (const r of rows) {
+        const local = await table.get(r.id);
         if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictRoadmapItems++;
+          onConflict();
           continue;
         }
         const row: RoadmapItem = {
@@ -1743,35 +1861,50 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
           doneAt: r.doneAt || undefined,
           updatedAt: r.updatedAt || new Date().toISOString(),
         };
-        await db.roadmapItems.put(row);
+        await table.put(row);
       }
+    } catch (e) {
+      console.error(`Error importing ${label}:`, e);
     }
-  } catch (e) {
-    console.error('Error importing roadmap:', e);
-  }
+  };
 
-  // helpdeskTickets — v19 (HELPDESK): tickets de práctica del Service Desk.
-  // Upsert por id con guard latest-wins: un backup viejo jamás revierte el
-  // trabajo local (status, notas de cierre, soft-delete). La fila se
-  // reconstruye campo a campo (enums validados) para que un
-  // helpdeskTickets.json malformado nunca corrompa la tabla local.
-  try {
-    const hdtFile = contents.file('helpdeskTickets.json');
-    if (hdtFile) {
-      const rawHdt: unknown = JSON.parse(await hdtFile.async('text'));
-      const { valid: hdtRows, invalid } = validateArray(helpdeskTicketSchema, rawHdt);
+  /** Importa un dataset de tickets de práctica (helpdesk/sysadmin/soc/
+   *  iamTickets.json) a su tabla Dexie. El schema Zod del pilar valida las
+   *  filas (los inválidos cuentan en invalidMisc, igual que antes); la fila
+   *  se reconstruye campo a campo con el mismo literal de los bloques
+   *  originales. `opts.hasEnvironment` distingue a HelpDesk (sin campo
+   *  environment) de SysAdmin/SOC/IAM. */
+  const importTicketTable = async <R extends TicketRowBase, T extends HelpDeskTicket | SysAdminTicket | SocTicket | IamTicket>(
+    file: JSZip.JSZipObject | null,
+    table: Table<T, string>,
+    schema: z.ZodType<R>,
+    opts: {
+      /** HelpDesk no tiene environment; SysAdmin/SOC/IAM sí. */
+      hasEnvironment: boolean;
+      onConflict: () => void;
+      label: string;
+    },
+  ): Promise<void> => {
+    if (!file) return;
+    try {
+      const raw: unknown = JSON.parse(await file.async('text'));
+      const { valid: rows, invalid } = validateArray(schema, raw);
       summary.invalidMisc += invalid;
-      for (const r of hdtRows) {
-        const local = await db.helpdeskTickets.get(r.id);
+      for (const r of rows) {
+        const local = await table.get(r.id);
         if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictHelpdeskTickets++;
+          opts.onConflict();
           continue;
         }
-        const status: HelpDeskTicket['status'] =
-          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
-            ? r.status
-            : 'nuevo';
-        const row: HelpDeskTicket = {
+        const status = r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
+          ? r.status
+          : 'nuevo';
+        // El cast es necesario porque HelpDesk no tiene `environment` y el
+        // spread condicional produce un tipo con el campo opcional que TS no
+        // puede verificar contra el genérico T (los 4 tipos de ticket son
+        // incompatibles en ese campo). El runtime es exactamente el de los
+        // bloques originales.
+        const row = {
           id: r.id,
           number: r.number,
           title: r.title,
@@ -1781,6 +1914,7 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
           priority: r.priority,
           impact: r.impact,
           urgency: r.urgency,
+          ...(opts.hasEnvironment ? { environment: r.environment } : {}),
           requester: r.requester,
           description: r.description,
           symptoms: r.symptoms,
@@ -1799,38 +1933,32 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
           createdAt: r.createdAt || new Date().toISOString(),
           updatedAt: r.updatedAt || new Date().toISOString(),
         };
-        await db.helpdeskTickets.put(row);
+        await table.put(row as T);
       }
+    } catch (e) {
+      console.error(`Error importing ${opts.label}:`, e);
     }
-  } catch (e) {
-    console.error('Error importing helpdeskTickets:', e);
-  }
+  };
+
+  // roadmap — v18: estado del checklist (done/doneAt por ítem). Upsert por
+  // id con el MISMO guard latest-wins: un backup viejo no revierte el
+  // progreso local (updatedAt). Un roadmap.json malformado no corrompe nada.
+  importRoadmapTable(contents.file('roadmap.json'), db.roadmapItems, () => { summary.conflictRoadmapItems++; }, 'roadmap');
+
+  // helpdeskTickets — v19 (HELPDESK): tickets de práctica del Service Desk.
+  // Upsert por id con guard latest-wins: un backup viejo jamás revierte el
+  // trabajo local (status, notas de cierre, soft-delete). La fila se
+  // reconstruye campo a campo (enums validados) para que un
+  // helpdeskTickets.json malformado nunca corrompa la tabla local.
+  importTicketTable(contents.file('helpdeskTickets.json'), db.helpdeskTickets, helpdeskTicketSchema, {
+    hasEnvironment: false,
+    onConflict: () => { summary.conflictHelpdeskTickets++; },
+    label: 'helpdeskTickets',
+  });
 
   // roadmapHelpDesk — v19: checklist del roadmap HelpDesk (rmhd-*). Upsert
   // por id con el mismo guard latest-wins del roadmap principal.
-  try {
-    const rmhdFile = contents.file('roadmapHelpDesk.json');
-    if (rmhdFile) {
-      const rawRmhd: unknown = JSON.parse(await rmhdFile.async('text'));
-      const { valid: rmhdRows } = validateArray(roadmapItemSchema, rawRmhd);
-      for (const r of rmhdRows) {
-        const local = await db.roadmapHelpDeskItems.get(r.id);
-        if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictRoadmapHdItems++;
-          continue;
-        }
-        const row: RoadmapItem = {
-          id: r.id,
-          done: r.done === true,
-          doneAt: r.doneAt || undefined,
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        };
-        await db.roadmapHelpDeskItems.put(row);
-      }
-    }
-  } catch (e) {
-    console.error('Error importing roadmapHelpDesk:', e);
-  }
+  importRoadmapTable(contents.file('roadmapHelpDesk.json'), db.roadmapHelpDeskItems, () => { summary.conflictRoadmapHdItems++; }, 'roadmapHelpDesk');
 
   // sysadminTickets — v21 (SYSADMIN): tickets de práctica de guardia.
   // Upsert por id con guard latest-wins: un backup viejo jamás revierte el
@@ -1838,109 +1966,19 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   // reconstruye campo a campo (enums validados, incluido type 'cambio' y
   // environment) para que un sysadminTickets.json malformado nunca
   // corrompa la tabla local.
-  try {
-    const satFile = contents.file('sysadminTickets.json');
-    if (satFile) {
-      const rawSat: unknown = JSON.parse(await satFile.async('text'));
-      const { valid: satRows, invalid } = validateArray(sysadminTicketSchema, rawSat);
-      summary.invalidMisc += invalid;
-      for (const r of satRows) {
-        const local = await db.sysadminTickets.get(r.id);
-        if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictSysadminTickets++;
-          continue;
-        }
-        const status: SysAdminTicket['status'] =
-          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
-            ? r.status
-            : 'nuevo';
-        const row: SysAdminTicket = {
-          id: r.id,
-          number: r.number,
-          title: r.title,
-          category: r.category,
-          subcategory: r.subcategory ?? undefined,
-          type: r.type,
-          priority: r.priority,
-          impact: r.impact,
-          urgency: r.urgency,
-          environment: r.environment,
-          requester: r.requester,
-          description: r.description,
-          symptoms: r.symptoms,
-          dataAvailable: r.dataAvailable ?? undefined,
-          troubleshooting: r.troubleshooting ?? undefined,
-          resolution: r.resolution ?? undefined,
-          escalation: r.escalation ?? undefined,
-          kbRef: r.kbRef ?? undefined,
-          skill: r.skill ?? undefined,
-          evidence: r.evidence ?? undefined,
-          status,
-          statusNote: r.statusNote ?? undefined,
-          isFinalProject: r.isFinalProject === true ? true : undefined,
-          isDeleted: r.isDeleted === true,
-          deletedAt: r.isDeleted === true ? (r.deletedAt ?? undefined) : undefined,
-          createdAt: r.createdAt || new Date().toISOString(),
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        };
-        await db.sysadminTickets.put(row);
-      }
-    }
-  } catch (e) {
-    console.error('Error importing sysadminTickets:', e);
-  }
+  importTicketTable(contents.file('sysadminTickets.json'), db.sysadminTickets, sysadminTicketSchema, {
+    hasEnvironment: true,
+    onConflict: () => { summary.conflictSysadminTickets++; },
+    label: 'sysadminTickets',
+  });
 
   // roadmapSysAdmin — v21: checklist del roadmap SysAdmin (rmsa-*). Upsert
   // por id con el mismo guard latest-wins de los otros roadmaps.
-  try {
-    const rmsaFile = contents.file('roadmapSysAdmin.json');
-    if (rmsaFile) {
-      const rawRmsa: unknown = JSON.parse(await rmsaFile.async('text'));
-      const { valid: rmsaRows } = validateArray(roadmapItemSchema, rawRmsa);
-      for (const r of rmsaRows) {
-        const local = await db.roadmapSysAdminItems.get(r.id);
-        if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictRoadmapSaItems++;
-          continue;
-        }
-        const row: RoadmapItem = {
-          id: r.id,
-          done: r.done === true,
-          doneAt: r.doneAt || undefined,
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        };
-        await db.roadmapSysAdminItems.put(row);
-      }
-    }
-  } catch (e) {
-    console.error('Error importing roadmapSysAdmin:', e);
-  }
+  importRoadmapTable(contents.file('roadmapSysAdmin.json'), db.roadmapSysAdminItems, () => { summary.conflictRoadmapSaItems++; }, 'roadmapSysAdmin');
 
   // roadmapSoc — v9: checklist del roadmap SOC (rmsoc-*). Upsert por id
   // con el mismo guard latest-wins de los otros roadmaps.
-  try {
-    const rmsocFile = contents.file('roadmapSoc.json');
-    if (rmsocFile) {
-      const rawRmsoc: unknown = JSON.parse(await rmsocFile.async('text'));
-      const { valid: rmsocRows } = validateArray(roadmapItemSchema, rawRmsoc);
-      for (const r of rmsocRows) {
-        const local = await db.roadmapSocItems.get(r.id);
-        if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictRoadmapSocItems++;
-          continue;
-        }
-        const row: RoadmapItem = {
-          id: r.id,
-          done: r.done === true,
-          doneAt: r.doneAt || undefined,
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        };
-        await db.roadmapSocItems.put(row);
-      }
-    }
-  } catch (e) {
-    console.error('Error importing roadmapSoc:', e);
-  }
+  importRoadmapTable(contents.file('roadmapSoc.json'), db.roadmapSocItems, () => { summary.conflictRoadmapSocItems++; }, 'roadmapSoc');
 
   // socTickets — v9 (SIMULADOR SOC): casos de práctica del Blue Team.
   // Upsert por id con guard latest-wins: un backup viejo jamás revierte el
@@ -1948,57 +1986,11 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   // reconstruye campo a campo (enums validados, incluido environment =
   // torre de detección) para que un socTickets.json malformado nunca
   // corrompa la tabla local.
-  try {
-    const soctFile = contents.file('socTickets.json');
-    if (soctFile) {
-      const rawSoct: unknown = JSON.parse(await soctFile.async('text'));
-      const { valid: soctRows, invalid } = validateArray(socTicketSchema, rawSoct);
-      summary.invalidMisc += invalid;
-      for (const r of soctRows) {
-        const local = await db.socTickets.get(r.id);
-        if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictSocTickets++;
-          continue;
-        }
-        const status: SocTicket['status'] =
-          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
-            ? r.status
-            : 'nuevo';
-        const row: SocTicket = {
-          id: r.id,
-          number: r.number,
-          title: r.title,
-          category: r.category,
-          subcategory: r.subcategory ?? undefined,
-          type: r.type,
-          priority: r.priority,
-          impact: r.impact,
-          urgency: r.urgency,
-          environment: r.environment,
-          requester: r.requester,
-          description: r.description,
-          symptoms: r.symptoms,
-          dataAvailable: r.dataAvailable ?? undefined,
-          troubleshooting: r.troubleshooting ?? undefined,
-          resolution: r.resolution ?? undefined,
-          escalation: r.escalation ?? undefined,
-          kbRef: r.kbRef ?? undefined,
-          skill: r.skill ?? undefined,
-          evidence: r.evidence ?? undefined,
-          status,
-          statusNote: r.statusNote ?? undefined,
-          isFinalProject: r.isFinalProject === true ? true : undefined,
-          isDeleted: r.isDeleted === true,
-          deletedAt: r.isDeleted === true ? (r.deletedAt ?? undefined) : undefined,
-          createdAt: r.createdAt || new Date().toISOString(),
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        };
-        await db.socTickets.put(row);
-      }
-    }
-  } catch (e) {
-    console.error('Error importing socTickets:', e);
-  }
+  importTicketTable(contents.file('socTickets.json'), db.socTickets, socTicketSchema, {
+    hasEnvironment: true,
+    onConflict: () => { summary.conflictSocTickets++; },
+    label: 'socTickets',
+  });
 
   // iamTickets — v11 (SIMULADOR IAM · PILAR 1): tickets de práctica del
   // equipo IAM de Nexora. Upsert por id con guard latest-wins: un backup
@@ -2006,57 +1998,11 @@ export async function importVaultBackup(file: File): Promise<ImportSummary> {
   // soft-delete). La fila se reconstruye campo a campo (enums validados,
   // incluido environment = torre IAM) para que un iamTickets.json
   // malformado nunca corrompa la tabla local.
-  try {
-    const iamtFile = contents.file('iamTickets.json');
-    if (iamtFile) {
-      const rawIamt: unknown = JSON.parse(await iamtFile.async('text'));
-      const { valid: iamtRows, invalid } = validateArray(iamTicketSchema, rawIamt);
-      summary.invalidMisc += invalid;
-      for (const r of iamtRows) {
-        const local = await db.iamTickets.get(r.id);
-        if (local && rowTs(local) > rowTs(r)) {
-          summary.conflictIamTickets++;
-          continue;
-        }
-        const status: IamTicket['status'] =
-          r.status === 'en_progreso' || r.status === 'resuelto' || r.status === 'cerrado' || r.status === 'escalado'
-            ? r.status
-            : 'nuevo';
-        const row: IamTicket = {
-          id: r.id,
-          number: r.number,
-          title: r.title,
-          category: r.category,
-          subcategory: r.subcategory ?? undefined,
-          type: r.type,
-          priority: r.priority,
-          impact: r.impact,
-          urgency: r.urgency,
-          environment: r.environment,
-          requester: r.requester,
-          description: r.description,
-          symptoms: r.symptoms,
-          dataAvailable: r.dataAvailable ?? undefined,
-          troubleshooting: r.troubleshooting ?? undefined,
-          resolution: r.resolution ?? undefined,
-          escalation: r.escalation ?? undefined,
-          kbRef: r.kbRef ?? undefined,
-          skill: r.skill ?? undefined,
-          evidence: r.evidence ?? undefined,
-          status,
-          statusNote: r.statusNote ?? undefined,
-          isFinalProject: r.isFinalProject === true ? true : undefined,
-          isDeleted: r.isDeleted === true,
-          deletedAt: r.isDeleted === true ? (r.deletedAt ?? undefined) : undefined,
-          createdAt: r.createdAt || new Date().toISOString(),
-          updatedAt: r.updatedAt || new Date().toISOString(),
-        };
-        await db.iamTickets.put(row);
-      }
-    }
-  } catch (e) {
-    console.error('Error importing iamTickets:', e);
-  }
+  importTicketTable(contents.file('iamTickets.json'), db.iamTickets, iamTicketSchema, {
+    hasEnvironment: true,
+    onConflict: () => { summary.conflictIamTickets++; },
+    label: 'iamTickets',
+  });
 
   // V6 (3.6.0) — snapshots de datasets de referencia (runbooks + cheatsheet).
   // POLÍTICA latest-wins SIN PÉRDIDA: el contenido es estático y viaja con la

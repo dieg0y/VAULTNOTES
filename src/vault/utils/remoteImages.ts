@@ -39,6 +39,9 @@
  * Enrich Online.
  */
 import { escapeHtml } from './escapeHtml';
+// REFACTOR R2 (P4 + 1d): el mapa MIME→extensión ahora vive en mimeMaps.ts —
+// antes era una copia local que podía divergir de las dos de zipBackup.ts.
+import { MIME_TO_EXT } from './mimeMaps';
 
 /* Límites — ver AUDIT_REPORT Addendum III */
 export const PASTE_IMG_CAP = 30;
@@ -250,18 +253,8 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 /* Nombres de archivo                                                   */
 /* ------------------------------------------------------------------ */
 
-const MIME_EXT: Record<string, string> = {
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/svg+xml': 'svg',
-  'image/bmp': 'bmp',
-  'image/x-icon': 'ico',
-  'image/vnd.microsoft.icon': 'ico',
-  'image/avif': 'avif',
-  'image/tiff': 'tiff',
-};
+// REFACTOR R2 (P4 + 1d): la copia local MIME_EXT se retiró — ver
+// mimeMaps.ts (MIME_TO_EXT, única fuente de verdad).
 
 /** Nombre de archivo razonable para una imagen descargada al pegar. */
 export function filenameForPaste(url: string, mime: string): string {
@@ -275,7 +268,7 @@ export function filenameForPaste(url: string, mime: string): string {
   }
   // Solo caracteres de archivo seguros.
   base = base.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
-  const ext = MIME_EXT[mime.toLowerCase().split(';')[0]] || 'png';
+  const ext = MIME_TO_EXT[mime.toLowerCase().split(';')[0]] || 'png';
   if (!base || !/\.[a-z0-9]{2,5}$/i.test(base)) {
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T-]/g, '');
     base = `imagen-paste-${stamp}-${Math.random().toString(36).slice(2, 6)}.${ext}`;

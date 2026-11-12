@@ -5,7 +5,7 @@ import {
   listAppFolderFiles,
   readAppFolderFile,
   removeAppFolderEntry,
-  writeFileToAppFolder,
+  writeFileToAppFolderDetailed,
 } from './videoStorage';
 
 /* ------------------------------------------------------------------ */
@@ -62,6 +62,10 @@ let state: EngineState = { ...DEFAULTS, running: false, permOk: null, dirty: tru
 let engineStarted = false;
 let inFlight = false;
 let nextAttemptAt = 0;
+// P12: handle del intervalo de 30s — null cuando el auto-backup está
+// apagado (antes el intervalo corría para siempre aunque estuviera
+// desactivado, despertando cada 30s solo para consultar permisos).
+let tickTimer: ReturnType<typeof setInterval> | null = null;
 const listeners = new Set<() => void>();
 
 function loadPersisted(): void {
@@ -116,6 +120,10 @@ export function updateAutoBackupSettings(patch: Partial<Pick<PersistedState, 'en
     // implies the user wants the folder updated NOW-ish).
     nextAttemptAt = 0;
   }
+  // P12: (des)activa el intervalo según el estado recién aplicado —
+  // activarlo lo crea (con nextAttemptAt=0 el primer ciclo respalda ya)
+  // y desactivarlo lo destruye (cero despertares, cero lecturas IndexedDB).
+  syncTickTimer();
   persist();
   notify();
 }
@@ -180,9 +188,20 @@ async function writeOneAutoBackup(): Promise<string> {
   const { buildVaultZipBlob } = await import('./zipBackup');
   const blob = await buildVaultZipBlob();
   const filename = `${AUTO_PREFIX}${autoBackupStamp()}.zip`;
-  const ok = await writeFileToAppFolder(filename, blob);
-  if (!ok) {
-    throw new Error('No se pudo escribir en la carpeta (sin permiso o carpeta desconectada).');
+  // E4: el resultado discriminado distingue la causa exacta — antes un
+  // `false` mudo se traducía en un único mensaje genérico para tres
+  // fallos distintos (sin carpeta / sin permiso / error de escritura).
+  const written = await writeFileToAppFolderDetailed(filename, blob);
+  if (!written.ok) {
+    if (written.reason === 'no-folder') {
+      throw new Error('No hay carpeta de la app configurada — elige la carpeta de la app en Configuración.');
+    }
+    if (written.reason === 'no-permission') {
+      throw new Error('Falta permiso sobre la carpeta de la app — conéctala y concede acceso desde Configuración.');
+    }
+    // 'write-error': mensaje similar al genérico histórico + causa en consola.
+    console.warn('[autoBackup] writeOneAutoBackup — error de escritura:', written.error);
+    throw new Error('No se pudo escribir en la carpeta (error de escritura).');
   }
   await pruneOldAutoBackups(state.retention);
   return filename;
@@ -258,6 +277,24 @@ export async function backupNow(): Promise<string> {
   }
 }
 
+/** P12: el intervalo de 30s SOLO existe mientras el auto-backup está
+ *  activado. Antes `startAutoBackupEngine` lo arrancaba incondicional-
+ *  mente y vivía para siempre: con el backup desactivado despertaba cada
+ *  30s solo para que runBackupCycle consultara isAppFolderPermission-
+ *  Granted() (lectura IndexedDB). Idempotente: el guard `tickTimer ===
+ *  null` garantiza que JAMÁS existan dos intervalos a la vez. */
+function syncTickTimer(): void {
+  if (!engineStarted) return; // el motor aún no arrancó — startAutoBackupEngine sincroniza
+  if (state.enabled && tickTimer === null) {
+    tickTimer = setInterval(() => {
+      void runBackupCycle();
+    }, TICK_MS);
+  } else if (!state.enabled && tickTimer !== null) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+  }
+}
+
 /** Start the background engine (idempotent — App mounts it once). */
 export function startAutoBackupEngine(): void {
   if (engineStarted) return;
@@ -268,9 +305,10 @@ export function startAutoBackupEngine(): void {
   // Change detection: ANY write to the vault marks the folder outdated.
   attachChangeHooks();
 
-  setInterval(() => {
-    void runBackupCycle();
-  }, TICK_MS);
+  // P12: el intervalo se crea SOLO si la configuración persistida trae el
+  // auto-backup activado; los cambios posteriores pasan por
+  // updateAutoBackupSettings → syncTickTimer.
+  syncTickTimer();
 }
 
 /* ----------------------------- restoring ----------------------------- */

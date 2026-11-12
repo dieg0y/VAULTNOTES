@@ -1,6 +1,5 @@
 /**
- * helpDeskTickets — GENERATED FILE (scripts/mergeHelpdeskData.mjs).
- * NO editar a mano: editar /tmp/hd/tickets.json y re-ejecutar el merge.
+ * helpDeskTickets — dataset estático (origen: migración FASE-1). Mantenimiento directo.
  *
  * 60 tickets SIMULADOS (empresa ficticia Nexora S.A. — material de
  * estudio, no datos reales). 30 forman el Proyecto Final "primera

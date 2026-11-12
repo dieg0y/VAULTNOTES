@@ -1,4 +1,14 @@
 import { db } from '../db';
+import {
+  createFsMediaFolder,
+  ensureDirPermission,
+  getDirectoryPicker,
+  queryDirPermission,
+  readStoredDirHandle,
+  writeFileToDir,
+  type FSDirHandleLike,
+  type FSFileHandleLike,
+} from './fsStorage';
 
 /* ------------------------------------------------------------------ */
 /* Video storage — File System Access API ONLY (REGLA DE ORO).         */
@@ -12,33 +22,21 @@ import { db } from '../db';
 /*                                                                     */
 /*   <figure class="vault-video-embed" data-vault-video="clip.mp4">    */
 /*     <video controls></video>   ← src = ObjectURL efímero en runtime */
-/*   </figure>                                                         */
+/*   </figure>                                                          */
 /*                                                                     */
 /* Compatibilidad legacy: las notas creadas por la versión anterior    */
 /* usaban `data-vid="vid-…"` con archivos `{id}.{ext}` en la carpeta.  */
 /* `resolveLegacyVideoUrl()` escanea la carpeta buscando ese prefijo   */
 /* para que los embeds existentes sigan reproduciéndose.               */
+/*                                                                     */
+/* REFACTOR (R3): la maquinaria FSA común (tipings, carpeta, permisos, */
+/* sanitización, unificación de nombre, sniff, guardado, búsqueda       */
+/* recursiva y ObjectURL) vive ahora en utils/fsStorage.ts — este       */
+/* archivo define la configuración de la familia videos, re-exporta     */
+/* las funciones generadas bajo sus nombres históricos y conserva       */
+/* AQUÍ (sin genericar) lo exclusivo de videos: la carpeta de la app    */
+/* (target de backups) y la migración legacy.                          */
 /* ------------------------------------------------------------------ */
-
-/** Minimal structural typings (FSA isn't in lib.dom for all targets). */
-interface FSWritableLike {
-  write: (data: Blob) => Promise<void>;
-  close: () => Promise<void>;
-}
-interface FSFileHandleLike {
-  createWritable?: (opts?: unknown) => Promise<FSWritableLike>;
-  getFile?: () => Promise<File>;
-}
-interface FSDirHandleLike {
-  name: string;
-  kind: string;
-  queryPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
-  requestPermission?: (desc: { mode: 'readwrite' }) => Promise<PermissionState>;
-  getFileHandle?: (name: string, opts?: { create?: boolean }) => Promise<FSFileHandleLike>;
-  getDirectoryHandle?: (name: string, opts?: { create?: boolean }) => Promise<FSDirHandleLike>;
-  removeEntry?: (name: string) => Promise<void>;
-  values?: () => AsyncIterableIterator<FSDirHandleLike & FSFileHandleLike>;
-}
 
 /** The user hasn't picked a videos folder yet (Settings → Carpeta de Videos). */
 export class NoVideosDirectoryError extends Error {
@@ -79,145 +77,7 @@ export function isFsSupported(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 }
 
-/* ------------------------- Directory management ------------------------- */
-
-/** Stored handle for the videos folder, or null when never picked. */
-async function getVideosDirectory(): Promise<FSDirHandleLike | null> {
-  try {
-    const stored = await db.fileHandles.get(VIDEOS_DIR_KEY);
-    return (stored?.handle as unknown as FSDirHandleLike) || null;
-  } catch {
-    return null;
-  }
-}
-
-/** True when the user picked a videos folder at some point. */
-export async function hasVideosDirectory(): Promise<boolean> {
-  return (await getVideosDirectory()) !== null;
-}
-
-/** Display name of the videos folder (e.g. "Mis Videos SOC"), or null. */
-export async function getVideosDirectoryName(): Promise<string | null> {
-  const dir = await getVideosDirectory();
-  return dir ? dir.name : null;
-}
-
-/** True when the stored folder is usable right now (permission granted). */
-export async function isVideosPermissionGranted(): Promise<boolean> {
-  const dir = await getVideosDirectory();
-  if (!dir) return false;
-  try {
-    const perm = dir.queryPermission
-      ? await dir.queryPermission({ mode: 'readwrite' })
-      : 'granted';
-    return perm === 'granted';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Ask the user to pick THE videos folder (any folder on their disk).
- * Stores the DirectoryHandle so the choice persists across sessions.
- * MUST be called from a user gesture (button click). Returns false when
- * the user cancels the picker or the browser doesn't support FSA.
- */
-export async function setVideosDirectory(): Promise<boolean> {
-  const picker = (window as unknown as {
-    showDirectoryPicker?: (opts?: unknown) => Promise<FSDirHandleLike>;
-  }).showDirectoryPicker;
-  if (!picker) return false;
-  try {
-    const prev = await getVideosDirectory();
-    const dir = await picker.call(window, {
-      mode: 'readwrite',
-      id: 'vaultnotes-videos',
-      ...(prev ? { startIn: prev } : {}),
-    });
-    if (!dir.getFileHandle) throw new Error('unsupported');
-    await db.fileHandles.put({ id: VIDEOS_DIR_KEY, handle: dir as unknown as FileSystemFileHandle });
-    return true;
-  } catch (err: unknown) {
-    if ((err as { name?: string })?.name === 'AbortError') return false; // user cancelled
-    console.warn('setVideosDirectory failed:', err);
-    return false;
-  }
-}
-
-/** Stop using the videos folder (references stay in the notes; the files
- *  are the user's and are never deleted by the app). */
-export async function forgetVideosDirectory(): Promise<void> {
-  await db.fileHandles.delete(VIDEOS_DIR_KEY);
-}
-
-/**
- * Re-request permission on the stored videos folder. MUST be called from
- * a user gesture (button click) — requestPermission otherwise throws.
- */
-export async function ensureVideosPermission(): Promise<boolean> {
-  const dir = await getVideosDirectory();
-  if (!dir) return false;
-  try {
-    let perm = dir.queryPermission
-      ? await dir.queryPermission({ mode: 'readwrite' })
-      : 'granted';
-    if (perm !== 'granted' && dir.requestPermission) {
-      perm = await dir.requestPermission({ mode: 'readwrite' });
-    }
-    return perm === 'granted';
-  } catch {
-    return false;
-  }
-}
-
-/* ----------------------------- Filenames ------------------------------ */
-
-/**
- * Sanitize a user-provided filename for the videos folder: strip path
- * separators / control chars, collapse whitespace, cap the length, and
- * keep (or derive from the mime type) a sensible extension.
- */
-function sanitizeVideoFilename(name: string, mimeType?: string): string {
-  let base = (name || 'video')
-    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  let ext = '';
-  const dot = base.lastIndexOf('.');
-  if (dot > 0) {
-    ext = base.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, '');
-    base = base.slice(0, dot).trim() || 'video';
-  }
-  if (!ext) {
-    const sub = (mimeType || 'video/mp4').split('/')[1] || 'mp4';
-    ext = sub.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'mp4';
-  }
-  if (base.length > 100) base = base.slice(0, 100).trim();
-  return `${base}.${ext}`;
-}
-
-async function fileExists(dir: FSDirHandleLike, filename: string): Promise<boolean> {
-  try {
-    await dir.getFileHandle!(filename, { create: false });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** `clip.mp4` → `clip (1).mp4`, `clip (2).mp4`, … (first free slot). */
-async function uniqueNameIn(dir: FSDirHandleLike, filename: string): Promise<string> {
-  const dot = filename.lastIndexOf('.');
-  const stem = dot > 0 ? filename.slice(0, dot) : filename;
-  const ext = dot > 0 ? filename.slice(dot) : '';
-  for (let i = 1; i < 1000; i++) {
-    const candidate = `${stem} (${i})${ext}`;
-    if (!(await fileExists(dir, candidate))) return candidate;
-  }
-  return `${stem}-${Date.now()}${ext}`;
-}
-
-/* ------------------------------ Saving ------------------------------- */
+/* ------------------------- Sniff de videos ------------------------- */
 
 /** AUDIT RECOMMENDATION (VN-AUD-I3): known video-container magic bytes.
  *  File.type is derived from the file EXTENSION by the browser, so a
@@ -248,28 +108,42 @@ const VIDEO_MAGIC_SIGS: ((b: Uint8Array) => boolean)[] = [
   (b) => b.length >= 4 && b[0] === 0x06 && b[1] === 0x0e && b[2] === 0x2b && b[3] === 0x34,
 ];
 
-/** True when the first bytes match a known video container signature.
- *  Empty files return false; a read failure returns true (the sniff must
- *  never block the REGLA DE ORO flow on its own I/O error). */
-async function looksLikeVideoFile(file: File): Promise<boolean> {
-  if (file.size === 0) return false;
-  try {
-    const head = new Uint8Array(await file.slice(0, 512).arrayBuffer());
-    return VIDEO_MAGIC_SIGS.some((sig) => sig(head));
-  } catch {
-    return true;
-  }
-}
+/* --------------------- Familia generada (fsStorage) --------------------- */
+/* Las funciones son cierres puros de la configuración — re-exportarlas
+ * como const preserva nombre, firma y comportamiento exactos.          */
 
-interface SaveVideoOpts {
-  /** What to do when the target filename already exists in the folder.
-   *  The callback typically shows a dialog ("sobrescribir" vs "nombre
-   *  único"). When omitted, the safe default is a unique name. */
-  onConflict?: (existingName: string) => Promise<'overwrite' | 'rename'> | 'overwrite' | 'rename';
-  /** Force the stored filename (used by "Buscar archivo" so a re-linked
-   *  file takes the exact name the note reference expects). */
-  forceName?: string;
-}
+const videosFolder = createFsMediaFolder({
+  dirKey: VIDEOS_DIR_KEY,
+  kindLabel: 'un video', // texto del confirm(): "no parece ser un video"
+  folderLabel: 'videos', // texto del confirm(): "a tu carpeta de videos"
+  fallbackBase: 'video', // nombre base de respaldo al sanitizar
+  fallbackMime: 'video/mp4', // mime de respaldo al derivar la extensión
+  fallbackExt: 'mp4',
+  sniffBytes: 512, // cabecera leída para el sniff (las imágenes leen 64)
+  magicSigs: VIDEO_MAGIC_SIGS,
+  // quickAccept: los videos no tienen caso SVG — el sniff puro basta.
+  errors: {
+    noDirectory: NoVideosDirectoryError,
+    permission: VideosPermissionError,
+    rejected: VideoRejectedError,
+  },
+});
+
+/** Stored handle for the videos folder, or null when never picked.
+ *  (Sigue SIN exportarse, igual que en el original.) */
+const getVideosDirectory = videosFolder.getDirectory;
+
+/** True when the user picked a videos folder at some point. */
+export const hasVideosDirectory = videosFolder.hasDirectory;
+
+/** True when the stored folder is usable right now (permission granted). */
+export const isVideosPermissionGranted = videosFolder.isPermissionGranted;
+
+/**
+ * Re-request permission on the stored videos folder. MUST be called from
+ * a user gesture (button click) — requestPermission otherwise throws.
+ */
+export const ensureVideosPermission = videosFolder.ensurePermission;
 
 /**
  * COPIES a video file into the user's videos folder (raw file on disk —
@@ -278,78 +152,7 @@ interface SaveVideoOpts {
  * Throws NoVideosDirectoryError / VideosPermissionError so the UI can
  * react with the right prompt.
  */
-export async function saveVideoToDirectory(file: File, opts: SaveVideoOpts = {}): Promise<string> {
-  const dir = await getVideosDirectory();
-  if (!dir || !dir.getFileHandle) throw new NoVideosDirectoryError();
-
-  // Permission: query first; request when we're inside a user gesture
-  // (button click / drop). Without a gesture this throws and the UI shows
-  // the "Conceder acceso" banner.
-  let perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
-  if (perm !== 'granted') {
-    if (!dir.requestPermission) throw new VideosPermissionError();
-    perm = await dir.requestPermission({ mode: 'readwrite' });
-  }
-  if (perm !== 'granted') throw new VideosPermissionError();
-
-  // AUDIT RECOMMENDATION (VN-AUD-I3): immediate feedback when the file
-  // doesn't smell like a video (renamed executable, corrupt download,
-  // empty file). File.type lies (extension-derived), so sniff the actual
-  // bytes. The user keeps the final say — their disk, their file; the app
-  // never executes it. Cancelling aborts silently via VideoRejectedError.
-  if (!(await looksLikeVideoFile(file))) {
-    const proceed = window.confirm(
-      `"${file.name}" no parece ser un video: su contenido no coincide con ningún formato conocido.\n\n` +
-      'Puede ser un archivo renombrado o corrupto. Se copiaría tal cual a tu carpeta de videos.\n\n' +
-      '¿Copiarlo de todos modos?'
-    );
-    if (!proceed) throw new VideoRejectedError();
-  }
-
-  let filename = sanitizeVideoFilename(opts.forceName || file.name, file.type || undefined);
-  if (await fileExists(dir, filename)) {
-    let action: 'overwrite' | 'rename' = 'rename';
-    if (opts.onConflict) {
-      action = await opts.onConflict(filename);
-    }
-    if (action === 'rename') filename = await uniqueNameIn(dir, filename);
-  }
-
-  const fh = await dir.getFileHandle(filename, { create: true });
-  const writable = await fh.createWritable!();
-  await writable.write(file);
-  await writable.close();
-  return filename;
-}
-
-/* ------------------------------ Reading ------------------------------- */
-
-/** Depth-limited recursive search for a file inside the folder (the user
- *  may have organized their videos into subfolders). */
-async function findFileHandle(
-  dir: FSDirHandleLike,
-  filename: string,
-  depth = 0,
-): Promise<FSFileHandleLike | null> {
-  if (!dir.getFileHandle) return null;
-  try {
-    return await dir.getFileHandle(filename, { create: false });
-  } catch {
-    /* not directly here — search subfolders */
-  }
-  if (depth >= 3 || !dir.values || !dir.getDirectoryHandle) return null;
-  try {
-    for await (const entry of dir.values()) {
-      if (entry.kind !== 'directory') continue;
-      const sub = await dir.getDirectoryHandle(entry.name);
-      const found = await findFileHandle(sub, filename, depth + 1);
-      if (found) return found;
-    }
-  } catch {
-    /* permission or transient error — treat as not found */
-  }
-  return null;
-}
+export const saveVideoToDirectory = videosFolder.saveToDirectory;
 
 /**
  * Resolves a `data-vault-video` reference to a playable ObjectURL by
@@ -358,19 +161,58 @@ async function findFileHandle(
  * (callers surface the "Conceder acceso" banner — never a silent miss).
  * The ObjectURL must be revoked by the caller (editors revoke on unmount).
  */
-export async function getVideoObjectURL(filename: string): Promise<string | null> {
+export const getVideoObjectURL = videosFolder.getObjectURL;
+
+/* ------------------------- Directory management ------------------------- */
+
+/** Display name of the videos folder (e.g. "Mis Videos SOC"), or null. */
+export async function getVideosDirectoryName(): Promise<string | null> {
   const dir = await getVideosDirectory();
-  if (!dir || !dir.getFileHandle) throw new NoVideosDirectoryError();
-
-  const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
-  if (perm !== 'granted') throw new VideosPermissionError();
-
-  const safeName = sanitizeVideoFilename(filename);
-  const fh = (await findFileHandle(dir, safeName)) || (await findFileHandle(dir, filename));
-  if (!fh || !fh.getFile) return null;
-  const file = await fh.getFile();
-  return URL.createObjectURL(file);
+  return dir ? dir.name : null;
 }
+
+/**
+ * Ask the user to pick THE videos folder (any folder on their disk).
+ * Stores the DirectoryHandle so the choice persists across sessions.
+ * MUST be called from a user gesture (button click). Returns false when
+ * the user cancels the picker or the browser doesn't support FSA.
+ */
+export async function setVideosDirectory(): Promise<boolean> {
+  const picker = getDirectoryPicker();
+  if (!picker) return false;
+  try {
+    const prev = await getVideosDirectory();
+    const dir = await picker.call(window, {
+      mode: 'readwrite',
+      id: 'vaultnotes-videos',
+      ...(prev ? { startIn: prev } : {}),
+    });
+    if (!dir.getFileHandle) throw new Error('unsupported');
+    await db.fileHandles.put({ id: VIDEOS_DIR_KEY, handle: dir as unknown as FileSystemFileHandle });
+    return true;
+  } catch (err: unknown) {
+    if ((err as { name?: string })?.name === 'AbortError') return false; // user cancelled
+    console.warn('setVideosDirectory failed:', err);
+    return false;
+  }
+}
+
+/** Stop using the videos folder (references stay in the notes; the files
+ *  are the user's and are never deleted by the app).
+ *  E3: ahora atrapa los fallos de IndexedDB al estilo de sus hermanos
+ *  (setVideosDirectory / pickAppFolder) — antes una excepción quedaba
+ *  como rechazo flotante en el `await` de SettingsView. */
+export async function forgetVideosDirectory(): Promise<boolean> {
+  try {
+    await db.fileHandles.delete(VIDEOS_DIR_KEY);
+    return true;
+  } catch (err: unknown) {
+    console.warn('forgetVideosDirectory failed:', err);
+    return false;
+  }
+}
+
+/* ------------------------------ Legacy ------------------------------- */
 
 /**
  * LEGACY COMPATIBILITY: notes written by the previous version embed
@@ -383,7 +225,7 @@ export async function resolveLegacyVideoUrl(vid: string): Promise<string | null>
   const dir = await getVideosDirectory();
   if (!dir || !dir.getFileHandle || !dir.values) return null;
 
-  const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+  const perm = await queryDirPermission(dir);
   if (perm !== 'granted') throw new VideosPermissionError();
 
   // `vid-1234567-abcd` → filename prefix `vid-1234567-abcd.`
@@ -415,15 +257,13 @@ export async function resolveLegacyVideoUrl(vid: string): Promise<string | null>
 /* ---------------------- App folder (backups only) ---------------------- */
 /* The "app folder" feature survives ONLY as the backup target: every
  * "Guardar Backup" writes VaultNotes-Backup.zip into it. It no longer
- * has anything to do with videos (REGLA DE ORO decoupling).            */
+ * has anything to do with videos (REGLA DE ORO decoupling).
+ * Flujo LOCAL (no genericado): consume los helpers de bajo nivel de
+ * fsStorage (readStoredDirHandle, queryDirPermission, ensureDirPermission,
+ * writeFileToDir).                                                        */
 
 async function getAppDirHandle(): Promise<FSDirHandleLike | null> {
-  try {
-    const stored = await db.fileHandles.get(APP_DIR_KEY);
-    return (stored?.handle as unknown as FSDirHandleLike) || null;
-  } catch {
-    return null;
-  }
+  return readStoredDirHandle(APP_DIR_KEY);
 }
 
 /** True when the user picked the app folder (backup target). */
@@ -445,9 +285,7 @@ export async function getAppFolderName(): Promise<string | null> {
  * chose in Configuración → Carpeta de Videos.
  */
 export async function pickAppFolder(): Promise<boolean> {
-  const picker = (window as unknown as {
-    showDirectoryPicker?: (opts?: unknown) => Promise<FSDirHandleLike>;
-  }).showDirectoryPicker;
+  const picker = getDirectoryPicker();
   if (!picker) return false;
   try {
     const prev = await getAppDirHandle();
@@ -488,25 +326,50 @@ export async function pickAppFolder(): Promise<boolean> {
   }
 }
 
-/** Writes a file (e.g. the backup zip) directly INTO the app folder. */
-export async function writeFileToAppFolder(filename: string, blob: Blob): Promise<boolean> {
+/** E4: resultado discriminado de la escritura en la carpeta de la app —
+ *  antes un `false` mudo cubría tres fallos distintos (sin carpeta, sin
+ *  permiso, error de escritura) y el caller perdía la causa. */
+export type WriteAppFolderResult =
+  | { ok: true }
+  | { ok: false; reason: 'no-folder' | 'no-permission' | 'write-error'; error?: unknown };
+
+/**
+ * Escribe un archivo (p.ej. el zip de backup) directamente EN la carpeta
+ * de la app, devolviendo la causa EXACTA del fallo — autoBackup.ts mapea
+ * cada `reason` a un mensaje de usuario específico. Puede pedir permiso
+ * si hay un gesto de usuario de por medio (backupNow); en flujo automático
+ * silencioso devuelve 'no-permission' sin lanzar.
+ */
+export async function writeFileToAppFolderDetailed(
+  filename: string,
+  blob: Blob,
+): Promise<WriteAppFolderResult> {
   const dir = await getAppDirHandle();
-  if (!dir || !dir.getFileHandle) return false;
+  if (!dir || !dir.getFileHandle) return { ok: false, reason: 'no-folder' };
   try {
-    let perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
-    if (perm !== 'granted' && dir.requestPermission) {
-      perm = await dir.requestPermission({ mode: 'readwrite' });
+    if ((await ensureDirPermission(dir)) !== 'granted') {
+      return { ok: false, reason: 'no-permission' };
     }
-    if (perm !== 'granted') return false;
-    const fh = await dir.getFileHandle(filename, { create: true });
-    const writable = await fh.createWritable!();
-    await writable.write(blob);
-    await writable.close();
-    return true;
-  } catch (err) {
+    await writeFileToDir(dir, filename, blob);
+    return { ok: true };
+  } catch (err: unknown) {
     console.warn('writeFileToAppFolder failed:', err);
-    return false;
+    return { ok: false, reason: 'write-error', error: err };
   }
+}
+
+/**
+ * Writes a file (e.g. the backup zip) directly INTO the app folder.
+ * Envoltorio booleano de compatibilidad: zipBackup.ts (fuera del alcance
+ * de R3) consume el resultado como booleano — `await ….catch(() => false)`
+ * + `if (wroteToApp)` — así que el tipo de retorno de ESTA función no
+ * puede cambiar sin editar ese archivo. El flujo detallado vive en
+ * `writeFileToAppFolderDetailed`; este wrapper preserva el comportamiento
+ * histórico exacto (false silencioso para carpeta/permiso, warn + false
+ * para errores de escritura).
+ */
+export async function writeFileToAppFolder(filename: string, blob: Blob): Promise<boolean> {
+  return (await writeFileToAppFolderDetailed(filename, blob)).ok;
 }
 
 /* -------- App folder: listing / reading / pruning (auto-backup) --------
@@ -527,8 +390,7 @@ export async function isAppFolderPermissionGranted(): Promise<boolean> {
   const dir = await getAppDirHandle();
   if (!dir) return false;
   try {
-    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
-    return perm === 'granted';
+    return (await queryDirPermission(dir)) === 'granted';
   } catch {
     return false;
   }
@@ -540,7 +402,7 @@ export async function listAppFolderFiles(): Promise<AppFolderFile[] | null> {
   const dir = await getAppDirHandle();
   if (!dir || !dir.values) return null;
   try {
-    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    const perm = await queryDirPermission(dir);
     if (perm !== 'granted') return null;
     const files: AppFolderFile[] = [];
     for await (const entry of dir.values()) {
@@ -564,7 +426,7 @@ export async function readAppFolderFile(name: string): Promise<File | null> {
   const dir = await getAppDirHandle();
   if (!dir || !dir.getFileHandle) return null;
   try {
-    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    const perm = await queryDirPermission(dir);
     if (perm !== 'granted') return null;
     const fh = await dir.getFileHandle(name, { create: false });
     if (!fh.getFile) return null;
@@ -580,7 +442,7 @@ export async function removeAppFolderEntry(name: string): Promise<boolean> {
   const dir = await getAppDirHandle();
   if (!dir || !dir.removeEntry) return false;
   try {
-    const perm = dir.queryPermission ? await dir.queryPermission({ mode: 'readwrite' }) : 'granted';
+    const perm = await queryDirPermission(dir);
     if (perm !== 'granted') return false;
     await dir.removeEntry(name);
     return true;
@@ -589,7 +451,15 @@ export async function removeAppFolderEntry(name: string): Promise<boolean> {
   }
 }
 
-/** Stop using the app folder (backups go back to the download picker). */
-export async function forgetAppFolder(): Promise<void> {
-  await db.fileHandles.delete(APP_DIR_KEY);
+/** Stop using the app folder (backups go back to the download picker).
+ *  E3: ahora atrapa los fallos de IndexedDB al estilo de pickAppFolder —
+ *  antes una excepción quedaba como rechazo flotante en SettingsView. */
+export async function forgetAppFolder(): Promise<boolean> {
+  try {
+    await db.fileHandles.delete(APP_DIR_KEY);
+    return true;
+  } catch (err: unknown) {
+    console.warn('forgetAppFolder failed:', err);
+    return false;
+  }
 }
