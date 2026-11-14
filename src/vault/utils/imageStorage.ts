@@ -143,3 +143,10 @@ export const saveImageToDirectory = imagesFolder.saveToDirectory;
  * file doesn't exist. The ObjectURL must be revoked by the caller.
  */
 export const getImageObjectURL = imagesFolder.getObjectURL;
+
+/**
+ * Depth-limited recursive search of a file inside the stored images folder
+ * (the user may have organized it into subfolders). Used by repoExport to
+ * COPY the original bytes into a repo export.
+ */
+export const findImagesFileHandle = imagesFolder.findFileHandle;

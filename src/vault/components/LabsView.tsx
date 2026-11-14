@@ -26,7 +26,8 @@ import {
   Terminal,
   ShieldAlert,
   ShieldCheck,
-  Copy
+  Copy,
+  FileDown
 } from 'lucide-react';
 import { Lab, LabDifficulty, LabStatus, LabPart, CategoryItem } from '../types';
 import { db } from '../db';
@@ -38,6 +39,7 @@ import {
   useVaultVideoEmbeds, useImageInsert, runSanitizedPaste, runFileDrop,
   VideoAccessBanner, VideoHiddenInputs, ImageAccessBanner, ImageHiddenInputs, stripBlobUrls,
 } from './Editor/editorMedia';
+import { exportLabsToRepo } from '../utils/repoExport';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 
 interface LabsViewProps {
@@ -128,6 +130,32 @@ export const LabsView: React.FC<LabsViewProps> = ({
   onCreateLab,
 }) => {
   const activeLabs = useMemo(() => labs.filter((l) => !l.isDeleted), [labs]);
+
+  /* --- Export MD: carpeta repo-ready con capturas (FSA) --- */
+  const [isExportingMd, setIsExportingMd] = useState(false);
+  const handleExportMd = async () => {
+    if (activeLabs.length === 0 || isExportingMd) return;
+    setIsExportingMd(true);
+    try {
+      const summary = await exportLabsToRepo(activeLabs);
+      if (summary) {
+        const detail =
+          `${summary.units} labs · ${summary.mdFiles} archivos .md · ${summary.images} imágenes ` +
+          `→ "${summary.rootName}/labs/"`;
+        alert(
+          `Exportación completada:\n\n${detail}` +
+          (summary.skippedImages > 0
+            ? `\n\n${summary.skippedImages} imagen(es) de tu carpeta de imágenes no se encontraron ` +
+              '(revisa la carpeta en Configuración y sus permisos).'
+            : '')
+        );
+      }
+    } catch (err) {
+      alert(`No se pudo exportar:\n\n${(err as Error).message}`);
+    } finally {
+      setIsExportingMd(false);
+    }
+  };
 
   /* --- Resizable panels (persisted via shared hook) --- */
   const filtersPanel = useResizablePanel({
@@ -399,9 +427,21 @@ export const LabsView: React.FC<LabsViewProps> = ({
             <h1 className="font-bold text-xs text-white uppercase tracking-wider">
               {filteredLabs.length} Labs Activos
             </h1>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#161616] border border-[#262626] text-[#888]">
-              {activeLabs.length} Total
-            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleExportMd}
+                disabled={activeLabs.length === 0 || isExportingMd}
+                className="flex items-center gap-1 px-2 py-1 rounded border border-[#262626] text-[10px] font-mono text-[#888] hover:text-white hover:bg-[#161616] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Exportar todos los labs como Markdown — crea la carpeta labs/ con un folder por lab (README.md + capturas en images/), lista para subir a tu repo"
+                aria-label="Exportar labs a Markdown"
+              >
+                <FileDown className="w-3 h-3" />
+                {isExportingMd ? '…' : 'MD'}
+              </button>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#161616] border border-[#262626] text-[#888]">
+                {activeLabs.length} Total
+              </span>
+            </div>
           </div>
 
           <div className="relative">

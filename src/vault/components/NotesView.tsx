@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useDeferredValue } from 'react';
-import { Layers, Plus, Star, Search, FileText, ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
+import { Layers, Plus, Star, Search, FileText, ChevronRight, ChevronDown, Trash2, FileDown } from 'lucide-react';
 import { Note, GlossaryTerm, PlatformItem, CategoryItem } from '../types';
 import { db } from '../db';
 import { createLowerCache } from '../utils/lowerTextCache';
+import { exportNotesToRepo } from '../utils/repoExport';
 import { RichEditor } from './Editor/RichEditor';
 import { PanelResizeHandle } from './PanelResizeHandle';
 import { useResizablePanel } from '../hooks/useResizablePanel';
@@ -40,6 +41,32 @@ export const NotesView: React.FC<NotesViewProps> = ({
 }) => {
   const activeNotes = useMemo(() => notes.filter((n) => !n.isDeleted), [notes]);
   const topLevelNotes = useMemo(() => activeNotes.filter((n) => !n.parentId), [activeNotes]);
+
+  /* --- Export MD: carpeta repo-ready con imágenes (FSA) --- */
+  const [isExportingMd, setIsExportingMd] = useState(false);
+  const handleExportMd = async () => {
+    if (activeNotes.length === 0 || isExportingMd) return;
+    setIsExportingMd(true);
+    try {
+      const summary = await exportNotesToRepo(activeNotes);
+      if (summary) {
+        const detail =
+          `${summary.units} apuntes · ${summary.mdFiles} archivos .md · ${summary.images} imágenes ` +
+          `→ "${summary.rootName}/notas/"`;
+        alert(
+          `Exportación completada:\n\n${detail}` +
+          (summary.skippedImages > 0
+            ? `\n\n${summary.skippedImages} imagen(es) de tu carpeta de imágenes no se encontraron ` +
+              '(revisa la carpeta en Configuración y sus permisos).'
+            : '')
+        );
+      }
+    } catch (err) {
+      alert(`No se pudo exportar:\n\n${(err as Error).message}`);
+    } finally {
+      setIsExportingMd(false);
+    }
+  };
 
   const [selectedPlatform, setSelectedPlatform] = useState<string>('ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -360,14 +387,26 @@ export const NotesView: React.FC<NotesViewProps> = ({
             <span className="text-[11px] font-bold text-[#888] uppercase tracking-wider truncate">
               {selectedPlatform === 'ALL' ? 'Todos los Apuntes' : selectedPlatform}
             </span>
-            <button
-              onClick={() => onCreateNote(selectedPlatform !== 'ALL' ? selectedPlatform : (platforms[0]?.name || ''))}
-              className="p-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1 transition-colors shrink-0"
-              title="Crear apunte"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="text-[11px]">Nuevo</span>
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={handleExportMd}
+                disabled={activeNotes.length === 0 || isExportingMd}
+                className="flex items-center gap-1 px-2 py-1.5 rounded border border-[#262626] text-[10px] font-mono text-[#888] hover:text-white hover:bg-[#161616] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Exportar todos los apuntes como Markdown — crea la carpeta notas/ con un folder por apunte (README.md + subpáginas + imágenes), lista para subir a tu repo"
+                aria-label="Exportar apuntes a Markdown"
+              >
+                <FileDown className="w-3 h-3" />
+                {isExportingMd ? '…' : 'MD'}
+              </button>
+              <button
+                onClick={() => onCreateNote(selectedPlatform !== 'ALL' ? selectedPlatform : (platforms[0]?.name || ''))}
+                className="p-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1 transition-colors shrink-0"
+                title="Crear apunte"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="text-[11px]">Nuevo</span>
+              </button>
+            </div>
           </div>
 
           <div className="relative">

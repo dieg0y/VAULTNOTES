@@ -19,7 +19,7 @@ function decodeEntities(s: string): string {
 }
 
 /** Converts the editor's contentHtml into clean, blog-ready markdown. */
-function htmlToMarkdown(html: string): string {
+export function htmlToMarkdown(html: string): string {
   if (!html) return '';
   let t = html;
 

