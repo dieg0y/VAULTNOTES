@@ -40,6 +40,14 @@ bun run typecheck
 bun run test
 ```
 
+## ¿Tu antivirus marca el proyecto? (falso positivo)
+
+Este repo es material de **estudio de ciberseguridad**: describe técnicas de ataque (webshells, XSS, RCE…) junto a sus consultas de detección KQL/SPL. Por eso, algunas heurísticas ML de antivirus — p. ej. `Trojan:Script/Wacatac.H!ml` de Windows Defender al descargar el ZIP — pueden marcar archivos de datos como `src/vault/data/attacks/web.ts`.
+
+- Es un **falso positivo**: la app es 100% offline y los payloads didácticos van **defang** (‹ › en vez de `< >`, el mismo estándar que `hxxp://` en informes de amenazas), sin código ejecutable.
+- Si te salta: añade una exclusión para la carpeta del proyecto (Seguridad de Windows → Protección antivirus y contra amenazas → Exclusiones) y restaura el archivo desde el historial de protección.
+- Para que no le pase a nadie más: repórtalo como falso positivo en [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/en-us/wdsi/filesubmission) (opción *Software developer*).
+
 ## Tus datos
 
 - Viven en **IndexedDB de tu navegador**, por origen: `localhost:3000` y otro puerto son vaults separados.
