@@ -67,9 +67,9 @@ export const WEB_ATTACKS: AttackInfo[] = [
     severidad: 'High',
     mitre_attack: ['T1059.007'],
     descripcion_tecnica: 'El input del atacante llega al navegador de la víctima como JavaScript ejecutable. Tres variantes: reflejado (el payload viaja en la petición y la respuesta lo devuelve sin sanear), almacenado (se guarda en BD — comentarios, nombres de perfil, tickets — y salta en cada visita, el peor) y DOM (el JS de la propia página escribe el payload en un sink sin sanitizar: innerHTML, document.write, eval, location).',
-    impacto_iam_soc: 'Robo de cookies de sesión, keylogging y acciones como la víctima. Es el puente clásico entre una app pública y la sesión de un admin privilegiado. En SOC: la señal son CSP reports y payloads con ‹script/onerror= en WAF logs.',
+    impacto_iam_soc: 'Robo de cookies de sesión, keylogging y acciones como la víctima. Es el puente clásico entre una app pública y la sesión de un admin privilegiado. En SOC: la señal son CSP reports y payloads con etiquetas script y handlers onerror en WAF logs.',
     como_funciona: [
-      'Buscar sinks con Burp Repeater: ‹script›alert(1)‹/script›, ‹img src=x onerror=alert(1)›, y en DOM: #‹img src=x onerror=alert(1)› tras el fragmento',
+      'Buscar sinks con Burp Repeater: el clásico alert(1) en sus tres formas — etiqueta script inline, atributo onerror en una imagen y, en DOM, el payload tras el fragmento #',
       'Adaptar el payload al contexto (HTML, atributo, bloque JS, URL) — Burp Scanner automatiza el descubrimiento',
       'Delivery: link con payload URL-encoded (reflejado) o comentario/nombre de perfil guardado (almacenado, salta al admin que revisa)',
       'Explotar: document.cookie hacia un collector (si falta HttpOnly) o keylogger in-page y captura de acciones de admin',
@@ -253,7 +253,7 @@ export const WEB_ATTACKS: AttackInfo[] = [
     categoria: 'Web',
     severidad: 'Critical',
     mitre_attack: ['T1505.003'],
-    descripcion_tecnica: 'Código plantado en el servidor (PHP/JSP/ASPX) que ejecuta comandos arbitrarios vía HTTP. Es el ARTEFACTO de persistencia post-compromiso — el VECTOR de entrada ya es WEB-007 (upload) o un RCE/deserialización de tercero. Un one-liner basta: ‹?php system($_GET["c"]); ?›. Familias avanzadas: China Chopper (script servidor de ~4KB con cliente GUI, base64 en cookie), WSO/b374k (file manager + SQL client), Behinder/AntSword (cifrado AES, .NET/Java).',
+    descripcion_tecnica: 'Código plantado en el servidor (PHP/JSP/ASPX) que ejecuta comandos arbitrarios vía HTTP. Es el ARTEFACTO de persistencia post-compromiso — el VECTOR de entrada ya es WEB-007 (upload) o un RCE/deserialización de tercero. Un one-liner PHP basta (una función de ejecución de comandos que lee el parámetro GET). Familias avanzadas: China Chopper (script servidor de ~4KB con cliente GUI, base64 en cookie), WSO/b374k (file manager + SQL client), Behinder/AntSword (cifrado AES, .NET/Java).',
     impacto_iam_soc: 'Terminal HTTP sobre el servidor web con los privilegios del pool — persistencia silenciosa durante meses si nadie audita el webroot. En SOC: China Chopper tiene firma de tráfico (POST corto, UA peculiar), requests al mismo .php con params base64/hex y procesos hijos del servicio web.',
     como_funciona: [
       'Plantar (vía WEB-007, RCE o FTP débil): la variante con shell_exec() en lugar de system(), guardada como footer.php en el tema del CMS',

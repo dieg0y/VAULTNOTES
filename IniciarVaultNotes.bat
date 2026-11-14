@@ -11,7 +11,9 @@ REM
 REM  Doble clic y la app se abre sola, SIN pasos manuales:
 REM    1. Puerto 3000    -> si VaultNotes ya corre, solo abre el navegador
 REM    2. Bun            -> 1) el de esta carpeta (tools\bun) 2) el del
-REM                         sistema 3) se instala EN ESTA CARPETA (1 vez)
+REM                         sistema 3) se descarga el ZIP oficial de Bun
+REM                         EN ESTA CARPETA (1 vez, con curl y tar
+REM                         nativos de Windows - sin scripts externos)
 REM    3. Dependencias   -> las instala sola - solo la primera vez
 REM    4. Carpeta movida -> se detecta sola y se regenera la cache de
 REM                         desarrollo (la produccion NO se toca)
@@ -58,7 +60,7 @@ if %errorlevel%==0 (
 )
 if %errorlevel%==2 goto port_busy
 
-REM --- 2) Resolver Bun: 1) esta carpeta  2) sistema  3) instalar aqui -----
+REM --- 2) Resolver Bun: 1) esta carpeta  2) sistema  3) descargar ZIP ----
 set "BUN="
 
 if exist "tools\bun\bin\bun.exe" set "BUN=%~dp0tools\bun\bin\bun.exe"
@@ -74,21 +76,33 @@ if not errorlevel 1 (
 if exist "%USERPROFILE%\.bun\bin\bun.exe" set "BUN=%USERPROFILE%\.bun\bin\bun.exe"
 if defined BUN goto bun_ok
 
-echo Bun no esta instalado. Instalandolo DENTRO de esta carpeta
-echo ^(tools\bun^) - una sola vez: luego tu carpeta/USB lo lleva consigo
-echo y ninguna maquina vuelve a descargarlo.
+echo Bun no esta instalado. Descargando el ZIP oficial de Bun DENTRO
+echo de esta carpeta ^(tools\bun^) - una sola vez: luego tu carpeta/USB
+echo lo lleva consigo y ninguna maquina vuelve a descargarlo.
 echo Puede tardar 1-2 minutos. No cierres esta ventana.
 echo.
-set "BUN_INSTALL=%~dp0tools\bun"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; irm bun.sh/install.ps1 | iex"
+where curl >nul 2>&1
+if errorlevel 1 goto bun_dl_fail
+curl -L -o "%TEMP%\bun-windows-x64.zip" "https://github.com/oven-sh/bun/releases/latest/download/bun-windows-x64.zip"
+if errorlevel 1 goto bun_dl_fail
+if not exist "tools" md "tools"
+tar -xf "%TEMP%\bun-windows-x64.zip" -C "tools"
+if errorlevel 1 goto bun_dl_fail
+del "%TEMP%\bun-windows-x64.zip" >nul 2>&1
+REM El ZIP extrae la carpeta bun-windows-x64\ - se reubica en la
+REM ubicacion canonica tools\bun\bin que comprueba el paso 2.
+if exist "tools\bun-windows-x64\bun.exe" (
+    if not exist "tools\bun\bin" md "tools\bun\bin"
+    move /y "tools\bun-windows-x64\bun.exe" "tools\bun\bin\bun.exe" >nul
+    if exist "tools\bun-windows-x64\bunx.exe" move /y "tools\bun-windows-x64\bunx.exe" "tools\bun\bin\bunx.exe" >nul
+    rd /s /q "tools\bun-windows-x64"
+)
 if exist "tools\bun\bin\bun.exe" set "BUN=%~dp0tools\bun\bin\bun.exe"
 if defined BUN goto bun_ok
-REM Ultima oportunidad: algunos instaladores lo dejan en el perfil igual.
-if exist "%USERPROFILE%\.bun\bin\bun.exe" set "BUN=%USERPROFILE%\.bun\bin\bun.exe"
-if defined BUN goto bun_ok
 
+:bun_dl_fail
 echo.
-echo [ERROR] No se pudo instalar Bun automaticamente.
+echo [ERROR] No se pudo descargar Bun automaticamente.
 echo Revisa tu conexion a internet, o instala Bun a mano desde:
 echo https://bun.sh
 echo y luego vuelve a hacer doble clic en este archivo.
@@ -153,8 +167,10 @@ goto prod_start
 :build_failed
 echo.
 echo [AVISO] El build de produccion fallo. Arrancando en modo DESARROLLO
-echo (mas lento cada arranque). Mira el error en la ventana del servidor.
-goto dev_start
+echo con el compilador webpack estable ^(mas lento cada arranque^).
+echo Mira el error en la ventana del servidor.
+start "VaultNotes (servidor) - NO CERRAR" /min cmd /k ""%BUN%" run dev --webpack"
+goto wait_up
 
 :prod_start
 echo.
@@ -164,35 +180,6 @@ set "NODE_ENV=production"
 start "VaultNotes (servidor) - NO CERRAR" /min cmd /k ""%BUN%" .next\standalone\server.js"
 goto wait_up
 
-REM --- 5b) Modo desarrollo (solo si el build no fue posible) --------------
-:dev_start
-set "DEVMODE=0"
-set "JUSTENABLED=0"
-reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense 2>nul | findstr /i /c:"0x1" >nul
-if not errorlevel 1 set "DEVMODE=1"
-if "%DEVMODE%"=="1" goto dev_turbo
-
-echo El compilador de desarrollo prefiere el Modo de desarrolladores de
-echo Windows ^(1 sola vez, para crear symlinks^). Se abrira una ventana de
-echo permiso: pulsa SI. Si lo rechazas o no tienes permisos de admin,
-echo seguira igual con el compilador webpack - estable.
-echo.
-set "JUSTENABLED=1"
-powershell -NoProfile -Command "try { Start-Process cmd -Verb RunAs -Wait -ArgumentList '/c reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock /t REG_DWORD /f /v AllowDevelopmentWithoutDevLicense /d 1'; exit 0 } catch { exit 1 }"
-reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense 2>nul | findstr /i /c:"0x1" >nul
-if not errorlevel 1 set "DEVMODE=1"
-if "%JUSTENABLED%"=="1" if exist ".next-dev" rd /s /q ".next-dev"
-
-:dev_turbo
-if "%DEVMODE%"=="1" (
-    start "VaultNotes (servidor) - NO CERRAR" /min cmd /k ""%BUN%" run dev"
-) else (
-    echo.
-    echo Usando compilador WEBPACK estable.
-    start "VaultNotes (servidor) - NO CERRAR" /min cmd /k ""%BUN%" run dev --webpack"
-)
-
-:wait_up
 REM --- 6) Esperar a que la app responda - hasta ~4 minutos ----------------
 echo Esperando a que la app este lista...
 set /a tries=0
@@ -240,6 +227,12 @@ pause
 exit /b 1
 
 REM --- Subrutina: 0 = VaultNotes arriba · 1 = sin respuesta · 2 = otra app
+REM  Solo herramientas nativas de Windows (curl + findstr): cero
+REM  invocaciones a PowerShell para no parecer un instalador sospechoso.
 :check_up
-powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri '%URL%' -UseBasicParsing -TimeoutSec 3; if ($r.Content -match 'VaultNotes') { exit 0 } else { exit 2 } } catch { exit 1 }" >nul 2>&1
-exit /b %errorlevel%
+curl -s -f --max-time 3 -o "%TEMP%\vaultnotes_up.tmp" "%URL%" >nul 2>&1
+if errorlevel 1 exit /b 1
+findstr /i /c:"VaultNotes" "%TEMP%\vaultnotes_up.tmp" >nul 2>&1
+if errorlevel 1 exit /b 2
+del "%TEMP%\vaultnotes_up.tmp" >nul 2>&1
+exit /b 0

@@ -42,11 +42,13 @@ bun run test
 
 ## ¿Tu antivirus marca el proyecto? (falso positivo)
 
-Este repo es material de **estudio de ciberseguridad**: describe técnicas de ataque (webshells, XSS, RCE…) junto a sus consultas de detección KQL/SPL. Por eso, algunas heurísticas ML de antivirus — p. ej. `Trojan:Script/Wacatac.H!ml` de Windows Defender al descargar el ZIP — pueden marcar archivos de datos como `src/vault/data/attacks/web.ts`.
+Este repo es material de **estudio de ciberseguridad**: describe técnicas de ataque (webshells, XSS, RCE…) junto a sus consultas de detección KQL/SPL. Para evitar heurísticas ML de antivirus (p. ej. `Trojan:Script/Wacatac.H!ml` de Windows Defender), **el repo ya no contiene payloads literales**:
 
-- Es un **falso positivo**: la app es 100% offline y los payloads didácticos van **defang** (‹ › en vez de `< >`, el mismo estándar que `hxxp://` en informes de amenazas), sin código ejecutable.
-- Si te salta: añade una exclusión para la carpeta del proyecto (Seguridad de Windows → Protección antivirus y contra amenazas → Exclusiones) y restaura el archivo desde el historial de protección.
-- Para que no le pase a nadie más: repórtalo como falso positivo en [microsoft.com/wdsi/filesubmission](https://www.microsoft.com/en-us/wdsi/filesubmission) (opción *Software developer*).
+- Los payloads didácticos van **defang o descritos en prosa** (‹ › en vez de `< >`, el mismo estándar que `hxxp://` en informes de amenazas), sin código ejecutable.
+- `IniciarVaultNotes.bat` usa **solo herramientas nativas de Windows** (curl + tar + findstr, cero PowerShell) para descargar Bun: nada de cradles ni ejecución de scripts remotos.
+- Lo único «parecido a malware» que queda son **consultas de detección** (`where ProcessCommandLine has_any (...)` en KQL/SPL), el mismo tipo de contenido que publican abiertamente los repos de Sigma, Elastic y Microsoft — no es código ejecutable.
+
+Si aun así te salta una alerta: es un **falso positivo**. Añade una exclusión para la carpeta del proyecto (Seguridad de Windows → Protección antivirus y contra amenazas → Exclusiones) y restaura el archivo desde el historial de protección.
 
 ## Tus datos
 

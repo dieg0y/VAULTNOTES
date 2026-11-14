@@ -10,7 +10,7 @@ Los payloads literales del material educativo usan corchetes tipográficos `‹ 
 
 ## Falsos positivos de antivirus
 
-Por la naturaleza del contenido, algunas heurísticas ML (p. ej. `Trojan:Script/Wacatac.H!ml` de Windows Defender) pueden marcar archivos de datos al descargar el ZIP del repo. Es un falso positivo conocido: consulta el README para añadir una exclusión y reportarlo a Microsoft.
+El repo está diseñado para **no** disparar heurísticas ML de antivirus (`Trojan:Script/Wacatac.H!ml` de Windows Defender incluido): los payloads van defang o descritos en prosa, y `IniciarVaultNotes.bat` descarga Bun con curl + tar nativos (cero PowerShell, cero ejecución de scripts remotos). Si aun así salta una alerta, es un falso positivo: añade una exclusión para la carpeta del proyecto (indicaciones en el README).
 
 ## Reportar vulnerabilidades de la app
 
